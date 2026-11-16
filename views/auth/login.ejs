@@ -141,11 +141,11 @@
             <p class="text-xs sm:text-sm text-slate-500 font-medium flex items-center justify-center gap-1.5 flex-wrap">
               <i class="ph ph-device-mobile-camera text-blue-600 text-base"></i>
               <span>Want faster emergency access?</span>
-              <button type="button" onclick="triggerPwaInstallFromLogin()" id="loginInstallBtn"
+              <a href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk" id="loginInstallBtn"
                 class="text-blue-600 hover:text-blue-800 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer bg-blue-50 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-xl text-xs transition-all active:scale-95 shadow-2xs">
                 <span>Click here to install app</span>
                 <i class="ph ph-download-simple font-bold text-xs"></i>
-              </button>
+              </a>
             </p>
           </div>
         </form>
@@ -372,24 +372,11 @@
     <!-- PWA Installation & Clock Script -->
     <script>
       function triggerPwaInstallFromLogin() {
-        if (window.EvakWarPWA && typeof window.EvakWarPWA.triggerInstall === 'function') {
-          window.EvakWarPWA.triggerInstall();
-        } else if (typeof window.triggerPWAInstall === 'function') {
-          window.triggerPWAInstall();
-        } else {
-          openInstallAppModal();
-        }
+        window.location.href = '/evakwar-resident-v2.apk';
       }
 
       function openInstallAppModal() {
-        const modal = document.getElementById('modalInstallApp');
-        if (modal) {
-          if (window.EvakWarPWA && typeof window.EvakWarPWA.setInstallModalTab === 'function' && typeof window.EvakWarPWA.detectPlatform === 'function') {
-            window.EvakWarPWA.setInstallModalTab(window.EvakWarPWA.detectPlatform());
-          }
-          modal.classList.remove('hidden');
-          document.body.classList.add('overflow-hidden');
-        }
+        window.location.href = '/evakwar-resident-v2.apk';
       }
 
       function closeInstallAppModal() {

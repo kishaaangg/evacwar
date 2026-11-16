@@ -347,13 +347,17 @@
     });
   }
 
+  function triggerApkDownload() {
+    const link = document.createElement('a');
+    link.href = '/evakwar-resident-v2.apk';
+    link.setAttribute('download', 'evakwar-resident-v2.apk');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   function openInstallModal() {
-    const modal = document.getElementById('modalInstallApp');
-    if (modal) {
-      setInstallModalTab(detectPlatform());
-      modal.classList.remove('hidden');
-      document.body.classList.add('overflow-hidden');
-    }
+    triggerApkDownload();
   }
 
   function closeInstallModal() {
@@ -365,47 +369,12 @@
   }
 
   async function triggerInstall() {
-    if (isStandalone()) {
-      openInstallModal();
-      return;
-    }
-
-    if (deferredInstallPrompt) {
-      try {
-        hideInstallBanner();
-        deferredInstallPrompt.prompt();
-        const choiceResult = await deferredInstallPrompt.userChoice;
-        if (choiceResult.outcome === 'accepted') {
-          console.log('[Evacwar PWA] User accepted installation prompt via settings.');
-          deferredInstallPrompt = null;
-        } else {
-          console.log('[Evacwar PWA] User dismissed installation prompt via settings.');
-          markDismissed();
-        }
-        syncAllInstallUI();
-      } catch (err) {
-        console.warn('[Evacwar PWA] Prompt execution failed:', err);
-        openInstallModal();
-      }
-    } else {
-      // No prompt captured (iOS, desktop browser, or already dismissed / incognito)
-      openInstallModal();
-    }
+    triggerApkDownload();
   }
 
   window.addEventListener('beforeinstallprompt', (e) => {
-    if (isResidentNativeOrPortal()) return;
-    // Prevent default mini-infobar on mobile Chrome
     e.preventDefault();
-    deferredInstallPrompt = e;
-    syncAllInstallUI();
-
-    // Do not show banner if already installed as standalone or recently dismissed
-    if (isStandalone() || isDismissedRecently()) {
-      return;
-    }
-
-    showInstallBanner();
+    return;
   });
 
   window.addEventListener('appinstalled', () => {
@@ -416,7 +385,7 @@
   });
 
   function showInstallBanner() {
-    if (isResidentNativeOrPortal()) return;
+    return;
     if (document.getElementById('pwa-install-banner')) return;
 
     const banner = document.createElement('div');
