@@ -8,7 +8,7 @@
     </div>
 
     <!-- CENTERED HERO SECTION -->
-    <section class="relative z-10 flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-center text-center">
+    <section class="relative z-10 flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-10 flex flex-col items-center justify-center text-center">
 
       <!-- Registration Confirmation Notice (shown when redirected with ?registered=1) -->
       <div id="registerSuccess"
@@ -57,18 +57,51 @@
         <a href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk"
           class="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-blue-600/35 transition-all active:scale-[0.98]">
           <i class="ph ph-android-logo text-xl"></i>
-          <span>Download Resident App</span>
+          <span>Download App</span>
           <i class="ph ph-download-simple text-lg"></i>
         </a>
       </div>
 
       <!-- Live Clock & Date -->
-      <div class="mt-8 pt-5 border-t border-white/15 flex flex-col items-center">
+      <div class="mt-7 pt-5 border-t border-white/15 flex flex-col items-center">
         <div class="text-xl sm:text-2xl font-bold font-mono tracking-widest text-white drop-shadow-md" id="live-time">
           00:00:00
         </div>
         <div class="text-xs sm:text-sm font-medium text-slate-300 mt-0.5 drop-shadow-sm" id="live-date">
           Monday, January 1, 2026
+        </div>
+      </div>
+
+      <!-- ABOUT THE APP: 3 Clean Cards Before the Footer -->
+      <div class="w-full mt-10 sm:mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 text-left">
+        <div class="rounded-2xl bg-slate-900/75 backdrop-blur-md border border-white/10 p-5 sm:p-6 hover:border-white/20 transition-all shadow-lg">
+          <div class="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-300 flex items-center justify-center mb-3.5">
+            <i class="ph ph-bell-ringing text-xl"></i>
+          </div>
+          <div class="font-extrabold text-sm sm:text-base text-white">Emergency Alerts &amp; SOS</div>
+          <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
+            Receive instant disaster warnings from the barangay and request emergency rescue assistance anytime, even during signal outages.
+          </p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/75 backdrop-blur-md border border-white/10 p-5 sm:p-6 hover:border-white/20 transition-all shadow-lg">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 flex items-center justify-center mb-3.5">
+            <i class="ph ph-map-trifold text-xl"></i>
+          </div>
+          <div class="font-extrabold text-sm sm:text-base text-white">Evacuation Center Guide</div>
+          <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
+            Check real-time shelter availability, view safe evacuation routes, and stay updated with live weather advisories across the community.
+          </p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/75 backdrop-blur-md border border-white/10 p-5 sm:p-6 hover:border-white/20 transition-all shadow-lg">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-300 flex items-center justify-center mb-3.5">
+            <i class="ph ph-qr-code text-xl"></i>
+          </div>
+          <div class="font-extrabold text-sm sm:text-base text-white">Family Profile &amp; QR Pass</div>
+          <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">
+            Manage your household members and use your digital QR pass for quick, organized check-in and relief distribution at evacuation centers.
+          </p>
         </div>
       </div>
 
