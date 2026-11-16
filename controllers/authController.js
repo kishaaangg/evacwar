@@ -14,6 +14,15 @@ const {
 } = require('../utils/validators');
 const { setNoCacheHeaders } = require('../middleware/authMiddleware');
 
+exports.getWelcome = (_req, res) => {
+  setNoCacheHeaders(res);
+  res.render("auth/welcome", {
+    ...sharedSimData(),
+    user: res.locals.user || { name: "Guest", role: "guest" },
+    page: { title: "Welcome" }
+  });
+};
+
 exports.getLogin = (_req, res) => {
   setNoCacheHeaders(res);
   res.render("auth/login", {
@@ -421,11 +430,11 @@ exports.postRegister = async (req, res) => {
         return res.json({ 
           success: true, 
           message: "Registration submitted successfully! Your account is pending verification and approval by Barangay San Rafael administrators or staff.", 
-          redirect: '/login?registered=1' 
+          redirect: '/?registered=1' 
         });
       }
 
-      return res.redirect('/login?registered=1');
+      return res.redirect('/?registered=1');
     });
   } catch (error) {
     console.error("Error in postRegister:", error);

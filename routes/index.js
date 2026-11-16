@@ -14,7 +14,8 @@ const pushRoutes = require("./pushRoutes");
 const pagasaRoutes = require("./pagasaRoutes");
 const loraRoutes = require("./loraRoutes");
 
-router.get("/", redirectIfAuth, (_req, res) => res.redirect("/login"));
+const authController = require("../controllers/authController");
+router.get("/", redirectIfAuth, authController.getWelcome);
 
 router.use("/", authRoutes);
 router.use("/api/weather", weatherRoutes);
