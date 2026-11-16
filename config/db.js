@@ -1,8 +1,12 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
-// Ensure environment variables are loaded
+// Ensure environment variables are loaded (supports local .env and Render Secret Files at /etc/secrets/.env)
 const envPath = path.join(__dirname, '..', '.env');
+const renderEnvPath = '/etc/secrets/.env';
+if (fs.existsSync(renderEnvPath)) {
+    require('dotenv').config({ path: renderEnvPath });
+}
 if (fs.existsSync(envPath)) {
     require('dotenv').config({ path: envPath });
 } else {
@@ -41,7 +45,9 @@ const isAiven = dbHost.toLowerCase().includes('aivencloud.com');
 // Configure SSL strictly for Aiven Cloud; omit SSL entirely for Hostinger / local MySQL
 let sslConfig = null;
 if (isAiven) {
-    const caPath = process.env.DB_SSL_CA_PATH || path.join(__dirname, '..', 'ca.pem');
+    const localCaPath = path.join(__dirname, '..', 'ca.pem');
+    const renderCaPath = '/etc/secrets/ca.pem';
+    const caPath = process.env.DB_SSL_CA_PATH || (fs.existsSync(renderCaPath) ? renderCaPath : localCaPath);
     let caCert = process.env.DB_SSL_CA;
 
     if (!caCert && fs.existsSync(caPath)) {

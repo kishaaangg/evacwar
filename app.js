@@ -1,4 +1,7 @@
 process.env.TZ = process.env.TZ || 'Asia/Manila';
+if (require('fs').existsSync('/etc/secrets/.env')) {
+  require('dotenv').config({ path: '/etc/secrets/.env' });
+}
 require("dotenv").config();
 const express = require("express");
 const app = express();
@@ -1274,21 +1277,7 @@ const PORT = process.env.PORT || 3000;
 const HOSTNAME = process.env.HOST || '0.0.0.0';
 
 async function startServer() {
-  try {
-    // 1. Run migrations and verify schema
-    await runMigration();
-    // 2. Ensure seed accounts exist
-    await seedAdmin();
-    // 3. Pre-warm database connection pool so first user requests face 0ms handshake delay
-    if (typeof db.prewarmPool === 'function') {
-      await db.prewarmPool(10);
-    }
-    // 4. Initialize persistent photo store and sync existing profile pictures
-    await persistentPhotoStore.init();
-  } catch (err) {
-    console.error("Initialization error:", err);
-  }
-
+  // Bind HTTP port immediately so cloud platforms (Render) pass port/health checks in <1s
   server.listen(PORT, HOSTNAME, () => {
     console.log(`EvakWar server is running on port ${PORT}`);
 
@@ -1297,6 +1286,20 @@ async function startServer() {
       console.log(`- Wi-Fi LAN access: http://<your-computer-ip>:${PORT}`);
     }
   });
+
+  // Run DB migrations, admin seeding, pool warm-up, and photo sync asynchronously
+  (async () => {
+    try {
+      await runMigration();
+      await seedAdmin();
+      if (typeof db.prewarmPool === 'function') {
+        await db.prewarmPool(4);
+      }
+      await persistentPhotoStore.init();
+    } catch (err) {
+      console.error("Initialization error:", err);
+    }
+  })();
 
   // Dual HTTP + HTTPS listener for Web Bluetooth and secure browser APIs on mobile LAN
   try {
