@@ -3893,7 +3893,7 @@
 
                         // ---- 6. Socket.IO Real-Time Network Listener (With Capacitor Mobile LAN Fallback) ----
                         const SERVER_ORIGIN = (window.Capacitor && window.Capacitor.isNativePlatform())
-                          ? (localStorage.getItem('evw_server_url') || 'https://evacwar-koyeb.onrender.com')
+                          ? (localStorage.getItem('evw_server_url') || 'https://evacwar.onrender.com')
                           : window.location.origin;
 
                         let socket = null;
@@ -4178,7 +4178,7 @@
                               if (window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
                                 target = window.location.origin;
                               } else {
-                                target = 'https://evacwar-koyeb.onrender.com';
+                                target = 'https://evacwar.onrender.com';
                               }
                             }
 
@@ -4640,7 +4640,7 @@
 
                 <div
                   class="border-t border-slate-700/60 pt-3 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Issued: Nov 16, 2026 • 9:24 AM PHT</span>
+                  <span>Issued: Nov 16, 2026 • 9:37 AM PHT</span>
                   <span class="inline-flex items-center gap-1 text-emerald-400 font-bold">
                     <i class="ph ph-shield-check"></i> Cached Advisory
                   </span>

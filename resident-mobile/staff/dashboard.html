@@ -3897,7 +3897,7 @@
 
                         // ---- 6. Socket.IO Real-Time Network Listener (With Capacitor Mobile LAN Fallback) ----
                         const SERVER_ORIGIN = (window.Capacitor && window.Capacitor.isNativePlatform())
-                          ? (localStorage.getItem('evw_server_url') || 'https://evacwar-koyeb.onrender.com')
+                          ? (localStorage.getItem('evw_server_url') || 'https://evacwar.onrender.com')
                           : window.location.origin;
 
                         let socket = null;
@@ -4182,7 +4182,7 @@
                               if (window.location.protocol.startsWith('http') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
                                 target = window.location.origin;
                               } else {
-                                target = 'https://evacwar-koyeb.onrender.com';
+                                target = 'https://evacwar.onrender.com';
                               }
                             }
 
@@ -4799,7 +4799,7 @@
                                         <div class="flex items-center gap-1 shrink-0">
                                           <span class="font-semibold text-slate-700 text-xs tracking-tight"
                                             id="weatherTime">
-                                            9:24 am
+                                            9:37 am
                                           </span>
                                           <button type="button" onclick="useMyLocationDashboard(this)"
                                             id="btnDashMyLocation"
@@ -4822,13 +4822,13 @@
                                           <div
                                             class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none"
                                             id="weatherTemp">
-                                            27°C
+                                            28°C
                                           </div>
                                           <div
                                             class="text-[11px] sm:text-xs font-semibold text-slate-600 mt-1 flex items-center gap-1"
                                             id="weatherRealFeelContainer">
                                             <span>Real feel <span id="weatherRealFeel" class="font-bold text-slate-800">
-                                                31°C
+                                                32°C
                                               </span></span>
                                           </div>
                                         </div>
@@ -4930,7 +4930,7 @@
                                             <div
                                               class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
                                               id="weatherTempPill">
-                                              27°C
+                                              28°C
                                             </div>
                                           </div>
                                         </div>
@@ -4958,10 +4958,10 @@
                                         Clear Skies
                                       </span>
                                       <span id="weatherHumidity" class="hidden">
-                                        78%
+                                        77%
                                       </span>
                                       <span id="weatherUpdated" class="hidden">
-                                        9:24 AM
+                                        9:37 AM
                                       </span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>

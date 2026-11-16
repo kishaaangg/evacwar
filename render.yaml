@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: evacwar-koyeb
+    name: evacwar
     runtime: node
     plan: free
     buildCommand: npm install

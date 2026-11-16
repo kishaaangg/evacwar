@@ -21,8 +21,9 @@
   );
 
   // Default Barangay Hall Server (Cloud Render primary, local LAN fallbacks)
-  const DEFAULT_HALL_SERVER = 'https://evacwar-koyeb.onrender.com';
+  const DEFAULT_HALL_SERVER = 'https://evacwar.onrender.com';
   const PROBE_CANDIDATES = [
+    'https://evacwar.onrender.com',
     'https://evacwar-koyeb.onrender.com',
     'https://evakwar.onrender.com',
     'http://192.168.0.102:8080',

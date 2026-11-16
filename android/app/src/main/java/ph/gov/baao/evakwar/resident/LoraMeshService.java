@@ -199,11 +199,12 @@ public class LoraMeshService extends Service {
     private final AtomicBoolean wifiPollerRunning = new AtomicBoolean(false);
     private final AtomicBoolean wifiInitialPollDone = new AtomicBoolean(false);
     private ScheduledExecutorService wifiExecutor = null;
-    private volatile String configuredServerUrl = "https://evacwar-koyeb.onrender.com";
+    private volatile String configuredServerUrl = "https://evacwar.onrender.com";
     private int candidateIpIndex = 0;
     private int consecutiveWifiErrors = 0;
 
     private static final String[] CANDIDATE_URLS = new String[]{
+            "https://evacwar.onrender.com",
             "https://evacwar-koyeb.onrender.com",
             "https://evakwar.onrender.com",
             "http://192.168.0.102:8080",
@@ -1403,7 +1404,7 @@ public class LoraMeshService extends Service {
 
         String baseUrl = configuredServerUrl;
         if (baseUrl == null || baseUrl.isEmpty()) {
-            baseUrl = "https://evacwar-koyeb.onrender.com";
+            baseUrl = "https://evacwar.onrender.com";
         }
         baseUrl = baseUrl.replaceAll("/+$", "");
         String endpoint = baseUrl + "/api/lora/latest-alert";
@@ -1528,7 +1529,7 @@ public class LoraMeshService extends Service {
 
         String baseUrl = configuredServerUrl;
         if (baseUrl == null || baseUrl.isEmpty()) {
-            baseUrl = "https://evacwar-koyeb.onrender.com";
+            baseUrl = "https://evacwar.onrender.com";
         }
         baseUrl = baseUrl.replaceAll("/+$", "");
         String endpoint = baseUrl + "/api/lora/chat/latest";

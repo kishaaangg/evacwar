@@ -195,7 +195,7 @@
       <div id="serverSettingsPanel" style="display: none; margin-top: 8px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: left;">
         <label for="serverUrlInput" style="display: block; font-size: 10.5px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 4px;">Barangay Hall Server URL</label>
         <div style="display: flex; gap: 6px;">
-          <input type="url" id="serverUrlInput" class="text-input" style="padding: 8px 10px; font-size: 12px;" placeholder="https://evacwar-koyeb.onrender.com">
+          <input type="url" id="serverUrlInput" class="text-input" style="padding: 8px 10px; font-size: 12px;" placeholder="https://evacwar.onrender.com">
           <button type="button" id="saveServerUrlBtn" onclick="window.saveServerUrl && window.saveServerUrl()" style="background: #0f172a; color: #ffffff; border: none; border-radius: 10px; padding: 0 14px; font-size: 11.5px; font-weight: 800; cursor: pointer; shrink: 0;">Save</button>
         </div>
         <div id="serverUrlStatus" style="font-size: 11px; font-weight: 600; margin-top: 6px; color: #64748b;"></div>
@@ -211,8 +211,9 @@
     (function () {
       'use strict';
 
-      const DEFAULT_SERVER_URL = 'https://evacwar-koyeb.onrender.com';
+      const DEFAULT_SERVER_URL = 'https://evacwar.onrender.com';
       const CANDIDATE_URLS = [
+        'https://evacwar.onrender.com',
         'https://evacwar-koyeb.onrender.com',
         'https://evakwar.onrender.com',
         'http://192.168.0.102:8080',

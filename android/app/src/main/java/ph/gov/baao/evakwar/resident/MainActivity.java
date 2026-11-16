@@ -195,7 +195,7 @@ public class MainActivity extends BridgeActivity {
             if (!savedName.isEmpty()) {
                 LoraMeshService.setActiveUserStatic(savedName, savedRole);
             }
-            String savedUrl = prefs.getString("server_url", "https://evacwar-koyeb.onrender.com");
+            String savedUrl = prefs.getString("server_url", "https://evacwar.onrender.com");
             if (LoraMeshService.instance != null) {
                 LoraMeshService.instance.updateServerUrl(savedUrl);
             }
