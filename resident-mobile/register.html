@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1329">
+  <title>Sign In - EvakWar Mobile</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/google-fonts.css">
+  <script src="/js/bcrypt.min.js"></script>
+  <script src="/js/offline-data.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at top, #1e293b, #0b1329 80%);
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .auth-card {
+      background: #ffffff;
+      color: #0f172a;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 24px;
+      padding: 30px 24px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5);
+    }
+    .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      transition: all 0.2s ease;
+    }
+    .mode-online {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .mode-offline {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .input-group {
+      margin-bottom: 14px;
+      text-align: left;
+    }
+    .input-label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #475569;
+      margin-bottom: 5px;
+    }
+    .text-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #0f172a;
+      background: #f8fafc;
+      transition: border-color 0.15s, background-color 0.15s;
+    }
+    .text-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: #ffffff;
+    }
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 14px;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-submit:active {
+      transform: scale(0.98);
+    }
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .error-msg {
+      font-size: 12px;
+      font-weight: 600;
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      display: none;
+      text-align: left;
+    }
+    .cached-notice {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #334155;
+      margin-bottom: 16px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .avatar-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #dbeafe;
+      color: #1d4ed8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div style="text-align: center; margin-bottom: 16px;">
+      <img src="/images/logo.png" alt="EvakWar" style="width: 58px; height: 58px; margin: 0 auto 8px; display: block;" onerror="this.style.display='none'">
+      <h1 style="font-size: 18px; font-weight: 900; margin: 0; color: #0f172a;">EvakWar Unified Mobile</h1>
+      <p style="font-size: 12px; color: #64748b; margin: 2px 0 0;">Barangay San Rafael &bull; Resident, Staff & Rescuer</p>
+    </div>
+
+    <!-- Live Network / Mode Badge -->
+    <div style="text-align: center;">
+      <span id="modeBadge" class="mode-pill mode-online">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
+        <span id="modeText">Checking Server Connection...</span>
+      </span>
+    </div>
+
+    <!-- Cached Device Account Indicator -->
+    <div id="cachedOwnerBox" class="cached-notice" style="display: none;">
+      <div class="avatar-circle" id="ownerInitial">L</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase;" id="ownerRoleLabel">Account Active</div>
+        <div id="ownerName" style="font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Laurence Sinfuego</div>
+      </div>
+    </div>
+
+    <div id="errorAlert" class="error-msg"></div>
+    <div id="successAlert" style="font-size: 12px; font-weight: 600; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; display: none; text-align: left;"></div>
+
+    <!-- Sign In / Register Tab Switcher -->
+    <div style="display: flex; background: #f1f5f9; border-radius: 12px; padding: 4px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+      <button type="button" id="tabSignInBtn" onclick="window.switchAuthTab('login')" style="flex: 1; padding: 8px 10px; border: 0; border-radius: 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; background: #2563eb; color: #ffffff; box-shadow: 0 2px 6px rgba(37,99,235,0.25);">
+        Sign In
+      </button>
+      <button type="button" id="tabRegisterBtn" onclick="window.switchAuthTab('register')" style="flex: 1; padding: 8px 10px; border: 0; border-radius: 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; background: transparent; color: #475569;">
+        Register Account
+      </button>
+    </div>
+
+    <form id="loginForm" autocomplete="on">
+      <div class="input-group">
+        <label for="emailInput" class="input-label">Email or Contact Number</label>
+        <input id="emailInput" type="text" class="text-input" placeholder="Enter your email or 09XXXXXXXXX" required autocomplete="username">
+      </div>
+
+      <div class="input-group">
+        <label for="passwordInput" class="input-label">Password</label>
+        <input id="passwordInput" type="password" class="text-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" required autocomplete="current-password">
+      </div>
+
+      <button type="submit" id="submitBtn" class="btn-submit">
+        Sign In to Emergency Dashboard
+      </button>
+
+      <div style="margin-top: 12px; text-align: center; font-size: 12px; color: #64748b; font-weight: 600;">
+        Don't have an account? <button type="button" onclick="window.switchAuthTab('register')" style="background: none; border: 0; color: #2563eb; font-weight: 800; cursor: pointer; padding: 0; text-decoration: underline;">Create one here</button>
+      </div>
+    </form>
+
+    <!-- In-App Resident Registration Form -->
+    <form id="registerForm" style="display: none; text-align: left;" autocomplete="on">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regFirstName" class="input-label">First Name *</label>
+          <input id="regFirstName" name="first_name" type="text" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="First Name" required>
+        </div>
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regLastName" class="input-label">Last Name *</label>
+          <input id="regLastName" name="last_name" type="text" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="Last Name" required>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regMiddleName" class="input-label">Middle Name (Opt)</label>
+          <input id="regMiddleName" name="middle_name" type="text" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="Middle Name">
+        </div>
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regContact" class="input-label">Mobile Number *</label>
+          <input id="regContact" name="contact" type="tel" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="09XXXXXXXXX" maxlength="11" required>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regZone" class="input-label">Zone Location *</label>
+          <select id="regZone" name="zone" class="text-input" style="padding: 10px 12px; font-size: 13px;" required>
+            <option value="">Select Zone</option>
+            <option value="Zone 1">Zone 1</option>
+            <option value="Zone 2">Zone 2</option>
+            <option value="Zone 3">Zone 3</option>
+            <option value="Zone 4">Zone 4</option>
+            <option value="Zone 5">Zone 5</option>
+            <option value="Zone 6">Zone 6</option>
+            <option value="Zone 7">Zone 7</option>
+          </select>
+        </div>
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regFamilySize" class="input-label">Family Size *</label>
+          <input id="regFamilySize" name="family_size" type="number" min="1" max="30" value="1" class="text-input" style="padding: 10px 12px; font-size: 13px;" required>
+        </div>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 10px;">
+        <label for="regEmail" class="input-label">Email Address *</label>
+        <input id="regEmail" name="email" type="email" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="yourname@email.com" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regPassword" class="input-label">Password *</label>
+          <input id="regPassword" name="password" type="password" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="8+ chars (letters+nums)" required>
+        </div>
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label for="regConfirmPassword" class="input-label">Confirm Password *</label>
+          <input id="regConfirmPassword" name="confirm_password" type="password" class="text-input" style="padding: 10px 12px; font-size: 13px;" placeholder="Repeat password" required>
+        </div>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 10px;">
+        <label for="regVulnerability" class="input-label">Vulnerability Category</label>
+        <select id="regVulnerability" name="vulnerability" class="text-input" style="padding: 10px 12px; font-size: 13px;">
+          <option value="None">None</option>
+          <option value="Senior Citizen">Senior Citizen</option>
+          <option value="PWD">Person with Disability (PWD)</option>
+          <option value="Pregnant">Pregnant</option>
+          <option value="Lactating Mother">Lactating Mother</option>
+          <option value="4Ps Beneficiary">4Ps Beneficiary</option>
+        </select>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 12px;">
+        <label for="regValidId" class="input-label">Valid ID / Barangay ID Photo *</label>
+        <input id="regValidId" name="valid_id" type="file" accept="image/*" class="text-input" style="padding: 8px 10px; font-size: 12px;" required>
+      </div>
+
+      <button type="submit" id="regSubmitBtn" class="btn-submit">
+        Submit Resident Registration
+      </button>
+
+      <div style="margin-top: 12px; text-align: center; font-size: 12px; color: #64748b; font-weight: 600;">
+        Already have an account? <button type="button" onclick="window.switchAuthTab('login')" style="background: none; border: 0; color: #2563eb; font-weight: 800; cursor: pointer; padding: 0; text-decoration: underline;">Sign in here</button>
+      </div>
+    </form>
+
+    <!-- Cloud Hosting & Server Endpoint Config Toggle -->
+    <div style="margin-top: 16px; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+      <div style="text-align: center;">
+        <button type="button" id="toggleServerSettingsBtn" onclick="window.toggleServerSettings && window.toggleServerSettings()" style="background: none; border: none; color: #64748b; font-size: 11.5px; font-weight: 700; cursor: pointer; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px;">
+          <span>&#9881; Server / Wi-Fi Network Settings</span>
+        </button>
+      </div>
+
+      <div id="serverSettingsPanel" style="display: none; margin-top: 8px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: left;">
+        <label for="serverUrlInput" style="display: block; font-size: 10.5px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 4px;">Barangay Hall Server URL</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="url" id="serverUrlInput" class="text-input" style="padding: 8px 10px; font-size: 12px;" placeholder="https://evacwar.onrender.com">
+          <button type="button" id="saveServerUrlBtn" onclick="window.saveServerUrl && window.saveServerUrl()" style="background: #0f172a; color: #ffffff; border: none; border-radius: 10px; padding: 0 14px; font-size: 11.5px; font-weight: 800; cursor: pointer; shrink: 0;">Save</button>
+        </div>
+        <div id="serverUrlStatus" style="font-size: 11px; font-weight: 600; margin-top: 6px; color: #64748b;"></div>
+      </div>
+    </div>
+
+    <div style="margin-top: 14px; text-align: center; font-size: 10.5px; color: #94a3b8; font-weight: 600;">
+      <span>EvakWar v2.4 &bull; 433.875 MHz LoRa Mesh + Wi-Fi</span>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const DEFAULT_SERVER_URL = 'https://evacwar.onrender.com';
+      const CANDIDATE_URLS = [
+        'https://evacwar.onrender.com',
+        'https://evacwar-koyeb.onrender.com',
+        'https://evakwar.onrender.com',
+        'http://192.168.0.102:8080',
+        'http://192.168.0.101:8080',
+        'http://192.168.0.100:8080',
+        'http://192.168.18.14:8080',
+        'http://10.0.2.2:8080'
+      ];
+
+      const DEFAULT_EMAIL = "laurencesinfuego@gmail.com";
+      const DEFAULT_NAME = "Laurence Sinfuego";
+      const DEFAULT_SALT = "1b5dc65549135310918a292e167b95e2";
+      const DEFAULT_HASH = "e9b9e35cc8269ac32bb61f3154b8cce89860ffd0e999bac98eafb2cf0603f366";
+
+      const emailInput = document.getElementById('emailInput');
+      const passwordInput = document.getElementById('passwordInput');
+      const errorAlert = document.getElementById('errorAlert');
+      const submitBtn = document.getElementById('submitBtn');
+      const modeBadge = document.getElementById('modeBadge');
+      const modeText = document.getElementById('modeText');
+      const ownerNameEl = document.getElementById('ownerName');
+      const ownerInitialEl = document.getElementById('ownerInitial');
+      const ownerRoleLabel = document.getElementById('ownerRoleLabel');
+
+      // Populate cached user if present
+      let cachedUser = null;
+      try {
+        const uRole = localStorage.getItem('evw_user_role');
+        if (uRole === 'staff' || uRole === 'rescuer') {
+          cachedUser = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+        } else {
+          cachedUser = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
+        }
+      } catch (_) {}
+
+      if (cachedUser && (cachedUser.full_name || cachedUser.name || cachedUser.first_name)) {
+        const displayName = cachedUser.full_name || cachedUser.name || ((cachedUser.first_name || '') + ' ' + (cachedUser.last_name || '')).trim();
+        if (ownerNameEl) ownerNameEl.textContent = displayName;
+        if (ownerInitialEl) ownerInitialEl.textContent = displayName.charAt(0).toUpperCase();
+        if (ownerRoleLabel) {
+          const uRole = localStorage.getItem('evw_user_role') || (cachedUser.staff_type === 'RESCUER' ? 'rescuer' : (cachedUser.staff_type ? 'staff' : 'resident'));
+          ownerRoleLabel.textContent = uRole === 'rescuer' ? 'Rescuer Account' : (uRole === 'staff' ? 'Staff Account' : 'Resident Account');
+        }
+        const cachedOwnerBox = document.getElementById('cachedOwnerBox');
+        if (cachedOwnerBox) cachedOwnerBox.style.display = 'flex';
+      }
+      const cachedEmail = localStorage.getItem('evw_cached_email');
+      if (emailInput && cachedEmail) emailInput.value = cachedEmail;
+
+      const successAlert = document.getElementById('successAlert');
+
+      function showError(msg) {
+        if (successAlert) successAlert.style.display = 'none';
+        if (!errorAlert) return;
+        errorAlert.textContent = msg;
+        errorAlert.style.display = 'block';
+      }
+
+      function hideError() {
+        if (!errorAlert) return;
+        errorAlert.style.display = 'none';
+      }
+
+      function showSuccess(msg) {
+        hideError();
+        if (!successAlert) return;
+        successAlert.textContent = msg;
+        successAlert.style.display = 'block';
+      }
+
+      window.switchAuthTab = function (tab) {
+        hideError();
+        const loginF = document.getElementById('loginForm');
+        const regF = document.getElementById('registerForm');
+        const btnIn = document.getElementById('tabSignInBtn');
+        const btnReg = document.getElementById('tabRegisterBtn');
+        if (tab === 'register') {
+          if (loginF) loginF.style.display = 'none';
+          if (regF) regF.style.display = 'block';
+          if (btnReg) {
+            btnReg.style.background = '#2563eb';
+            btnReg.style.color = '#ffffff';
+            btnReg.style.boxShadow = '0 2px 6px rgba(37,99,235,0.25)';
+          }
+          if (btnIn) {
+            btnIn.style.background = 'transparent';
+            btnIn.style.color = '#475569';
+            btnIn.style.boxShadow = 'none';
+          }
+        } else {
+          if (loginF) loginF.style.display = 'block';
+          if (regF) regF.style.display = 'none';
+          if (btnIn) {
+            btnIn.style.background = '#2563eb';
+            btnIn.style.color = '#ffffff';
+            btnIn.style.boxShadow = '0 2px 6px rgba(37,99,235,0.25)';
+          }
+          if (btnReg) {
+            btnReg.style.background = 'transparent';
+            btnReg.style.color = '#475569';
+            btnReg.style.boxShadow = 'none';
+          }
+        }
+      };
+
+      if (window.location.pathname.includes('register') || window.location.search.includes('register')) {
+        window.switchAuthTab('register');
+      }
+
+      function getHallBaseUrl() {
+        if (window.location.protocol.startsWith('http') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform())) {
+          return window.location.origin;
+        }
+        try {
+          const saved = localStorage.getItem('evw_server_url');
+          if (saved && saved.startsWith('http') && !saved.includes('http://localhost/') && saved !== 'http://localhost') {
+            return saved.replace(new RegExp('/+$'), '');
+          }
+        } catch (_) {}
+        if (window.location.port === '8080') return window.location.origin;
+        return DEFAULT_SERVER_URL;
+      }
+
+      async function checkServerStatus() {
+        if (!navigator.onLine) {
+          setOfflineUi();
+          return;
+        }
+
+        const currentUrl = getHallBaseUrl();
+        const urlsToTry = [currentUrl, ...CANDIDATE_URLS.filter(u => u !== currentUrl)];
+
+        for (const testUrl of urlsToTry) {
+          try {
+            const ctrl = new AbortController();
+            const tId = setTimeout(() => ctrl.abort(), 3500);
+            const res = await fetch(testUrl + '/api/centers/active', { method: 'GET', signal: ctrl.signal });
+            clearTimeout(tId);
+            if (res.ok) {
+              localStorage.setItem('evw_server_url', testUrl);
+              setOnlineUi(testUrl);
+              const sInp = document.getElementById('serverUrlInput');
+              if (sInp && sInp.value !== testUrl) sInp.value = testUrl;
+              return;
+            }
+          } catch (_) {}
+        }
+        setOfflineUi();
+      }
+
+      function setOnlineUi(activeUrl) {
+        if (!modeBadge || !modeText) return;
+        modeBadge.className = 'mode-pill mode-online';
+        modeBadge.querySelector('span').style.background = '#10b981';
+        modeText.textContent = '● Online (Barangay Hall Server)';
+      }
+
+      function setOfflineUi() {
+        if (!modeBadge || !modeText) return;
+        modeBadge.className = 'mode-pill mode-offline';
+        modeBadge.querySelector('span').style.background = '#f59e0b';
+        modeText.textContent = '● Offline Mode (Emergency Cached)';
+      }
+
+      checkServerStatus();
+      window.addEventListener('online', checkServerStatus);
+      window.addEventListener('offline', setOfflineUi);
+
+      window.toggleServerSettings = function () {
+        const p = document.getElementById('serverSettingsPanel');
+        const inp = document.getElementById('serverUrlInput');
+        if (!p) return;
+        const isHidden = (p.style.display === 'none' || !p.style.display);
+        p.style.display = isHidden ? 'block' : 'none';
+        if (isHidden && inp) {
+          inp.value = getHallBaseUrl();
+          inp.focus();
+        }
+      };
+
+      window.saveServerUrl = async function () {
+        const inp = document.getElementById('serverUrlInput');
+        const stat = document.getElementById('serverUrlStatus');
+        const p = document.getElementById('serverSettingsPanel');
+        if (!inp) return;
+        let newUrl = inp.value.trim().replace(new RegExp('/+$'), '');
+        if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
+          newUrl = 'http://' + newUrl;
+          inp.value = newUrl;
+        }
+        try {
+          localStorage.setItem('evw_server_url', newUrl);
+          if (stat) {
+            stat.textContent = 'Testing connection to ' + newUrl + '...';
+            stat.style.color = '#2563eb';
+          }
+          await checkServerStatus();
+          if (stat) {
+            stat.textContent = 'Saved! Server URL updated.';
+            stat.style.color = '#16a34a';
+            setTimeout(() => { if (p) p.style.display = 'none'; }, 1500);
+          }
+        } catch (e) {
+          if (stat) {
+            stat.textContent = 'Saved to localStorage.';
+            stat.style.color = '#16a34a';
+          }
+        }
+      };
+
+      const serverUrlInput = document.getElementById('serverUrlInput');
+      if (serverUrlInput) {
+        serverUrlInput.value = getHallBaseUrl();
+      }
+
+      async function hashPasswordWithSalt(password, salt) {
+        const enc = new TextEncoder();
+        const data = enc.encode(password + ':' + salt);
+        const hashBuf = await crypto.subtle.digest('SHA-256', data);
+        const hashArr = Array.from(new Uint8Array(hashBuf));
+        return hashArr.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      document.getElementById('loginForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        hideError();
+
+        const rawInput = emailInput.value.trim();
+        const email = rawInput.toLowerCase();
+        const password = passwordInput.value;
+
+        if (!email || !password) {
+          showError('Please enter both email/contact and password.');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Verifying Credentials...';
+
+        // STEP 1: Attempt Server Sign-In if online
+        if (navigator.onLine) {
+          try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 12000);
+            const res = await fetch(getHallBaseUrl() + '/api/mobile/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: rawInput, password }),
+              credentials: 'include',
+              signal: ctrl.signal
+            });
+            clearTimeout(timer);
+
+            const data = await res.json().catch(() => null);
+
+            if (res.ok && data && data.success) {
+              const role = data.role || (data.staff ? (data.staff.staff_type === 'RESCUER' ? 'rescuer' : 'staff') : 'resident');
+              const targetUrl = data.redirectUrl || (role === 'rescuer' ? '/rescuer/dashboard/index.html' : (role === 'staff' ? '/staff/dashboard/index.html' : '/resident/dashboard/index.html'));
+
+              try {
+                localStorage.setItem('evw_cached_email', email);
+                localStorage.setItem('evw_user_role', role);
+                if (data.staff) localStorage.setItem('evw_cached_staff', JSON.stringify(data.staff));
+                if (data.resident) localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
+                if (data.members) localStorage.setItem('evw_cached_members', JSON.stringify(data.members));
+                if (data.offlineAuth) {
+                  localStorage.setItem('evw_offline_salt', data.offlineAuth.salt);
+                  localStorage.setItem('evw_offline_hash', data.offlineAuth.hash);
+                }
+                localStorage.removeItem('evacwar_logged_out');
+              } catch (_) {}
+
+              submitBtn.textContent = 'Success! Opening Dashboard...';
+              setTimeout(() => {
+                window.location.replace(targetUrl);
+              }, 400);
+              return;
+            } else if (res.status === 401 || res.status === 403) {
+              showError((data && data.message) || 'Invalid username/email or password.');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Sign In to Emergency Dashboard';
+              return;
+            }
+          } catch (_netErr) {
+            console.warn('Server sign-in unreachable, attempting offline verification...');
+          }
+        }
+
+        // STEP 2: Offline Verification Fallback (Bcrypt against pre-seeded records)
+        try {
+          const offlineStaff = window.OFFLINE_STAFF || [];
+          const offlineResidents = window.OFFLINE_RESIDENTS || [];
+          const cleanInputNoSpace = rawInput.replace(/[\s\-]/g, '');
+
+          // Check Staff/Rescuer Accounts
+          const foundStaff = offlineStaff.find(s =>
+            (s.email && s.email.toLowerCase() === email) ||
+            (s.contact_number && s.contact_number.replace(/[\s\-]/g, '') === cleanInputNoSpace)
+          );
+
+          if (foundStaff) {
+            let isPasswordValid = false;
+            if (window.bcrypt && typeof window.bcrypt.compareSync === 'function' && foundStaff.password_hash) {
+              try { isPasswordValid = window.bcrypt.compareSync(password, foundStaff.password_hash); } catch (_) {}
+            }
+
+            if (isPasswordValid) {
+              const role = foundStaff.staff_type === 'RESCUER' ? 'rescuer' : 'staff';
+              const targetUrl = role === 'rescuer' ? '/rescuer/dashboard/index.html' : '/staff/dashboard/index.html';
+              try {
+                localStorage.setItem('evw_cached_email', foundStaff.email || email);
+                localStorage.setItem('evw_user_role', role);
+                localStorage.setItem('evw_cached_staff', JSON.stringify(foundStaff));
+                localStorage.removeItem('evacwar_logged_out');
+              } catch (_) {}
+
+              submitBtn.textContent = 'Verified (Staff Offline Mode)! Opening...';
+              setTimeout(() => window.location.replace(targetUrl), 300);
+              return;
+            } else {
+              showError('Incorrect password for Staff account.');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Sign In to Emergency Dashboard';
+              return;
+            }
+          }
+
+          // Check Resident Accounts
+          const foundResident = offlineResidents.find(a =>
+            (a.email && a.email.toLowerCase() === email) ||
+            (a.contact_number && a.contact_number.replace(/[\s\-]/g, '') === cleanInputNoSpace)
+          );
+
+          if (foundResident) {
+            let isPasswordValid = false;
+            if (window.bcrypt && typeof window.bcrypt.compareSync === 'function' && foundResident.password_hash) {
+              try { isPasswordValid = window.bcrypt.compareSync(password, foundResident.password_hash); } catch (_) {}
+            }
+
+            // Fallback check for Laurence pre-calculated hash
+            if (!isPasswordValid && (foundResident.user_id === 3 || email.includes('laurence'))) {
+              const computedHash = await hashPasswordWithSalt(password, DEFAULT_SALT);
+              if (computedHash.toLowerCase() === DEFAULT_HASH.toLowerCase()) {
+                isPasswordValid = true;
+              }
+            }
+
+            if (isPasswordValid) {
+              try {
+                localStorage.setItem('evw_cached_email', foundResident.email || email);
+                localStorage.setItem('evw_user_role', 'resident');
+                localStorage.setItem('evw_cached_resident', JSON.stringify(foundResident));
+                localStorage.setItem('evw_cached_members', JSON.stringify(foundResident.members || []));
+                localStorage.removeItem('evacwar_logged_out');
+              } catch (_) {}
+
+              submitBtn.textContent = 'Verified (Offline Mode)! Opening...';
+              setTimeout(() => window.location.replace('/resident/dashboard/index.html'), 300);
+              return;
+            } else {
+              showError('Incorrect password (Offline verification).');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Sign In to Emergency Dashboard';
+              return;
+            }
+          }
+
+          // Fallback Laurence account
+          const storedEmail = (localStorage.getItem('evw_cached_email') || DEFAULT_EMAIL).toLowerCase();
+          const storedHash = localStorage.getItem('evw_offline_hash') || DEFAULT_HASH;
+          const storedSalt = localStorage.getItem('evw_offline_salt') || DEFAULT_SALT;
+
+          if (email === storedEmail || email.includes('laurence')) {
+            const computedHash = await hashPasswordWithSalt(password, storedSalt);
+            if (computedHash.toLowerCase() === storedHash.toLowerCase()) {
+              localStorage.setItem('evw_user_role', 'resident');
+              localStorage.removeItem('evacwar_logged_out');
+              submitBtn.textContent = 'Verified (Offline Mode)...';
+              setTimeout(() => window.location.replace('/resident/dashboard/index.html'), 300);
+              return;
+            }
+          }
+
+          showError('Account not found in offline records. Connect to the internet to sign in.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In to Emergency Dashboard';
+          return;
+        } catch (cryptErr) {
+          console.error('Offline crypto verification error:', cryptErr);
+          showError('Authentication error. Please try again.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In to Emergency Dashboard';
+        }
+      });
+
+      function compressIdPhoto(file, maxDim = 1280, quality = 0.8) {
+        return new Promise((resolve) => {
+          if (!file || !file.type.startsWith('image/')) return resolve(file);
+          const reader = new FileReader();
+          reader.onload = function (ev) {
+            const img = new Image();
+            img.onload = function () {
+              let w = img.width;
+              let h = img.height;
+              if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                else { w = Math.round((w * maxDim) / h); h = maxDim; }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              canvas.toBlob((blob) => {
+                if (blob && blob.size < file.size) {
+                  resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+                } else {
+                  resolve(file);
+                }
+              }, 'image/jpeg', quality);
+            };
+            img.onerror = () => resolve(file);
+            img.src = ev.target.result;
+          };
+          reader.onerror = () => resolve(file);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      const regForm = document.getElementById('registerForm');
+      if (regForm) {
+        regForm.addEventListener('submit', async function (e) {
+          e.preventDefault();
+          hideError();
+          if (!navigator.onLine) {
+            showError('Internet connection is required to register a new resident account.');
+            return;
+          }
+          const regBtn = document.getElementById('regSubmitBtn');
+          const pw = document.getElementById('regPassword').value;
+          const cpw = document.getElementById('regConfirmPassword').value;
+          if (pw !== cpw) {
+            showError('Passwords do not match.');
+            return;
+          }
+          regBtn.disabled = true;
+          regBtn.textContent = 'Submitting Registration...';
+          try {
+            const fd = new FormData(regForm);
+            const idInput = document.getElementById('regValidId');
+            if (idInput && idInput.files && idInput.files[0]) {
+              const compressed = await compressIdPhoto(idInput.files[0]);
+              fd.set('valid_id', compressed, compressed.name);
+            }
+            const res = await fetch(getHallBaseUrl() + '/api/mobile/register', {
+              method: 'POST',
+              headers: { 'Accept': 'application/json' },
+              body: fd
+            });
+            const data = await res.json().catch(() => null);
+            if (res.ok && data && data.success) {
+              const submittedEmail = document.getElementById('regEmail').value.trim();
+              regForm.reset();
+              window.switchAuthTab('login');
+              if (emailInput && submittedEmail) emailInput.value = submittedEmail;
+              showSuccess(data.message || 'Registration submitted! Your account is pending verification and approval by Barangay San Rafael staff.');
+            } else {
+              showError((data && data.message) || 'Registration failed. Please check all required fields.');
+            }
+          } catch (err) {
+            showError('Could not reach the server. Please check your internet connection and try again.');
+          } finally {
+            regBtn.disabled = false;
+            regBtn.textContent = 'Submit Resident Registration';
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

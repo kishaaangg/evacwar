@@ -91,10 +91,12 @@ app.use((req, res, next) => {
   ].join('; ');
   res.setHeader('Content-Security-Policy', cspHeader);
 
-  if (req.url.startsWith('/api/lora') || req.url.startsWith('/api/mobile') || req.url.startsWith('/api/') || req.url.startsWith('/resident-mobile')) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.url.startsWith('/api/lora') || req.url.startsWith('/api/mobile') || req.url.startsWith('/api/') || req.url.startsWith('/resident-mobile') || req.url.startsWith('/register') || req.url.startsWith('/login')) {
+    const reqOrigin = req.headers.origin;
+    res.setHeader('Access-Control-Allow-Origin', reqOrigin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, Accept, X-Requested-With');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(204);
     }

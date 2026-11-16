@@ -38,6 +38,7 @@ const CSRF_EXEMPT_PREFIXES = [
   '/staff/walkin',
   '/api/push',
   '/login',
+  '/register',
   '/logout'
 ];
 

@@ -188,12 +188,15 @@
   }
 
   // 0. Auth guard for the static bundle
-  const isStaticBundle = isCapacitorRuntime && global.location.port !== '8080';
+  const isStaticBundle = isCapacitorRuntime && global.location.port !== '8080' && (global.location.hostname === 'localhost' || global.location.protocol === 'capacitor:' || global.location.protocol === 'file:');
   if (isStaticBundle) {
     const p = global.location.pathname;
-    const onAuthPage = /^\/(login|logout)(\/|\.html|$)/.test(p);
+    const onAuthPage = /^\/(login|logout|register)(\/|\.html|$)/.test(p);
     let loggedOut = false;
-    try { loggedOut = localStorage.getItem('evacwar_logged_out') === 'true'; } catch (_) {}
+    try {
+      const hasSession = Boolean(localStorage.getItem('evw_cached_resident') || localStorage.getItem('evw_cached_staff'));
+      loggedOut = localStorage.getItem('evacwar_logged_out') === 'true' || !hasSession;
+    } catch (_) {}
     if (loggedOut && !onAuthPage) {
       document.documentElement.style.display = 'none';
       global.location.replace('/login/index.html');

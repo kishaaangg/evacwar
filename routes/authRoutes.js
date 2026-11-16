@@ -28,6 +28,14 @@ router.post("/register", upload.fields([
   { name: 'barangay_id_photo', maxCount: 1 },
   { name: 'id_photo', maxCount: 1 }
 ]), authController.postRegister);
+router.post("/api/mobile/register", upload.fields([
+  { name: 'valid_id', maxCount: 1 },
+  { name: 'barangay_id_photo', maxCount: 1 },
+  { name: 'id_photo', maxCount: 1 }
+]), (req, res, next) => {
+  req.headers.accept = 'application/json';
+  return authController.postRegister(req, res, next);
+});
 router.all("/register", (req, res) => {
   res.setHeader("Allow", "GET, POST");
   res.status(405).send("Method Not Allowed");
