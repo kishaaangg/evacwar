@@ -1,133 +1,94 @@
 <%- include('../partials/header') %>
 
-  <main class="flex-1 overflow-y-auto relative w-full min-h-0">
+  <main class="flex-1 flex flex-col justify-between relative w-full min-h-[calc(100vh-3.75rem)] overflow-y-auto">
     <!-- Full-screen Background Overlay -->
     <div class="fixed inset-0 z-0 pointer-events-none">
       <img loading="lazy" src="/images/sanrafael.jpg" class="w-full h-full object-cover opacity-20" alt="San Rafael Background" decoding="async" />
-      <div class="absolute inset-0 bg-slate-950/60 z-0"></div>
+      <div class="absolute inset-0 bg-slate-950/65 z-0"></div>
     </div>
 
-    <!-- HERO SECTION (First Screen — Original Clean Welcome Layout Without Login Card) -->
-    <section class="relative z-10 min-h-[calc(100vh-4.5rem)] w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col justify-center">
+    <!-- CENTERED HERO SECTION -->
+    <section class="relative z-10 flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-center text-center">
+
       <!-- Registration Confirmation Notice (shown when redirected with ?registered=1) -->
       <div id="registerSuccess"
-        class="hidden mb-6 max-w-2xl flex items-start gap-3 bg-amber-50/95 backdrop-blur-md border border-amber-300 text-amber-900 rounded-2xl px-4 py-3.5 text-xs sm:text-sm font-semibold shadow-lg">
+        class="hidden mb-6 w-full max-w-xl flex items-start gap-3 bg-amber-50/95 backdrop-blur-md border border-amber-300 text-amber-900 rounded-2xl px-4 py-3.5 text-xs sm:text-sm font-semibold shadow-lg text-left">
         <i class="ph ph-clock-counter-clockwise text-2xl text-amber-600 shrink-0 mt-0.5"></i>
         <div>
           <div class="font-extrabold text-amber-950">Registration Submitted!</div>
           <div class="text-xs text-amber-800 font-medium mt-0.5">
-            Your resident account is pending verification and approval by Barangay San Rafael staff. Download the Evacwar Mobile App below so you are ready once approved!
+            Your resident account is pending verification by Barangay San Rafael staff. You can download the mobile app below while waiting for approval.
           </div>
         </div>
       </div>
 
-      <div class="flex flex-col items-start text-white text-left drop-shadow-md max-w-3xl">
-        <!-- Dual Circular Logos: Evacwar Logo & Barangay Logo -->
-        <div class="flex items-center gap-4 mb-5">
-          <div
-            class="w-20 h-20 sm:w-28 sm:h-28 bg-white rounded-full p-2.5 sm:p-3 shadow-[0_0_25px_rgba(255,255,255,0.45)] border-2 border-white/70 flex items-center justify-center shrink-0">
-            <img decoding="async" src="/images/logo.png" alt="Evacwar Logo" class="w-full h-full object-contain rounded-full" />
-          </div>
-          <div
-            class="w-20 h-20 sm:w-28 sm:h-28 bg-white rounded-full p-2.5 sm:p-3 shadow-[0_0_25px_rgba(255,255,255,0.45)] border-2 border-white/70 flex items-center justify-center shrink-0">
-            <img decoding="async" src="/images/brgy_logo.png" alt="Barangay San Rafael Logo" class="w-full h-full object-contain rounded-full" />
-          </div>
+      <!-- Dual Circular Logos -->
+      <div class="flex items-center justify-center gap-4 sm:gap-5 mb-5">
+        <div
+          class="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full p-2.5 shadow-[0_0_25px_rgba(255,255,255,0.4)] border-2 border-white/80 flex items-center justify-center shrink-0">
+          <img decoding="async" src="/images/logo.png" alt="Evacwar Logo" class="w-full h-full object-contain rounded-full" />
         </div>
-
-        <h2 class="text-2xl sm:text-3xl font-black uppercase tracking-widest mb-1 drop-shadow-md">Evacwar</h2>
-        <p class="text-sm sm:text-base font-semibold mb-5 tracking-wide drop-shadow-md text-slate-200">
-          BARANGAY DISASTER RISK REDUCTION
-        </p>
-
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-black text-[#FFD700] mb-0 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
-          WELCOME
-        </h1>
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-black text-[#FFD700] drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] mb-5 tracking-wide">
-          KABARANGAY
-        </h1>
-
-        <p class="text-base sm:text-xl font-bold text-white mb-2.5 drop-shadow-sm">
-          EVACWAR: Off-Grid LoRa Mesh &amp; Disaster Response System
-        </p>
-        <p class="text-xs sm:text-base text-slate-200 leading-relaxed mb-7 max-w-2xl drop-shadow-sm">
-          EvakWar is Barangay San Rafael's emergency preparedness and disaster response platform. Built for typhoons, floods, and power or cellular blackouts, it connects residents, rescuers, evacuation center staff, and the Barangay Command Center using Bluetooth + 433.875 MHz LoRa Mesh technology.
-        </p>
-
-        <!-- Primary Action: Download Resident App + Live Clock -->
-        <div class="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div class="flex flex-wrap items-center gap-3">
-            <a href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk"
-              class="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-blue-600/35 transition-all active:scale-[0.98]">
-              <i class="ph ph-android-logo text-xl"></i>
-              <span>Download Resident App (APK)</span>
-              <i class="ph ph-download-simple text-lg"></i>
-            </a>
-          </div>
-
-          <div class="flex flex-col items-start sm:items-end">
-            <div class="text-2xl font-bold font-mono tracking-widest text-white drop-shadow-md mb-1" id="live-time">
-              00:00:00
-            </div>
-            <div class="text-sm sm:text-base font-medium text-white drop-shadow-md" id="live-date">
-              Monday, January 1, 2023
-            </div>
-          </div>
+        <div
+          class="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full p-2.5 shadow-[0_0_25px_rgba(255,255,255,0.4)] border-2 border-white/80 flex items-center justify-center shrink-0">
+          <img decoding="async" src="/images/brgy_logo.png" alt="Barangay San Rafael Logo" class="w-full h-full object-contain rounded-full" />
         </div>
       </div>
 
-      <!-- Subtle Scroll Indicator -->
-      <div class="mt-10 sm:mt-14 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-slate-300/80">
-        <a href="#about-evacwar" class="inline-flex items-center gap-1.5 hover:text-[#FFD700] transition-colors">
-          <i class="ph ph-arrow-down text-sm animate-bounce"></i>
-          <span>Scroll down to learn more about Evacwar</span>
+      <!-- Brand Subtitle -->
+      <div class="text-2xl sm:text-3xl font-black uppercase tracking-[0.2em] text-white drop-shadow-md">
+        EVACWAR
+      </div>
+      <p class="text-xs sm:text-sm font-bold tracking-[0.18em] uppercase text-blue-200/90 mt-1 mb-5 drop-shadow-sm">
+        BARANGAY DISASTER RISK REDUCTION
+      </p>
+
+      <!-- Main Welcome Headline -->
+      <div class="text-4xl sm:text-6xl md:text-7xl font-black text-[#FFD700] tracking-tight leading-none drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]">
+        WELCOME KABARANGAY
+      </div>
+
+      <!-- Short, Clean Description -->
+      <p class="mt-4 text-sm sm:text-base text-slate-200 font-medium max-w-xl leading-relaxed drop-shadow-sm">
+        Keeping Barangay San Rafael informed, prepared, and connected with real-time alerts, evacuation guidance, and emergency response.
+      </p>
+
+      <!-- Primary CTA Button -->
+      <div class="mt-7 flex flex-wrap items-center justify-center gap-3.5">
+        <a href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk"
+          class="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-blue-600/35 transition-all active:scale-[0.98]">
+          <i class="ph ph-android-logo text-xl"></i>
+          <span>Download Resident App</span>
+          <i class="ph ph-download-simple text-lg"></i>
         </a>
       </div>
-    </section>
 
-    <!-- BELOW THE FOLD: ABOUT EVACWAR DETAILS (Visible when scrolling down) -->
-    <section id="about-evacwar" class="relative z-10 w-full bg-slate-950/80 backdrop-blur-md border-t border-white/10 py-14 sm:py-20 px-4 sm:px-6 lg:px-8 text-white">
-      <div class="max-w-6xl mx-auto">
-        <div class="max-w-2xl mb-10">
-          <span class="text-xs font-extrabold uppercase tracking-widest text-[#FFD700]">How Evacwar Helps Barangay San Rafael</span>
-          <h2 class="mt-2 text-2xl sm:text-3xl font-black tracking-tight text-white">Built for Resilience Online &amp; Off-Grid</h2>
-          <p class="mt-2 text-sm text-slate-300 leading-relaxed">
-            Residents, Rescuers, and Evacuation Center Staff use the Evacwar Mobile App with Bluetooth LoRa nodes, while Barangay Administrators coordinate response from the Command Center.
-          </p>
+      <!-- Live Clock & Date -->
+      <div class="mt-8 pt-5 border-t border-white/15 flex flex-col items-center">
+        <div class="text-xl sm:text-2xl font-bold font-mono tracking-widest text-white drop-shadow-md" id="live-time">
+          00:00:00
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:bg-white/10 transition-colors">
-            <div class="w-11 h-11 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-300 flex items-center justify-center mb-4">
-              <i class="ph ph-radio text-2xl"></i>
-            </div>
-            <h3 class="font-extrabold text-base text-white">433.875 MHz LoRa Mesh Network</h3>
-            <p class="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Send emergency SOS alerts with GPS coordinates and communicate off-grid via Bluetooth-linked LoRa nodes even when internet and cellular signal are down.
-            </p>
-          </div>
-
-          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:bg-white/10 transition-colors">
-            <div class="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 flex items-center justify-center mb-4">
-              <i class="ph ph-map-trifold text-2xl"></i>
-            </div>
-            <h3 class="font-extrabold text-base text-white">Live Evacuation &amp; Hazard Map</h3>
-            <p class="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed">
-              View real-time evacuation center occupancy, safest GIS routes, weather conditions, and official PAGASA typhoon advisories across Barangay San Rafael.
-            </p>
-          </div>
-
-          <div class="rounded-2xl bg-white/5 border border-white/10 p-6 hover:bg-white/10 transition-colors">
-            <div class="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-300 flex items-center justify-center mb-4">
-              <i class="ph ph-qr-code text-2xl"></i>
-            </div>
-            <h3 class="font-extrabold text-base text-white">Household QR Evacuation Pass</h3>
-            <p class="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Speed up evacuation shelter intake, household verification, and relief goods tracking using your unique digital Barangay QR pass inside the app.
-            </p>
-          </div>
+        <div class="text-xs sm:text-sm font-medium text-slate-300 mt-0.5 drop-shadow-sm" id="live-date">
+          Monday, January 1, 2026
         </div>
       </div>
+
     </section>
+
+    <!-- CLEAN FOOTER -->
+    <footer class="relative z-10 w-full bg-[#0b1329]/90 backdrop-blur-md border-t border-white/10 py-4 px-4 sm:px-8 text-slate-400 text-xs shrink-0">
+      <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+        <div class="font-semibold text-slate-300">
+          &copy; <%= new Date().getFullYear() %> Evacwar &bull; Barangay San Rafael, Baao, Camarines Sur
+        </div>
+        <div class="flex items-center gap-4 text-[11px] font-semibold">
+          <a href="/register" class="hover:text-white transition-colors">Register</a>
+          <span class="text-white/20">&bull;</span>
+          <a href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk" class="hover:text-white transition-colors">Download App</a>
+          <span class="text-white/20">&bull;</span>
+          <a href="/login" class="hover:text-white transition-colors">Admin Portal</a>
+        </div>
+      </div>
+    </footer>
 
     <script>
       (function () {
