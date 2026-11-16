@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title><%= (locals.reportTitle || 'EvacWar Emergency Report') %></title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm 18mm 12mm 18mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+      font-size: 8.5pt;
+      line-height: 1.35;
+    }
+
+    /* Print Preview & Browser Print Handling */
+    @media print {
+      .print-action-bar {
+        display: none !important;
+      }
+      body {
+        background: #ffffff !important;
+        padding: 0 !important;
+      }
+      .page-wrap {
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+      }
+    }
+    @media screen {
+      body.print-preview-mode {
+        background-color: #f1f5f9;
+        padding-top: 54px;
+        min-height: 100vh;
+      }
+      body.print-preview-mode .page-wrap {
+        max-width: 210mm;
+        margin: 20px auto 40px auto;
+        background: #ffffff;
+        padding: 12mm 18mm;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+      }
+      .print-action-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 52px;
+        background: #0f172a;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        z-index: 999999;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        font-family: inherit;
+      }
+      .print-action-btn {
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        padding: 7px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.15s;
+      }
+      .print-action-btn:hover {
+        background: #1d4ed8;
+      }
+      .close-action-btn {
+        background: rgba(255,255,255,0.1);
+        color: #cbd5e1;
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .close-action-btn:hover {
+        background: rgba(255,255,255,0.2);
+        color: #ffffff;
+      }
+    }
+
+    /* Print Header matching browser print */
+    .print-header {
+      border-bottom: 2.5px solid #0f172a;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+    }
+    .print-header h2 {
+      margin: 0;
+      padding: 0;
+      font-size: 20pt;
+      font-weight: 900;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: -0.3px;
+      line-height: 1.2;
+    }
+    .print-header p {
+      margin: 3px 0 0 0;
+      padding: 0;
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    /* Info Section */
+    .info-section {
+      margin-bottom: 8px;
+      font-size: 8pt;
+      line-height: 1.45;
+      color: #0f172a;
+    }
+    .info-header {
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 8.5pt;
+      border-bottom: 1px solid #0f172a;
+      padding-bottom: 3px;
+      margin-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .info-content > div {
+      margin: 1px 0;
+    }
+    .info-label {
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    /* Summary Cards (Square & Bigger) */
+    .summary-grid {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .summary-grid > * {
+      flex: 1;
+    }
+    .summary-card {
+      border-radius: 8px;
+      padding: 16px 8px;
+      min-height: 112px;
+      height: 112px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border: 1.5px solid #cbd5e1;
+      box-sizing: border-box;
+    }
+    .card-blue {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
+    .card-blue .card-title { color: #1d4ed8; }
+    .card-green {
+      background: #ecfdf5;
+      border-color: #6ee7b7;
+    }
+    .card-green .card-title { color: #047857; }
+    .card-amber {
+      background: #fffbeb;
+      border-color: #fcd34d;
+    }
+    .card-amber .card-title { color: #b45309; }
+    .card-indigo {
+      background: #eef2ff;
+      border-color: #a5b4fc;
+    }
+    .card-indigo .card-title { color: #4338ca; }
+    .card-rose {
+      background: #fff1f2;
+      border-color: #fda4af;
+    }
+    .card-rose .card-title { color: #be123c; }
+
+    .card-title {
+      font-size: 8pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 6px;
+    }
+    .card-value {
+      font-size: 26pt;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1;
+      letter-spacing: -0.5px;
+    }
+    .card-value-ratio {
+      font-size: 15pt !important;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.1;
+      letter-spacing: -0.3px;
+    }
+
+    /* Section Titles */
+    .section-title {
+      font-size: 8.5pt;
+      font-weight: 800;
+      color: #0f172a;
+      text-transform: uppercase;
+      margin-top: 11px;
+      margin-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+
+    /* Tables */
+    table.print-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 3px;
+      margin-bottom: 6px;
+    }
+    table.print-table th,
+    table.print-table td {
+      border: 1px solid #334155;
+      padding: 3.5px 6px;
+      font-size: 8.5pt;
+      line-height: 1.25;
+      color: #0f172a;
+    }
+    table.print-table th {
+      background: #ffffff;
+      font-weight: 800;
+      text-transform: uppercase;
+      text-align: left;
+    }
+    table.print-table td.text-center,
+    table.print-table th.text-center {
+      text-align: center;
+    }
+    table.print-table td.text-right,
+    table.print-table th.text-right {
+      text-align: right;
+    }
+    table.print-table tr {
+      page-break-inside: avoid;
+    }
+    table.print-table tr.total-row {
+      font-weight: 900;
+      background: #ffffff;
+    }
+    table.print-table tr.total-row td {
+      font-weight: 900;
+    }
+
+    /* Special Sector / Vulnerability Breakdown Cards */
+    .vuln-grid {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .vuln-grid > * {
+      flex: 1;
+    }
+    .vuln-card {
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 6px 8px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 52px;
+    }
+    .vuln-card .vuln-title {
+      font-size: 7pt;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      line-height: 1.15;
+    }
+    .vuln-card .vuln-val {
+      font-size: 15pt;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1;
+      margin-top: 3px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 7.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      border-radius: 3px;
+      border: 1px solid #cbd5e1;
+    }
+    .badge-blue { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .badge-rose { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+    .badge-emerald { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .badge-amber { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+
+    .text-emerald { color: #047857; }
+    .text-rose { color: #be123c; }
+
+    .row-evacuated {
+      background-color: #f8fafc;
+    }
+
+    /* Print Footer */
+    .print-footer {
+      border-top: 1px solid #94a3b8;
+      margin-top: 16px;
+      padding-top: 6px;
+      font-size: 7.5pt;
+      text-align: center;
+      color: #475569;
+      font-weight: 600;
+      page-break-inside: avoid;
+    }
+
+    /* ========================================================================= */
+    /* SINGLE-CENTER ENHANCED LAYOUT: Bigger boxes, occupied bottom, spacious    */
+    /* ========================================================================= */
+    .single-center-view .info-section {
+      margin-bottom: 12px;
+      font-size: 9pt;
+      line-height: 1.55;
+    }
+    .single-center-view .info-header {
+      font-size: 9.5pt;
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+    }
+    .single-center-view .summary-card {
+      padding: 16px 10px;
+      border-radius: 8px;
+    }
+    .single-center-view .card-title {
+      font-size: 8.5pt;
+      font-weight: 800;
+    }
+    .single-center-view .card-value {
+      font-size: 26pt;
+      margin-top: 3px;
+    }
+    .single-center-view .section-title {
+      font-size: 9.5pt;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+    .single-center-view table.print-table th,
+    .single-center-view table.print-table td {
+      padding: 5.5px 8px;
+      font-size: 9pt;
+    }
+    .single-center-view .vuln-card {
+      min-height: 68px;
+      padding: 9px 8px;
+      border-radius: 6px;
+    }
+    .single-center-view .vuln-card .vuln-title {
+      font-size: 7.5pt;
+      font-weight: 800;
+    }
+    .single-center-view .vuln-card .vuln-val {
+      font-size: 19pt;
+      margin-top: 4px;
+    }
+    .single-center-view .print-footer {
+      margin-top: 22px;
+      font-size: 8pt;
+    }
+  </style>
+<body class="<%= (locals.isPrintView ? 'print-preview-mode' : '') %>">
+
+  <% if (locals.isPrintView) { %>
+    <div class="print-action-bar">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-weight: 900; font-size: 13px; letter-spacing: 0.5px; color: #38bdf8;">EVACWAR OFFICIAL REPORT</span>
+        <span style="font-size: 12px; color: #94a3b8; border-left: 1px solid #334155; padding-left: 10px;">
+          To download as PDF: In the print dialog, select <b>"Save as PDF"</b>
+        </span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="print-action-btn" onclick="window.print()">
+          🖨️ Print / Save as PDF
+        </button>
+        <button class="close-action-btn" onclick="window.close()">
+          Close
+        </button>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="page-wrap">
+
+  <% if (tab === 'evacuation') { %>
+    <!-- ========================================================================= -->
+    <!-- EVACUATION CENTER INFORMATION BOARD (EXACT MATCH WITH PRINT)               -->
+    <!-- ========================================================================= -->
+    <% 
+      const currentStats = (filters.centerId && filters.centerId !== 'all' && singleEcBoardStats) 
+        ? singleEcBoardStats : allEcBoardStats;
+      const isSingleCenter = (filters.centerId && filters.centerId !== 'all' && singleEcBoardStats);
+    %>
+    <% if (currentStats) { %>
+      <div class="<%= isSingleCenter ? 'single-center-view' : '' %>">
+        <!-- 1. Header -->
+        <div class="print-header">
+          <h2>EVACUATION CENTER INFORMATION BOARD REPORT</h2>
+          <p>Official Masterlist &amp; Demographic Summary</p>
+        </div>
+
+        <!-- 2. Evacuation Center Information -->
+        <div class="info-section">
+          <div class="info-header">EVACUATION CENTER INFORMATION</div>
+          <div class="info-content">
+            <div><span class="info-label">Name of Evacuation Center:</span> <%= isSingleCenter ? currentStats.center.name : 'ALL EVACUATION CENTERS COMBINED' %></div>
+            <div><span class="info-label">Location:</span> <%= isSingleCenter ? currentStats.center.address : 'San Rafael, Baao, Camarines Sur' %></div>
+            <% if (isSingleCenter && currentStats.center.contact_number) { %>
+              <div><span class="info-label">Contact Number:</span> <%= currentStats.center.contact_number %></div>
+            <% } %>
+            <div><span class="info-label">Report Date:</span> <%= new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }) %></div>
+          </div>
+        </div>
+
+        <!-- 3. Summary Cards -->
+        <% const m = currentStats.metrics || {}; const ag = currentStats.age_groups || {}; %>
+        <div class="summary-grid">
+          <div class="summary-card card-blue">
+            <div class="card-title">TOTAL FAMILIES</div>
+            <div class="card-value"><%= m.total_families || 0 %></div>
+          </div>
+          <div class="summary-card card-green">
+            <div class="card-title">TOTAL EVACUEES</div>
+            <div class="card-value"><%= m.total_evacuees || 0 %></div>
+          </div>
+          <div class="summary-card card-amber">
+            <div class="card-title">4PS BENEFICIARIES</div>
+            <div class="card-value"><%= m.total_4ps_beneficiaries || 0 %></div>
+          </div>
+          <div class="summary-card card-indigo">
+            <div class="card-title">MALE / FEMALE RATIO</div>
+            <div class="card-value card-value-ratio"><%= m.total_male || 0 %> M / <%= m.total_female || 0 %> F</div>
+          </div>
+        </div>
+
+        <!-- 4. Age Group & Sex Matrix -->
+        <div class="section-title">AGE GROUP &amp; SEX MATRIX (CHECKED-IN EVACUEES)</div>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th style="width: 40%;">AGE BRACKET</th>
+              <th class="text-center" style="width: 20%;">MALE</th>
+              <th class="text-center" style="width: 20%;">FEMALE</th>
+              <th class="text-center" style="width: 20%;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% 
+              const brackets = [
+                { key: '0_11m', label: '0–11 months' },
+                { key: '1_3y', label: '1–3 years' },
+                { key: '4_5y', label: '4–5 years' },
+                { key: '6_12y', label: '6–12 years' },
+                { key: '13_18y', label: '13–18 years' },
+                { key: '19_59y', label: '19–59 years' },
+                { key: '60plus', label: '60+ years' }
+              ];
+              brackets.forEach(b => {
+                const item = ag[b.key] || { male: 0, female: 0, total: 0 };
+            %>
+              <tr>
+                <td><%= b.label %></td>
+                <td class="text-center"><%= item.male || 0 %></td>
+                <td class="text-center"><%= item.female || 0 %></td>
+                <td class="text-center"><%= item.total || 0 %></td>
+              </tr>
+            <% }); %>
+            <tr class="total-row">
+              <td>TOTAL EVACUEES</td>
+              <td class="text-center"><%= m.total_male || 0 %></td>
+              <td class="text-center"><%= m.total_female || 0 %></td>
+              <td class="text-center"><%= m.total_evacuees || 0 %></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 5. Special Sector & Vulnerability Breakdown -->
+        <% const sc = currentStats.special_categories || {}; %>
+        <div class="section-title">SPECIAL SECTOR &amp; VULNERABILITY BREAKDOWN</div>
+        <div class="vuln-grid">
+          <div class="vuln-card">
+            <div class="vuln-title">PREGNANT WOMEN</div>
+            <div class="vuln-val"><%= sc.pregnant || 0 %></div>
+          </div>
+          <div class="vuln-card">
+            <div class="vuln-title">BREASTFEEDING MOTHERS</div>
+            <div class="vuln-val"><%= sc.lactating || 0 %></div>
+          </div>
+          <div class="vuln-card">
+            <div class="vuln-title">PERSONS W/ DISABILITY (PWD)</div>
+            <div class="vuln-val"><%= sc.pwd || 0 %></div>
+          </div>
+          <div class="vuln-card">
+            <div class="vuln-title">SINGLE-HEADED HOUSEHOLD</div>
+            <div class="vuln-val"><%= sc.single_headed || 0 %></div>
+          </div>
+          <div class="vuln-card">
+            <div class="vuln-title">SERIOUS ILLNESS</div>
+            <div class="vuln-val"><%= sc.serious_illness || 0 %></div>
+          </div>
+        </div>
+
+        <!-- 6A. Centers Summary (Combined Mode) -->
+        <% if (!isSingleCenter && currentStats.center_summaries && currentStats.center_summaries.length > 0) { %>
+          <div class="section-title">EVACUATION CENTER OCCUPANCY SUMMARY</div>
+          <table class="print-table">
+            <thead>
+              <tr>
+                <th>EVACUATION CENTER</th>
+                <th class="text-center" style="width: 15%;">CAPACITY</th>
+                <th class="text-center" style="width: 15%;">OCCUPIED</th>
+                <th class="text-center" style="width: 15%;">AVAILABLE</th>
+                <th class="text-center" style="width: 15%;">FAMILIES</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% currentStats.center_summaries.forEach(c => { %>
+                <tr>
+                  <td><%= c.name %></td>
+                  <td class="text-center"><%= c.capacity %></td>
+                  <td class="text-center"><%= c.occupied %></td>
+                  <td class="text-center"><%= c.available %></td>
+                  <td class="text-center"><%= c.families %></td>
+                </tr>
+              <% }); %>
+              <tr class="total-row">
+                <td>TOTAL ALL CENTERS</td>
+                <td class="text-center"><%= currentStats.summary.capacity %></td>
+                <td class="text-center"><%= currentStats.summary.total_occupied %></td>
+                <td class="text-center"><%= currentStats.summary.available_slots %></td>
+                <td class="text-center"><%= currentStats.summary.total_families %></td>
+              </tr>
+            </tbody>
+          </table>
+        <% } else if (isSingleCenter && currentStats.center) { %>
+          <!-- 6B. Individual Site Capacity & Intake Logistics (Beautifully fills the page below) -->
+          <div class="section-title">SHELTER CAPACITY &amp; INTAKE LOGISTICS</div>
+          <table class="print-table">
+            <thead>
+              <tr>
+                <th style="width: 35%;">FACILITY CAPACITY &amp; LOGISTICS PARAMETER</th>
+                <th class="text-center" style="width: 15%;">STATUS / COUNT</th>
+                <th style="width: 35%;">OPERATIONAL METRIC</th>
+                <th class="text-center" style="width: 15%;">VALUE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Designated Shelter Maximum Capacity</td>
+                <td class="text-center font-black"><%= currentStats.center.max_capacity || 0 %> Persons</td>
+                <td>Facility Operational Status</td>
+                <td class="text-center"><span class="badge badge-emerald">ACTIVE SHELTER</span></td>
+              </tr>
+              <tr>
+                <td>Currently Accommodated Evacuees</td>
+                <td class="text-center font-black" style="color: #c2410c;"><%= currentStats.metrics.total_evacuees %> Persons</td>
+                <td>Total Families Accommodated</td>
+                <td class="text-center font-black"><%= currentStats.metrics.total_families %> Families</td>
+              </tr>
+              <tr>
+                <td>Available Residual Shelter Slots</td>
+                <td class="text-center font-black" style="color: #047857;"><%= Math.max(0, (currentStats.center.max_capacity || 0) - currentStats.metrics.total_evacuees) %> Slots</td>
+                <td>Shelter Occupancy Rate</td>
+                <td class="text-center font-black">
+                  <% 
+                    const cap = currentStats.center.max_capacity || 0;
+                    const occ = currentStats.metrics.total_evacuees || 0;
+                    const pct = cap > 0 ? Math.round((occ / cap) * 100) : 0;
+                  %>
+                  <%= pct %>%
+                </td>
+              </tr>
+              <tr>
+                <td>Registered Check-Ins (Today)</td>
+                <td class="text-center font-black" style="color: #1d4ed8;"><%= currentStats.metrics.check_ins_today || 0 %></td>
+                <td>Departed / Checked-Out (Today)</td>
+                <td class="text-center font-black"><%= currentStats.metrics.check_outs_today || 0 %></td>
+              </tr>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    <% } %>
+
+  <% } else if (tab === 'non-evacuated') { %>
+    <!-- ========================================================================= -->
+    <!-- RESIDENTS NOT YET EVACUATED ROSTER                                        -->
+    <!-- ========================================================================= -->
+    <div class="print-header">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h2>RESIDENTS NOT YET EVACUATED REPORT</h2>
+          <p>Official Priority Evacuation Roster &bull; Reference Event: <%= (nonEvacuatedReports && nonEvacuatedReports.activeEventName) || 'Active Evacuation Protocol' %> &bull; Generated: <%= new Date().toLocaleDateString() %></p>
+        </div>
+        <div>
+          <span class="badge badge-rose">PRIORITY EVACUATION LIST</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card card-rose">
+        <div class="card-title">Households Pending</div>
+        <div class="card-value"><%= (nonEvacuatedReports && nonEvacuatedReports.totalNotEvacuatedHouseholds) || 0 %></div>
+      </div>
+      <div class="summary-card card-rose">
+        <div class="card-title">Individuals Pending</div>
+        <div class="card-value"><%= (nonEvacuatedReports && nonEvacuatedReports.totalNotEvacuatedIndividuals) || 0 %></div>
+      </div>
+      <div class="summary-card card-amber">
+        <div class="card-title">Vulnerable Households</div>
+        <div class="card-value"><%= (nonEvacuatedReports && nonEvacuatedReports.totalVulnerableCount) || 0 %></div>
+      </div>
+      <div class="summary-card">
+        <div class="card-title">Top Concentration</div>
+        <div class="card-value" style="font-size: 13pt;"><%= (nonEvacuatedReports && nonEvacuatedReports.topZone) || 'None' %> (<%= (nonEvacuatedReports && nonEvacuatedReports.topZoneCount) || 0 %>)</div>
+      </div>
+    </div>
+
+    <div class="section-title">Priority Resident Evacuation Roster</div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th style="width: 24%;">Resident / Household Head</th>
+          <th class="text-center" style="width: 11%;">Household Size</th>
+          <th style="width: 17%;">Contact &amp; Zone</th>
+          <th style="width: 17%;">Vulnerability Info</th>
+          <th class="text-center" style="width: 11%;">Evacuation Status</th>
+          <th style="width: 12%;">Last Known Status</th>
+          <th class="text-center" style="width: 8%;">Event</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (nonEvacuatedReports && nonEvacuatedReports.list && nonEvacuatedReports.list.length > 0) { %>
+          <% const approvedNonEvacList = nonEvacuatedReports.list.filter(h => !h.approval_status || h.approval_status === 'APPROVED'); %>
+          <% approvedNonEvacList.forEach((h, idx) => { %>
+            <tr class="<%= h.is_evacuated ? 'row-evacuated' : '' %>">
+              <td>
+                <div style="font-weight: 700; color: #0f172a;"><%= h.name %></div>
+                <div style="font-size: 7.5pt; color: #64748b;">ID: #<%= h.resident_id %> &bull; <%= h.age ? h.age + ' y/o' : 'Age N/A' %> &bull; <%= h.sex || 'N/A' %></div>
+              </td>
+              <td class="text-center">
+                <span class="badge badge-blue" style="font-weight: 800;"><%= h.household_size %> <%= h.household_size > 1 ? 'Persons' : 'Person' %></span>
+                <% if (h.members && h.members.length > 0) { %>
+                  <div style="font-size: 7pt; color: #2563eb; font-weight: 700; margin-top: 1px;"><%= h.members.length %> dependent(s)</div>
+                <% } %>
+              </td>
+              <td>
+                <div style="font-weight: 600;"><%= h.contact_number || 'N/A' %></div>
+                <div style="font-size: 7.5pt; color: #475569;"><%= h.zone || h.home_address %> &bull; <%= h.barangay || 'San Rafael' %></div>
+              </td>
+              <td>
+                <% if (h.vulnerability_types && h.vulnerability_types.length > 0) { %>
+                  <span class="badge badge-rose" style="font-size: 7pt;"><%= h.vulnerability_types.join(', ') %></span>
+                <% } else { %>
+                  <span style="color: #64748b; font-style: italic; font-size: 7.5pt;">Standard (No reported vulnerability)</span>
+                <% } %>
+              </td>
+              <td class="text-center">
+                <% if (h.is_evacuated) { %>
+                  <span class="badge badge-emerald">EVACUATED</span>
+                <% } else if (h.evacuation_status_code === 'PARTIAL') { %>
+                  <span class="badge badge-amber">PARTIAL</span>
+                <% } else { %>
+                  <span class="badge badge-rose">NOT EVACUATED</span>
+                <% } %>
+              </td>
+              <td>
+                <div class="<%= h.is_evacuated ? 'text-emerald' : 'text-rose' %>" style="font-weight: 700; font-size: 8pt;"><%= h.last_known_status || 'Un-evacuated (At Home)' %></div>
+                <div style="font-size: 7pt; color: #64748b;">No previous check-in recorded</div>
+              </td>
+              <td class="text-center" style="font-size: 7.5pt; color: #64748b;">
+                <%= h.typhoon_event || 'N/A' %>
+              </td>
+            </tr>
+          <% }); %>
+        <% } else { %>
+          <tr>
+            <td colspan="7" class="text-center" style="padding: 12px; color: #64748b;">All registered residents have successfully evacuated.</td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+
+  <% } else if (tab === 'households') { %>
+    <!-- ========================================================================= -->
+    <!-- OFFICIAL HOUSEHOLD MASTERLIST & DEMOGRAPHICS                              -->
+    <!-- ========================================================================= -->
+    <div class="print-header">
+      <h2>OFFICIAL HOUSEHOLD MASTERLIST REPORT</h2>
+      <p>Official Municipality Masterlist &amp; Demographic Roster &bull; Barangay San Rafael, Baao, Camarines Sur &bull; Generated: <%= new Date().toLocaleDateString() %></p>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card card-blue">
+        <div class="card-title">Total Population</div>
+        <div class="card-value"><%= (householdReports && householdReports.totalIndividuals) || 0 %></div>
+      </div>
+      <div class="summary-card">
+        <div class="card-title">Households</div>
+        <div class="card-value"><%= (householdReports && householdReports.totalHouseholds) || 0 %></div>
+      </div>
+      <div class="summary-card card-amber">
+        <div class="card-title">Vulnerable Families</div>
+        <div class="card-value"><%= (householdReports && householdReports.vulnerableHouseholds) || 0 %></div>
+      </div>
+      <div class="summary-card card-indigo">
+        <div class="card-title">4Ps Beneficiaries</div>
+        <div class="card-value"><%= (householdReports && householdReports.fourPsHouseholds) || 0 %></div>
+      </div>
+    </div>
+
+    <div class="section-title">Household Masterlist</div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Household Head</th>
+          <th class="text-center" style="width: 8%;">Size</th>
+          <th>Location / Barangay</th>
+          <th>Contact Number</th>
+          <th class="text-center">LoRa Node</th>
+          <th>Special Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% ((householdReports && householdReports.list) || []).forEach(hh => { %>
+          <tr>
+            <td style="font-weight: 700;"><%= hh.name || hh.head_name %></td>
+            <td class="text-center font-black"><%= hh.totalMembers || hh.total_members || 1 %></td>
+            <td><%= hh.home_address %>, <%= hh.barangay %></td>
+            <td><%= hh.contact_number || 'N/A' %></td>
+            <td class="text-center">
+              <% if (hh.has_lora) { %>
+                <strong style="color: #047857;">LoRa Node (<%= hh.lora_node_id || '!f4e213d4' %>)</strong>
+              <% } else { %>
+                <span style="color: #64748b;">No LoRa</span>
+              <% } %>
+            </td>
+            <td>
+              <%= hh.is_4ps ? '[4Ps] ' : '' %>
+              <%= ((hh.seniorCount || hh.seniors_count) > 0) ? `Senior: ${hh.seniorCount || hh.seniors_count} ` : '' %>
+              <%= ((hh.childrenCount || hh.children_count) > 0) ? `Children: ${hh.childrenCount || hh.children_count}` : '' %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+
+  <% } else if (tab === 'sos') { %>
+    <!-- ========================================================================= -->
+    <!-- EMERGENCY SOS DISTRESS & RESCUE LOG                                       -->
+    <!-- ========================================================================= -->
+    <div class="print-header">
+      <h2>EMERGENCY SOS &amp; RESCUE OPERATIONS REPORT</h2>
+      <p>Emergency Operations Center &bull; Distress Signals Telemetry &bull; Generated: <%= new Date().toLocaleDateString() %></p>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card card-rose">
+        <div class="card-title">Active Distress Calls</div>
+        <div class="card-value"><%= (overview && overview.activeSos) || 0 %></div>
+      </div>
+      <div class="summary-card card-green">
+        <div class="card-title">Resolved / Rescued</div>
+        <div class="card-value"><%= ((sosReports && sosReports.list) || []).filter(s => (s.status || '').toUpperCase() === 'RESCUED' || (s.status || '').toUpperCase() === 'RESOLVED').length %></div>
+      </div>
+      <div class="summary-card">
+        <div class="card-title">Total Incidents</div>
+        <div class="card-value"><%= ((sosReports && sosReports.list) || []).length %></div>
+      </div>
+    </div>
+
+    <div class="section-title">Emergency SOS Telemetry &amp; Field Search and Rescue Log</div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th style="width: 20%;">Resident Name</th>
+          <th style="width: 22%;">Location &amp; Coordinates</th>
+          <th style="width: 14%;">Time Triggered</th>
+          <th style="width: 18%;">Assigned Rescuer</th>
+          <th style="width: 14%;">Resolution Timeline</th>
+          <th class="text-center" style="width: 12%;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (sosReports && sosReports.list && sosReports.list.length > 0) { %>
+          <% sosReports.list.forEach(sos => { 
+            const resName = sos.resident_name || (sos.first_name ? `${sos.first_name} ${sos.last_name || ''}`.trim() : (sos.name || 'Resident in Distress'));
+            const st = (sos.status || 'ACTIVE').toUpperCase();
+            const lat = sos.latitude || 13.5102;
+            const lng = sos.longitude || 123.3470;
+            const trigTime = sos.created_at ? new Date(sos.created_at).toLocaleString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A';
+            const resolvedTime = sos.updated_at && st !== 'ACTIVE' ? new Date(sos.updated_at).toLocaleString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : null;
+          %>
+            <tr>
+              <td>
+                <div style="font-weight: 700;"><%= resName %></div>
+                <% if (sos.contact_number) { %>
+                  <div style="font-size: 7.5pt; color: #475569;"><%= sos.contact_number %></div>
+                <% } %>
+              </td>
+              <td>
+                <div><%= sos.barangay || sos.home_address || 'San Rafael' %></div>
+                <div style="font-family: monospace; font-size: 7.5pt; color: #2563eb;">
+                  <%= Number(lat).toFixed(4) %>, <%= Number(lng).toFixed(4) %>
+                  <% if (sos.accuracy) { %>
+                    <span style="color: #64748b;">(±<%= Math.round(sos.accuracy) %>m)</span>
+                  <% } %>
+                </div>
+              </td>
+              <td style="font-size: 8pt;"><%= trigTime %></td>
+              <td>
+                <% if (sos.handler_name || sos.handler_email) { %>
+                  <div style="font-weight: 700;"><%= sos.handler_name || sos.handler_email %></div>
+                  <div style="font-size: 7.5pt; color: #64748b;"><%= sos.handler_contact || 'Rescuer Unit' %></div>
+                <% } else { %>
+                  <span style="color: #94a3b8; font-style: italic;">Unassigned</span>
+                <% } %>
+              </td>
+              <td style="font-size: 8pt;">
+                <% if (resolvedTime) { %>
+                  <div><%= resolvedTime %></div>
+                  <% if (sos.responseMinutes !== null && sos.responseMinutes !== undefined) { %>
+                    <div style="font-size: 7.5pt; font-weight: 800; color: #047857;">⚡ <%= sos.responseMinutes %> min response</div>
+                  <% } %>
+                <% } else { %>
+                  <span style="color: #94a3b8; font-style: italic;">Awaiting resolution</span>
+                <% } %>
+              </td>
+              <td class="text-center">
+                <span class="badge <%= st === 'ACTIVE' ? 'badge-rose' : (st === 'RESCUED' || st === 'RESOLVED' ? 'badge-emerald' : 'badge-amber') %>"><%= st %></span>
+              </td>
+            </tr>
+          <% }); %>
+        <% } else { %>
+          <tr>
+            <td colspan="6" class="text-center" style="padding: 10px; color: #64748b;">No emergency SOS incidents logged.</td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+
+  <% } else if (tab === 'sms') { %>
+    <!-- ========================================================================= -->
+    <!-- EMERGENCY BROADCAST & SMS ALERTS LOG                                     -->
+    <!-- ========================================================================= -->
+    <div class="print-header">
+      <h2>EMERGENCY BROADCAST &amp; SMS ALERTS REPORT</h2>
+      <p>Emergency Operations Center &bull; Communications Log &bull; Generated: <%= new Date().toLocaleDateString() %></p>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card card-blue">
+        <div class="card-title">Total Broadcasts</div>
+        <div class="card-value"><%= (alertReports && alertReports.totalBroadcasts) || 0 %></div>
+      </div>
+      <div class="summary-card card-green">
+        <div class="card-title">Total Recipients</div>
+        <div class="card-value"><%= (alertReports && alertReports.totalRecipients) || 0 %></div>
+      </div>
+      <div class="summary-card card-amber">
+        <div class="card-title">Valid Mobile Phones</div>
+        <div class="card-value"><%= (alertReports && alertReports.totalValidPhones) || 0 %></div>
+      </div>
+    </div>
+
+    <div class="section-title">Emergency Broadcast Dispatch Log</div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Alert Title</th>
+          <th class="text-center" style="width: 12%;">Severity</th>
+          <th style="width: 45%;">Message Content</th>
+          <th class="text-center" style="width: 12%;">Recipients</th>
+          <th style="width: 15%;">Dispatched</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (alertReports && alertReports.list && alertReports.list.length > 0) { %>
+          <% alertReports.list.forEach(a => { %>
+            <tr>
+              <td style="font-weight: 700;"><%= a.title || 'Emergency Advisory' %></td>
+              <td class="text-center">
+                <span class="badge <%= a.severity === 'RED' ? 'badge-rose' : (a.severity === 'ORANGE' ? 'badge-amber' : 'badge-blue') %>"><%= a.severity || 'BLUE' %></span>
+              </td>
+              <td><%= a.message %></td>
+              <td class="text-center font-black"><%= a.recipient_count || 0 %></td>
+              <td><%= a.sent_at ? new Date(a.sent_at).toLocaleString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A' %></td>
+            </tr>
+          <% }); %>
+        <% } else { %>
+          <tr>
+            <td colspan="5" class="text-center" style="padding: 10px; color: #64748b;">No SMS broadcasts recorded.</td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+
+  <% } else { %>
+    <!-- ========================================================================= -->
+    <!-- OVERVIEW / EXECUTIVE SUMMARY REPORT                                       -->
+    <!-- ========================================================================= -->
+    <div class="print-header">
+      <h2>EXECUTIVE COMMAND OVERVIEW &amp; SITUATION REPORT</h2>
+      <p>Disaster Management Telemetry Summary &bull; Barangay San Rafael, Baao, Camarines Sur &bull; Generated: <%= new Date().toLocaleDateString() %></p>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-title">Total Population</div>
+        <div class="card-value"><%= (overview && overview.totalResidents) || 0 %></div>
+      </div>
+      <div class="summary-card card-green">
+        <div class="card-title">Current Evacuees</div>
+        <div class="card-value"><%= (overview && overview.currentEvacuees) || 0 %></div>
+      </div>
+      <div class="summary-card card-rose">
+        <div class="card-title">Not Yet Evacuated</div>
+        <div class="card-value"><%= (nonEvacuatedReports && nonEvacuatedReports.totalNotEvacuatedHouseholds) || 0 %></div>
+      </div>
+      <div class="summary-card card-blue">
+        <div class="card-title">Available Slots</div>
+        <div class="card-value"><%= (overview && overview.availableSlots) || 0 %></div>
+      </div>
+    </div>
+
+    <div class="section-title">Evacuation Centers Status</div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Center Name</th>
+          <th class="text-center">Capacity</th>
+          <th class="text-center">Occupied</th>
+          <th class="text-center">Available</th>
+          <th class="text-center">Occupancy Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% ((filterOptions && filterOptions.centers) || []).forEach(c => { 
+          const cap = c.max_capacity || 0;
+          const occ = c.current_occupancy || 0;
+          const pct = cap > 0 ? Math.round((occ / cap) * 100) : 0;
+        %>
+          <tr>
+            <td style="font-weight: 700;"><%= c.name %></td>
+            <td class="text-center"><%= cap %></td>
+            <td class="text-center font-black"><%= occ %></td>
+            <td class="text-center"><%= Math.max(0, cap - occ) %></td>
+            <td class="text-center font-black"><%= pct %>%</td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <!-- Print Footer -->
+  <div class="print-footer">
+    Generated from Evacwar evacuation records &bull; Barangay San Rafael Emergency Operations Command
+  </div>
+
+  </div> <!-- end page-wrap -->
+
+  <% if (locals.autoPrint) { %>
+    <script>
+      window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          window.print();
+        }, 400);
+      });
+    </script>
+  <% } %>
+
+</body>
+</html>

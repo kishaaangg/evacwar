@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#003580"/>
+      <stop offset="100%" stop-color="#001a40"/>
+    </linearGradient>
+    <linearGradient id="sunGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="dostCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Outer Circular Ring -->
+  <circle cx="60" cy="60" r="56" fill="url(#bgGrad)" stroke="#38BDF8" stroke-width="3"/>
+  <circle cx="60" cy="60" r="50" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-dasharray="3,2" opacity="0.6"/>
+
+  <!-- DOST Center Emblem: 4 Interlocking Modern Spheres -->
+  <g transform="translate(60,54) scale(0.9)" filter="url(#shadow)">
+    <!-- Top Sphere (Cyan) -->
+    <circle cx="0" cy="-14" r="10" fill="url(#dostCyan)" stroke="#ffffff" stroke-width="1.5"/>
+    <!-- Bottom Sphere (Blue) -->
+    <circle cx="0" cy="14" r="10" fill="#2563EB" stroke="#ffffff" stroke-width="1.5"/>
+    <!-- Left Sphere (Red) -->
+    <circle cx="-14" cy="0" r="10" fill="#EF4444" stroke="#ffffff" stroke-width="1.5"/>
+    <!-- Right Sphere (Yellow/Sun) -->
+    <circle cx="14" cy="0" r="10" fill="url(#sunGrad)" stroke="#ffffff" stroke-width="1.5"/>
+    <!-- Center Core Connection -->
+    <circle cx="0" cy="0" r="5.5" fill="#FFFFFF"/>
+    <!-- Typhoon Spiral Accent -->
+    <path d="M-6,-6 C-2,-12 8,-10 10,-2 C12,6 4,12 -4,10" fill="none" stroke="#003580" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Bottom Arch Text: PAGASA -->
+  <rect x="22" y="90" width="76" height="16" rx="8" fill="#FFFFFF" opacity="0.95"/>
+  <text x="60" y="102" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="10" fill="#003580" text-anchor="middle" letter-spacing="1.5">PAGASA</text>
+</svg>

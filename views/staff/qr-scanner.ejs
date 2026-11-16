@@ -1,0 +1,2553 @@
+<%- include('../partials/header') %>
+  <script src="/js/html5-qrcode.min.js" type="text/javascript"></script>
+
+  <% const staffMember=locals.staff || locals.user || {}; %>
+    <% const assignedSites=(staffMember.assigned_centers && staffMember.assigned_centers.length> 0) ?
+      staffMember.assigned_centers : (staffMember.center ? [staffMember.center] : (locals.centers || [])); %>
+      <% const activeSiteId=Number(staffMember.assigned_center_id || locals.activeCenterId || (assignedSites[0] ?
+        assignedSites[0].id : 2)); %>
+        <% const currentSite=assignedSites.find(s=> Number(s.id) === activeSiteId) || assignedSites[0] || { id:
+          activeSiteId, name: 'San Rafael Evacuation Center' }; %>
+
+          <style>
+            /* Clean Scanner Box & Reticle */
+            #reader {
+              width: 100% !important;
+              min-height: 280px !important;
+              border-radius: 1.25rem !important;
+              overflow: hidden !important;
+              background-color: #090d16 !important;
+              position: relative !important;
+              border: none !important;
+            }
+
+            #reader video {
+              width: 100% !important;
+              height: 100% !important;
+              max-height: 360px !important;
+              object-fit: cover !important;
+              border-radius: 1.25rem !important;
+            }
+
+            #reader canvas {
+              display: none !important;
+            }
+
+            #reader__scan_region {
+              min-height: 240px !important;
+            }
+
+            #reader__dashboard_section {
+              display: none !important;
+            }
+
+            /* Laser Sweep Indicator */
+            @keyframes laserSweep {
+
+              0%,
+              100% {
+                top: 12%;
+                opacity: 0.8;
+              }
+
+              50% {
+                top: 86%;
+                opacity: 1;
+              }
+            }
+
+            .scanner-laser-beam {
+              position: absolute;
+              left: 10%;
+              right: 10%;
+              height: 2px;
+              background: linear-gradient(90deg, transparent, #38bdf8, #2563eb, #38bdf8, transparent);
+              box-shadow: 0 0 14px 2px rgba(56, 189, 248, 0.8);
+              border-radius: 9999px;
+              animation: laserSweep 2.2s ease-in-out infinite;
+              pointer-events: none;
+              z-index: 10;
+            }
+
+            /* Target Reticle */
+            .scanner-target-reticle {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              width: 210px;
+              height: 210px;
+              pointer-events: none;
+              z-index: 9;
+            }
+
+            .reticle-corner {
+              position: absolute;
+              width: 22px;
+              height: 22px;
+              border-color: #38bdf8;
+              filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.7));
+            }
+
+            .reticle-tl {
+              top: 0;
+              left: 0;
+              border-top: 3px solid #38bdf8;
+              border-left: 3px solid #38bdf8;
+              border-top-left-radius: 6px;
+            }
+
+            .reticle-tr {
+              top: 0;
+              right: 0;
+              border-top: 3px solid #38bdf8;
+              border-right: 3px solid #38bdf8;
+              border-top-right-radius: 6px;
+            }
+
+            .reticle-bl {
+              bottom: 0;
+              left: 0;
+              border-bottom: 3px solid #38bdf8;
+              border-left: 3px solid #38bdf8;
+              border-bottom-left-radius: 6px;
+            }
+
+            .reticle-br {
+              bottom: 0;
+              right: 0;
+              border-bottom: 3px solid #38bdf8;
+              border-right: 3px solid #38bdf8;
+              border-bottom-right-radius: 6px;
+            }
+
+            /* Clean Scrollbar */
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 5px;
+            }
+
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: #f8fafc;
+              border-radius: 9999px;
+            }
+
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 9999px;
+            }
+
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          </style>
+
+          <div class="app-main-layout">
+            <%- include('../partials/sidebar') %>
+
+              <main
+                class="app-content flex flex-col !px-0 !pt-0 pb-28 lg:pb-12 relative overflow-x-hidden bg-slate-50 min-h-screen">
+
+                <!-- =========================================================================
+           TOP OPERATIONAL COMMAND BAR
+           ========================================================================= -->
+                <div class="bg-white border-b border-slate-200/90 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 sticky top-0 z-20 shadow-xs">
+                  <div class="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3">
+
+                    <!-- Left / Top: Branding, Status Badges & Active Evacuation Site -->
+                    <div class="flex items-center justify-between gap-2.5 w-full lg:w-auto">
+                      <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div
+                          class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg sm:text-xl shrink-0 shadow-sm">
+                          <i class="ph ph-qr-code"></i>
+                        </div>
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <h1 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                              Evacuee Intake</h1>
+
+                            <!-- Online / Offline Status Badge -->
+                            <span id="networkStatusBadge"
+                              class="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span id="networkStatusText">Online</span>
+                            </span>
+
+                            <!-- Offline Ready Badge (Shows only after roster is successfully cached in Dexie) -->
+                            <span id="offlineReadyBadge"
+                              class="hidden items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              title="Resident roster is cached locally in Dexie for offline lookup and QR scanning">
+                              <i class="ph ph-check-circle-fill text-emerald-500"></i>
+                              <span id="offlineReadyText">Offline Ready</span>
+                            </span>
+
+                            <!-- Offline Queue / Pending Sync Badge -->
+                            <button type="button" id="staffOfflineQueueBadge" onclick="triggerManualSync()"
+                              class="Evacwar-offline-queue-badge hidden items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer"
+                              title="Click to sync pending operations now">
+                              <i class="ph ph-cloud-arrow-up text-amber-600"></i>
+                              <span class="queue-count-text">0 queued offline</span>
+                              <span
+                                class="text-[9px] sm:text-[10px] uppercase font-black tracking-wider text-amber-700 bg-amber-200/80 px-1 rounded">Sync
+                                Now</span>
+                            </button>
+                          </div>
+
+                          <!-- Active Evacuation Center Display -->
+                          <div class="text-[11px] sm:text-xs text-slate-600 font-semibold flex items-center gap-1.5 mt-0.5 min-w-0">
+                            <i class="ph ph-buildings text-blue-600 shrink-0"></i>
+                            <span class="text-slate-400 font-normal shrink-0">Center:</span>
+                            <% if (assignedSites.length> 1) { %>
+                              <select id="activeStaffCenterSelectHeader"
+                                onchange="window.updateActiveStaffCenter(this.value)"
+                                class="text-[11px] sm:text-xs font-bold text-blue-900 bg-blue-50/90 border border-blue-200 rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[160px] xs:max-w-[210px] sm:max-w-xs truncate">
+                                <% assignedSites.forEach(s=> { %>
+                                  <option value="<%= s.id %>" <%=Number(s.id)===activeSiteId ? 'selected' : '' %>>
+                                    <%= s.name %>
+                                  </option>
+                                  <% }) %>
+                              </select>
+                              <% } else { %>
+                                <span class="text-slate-900 font-bold truncate max-w-[160px] xs:max-w-[210px] sm:max-w-xs">
+                                  <%= currentSite.name %>
+                                </span>
+                                <% } %>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Mobile Roster Sync Action Pill (Top Right on Mobile/Tablet) -->
+                      <div class="lg:hidden shrink-0">
+                        <button type="button" id="btnOfflineRosterSyncMobile" onclick="handleManualRosterDownload()"
+                          class="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          title="Cache resident roster into device Dexie storage for offline lookup & QR validation">
+                          <i class="ph ph-database text-blue-600 text-sm" id="iconRosterSyncMobile"></i>
+                          <span id="textRosterSyncMobile" class="text-[11px] sm:text-xs font-bold">Download Offline Roster</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Right / Bottom: Offline Roster Cache (Desktop) & Primary Mode Tabs -->
+                    <div class="flex items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end">
+                      <!-- Desktop Offline Roster Download / Refresh Pill -->
+                      <button type="button" id="btnOfflineRosterSync" onclick="handleManualRosterDownload()"
+                        class="hidden lg:flex px-3 py-2 rounded-xl text-xs font-bold transition-all bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+                        title="Cache resident roster into device Dexie storage for offline lookup & QR validation">
+                        <i class="ph ph-database text-blue-600 text-sm" id="iconRosterSync"></i>
+                        <span id="textRosterSync">Download Offline Roster</span>
+                      </button>
+
+                      <!-- Segmented Intake Mode Switcher (Full Width Grid on Mobile, Flex on Desktop) -->
+                      <div class="w-full lg:w-auto grid grid-cols-3 lg:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+                        <button type="button" id="tabBtnScan" onclick="switchIntakeTab('scan')"
+                          class="flex-1 lg:flex-initial justify-center px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-900 shadow-xs flex items-center gap-1 sm:gap-1.5 cursor-pointer">
+                          <i class="ph ph-qr-code text-blue-600 shrink-0 text-sm"></i>
+                          <span class="truncate">QR Scanner</span>
+                        </button>
+                        <button type="button" id="tabBtnManual" onclick="switchIntakeTab('manual')"
+                          class="flex-1 lg:flex-initial justify-center px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900 flex items-center gap-1 sm:gap-1.5 cursor-pointer">
+                          <i class="ph ph-magnifying-glass text-slate-500 shrink-0 text-sm"></i>
+                          <span class="truncate">Manual Lookup</span>
+                        </button>
+                        <button type="button" id="tabBtnWalkin" onclick="switchIntakeTab('walkin')"
+                          class="flex-1 lg:flex-initial justify-center px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900 flex items-center gap-1 sm:gap-1.5 cursor-pointer">
+                          <i class="ph ph-user-plus text-slate-500 shrink-0 text-sm"></i>
+                          <span class="truncate">Walk-In</span>
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <!-- Staff Assigned Sites JSON payload -->
+                <script id="staff-assigned-sites-data"
+                  type="application/json"><%- JSON.stringify(assignedSites || []) %></script>
+
+                <!-- =========================================================================
+           MAIN INTAKE WORKSPACE
+           ========================================================================= -->
+                <div class="max-w-7xl mx-auto w-full px-4 sm:px-8 py-5 sm:py-6 space-y-6 flex-1">
+
+                  <!-- GRID LAYOUT: Left is Active Intake Mode / Right is Live Site Feed -->
+                  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+                    <!-- =====================================================================
+               LEFT COLUMN: INTAKE CONTROLS (TABS 1, 2, 3)
+               ===================================================================== -->
+                    <div class="lg:col-span-7 flex flex-col space-y-5">
+
+                      <!-- MODE 1: QR SCANNER (PRIMARY INTAKE ACTION) -->
+                      <div id="tabContentScan" class="space-y-4">
+                        <!-- Viewfinder Box -->
+                        <div
+                          class="bg-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden flex flex-col">
+                          <div class="flex items-center justify-between text-xs text-slate-400 mb-2.5 px-1">
+                            <span
+                              class="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] text-slate-300">
+                              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                              Primary Camera Intake
+                            </span>
+                            <span
+                              class="text-[10px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                              100% Offline Capable
+                            </span>
+                          </div>
+
+                          <!-- Camera Element with Reticle -->
+                          <div
+                            class="relative w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800/90 shadow-inner">
+                            <div id="reader"></div>
+
+                            <div class="scanner-target-reticle">
+                              <div class="reticle-corner reticle-tl"></div>
+                              <div class="reticle-corner reticle-tr"></div>
+                              <div class="reticle-corner reticle-bl"></div>
+                              <div class="reticle-corner reticle-br"></div>
+                            </div>
+
+                            <div class="scanner-laser-beam"></div>
+                          </div>
+
+                          <!-- Viewfinder Controls & Live Status -->
+                          <div
+                            class="mt-3 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                            <div class="text-center sm:text-left flex-1" id="scanStatus">
+                              <p
+                                class="text-xs font-semibold text-slate-300 flex items-center justify-center sm:justify-start gap-2">
+                                <i class="ph ph-qr-code text-sky-400 text-base"></i>
+                                <span>Point camera at resident QR code to check in.</span>
+                              </p>
+                            </div>
+                            <button type="button" id="btnToggleCamera" onclick="toggleCameraFacing()"
+                              class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 shadow-2xs transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer">
+                              <i class="ph ph-arrows-clockwise text-sky-400 text-sm"></i>
+                              <span>Flip Camera</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Quick Search Shortcut bar below camera -->
+                        <div
+                          class="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs flex items-center justify-between gap-2">
+                          <div class="flex items-center gap-2 text-xs text-slate-600 font-semibold">
+                            <i class="ph ph-info text-blue-600 text-sm"></i>
+                            <span>No QR pass? Use manual search or walk-in.</span>
+                          </div>
+                          <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="switchIntakeTab('manual')"
+                              class="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer">
+                              Manual Search
+                            </button>
+                            <button type="button" onclick="switchIntakeTab('walkin')"
+                              class="px-2.5 py-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors cursor-pointer">
+                              Walk-In
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- MODE 2: MANUAL RESIDENT LOOKUP -->
+                      <div id="tabContentManual" class="hidden space-y-4">
+                        <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 space-y-4">
+                          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div>
+                              <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <i class="ph ph-magnifying-glass text-blue-600"></i>
+                                <span>Manual Resident Lookup</span>
+                              </h2>
+                              <p class="text-xs text-slate-500 mt-0.5">Search cached roster or server database by name,
+                                phone, or resident ID.</p>
+                            </div>
+                            <span id="manualOfflineReadyBadge"
+                              class="hidden text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200 items-center gap-1">
+                              <i class="ph ph-check-circle-fill text-emerald-500"></i>
+                              <span>Offline Ready</span>
+                            </span>
+                          </div>
+
+                          <form id="manualLookupForm" class="flex gap-2" data-offline-enabled="true"
+                            onsubmit="event.preventDefault(); if(window.submitManualLookup) window.submitManualLookup();">
+                            <div class="relative flex-1">
+                              <i
+                                class="ph ph-user absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                              <input type="text" id="manualQueryInput"
+                                class="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs sm:text-sm font-semibold transition-all"
+                                placeholder="Enter resident first/last name, phone number, or ID..." required />
+                            </div>
+                            <button type="submit" id="btnManualSearch"
+                              class="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 active:scale-[0.98]">
+                              <i class="ph ph-magnifying-glass text-sm"></i>
+                              <span>Find Resident</span>
+                            </button>
+                          </form>
+
+                          <div id="manualLookupHelperText" class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <i class="ph ph-lightbulb text-amber-500"></i>
+                            <span>Tip: If offline, this searches directly from your device's cached resident roster
+                              without contacting the server.</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- MODE 3: WALK-IN REGISTRATION FORM -->
+                      <div id="tabContentWalkin" class="hidden space-y-4">
+                        <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-slate-200 space-y-5">
+                          <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                            <div>
+                              <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <i class="ph ph-user-plus text-emerald-600"></i>
+                                <span>Walk-in Evacuee Registration</span>
+                              </h2>
+                              <p class="text-xs text-slate-500 mt-0.5">On-the-spot registration for unverified evacuees
+                                without existing records.</p>
+                            </div>
+                            <span
+                              class="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                              Auto-Deduplicated
+                            </span>
+                          </div>
+
+                          <form id="walkinForm" class="space-y-5" data-offline-enabled="true">
+                            <!-- Head of Household -->
+                            <div>
+                              <h3
+                                class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5 mb-3">
+                                <i class="ph ph-user-circle text-blue-600 text-base"></i>
+                                <span>Head of Household Information</span>
+                              </h3>
+
+                              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">First Name *</label>
+                                  <input type="text" id="walkin_first_name" required
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs font-semibold"
+                                    placeholder="e.g. Juan">
+                                </div>
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Middle Name</label>
+                                  <input type="text" id="walkin_middle_name"
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs font-semibold"
+                                    placeholder="e.g. Santos">
+                                </div>
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Last Name *</label>
+                                  <input type="text" id="walkin_last_name" required
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs font-semibold"
+                                    placeholder="e.g. Dela Cruz">
+                                </div>
+                              </div>
+
+                              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Sex *</label>
+                                  <select id="walkin_sex" required
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-semibold">
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Age *</label>
+                                  <input type="number" id="walkin_age" required min="0" max="130"
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-semibold"
+                                    placeholder="e.g. 35">
+                                </div>
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Contact Phone</label>
+                                  <input type="text" id="walkin_contact"
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-semibold"
+                                    placeholder="09181234567">
+                                </div>
+                              </div>
+
+                              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Purok / Address</label>
+                                  <input type="text" id="walkin_address" value="Purok 1"
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-semibold">
+                                </div>
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-700 mb-1">Barangay</label>
+                                  <input type="text" id="walkin_barangay" value="San Rafael"
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-semibold">
+                                </div>
+                              </div>
+
+                              <!-- Vulnerabilities Checkboxes -->
+                              <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <label class="block text-[11px] font-bold uppercase text-slate-600 mb-2">Vulnerability
+                                  Classification (Head)</label>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  <label
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="walkin_is_4ps" class="w-4 h-4 rounded text-blue-600">
+                                    <span>4Ps Beneficiary</span>
+                                  </label>
+                                  <label
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="walkin_is_pwd" class="w-4 h-4 rounded text-purple-600">
+                                    <span>PWD</span>
+                                  </label>
+                                  <label
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="walkin_is_pregnant"
+                                      class="w-4 h-4 rounded text-pink-600">
+                                    <span>Pregnant</span>
+                                  </label>
+                                  <label
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="walkin_is_lactating"
+                                      class="w-4 h-4 rounded text-purple-600">
+                                    <span>Lactating</span>
+                                  </label>
+                                  <label
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="walkin_is_single_head"
+                                      class="w-4 h-4 rounded text-amber-600">
+                                    <span>Single Parent</span>
+                                  </label>
+                                  <label
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                    <input type="checkbox" id="walkin_has_illness" class="w-4 h-4 rounded text-red-600">
+                                    <span>Medical Illness</span>
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- Accompanying Members -->
+                            <div class="pt-3 border-t border-slate-100">
+                              <div class="flex items-center justify-between mb-2.5">
+                                <h3
+                                  class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                                  <i class="ph ph-users text-blue-600 text-base"></i>
+                                  <span>Accompanying Family Members</span>
+                                </h3>
+                                <button type="button" onclick="addWalkinMemberRow()"
+                                  class="bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs py-1 px-2.5 rounded-lg border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer">
+                                  <i class="ph ph-plus"></i> Add Member
+                                </button>
+                              </div>
+
+                              <div id="walkinMembersList" class="space-y-2.5">
+                                <!-- Dynamic members appended here -->
+                              </div>
+                            </div>
+
+                            <!-- Target Evacuation Center -->
+                            <div class="pt-3 border-t border-slate-100">
+                              <label class="block text-xs font-bold text-slate-700 mb-1">Check-in Destination Evacuation
+                                Center</label>
+                              <select id="walkin_center_id"
+                                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-semibold">
+                                <% if (assignedSites.length> 0) { %>
+                                  <% assignedSites.forEach(c=> { %>
+                                    <option value="<%= c.id %>" <%=Number(c.id)===activeSiteId ? 'selected' : '' %>>
+                                      <%= c.name %> (Occupancy: <%= c.current_occupancy || 0 %>/<%= c.max_capacity || 0
+                                            %>)
+                                    </option>
+                                    <% }) %>
+                                      <% } else { %>
+                                        <option value="2">San Rafael Evacuation Center</option>
+                                        <% } %>
+                              </select>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="pt-3 flex gap-2">
+                              <button type="button" onclick="switchIntakeTab('scan')"
+                                class="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer">
+                                Cancel
+                              </button>
+                              <button type="submit" id="btnSubmitWalkin"
+                                class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99]">
+                                <i class="ph ph-check-circle text-base"></i>
+                                <span>Register & Complete Intake</span>
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+
+                      <!-- DYNAMIC HOUSEHOLD INTAKE CHECKLIST (Shared across QR and Manual Lookup) -->
+                      <div id="intakeContainer"
+                        class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4 transition-all">
+                        <!-- Rendered dynamically by renderIntakeChecklist -->
+                      </div>
+
+                    </div>
+
+                    <!-- =====================================================================
+               RIGHT COLUMN: SITE CHECKED-IN EVACUEES LOG (REAL-TIME FEED)
+               ===================================================================== -->
+                    <div class="lg:col-span-5 flex flex-col space-y-4">
+                      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div>
+                            <h3 class="font-black text-slate-900 text-sm flex items-center gap-2">
+                              <i class="ph ph-user-check text-emerald-600 text-base"></i>
+                              <span>Site Intake Feed</span>
+                            </h3>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Live check-ins for <%= currentSite.name %>.</p>
+                          </div>
+                          <span id="scannedCountBadge"
+                            class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <%= (locals.recentScanned && locals.recentScanned.length) ? locals.recentScanned.length : 0
+                              %> Checked-In
+                          </span>
+                        </div>
+
+                        <!-- Scrollable Feed List -->
+                        <div id="scannedEvacueesList"
+                          class="space-y-2 max-h-[520px] overflow-y-auto pr-1 custom-scrollbar">
+                          <% if (locals.recentScanned && locals.recentScanned.length> 0) { %>
+                            <% locals.recentScanned.forEach(item=> { %>
+                              <div data-resident-id="<%= item.resident_id %>"
+                                class="p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                                    <i class="ph ph-check text-base"></i>
+                                  </div>
+                                  <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                      <h4 class="font-bold text-slate-900 text-xs truncate">
+                                        <%= item.name %>
+                                      </h4>
+                                      <span
+                                        class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
+                                        <%= item.checked_in_count %> Members
+                                      </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                      <span>Brgy. <%= item.barangay || 'San Rafael' %></span>
+                                      <span>&bull;</span>
+                                      <span>
+                                        <%= item.timeFormatted %>
+                                      </span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <span
+                                  class="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-md shrink-0">
+                                  Active
+                                </span>
+                              </div>
+                              <% }) %>
+                                <% } else { %>
+                                  <div id="emptyScannedPlaceholder" class="py-12 text-center text-slate-400 space-y-2">
+                                    <div
+                                      class="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                                      <i class="ph ph-qr-code text-xl"></i>
+                                    </div>
+                                    <p class="text-xs font-bold text-slate-600">No evacuees recorded yet for this
+                                      session.</p>
+                                    <p class="text-[11px] text-slate-400">Scan QR codes or use manual search to begin
+                                      intake.</p>
+                                  </div>
+                                  <% } %>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <%- include('../partials/footer-visible') %>
+              </main>
+          </div>
+
+          <!-- Config container for JS parameters -->
+          <div id="qrScannerConfig"
+            data-recent-count="<%= (locals.recentScanned && locals.recentScanned.length) ? locals.recentScanned.length : 0 %>"
+            data-assigned-center-id="<%= activeSiteId %>" class="hidden"></div>
+
+          <!-- =========================================================================
+       STAFF INTAKE LOGIC: QR, OFFLINE MANUAL LOOKUP, CHECK-IN, WALK-IN DEDUP
+       ========================================================================= -->
+          <script>
+            let html5QrCode = null;
+            let isScanning = false;
+            let isCameraRunning = false;
+            let currentFacingMode = "environment";
+            let lastScannedCode = "";
+            let lastScannedTime = 0;
+            const scannedResidentIds = new Set();
+
+            const qrConfig = document.getElementById('qrScannerConfig')?.dataset || {};
+            let scannedTotalCount = parseInt(qrConfig.recentCount || '0', 10);
+            const defaultAssignedCenterId = parseInt(qrConfig.assignedCenterId || '2', 10);
+
+            // Update active staff evacuation center
+            window.updateActiveStaffCenter = function (centerId) {
+              if (!centerId) return;
+              const parsedId = parseInt(centerId, 10);
+              if (isNaN(parsedId)) return;
+
+              const url = new URL(window.location.href);
+              url.searchParams.set('center_id', parsedId);
+              window.location.href = url.toString();
+            };
+
+            // Web Audio API chime generator for scan success
+            function playSuccessChime() {
+              try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.28);
+              } catch (e) { }
+            }
+
+            // Network status monitoring
+            function updateNetworkStatusUI() {
+              const badge = document.getElementById('networkStatusBadge');
+              const text = document.getElementById('networkStatusText');
+              if (!badge || !text) return;
+
+              if (navigator.onLine) {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span><span>Online</span>';
+              } else {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span><span>Offline Mode</span>';
+              }
+            }
+            window.addEventListener('online', updateNetworkStatusUI);
+            window.addEventListener('offline', updateNetworkStatusUI);
+
+            // Update offline roster status display and Offline Ready badges
+            async function updateRosterStatusBadge() {
+              const textEls = [document.getElementById('textRosterSync'), document.getElementById('textRosterSyncMobile')].filter(Boolean);
+              const offlineReadyBadge = document.getElementById('offlineReadyBadge');
+              const offlineReadyText = document.getElementById('offlineReadyText');
+              const manualOfflineReadyBadge = document.getElementById('manualOfflineReadyBadge');
+
+              let count = 0;
+              try {
+                if (window.EvakWarDB && typeof window.EvakWarDB.getRosterStatus === 'function') {
+                  const status = await window.EvakWarDB.getRosterStatus();
+                  if (status && typeof status.count === 'number' && status.count > 0) {
+                    count = status.count;
+                  }
+                }
+                if (count === 0) {
+                  const DexieClass = (typeof Dexie !== 'undefined' ? Dexie : null) || window.Dexie || (typeof globalThis !== 'undefined' ? globalThis.Dexie : null);
+                  if (DexieClass) {
+                    const db = new DexieClass('EvakWarLocalDB');
+                    db.version(1).stores({ resident_roster: 'lookupKey, residentId, qrUuid, nameLower' });
+                    await db.open();
+                    count = await db.resident_roster.count();
+                  }
+                }
+              } catch (e) {
+                console.warn('Failed to retrieve roster status:', e);
+              }
+
+              // 1. Update button text
+              textEls.forEach(el => {
+                if (count > 0) {
+                  el.textContent = `Roster: ${count} Cached`;
+                } else {
+                  el.textContent = 'Download Offline Roster';
+                }
+              });
+
+              // 2. Update Offline Ready status ONLY after roster is successfully stored
+              if (offlineReadyBadge) {
+                if (count > 0) {
+                  if (offlineReadyText) offlineReadyText.textContent = `Offline Ready (${count})`;
+                  offlineReadyBadge.classList.remove('hidden');
+                  offlineReadyBadge.classList.add('inline-flex');
+                } else {
+                  offlineReadyBadge.classList.add('hidden');
+                  offlineReadyBadge.classList.remove('inline-flex');
+                }
+              }
+
+              if (manualOfflineReadyBadge) {
+                if (count > 0) {
+                  manualOfflineReadyBadge.classList.remove('hidden');
+                  manualOfflineReadyBadge.classList.add('inline-flex');
+                } else {
+                  manualOfflineReadyBadge.classList.add('hidden');
+                  manualOfflineReadyBadge.classList.remove('inline-flex');
+                }
+              }
+            }
+            window.updateRosterStatusBadge = updateRosterStatusBadge;
+
+            // Self-contained direct fallback for offline roster download
+            async function directDownloadOfflineRoster() {
+              let res = null;
+              try {
+                res = await fetch('/api/offline/roster', {
+                  headers: { 'Accept': 'application/json' },
+                  cache: 'no-cache',
+                  credentials: 'same-origin'
+                });
+              } catch (netErr) {
+                res = await fetch('/staff/offline/roster', {
+                  headers: { 'Accept': 'application/json' },
+                  cache: 'no-cache',
+                  credentials: 'same-origin'
+                });
+              }
+
+              if (!res.ok && (res.status === 404 || res.status === 500)) {
+                res = await fetch('/staff/offline/roster', {
+                  headers: { 'Accept': 'application/json' },
+                  cache: 'no-cache',
+                  credentials: 'same-origin'
+                });
+              }
+
+              if (!res.ok) {
+                throw new Error(`Server returned HTTP ${res.status}`);
+              }
+
+              const data = await res.json();
+              if (!data || !data.success) {
+                throw new Error(data?.message || 'Server returned an invalid response');
+              }
+
+              const rosterList = Array.isArray(data.roster) ? data.roster : [];
+              const DexieClass = (typeof Dexie !== 'undefined' ? Dexie : null) || window.Dexie || (typeof globalThis !== 'undefined' ? globalThis.Dexie : null);
+              if (!DexieClass) {
+                throw new Error('IndexedDB storage engine (Dexie) is not loaded.');
+              }
+
+              const db = new DexieClass('EvakWarLocalDB');
+              db.version(1).stores({
+                pending_operations: 'clientOperationId, operationType, centerId, staffId, syncStatus, createdAt',
+                staff_assigned_sites: 'id, name, is_active',
+                resident_roster: 'lookupKey, residentId, qrUuid, nameLower',
+                map_data: 'id, updatedAt',
+                app_state: 'key'
+              });
+              await db.open();
+              window.EvakWarLocalDB = db;
+
+              const records = [];
+              for (const item of rosterList) {
+                if (!item || !item.resident) continue;
+                const res = item.resident;
+                records.push({
+                  lookupKey: String(res.id),
+                  residentId: res.id,
+                  qrUuid: String(res.uuid || res.qr_code_uuid || '').toLowerCase().trim(),
+                  nameLower: `${res.first_name || ''} ${res.last_name || ''}`.toLowerCase().trim(),
+                  resident: res,
+                  members: Array.isArray(item.members) ? item.members : [],
+                  household: item,
+                  updatedAt: Date.now()
+                });
+              }
+
+              if (records.length > 0) {
+                await db.resident_roster.clear();
+                await db.resident_roster.bulkPut(records);
+              }
+
+              await db.app_state.put({
+                key: 'roster_metadata',
+                value: { count: records.length, cachedAt: new Date().toISOString() }
+              });
+
+              if (Array.isArray(data.centers) && data.centers.length > 0) {
+                await db.staff_assigned_sites.bulkPut(data.centers);
+                await db.map_data.put({
+                  id: 'san_rafael_map',
+                  centers: data.centers,
+                  mapFeatures: data.mapFeatures || { type: 'FeatureCollection', features: [] },
+                  updatedAt: new Date().toISOString()
+                });
+              }
+
+              const verifiedCount = await db.resident_roster.count();
+              return { success: true, count: verifiedCount };
+            }
+
+            // Trigger manual download of offline roster
+            async function handleManualRosterDownload() {
+              const btns = [document.getElementById('btnOfflineRosterSync'), document.getElementById('btnOfflineRosterSyncMobile')].filter(Boolean);
+              const texts = [document.getElementById('textRosterSync'), document.getElementById('textRosterSyncMobile')].filter(Boolean);
+              const icons = [document.getElementById('iconRosterSync'), document.getElementById('iconRosterSyncMobile')].filter(Boolean);
+
+              if (!navigator.onLine) {
+                showOfflineNotice("Cannot download roster while offline. Internet connection required.", "error");
+                return;
+              }
+
+              btns.forEach(btn => btn.disabled = true);
+              icons.forEach(icon => icon.className = 'ph ph-spinner animate-spin text-blue-600 text-sm');
+              texts.forEach(text => text.textContent = 'Downloading...');
+
+              try {
+                let res = null;
+                if (window.EvakWarDB && typeof window.EvakWarDB.downloadOfflineRoster === 'function') {
+                  res = await window.EvakWarDB.downloadOfflineRoster();
+                } else {
+                  res = await directDownloadOfflineRoster();
+                }
+
+                if (res && res.success) {
+                  playSuccessChime();
+                  showOfflineNotice(`Successfully cached ${res.count} resident(s) for offline intake.`, 'success');
+                } else {
+                  const errMsg = (res && res.error) ? res.error : 'Failed to download offline roster';
+                  showOfflineNotice(`Failed to download offline roster: ${errMsg}`, 'error');
+                }
+              } catch (err) {
+                console.error("Manual roster sync failed:", err);
+                showOfflineNotice(`Failed to download offline roster: ${err.message}`, 'error');
+              } finally {
+                btns.forEach(btn => btn.disabled = false);
+                icons.forEach(icon => icon.className = 'ph ph-database text-blue-600 text-sm');
+                await updateRosterStatusBadge();
+              }
+            }
+            window.handleManualRosterDownload = handleManualRosterDownload;
+
+            // Trigger manual sync of queued offline operations
+            async function triggerManualSync() {
+              if (!navigator.onLine) {
+                showOfflineNotice("Cannot sync while offline. Connection required.", "info");
+                return;
+              }
+              showOfflineNotice("Syncing offline queued records...", "info");
+              if (window.EvakWarDB && typeof window.EvakWarDB.syncPending === 'function') {
+                const result = await window.EvakWarDB.syncPending();
+                if (result && result.syncedCount > 0) {
+                  showOfflineNotice(`Sync complete: ${result.syncedCount} record(s) synced!`, "success");
+                  if (typeof refreshIntakeFeed === 'function') refreshIntakeFeed();
+                } else {
+                  showOfflineNotice("Offline queue is clear.", "success");
+                }
+              }
+            }
+
+            // Dynamic Live Feed Prepend
+            function addEvacueeToLiveFeed(item) {
+              if (item.resident_id && scannedResidentIds.has(item.resident_id)) {
+                return;
+              }
+              if (item.resident_id) scannedResidentIds.add(item.resident_id);
+
+              const container = document.getElementById('scannedEvacueesList');
+              const placeholder = document.getElementById('emptyScannedPlaceholder');
+              if (placeholder) placeholder.remove();
+
+              scannedTotalCount++;
+              const badge = document.getElementById('scannedCountBadge');
+              if (badge) badge.textContent = `${scannedTotalCount} Checked-In`;
+
+              const div = document.createElement('div');
+              if (item.resident_id) div.setAttribute('data-resident-id', item.resident_id);
+              div.className = 'p-3 bg-emerald-50/90 border border-emerald-300 rounded-xl flex items-center justify-between transition-all';
+              div.innerHTML = `
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-2xs">
+            <i class="ph ph-check text-base"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <h4 class="font-bold text-slate-900 text-xs truncate">${item.name}</h4>
+              <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">
+                ${item.checked_in_count} Members
+              </span>
+              ${item.is_offline ? '<span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">Queued Offline</span>' : ''}
+            </div>
+            <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+              <span>Brgy. ${item.barangay || 'San Rafael'}</span>
+              <span>&bull;</span>
+              <span>${item.timeFormatted}</span>
+            </p>
+          </div>
+        </div>
+        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md shrink-0">
+          Checked-In
+        </span>
+      `;
+
+              if (container.firstChild) {
+                container.insertBefore(div, container.firstChild);
+              } else {
+                container.appendChild(div);
+              }
+
+              setTimeout(() => {
+                div.className = 'p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all';
+              }, 2500);
+            }
+
+            // Intake Tab Switcher (Scan, Manual, Walkin)
+            function switchIntakeTab(tab) {
+              const tabBtnScan = document.getElementById('tabBtnScan');
+              const tabBtnManual = document.getElementById('tabBtnManual');
+              const tabBtnWalkin = document.getElementById('tabBtnWalkin');
+              const tabContentScan = document.getElementById('tabContentScan');
+              const tabContentManual = document.getElementById('tabContentManual');
+              const tabContentWalkin = document.getElementById('tabContentWalkin');
+
+              const inactiveClass = 'flex-1 lg:flex-initial justify-center px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900 flex items-center gap-1 sm:gap-1.5 cursor-pointer';
+              const activeClass = 'flex-1 lg:flex-initial justify-center px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-900 shadow-xs flex items-center gap-1 sm:gap-1.5 cursor-pointer';
+
+              // Reset all tabs
+              [tabBtnScan, tabBtnManual, tabBtnWalkin].forEach(btn => {
+                if (btn) btn.className = inactiveClass;
+              });
+              [tabContentScan, tabContentManual, tabContentWalkin].forEach(c => {
+                if (c) c.classList.add('hidden');
+              });
+
+              if (tab === 'walkin') {
+                if (tabBtnWalkin) tabBtnWalkin.className = activeClass;
+                if (tabContentWalkin) tabContentWalkin.classList.remove('hidden');
+                stopCamera();
+              } else if (tab === 'manual') {
+                if (tabBtnManual) tabBtnManual.className = activeClass;
+                if (tabContentManual) tabContentManual.classList.remove('hidden');
+                stopCamera();
+                const input = document.getElementById('manualQueryInput');
+                if (input) setTimeout(() => input.focus(), 100);
+              } else {
+                if (tabBtnScan) tabBtnScan.className = activeClass;
+                if (tabContentScan) tabContentScan.classList.remove('hidden');
+                startCamera();
+              }
+            }
+
+            // Check query params to open walkin if requested
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('tab') === 'walkin' || urlParams.get('mode') === 'walkin') {
+              switchIntakeTab('walkin');
+            } else if (urlParams.get('tab') === 'manual' || urlParams.get('mode') === 'manual') {
+              switchIntakeTab('manual');
+            }
+
+            // Camera Scanner Functions
+            function startCamera() {
+              const scanStatus = document.getElementById('scanStatus');
+              if (isCameraRunning) return;
+
+              if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+              }
+
+              const config = {
+                fps: 10,
+                qrbox: { width: 210, height: 210 },
+                aspectRatio: 1.0
+              };
+
+              if (scanStatus) {
+                scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300 flex items-center justify-center sm:justify-start gap-2"><i class="ph ph-spinner animate-spin text-sky-400 text-sm"></i> <span>Initializing camera...</span></p>';
+              }
+
+              html5QrCode.start(
+                { facingMode: currentFacingMode },
+                config,
+                onScanSuccess,
+                onScanFailure
+              )
+                .then(() => {
+                  isCameraRunning = true;
+                  if (scanStatus) {
+                    scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300 flex items-center justify-center sm:justify-start gap-2"><i class="ph ph-camera text-sky-400 text-sm"></i> <span>Point camera at resident QR code.</span></p>';
+                  }
+                })
+                .catch(err => {
+                  console.warn("Camera start failed, trying fallback mode:", err);
+                  const fallbackMode = (currentFacingMode === "environment") ? "user" : "environment";
+                  html5QrCode.start(
+                    { facingMode: fallbackMode },
+                    config,
+                    onScanSuccess,
+                    onScanFailure
+                  )
+                    .then(() => {
+                      currentFacingMode = fallbackMode;
+                      isCameraRunning = true;
+                      if (scanStatus) {
+                        scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300 flex items-center justify-center sm:justify-start gap-2"><i class="ph ph-camera text-sky-400 text-sm"></i> <span>Scanner active. Point at QR code.</span></p>';
+                      }
+                    })
+                    .catch(err2 => {
+                      console.error("Camera access failed:", err2);
+                      isCameraRunning = false;
+                      if (scanStatus) {
+                        scanStatus.innerHTML = `
+                  <div class="flex items-center gap-2">
+                    <span class="text-amber-400 text-xs font-semibold"><i class="ph ph-warning"></i> Camera inactive.</span>
+                    <button type="button" onclick="startCamera()" class="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded cursor-pointer">Retry</button>
+                  </div>
+                `;
+                      }
+                    });
+                });
+            }
+
+            function stopCamera() {
+              if (html5QrCode && isCameraRunning) {
+                html5QrCode.stop().then(() => {
+                  isCameraRunning = false;
+                }).catch(err => {
+                  console.error("Stop camera error:", err);
+                  isCameraRunning = false;
+                });
+              }
+            }
+
+            function toggleCameraFacing() {
+              currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+              if (html5QrCode && isCameraRunning) {
+                html5QrCode.stop().then(() => {
+                  isCameraRunning = false;
+                  startCamera();
+                }).catch(() => {
+                  isCameraRunning = false;
+                  startCamera();
+                });
+              } else {
+                startCamera();
+              }
+            }
+
+            let isScanningSafetyTimer = null;
+
+            function onScanSuccess(decodedText) {
+              try {
+                let cleanQuery = (decodedText || '').trim();
+                if (cleanQuery.startsWith('{') && cleanQuery.endsWith('}')) {
+                  try {
+                    const parsed = JSON.parse(cleanQuery);
+                    cleanQuery = parsed.uuid || parsed.qr_code_uuid || parsed.query || parsed.id || cleanQuery;
+                  } catch (e) { }
+                }
+
+                // Extract UUID if present (handles plain UUID, full URL, query params, quotes)
+                const uuidMatch = String(cleanQuery).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+                if (uuidMatch) {
+                  cleanQuery = uuidMatch[0];
+                } else {
+                  cleanQuery = cleanQuery.replace(/^["']|["']$/g, '').trim();
+                }
+
+                const now = Date.now();
+                // 2.5 second debounce for snappy response
+                if (cleanQuery === lastScannedCode && (now - lastScannedTime) < 2500) {
+                  return;
+                }
+
+                if (isScanning) return;
+                isScanning = true;
+                lastScannedCode = cleanQuery;
+                lastScannedTime = now;
+
+                // Safety timeout: guaranteed reset if anything hangs
+                clearTimeout(isScanningSafetyTimer);
+                isScanningSafetyTimer = setTimeout(() => {
+                  isScanning = false;
+                }, 3500);
+
+                const scanStatus = document.getElementById('scanStatus');
+                if (scanStatus) {
+                  scanStatus.innerHTML = '<p class="text-xs text-emerald-400 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-lightning text-amber-300 text-sm"></i> <span>Scanned! Verifying pass...</span></p>';
+                }
+
+                performResidentLookup(cleanQuery, 'QR');
+              } catch (scanErr) {
+                console.error("Scan processing error:", scanErr);
+                isScanning = false;
+                lastScannedCode = "";
+              }
+            }
+
+            function onScanFailure(error) {
+              // Frame-by-frame normal scan pass
+            }
+
+            // Top-Level State
+            window.currentHouseholdData = null;
+            window.currentHouseholdQuery = null;
+            window.currentHouseholdSearchResults = null;
+
+            // =======================================================================
+            // TOP-LEVEL RESIDENT LOOKUP: OFFLINE FIRST OR ONLINE WITH DEXIE FALLBACK
+            // =======================================================================
+            async function executeOfflineLookup(queryOrUuid, lookupMethod = 'QR') {
+              try {
+                let matchingHouseholds = [];
+                const dbWrapper = window.EvakWarDB || window.EvacWarDB;
+
+                const DexieClass = (typeof Dexie !== 'undefined' ? Dexie : null) || window.Dexie || window.EvakWarLocalDB?.constructor;
+                if (DexieClass) {
+                  const db = window.EvakWarLocalDB || new DexieClass('EvakWarLocalDB');
+                  if (!db.isOpen()) {
+                    db.version(1).stores({
+                      pending_operations: 'clientOperationId, operationType, centerId, staffId, syncStatus, createdAt',
+                      staff_assigned_sites: 'id, name, is_active',
+                      resident_roster: 'lookupKey, residentId, qrUuid, nameLower',
+                      map_data: 'id, updatedAt',
+                      app_state: 'key'
+                    });
+                    await db.open();
+                  }
+                  const table = db.table ? db.table('resident_roster') : db.resident_roster;
+                  if (table) {
+                    const q = String(queryOrUuid).trim().toLowerCase();
+                    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q) || (q.includes('-') && q.length >= 8);
+                    const all = await table.toArray();
+                    const seenIds = new Set();
+
+                    for (const rec of all) {
+                      const item = rec.household || rec;
+                      if (!item || !item.resident) continue;
+                      const res = item.resident;
+                      if (seenIds.has(res.id)) continue;
+                      const qruuid = String(res.uuid || res.qr_code_uuid || '').toLowerCase().trim();
+
+                      if (isUuid) {
+                        if (qruuid && qruuid === q) {
+                          seenIds.add(res.id);
+                          item.lookup_method = lookupMethod;
+                          matchingHouseholds.push(item);
+                          break;
+                        }
+                        continue;
+                      }
+
+                      const name = `${res.first_name || ''} ${res.last_name || ''}`.toLowerCase();
+                      const reverseName = `${res.last_name || ''} ${res.first_name || ''}`.toLowerCase();
+                      const contact = String(res.contact || res.contact_number || '').replace(/\D/g, '');
+
+                      let isMatch = (
+                        String(res.id) === q ||
+                        name.includes(q) ||
+                        reverseName.includes(q) ||
+                        (qruuid && qruuid === q) ||
+                        (q.length >= 7 && contact.includes(q))
+                      );
+
+                      if (!isMatch && Array.isArray(item.members)) {
+                        for (const m of item.members) {
+                          const mName = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
+                          if (mName.includes(q)) {
+                            isMatch = true;
+                            break;
+                          }
+                        }
+                      }
+
+                      if (isMatch) {
+                        seenIds.add(res.id);
+                        item.lookup_method = lookupMethod;
+                        item.is_offline = true;
+                        matchingHouseholds.push(item);
+                      }
+                    }
+                  }
+                }
+
+                if (matchingHouseholds.length === 1) {
+                  const cachedData = matchingHouseholds[0];
+                  playSuccessChime();
+                  window.currentHouseholdData = cachedData;
+                  window.currentHouseholdSearchResults = null;
+
+                  const btnManualSearch = document.getElementById('btnManualSearch');
+                  if (btnManualSearch) {
+                    btnManualSearch.disabled = false;
+                    btnManualSearch.innerHTML = '<i class="ph ph-magnifying-glass text-sm"></i> <span>Find Resident</span>';
+                  }
+
+                  const scanStatus = document.getElementById('scanStatus');
+                  if (scanStatus) {
+                    scanStatus.innerHTML = `<p class="text-xs text-amber-300 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-database text-sm"></i> <span>Offline Cache: ${cachedData.household_name || cachedData.resident.name}</span></p>`;
+                  }
+
+                  renderIntakeChecklist(cachedData.resident, cachedData.members || [], cachedData);
+                  setTimeout(() => { isScanning = false; }, 2000);
+                  return true;
+                } else if (matchingHouseholds.length > 1) {
+                  playSuccessChime();
+                  window.currentHouseholdSearchResults = matchingHouseholds;
+
+                  const btnManualSearch = document.getElementById('btnManualSearch');
+                  if (btnManualSearch) {
+                    btnManualSearch.disabled = false;
+                    btnManualSearch.innerHTML = '<i class="ph ph-magnifying-glass text-sm"></i> <span>Find Resident</span>';
+                  }
+
+                  const scanStatus = document.getElementById('scanStatus');
+                  if (scanStatus) {
+                    scanStatus.innerHTML = `<p class="text-xs text-amber-300 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-database text-sm"></i> <span>Offline Cache: Found ${matchingHouseholds.length} Households</span></p>`;
+                  }
+
+                  renderHouseholdSearchResults(matchingHouseholds, queryOrUuid);
+                  setTimeout(() => { isScanning = false; }, 2000);
+                  return true;
+                }
+              } catch (offlineErr) {
+                console.warn('[Offline resident lookup error]', offlineErr);
+              }
+              return false;
+            }
+            window.executeOfflineLookup = executeOfflineLookup;
+
+            async function performResidentLookup(queryOrUuid, lookupMethod = 'QR') {
+              window.currentHouseholdQuery = queryOrUuid;
+              const scanStatus = document.getElementById('scanStatus');
+              const btnManualSearch = document.getElementById('btnManualSearch');
+
+              // 1. IF OFFLINE: Immediately query local Dexie database
+              if (!navigator.onLine) {
+                const foundOffline = await executeOfflineLookup(queryOrUuid, lookupMethod);
+                if (btnManualSearch) {
+                  btnManualSearch.disabled = false;
+                  btnManualSearch.innerHTML = '<i class="ph ph-magnifying-glass text-sm"></i> <span>Find Resident</span>';
+                }
+                if (!foundOffline) {
+                  showOfflineNotice("Offline: Resident not found in cached roster.", "info");
+                  if (scanStatus) {
+                    scanStatus.innerHTML = '<p class="text-xs text-amber-400 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-warning-circle text-sm"></i> <span>Offline: Resident not in cached roster.</span></p>';
+                  }
+                  lastScannedCode = "";
+                  setTimeout(() => {
+                    isScanning = false;
+                    if (scanStatus) scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300">Scanner active. Point at QR code.</p>';
+                  }, 2500);
+                }
+                return;
+              }
+
+              // 2. IF ONLINE: Try live server lookup, with seamless offline fallback if server errors or CSRF desyncs
+              try {
+                const csrfToken = (typeof window.getCsrfToken === 'function' ? window.getCsrfToken() : '') ||
+                  document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+                const res = await fetch('/staff/qr/lookup', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                  },
+                  body: JSON.stringify({ query: queryOrUuid, uuid: queryOrUuid, _csrf: csrfToken })
+                });
+
+                if (btnManualSearch) {
+                  btnManualSearch.disabled = false;
+                  btnManualSearch.innerHTML = '<i class="ph ph-magnifying-glass text-sm"></i> <span>Find Resident</span>';
+                }
+
+                let data = null;
+                try {
+                  data = await res.json();
+                } catch (jsonErr) {
+                  console.warn("Could not parse server lookup response:", jsonErr);
+                }
+
+                // If server returned non-200 or failure, fall back to offline cache
+                if (!res.ok || !data || !data.success) {
+                  console.warn("Server lookup returned error, trying offline cache fallback:", data?.message || res.status);
+                  const foundOffline = await executeOfflineLookup(queryOrUuid, lookupMethod);
+                  if (foundOffline) return;
+
+                  // Neither online nor offline found it
+                  const errMsg = data?.message || (res.status === 404 ? 'Resident not found.' : 'Lookup failed.');
+                  if (scanStatus) {
+                    scanStatus.innerHTML = `<p class="text-xs text-red-400 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-warning-circle text-sm"></i> <span>${errMsg}</span></p>`;
+                  }
+                  showOfflineNotice(errMsg, 'info');
+                  lastScannedCode = "";
+                  setTimeout(() => {
+                    isScanning = false;
+                    if (scanStatus) scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300">Scanner active. Point at QR code.</p>';
+                  }, 2500);
+                  return;
+                }
+
+                // If multiple matching households returned
+                if (data.multiple && Array.isArray(data.households) && data.households.length > 1) {
+                  playSuccessChime();
+                  window.currentHouseholdSearchResults = data.households;
+                  if (scanStatus) {
+                    scanStatus.innerHTML = `<p class="text-xs text-blue-400 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-users-three text-sm"></i> <span>Found ${data.households.length} matching households.</span></p>`;
+                  }
+                  renderHouseholdSearchResults(data.households, queryOrUuid);
+                  setTimeout(() => { isScanning = false; }, 1500);
+                  return;
+                }
+
+                // Online single lookup succeeded!
+                playSuccessChime();
+                data.lookup_method = lookupMethod;
+                window.currentHouseholdData = data;
+                window.currentHouseholdSearchResults = null;
+
+                // Cache in Dexie for offline intake
+                const dbWrapper = window.EvakWarDB || window.EvacWarDB;
+                if (dbWrapper && typeof dbWrapper.cacheResident === 'function') {
+                  dbWrapper.cacheResident(data);
+                }
+
+                if (scanStatus) {
+                  scanStatus.innerHTML = `<p class="text-xs text-emerald-400 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-check-circle text-sm"></i> <span>Verified: ${data.household_name}</span></p>`;
+                }
+
+                renderIntakeChecklist(data.resident, data.members || [], data);
+                setTimeout(() => { isScanning = false; }, 2000);
+              } catch (networkErr) {
+                console.warn("Server lookup network failure, falling back to offline cache:", networkErr.message);
+                const foundOffline = await executeOfflineLookup(queryOrUuid, lookupMethod);
+                if (btnManualSearch) {
+                  btnManualSearch.disabled = false;
+                  btnManualSearch.innerHTML = '<i class="ph ph-magnifying-glass text-sm"></i> <span>Find Resident</span>';
+                }
+                if (!foundOffline) {
+                  showOfflineNotice("Resident not found on server or offline cache.", "info");
+                  if (scanStatus) {
+                    scanStatus.innerHTML = '<p class="text-xs text-amber-400 font-bold flex items-center justify-center sm:justify-start gap-1.5"><i class="ph ph-warning-circle text-sm"></i> <span>Resident record not found.</span></p>';
+                  }
+                  lastScannedCode = "";
+                  setTimeout(() => {
+                    isScanning = false;
+                    if (scanStatus) scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300">Scanner active.</p>';
+                  }, 2500);
+                }
+              }
+            }
+            window.performResidentLookup = performResidentLookup;
+
+            // =======================================================================
+            // RENDER MULTIPLE HOUSEHOLD SEARCH RESULTS
+            // =======================================================================
+            function renderHouseholdSearchResults(households, query) {
+              window.currentHouseholdSearchResults = households;
+              const intakeContainer = document.getElementById('intakeContainer');
+              if (!intakeContainer) return;
+
+              intakeContainer.className = 'bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-4';
+              intakeContainer.classList.remove('hidden');
+
+              let listHtml = '';
+              households.forEach((h, index) => {
+                const res = h.resident;
+                const isChecked = h.evacuated_count > 0;
+                const memNames = (h.members && h.members.length > 0) ? h.members.map(m => m.name).join(', ') : 'None';
+
+                listHtml += `
+                  <div onclick="selectHouseholdFromResults(${index})" 
+                    class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-blue-50/70 hover:border-blue-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group shadow-2xs">
+                    <div class="flex items-start gap-3 min-w-0">
+                      <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0 mt-0.5 sm:mt-0 shadow-2xs group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <i class="ph ph-house-line text-xl"></i>
+                      </div>
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <h4 class="font-black text-slate-900 text-sm group-hover:text-blue-700 transition-colors">${res.name} Household</h4>
+                          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isChecked ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-50 text-amber-800 border border-amber-200'}">
+                            ${isChecked ? `Checked-In (${h.evacuated_count}/${h.total_household_count})` : `Not Checked-In (${h.total_household_count} members)`}
+                          </span>
+                          ${h.is_offline ? '<span class="text-[9px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Offline</span>' : ''}
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                          <span><i class="ph ph-map-pin text-blue-600"></i> ${res.address || 'Address'} &bull; Brgy. ${res.barangay}</span>
+                          ${res.contact ? `<span>&bull;</span> <span><i class="ph ph-phone"></i> ${res.contact}</span>` : ''}
+                        </p>
+                        ${h.members && h.members.length > 0 ? `
+                          <p class="text-[11px] text-slate-500 mt-1 truncate">
+                            <span class="font-bold text-slate-700">Family Members:</span> ${memNames}
+                          </p>
+                        ` : ''}
+                      </div>
+                    </div>
+
+                    <button type="button" onclick="event.stopPropagation(); selectHouseholdFromResults(${index})" 
+                      class="shrink-0 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]">
+                      <span>Select Household</span>
+                      <i class="ph ph-arrow-right"></i>
+                    </button>
+                  </div>
+                `;
+              });
+
+              intakeContainer.innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                        ${households.length} Households Found
+                      </span>
+                      <span class="text-xs text-slate-400 font-semibold">for "${query}"</span>
+                    </div>
+                    <h3 class="font-black text-slate-900 text-base sm:text-lg tracking-tight mt-1">Select Resident Household</h3>
+                  </div>
+                  <button type="button" onclick="resetScanBox()" 
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer active:scale-95 shadow-2xs">
+                    <i class="ph ph-x text-xs"></i>
+                    <span>Cancel</span>
+                  </button>
+                </div>
+
+                <div class="space-y-2.5 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                  ${listHtml}
+                </div>
+
+                <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 gap-2 flex-wrap">
+                  <span>Multiple households share this name. Click the correct household to open intake checklist.</span>
+                  <button type="button" onclick="resetScanBox()" 
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all cursor-pointer active:scale-95 shadow-2xs">
+                    <i class="ph ph-magnifying-glass text-xs"></i>
+                    <span>Done / New Search</span>
+                  </button>
+                </div>
+              `;
+
+              if (window.innerWidth < 1024) {
+                intakeContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }
+            window.renderHouseholdSearchResults = renderHouseholdSearchResults;
+
+            function selectHouseholdFromResults(index) {
+              if (!window.currentHouseholdSearchResults || !window.currentHouseholdSearchResults[index]) return;
+              const household = window.currentHouseholdSearchResults[index];
+              window.currentHouseholdData = household;
+              renderIntakeChecklist(household.resident, household.members || [], household);
+            }
+            window.selectHouseholdFromResults = selectHouseholdFromResults;
+
+            function backToSearchResults() {
+              if (window.currentHouseholdSearchResults && window.currentHouseholdSearchResults.length > 1) {
+                renderHouseholdSearchResults(window.currentHouseholdSearchResults, window.currentHouseholdQuery || '');
+              }
+            }
+            window.backToSearchResults = backToSearchResults;
+
+            // =======================================================================
+            // RENDER SELECTIVE INTAKE CHECKLIST
+            // =======================================================================
+            function renderIntakeChecklist(resident, members, fullData) {
+              const intakeContainer = document.getElementById('intakeContainer');
+              if (!intakeContainer) return;
+
+              const totalHouseholdCount = 1 + (members ? members.length : 0);
+              let evacuatedCount = (resident.evacuation_status === 'CHECKED_IN') ? 1 : 0;
+              if (members) {
+                members.forEach(m => {
+                  if (m.evacuation_status === 'CHECKED_IN') evacuatedCount++;
+                });
+              }
+
+              // Badges for head
+              let headBadges = '';
+              if (resident.is_4ps) headBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">4Ps</span> ';
+              if (resident.is_pregnant) headBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-pink-50 text-pink-800 border border-pink-200">Pregnant</span> ';
+              if (resident.is_lactating) headBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-50 text-purple-800 border border-purple-200">Lactating</span> ';
+              if (resident.is_pwd) headBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-800 border border-indigo-200">PWD</span> ';
+              if (resident.has_serious_illness) headBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-50 text-red-800 border border-red-200">Medical</span> ';
+
+              const headIsCheckedIn = (resident.evacuation_status === 'CHECKED_IN');
+
+              let membersHtml = `
+          <div id="cardPersonHead" class="p-3 rounded-xl border transition-all ${headIsCheckedIn ? 'bg-emerald-50/70 border-emerald-200 shadow-2xs' : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200'}">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <input type="checkbox" id="checkHead" class="intake-person-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                  ${headIsCheckedIn ? 'disabled checked' : 'checked'} onchange="updateIntakeSelectionCounter()">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="font-bold text-slate-900 text-xs sm:text-sm truncate">${resident.name}</span>
+                    <span class="text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Head</span>
+                    <span class="text-[11px] text-slate-500 font-medium">${resident.sex || 'Male'}, ${resident.age || 'N/A'} yrs</span>
+                  </div>
+                  ${headBadges ? `<div class="flex items-center gap-1 mt-1 flex-wrap">${headBadges}</div>` : ''}
+                </div>
+              </div>
+
+              <div id="badgeContainerHead" class="shrink-0 flex items-center gap-2">
+                ${headIsCheckedIn ? `
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                    <i class="ph ph-check-circle"></i> Checked-In
+                  </span>
+                  ${resident.checked_in_id ? `
+                  <button type="button" onclick="checkoutSinglePerson(${resident.checked_in_id}, '${resident.name}')" class="px-2 py-0.5 bg-white hover:bg-red-50 text-slate-600 hover:text-red-700 rounded text-xs font-bold border border-slate-200 hover:border-red-300 transition-colors cursor-pointer" title="Check-out">
+                    Out
+                  </button>` : ''}
+                ` : `
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    Not Checked-In
+                  </span>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+
+              if (members && members.length > 0) {
+                members.forEach(m => {
+                  let memBadges = '';
+                  if (m.is_pregnant) memBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-pink-50 text-pink-800 border border-pink-200">Pregnant</span> ';
+                  if (m.is_lactating) memBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-50 text-purple-800 border border-purple-200">Lactating</span> ';
+                  if (m.is_pwd) memBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-800 border border-indigo-200">PWD</span> ';
+                  if (m.has_serious_illness) memBadges += '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-50 text-red-800 border border-red-200">Medical</span> ';
+
+                  const memIsCheckedIn = (m.evacuation_status === 'CHECKED_IN');
+
+                  membersHtml += `
+              <div id="cardPersonMember_${m.id}" class="p-3 rounded-xl border transition-all ${memIsCheckedIn ? 'bg-emerald-50/70 border-emerald-200 shadow-2xs' : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200'}">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <input type="checkbox" class="intake-person-checkbox member-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                      value="${m.id}" ${memIsCheckedIn ? 'disabled checked' : 'checked'} onchange="updateIntakeSelectionCounter()">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-bold text-slate-900 text-xs sm:text-sm truncate">${m.name}</span>
+                        <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">${m.relation || 'Family'}</span>
+                        <span class="text-[11px] text-slate-500 font-medium">${m.sex || 'Male'}, ${m.age || 'N/A'} yrs</span>
+                      </div>
+                      ${memBadges ? `<div class="flex items-center gap-1 mt-1 flex-wrap">${memBadges}</div>` : ''}
+                    </div>
+                  </div>
+
+                  <div id="badgeContainerMember_${m.id}" class="shrink-0 flex items-center gap-2">
+                    ${memIsCheckedIn ? `
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                        <i class="ph ph-check-circle"></i> Checked-In
+                      </span>
+                      ${m.checked_in_id ? `
+                      <button type="button" onclick="checkoutSinglePerson(${m.checked_in_id}, '${m.name}')" class="px-2 py-0.5 bg-white hover:bg-red-50 text-slate-600 hover:text-red-700 rounded text-xs font-bold border border-slate-200 hover:border-red-300 transition-colors cursor-pointer" title="Check-out">
+                        Out
+                      </button>` : ''}
+                    ` : `
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        Not Checked-In
+                      </span>
+                    `}
+                  </div>
+                </div>
+              </div>
+            `;
+                });
+              }
+
+              intakeContainer.className = 'bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-4';
+              intakeContainer.classList.remove('hidden');
+              intakeContainer.innerHTML = `
+          <!-- Household Summary Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                  Household Record
+                </span>
+                <span id="intakeCheckedInCountBadge" class="text-[10px] font-black uppercase tracking-wider ${evacuatedCount > 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-600 bg-slate-100 border-slate-200'} px-2.5 py-0.5 rounded-full border">
+                  Checked-In: ${evacuatedCount} / ${totalHouseholdCount}
+                </span>
+                ${!navigator.onLine ? '<span class="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Offline Intake</span>' : ''}
+              </div>
+              <h3 class="font-black text-slate-900 text-base sm:text-lg tracking-tight mt-1">${resident.name} Household</h3>
+              <p class="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                <span><i class="ph ph-map-pin text-blue-600"></i> ${resident.address || 'Address'} &bull; Brgy. ${resident.barangay}</span>
+                ${resident.contact ? `<span>&bull;</span> <span><i class="ph ph-phone"></i> ${resident.contact}</span>` : ''}
+              </p>
+            </div>
+
+            <div class="flex items-center gap-1.5 self-start sm:self-auto flex-wrap">
+              ${(window.currentHouseholdSearchResults && window.currentHouseholdSearchResults.length > 1) ? `
+                <button type="button" onclick="backToSearchResults()" class="px-2.5 py-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer">
+                  <i class="ph ph-arrow-left"></i> Results (${window.currentHouseholdSearchResults.length})
+                </button>
+              ` : ''}
+              <button type="button" onclick="selectAllUnchecked(true)" class="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer">
+                Select All
+              </button>
+              <button type="button" onclick="selectAllUnchecked(false)" class="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors cursor-pointer">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- Members List -->
+          <div class="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+            ${membersHtml}
+          </div>
+
+          <!-- Action Submission -->
+          <div class="pt-2 border-t border-slate-100 space-y-2">
+            <button type="button" id="btnConfirmSelectiveCheckin" onclick="submitSelectiveIntake()" 
+              class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99]">
+              <i class="ph ph-check-circle text-base"></i>
+              <span id="btnIntakeLabel">Check In Selected (1 Present)</span>
+            </button>
+
+            <div class="flex items-center justify-between text-xs text-slate-500 px-1 pt-1 flex-wrap gap-2">
+              <span class="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <i class="ph ph-map-pin text-slate-400"></i>
+                Ready for intake at <%= currentSite.name %>
+              </span>
+              <div class="flex items-center gap-2 flex-wrap">
+                ${(window.currentHouseholdSearchResults && window.currentHouseholdSearchResults.length > 1) ? `
+                  <button type="button" onclick="backToSearchResults()" 
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border border-blue-200 shadow-2xs transition-all cursor-pointer active:scale-95">
+                    <i class="ph ph-arrow-left text-xs"></i>
+                    <span>Back to ${window.currentHouseholdSearchResults.length} Households</span>
+                  </button>
+                ` : ''}
+                <button type="button" onclick="resetScanBox()" 
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-200 shadow-2xs transition-all cursor-pointer active:scale-95">
+                  <i class="ph ph-check text-xs text-slate-600"></i>
+                  <span>Done / Next Resident</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+              updateIntakeSelectionCounter();
+
+              // Smooth scroll to checklist
+              if (window.innerWidth < 1024) {
+                intakeContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }
+            window.renderIntakeChecklist = renderIntakeChecklist;
+
+            function updateIntakeSelectionCounter() {
+              const checkHead = document.getElementById('checkHead');
+              const memberCheckboxes = document.querySelectorAll('.member-checkbox');
+
+              let count = 0;
+              if (checkHead && !checkHead.disabled && checkHead.checked) count++;
+              memberCheckboxes.forEach(cb => {
+                if (!cb.disabled && cb.checked) count++;
+              });
+
+              const btn = document.getElementById('btnConfirmSelectiveCheckin');
+              if (!btn) return;
+
+              const allCheckboxes = document.querySelectorAll('.intake-person-checkbox');
+              const remainingUnchecked = Array.from(allCheckboxes).filter(cb => !cb.disabled);
+
+              if (allCheckboxes.length > 0 && remainingUnchecked.length === 0) {
+                // All household members are checked in
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.className = 'w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer';
+                btn.innerHTML = '<i class="ph ph-check-circle-fill text-lg"></i> <span>✓ Saved Offline — Next Resident</span>';
+                btn.onclick = () => resetScanBox();
+                return;
+              }
+
+              // Normal selectable intake button
+              btn.onclick = () => submitSelectiveIntake();
+              let btnLabel = document.getElementById('btnIntakeLabel');
+              if (!btnLabel) {
+                btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span id="btnIntakeLabel"></span>';
+                btnLabel = document.getElementById('btnIntakeLabel');
+              }
+              if (btnLabel) {
+                btnLabel.innerText = count === 0 ? 'Select Members to Check In' : `Check In Selected (${count} Present)`;
+              }
+              btn.disabled = (count === 0);
+              if (count === 0) {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+              } else {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+              }
+            }
+            window.updateIntakeSelectionCounter = updateIntakeSelectionCounter;
+
+            function selectAllUnchecked(select) {
+              const checkHead = document.getElementById('checkHead');
+              if (checkHead && !checkHead.disabled) checkHead.checked = select;
+              document.querySelectorAll('.member-checkbox').forEach(cb => {
+                if (!cb.disabled) cb.checked = select;
+              });
+              updateIntakeSelectionCounter();
+            }
+            window.selectAllUnchecked = selectAllUnchecked;
+
+            // =======================================================================
+            // SELECTIVE INTAKE SUBMISSION: QUEUES OFFLINE WITH EXISTING RESIDENT ID
+            // =======================================================================
+            function submitSelectiveIntake() {
+              if (!window.currentHouseholdData) return;
+              const resData = window.currentHouseholdData.resident;
+              const checkHead = document.getElementById('checkHead');
+              const checkInHead = (checkHead && !checkHead.disabled && checkHead.checked);
+
+              const selectedMemberIds = [];
+              document.querySelectorAll('.member-checkbox').forEach(cb => {
+                if (!cb.disabled && cb.checked) {
+                  selectedMemberIds.push(parseInt(cb.value, 10));
+                }
+              });
+
+              if (!checkInHead && selectedMemberIds.length === 0) {
+                alert('Please select at least one member to check in.');
+                return;
+              }
+
+              const btn = document.getElementById('btnConfirmSelectiveCheckin');
+              if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-75');
+                btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> <span>Processing Check-In...</span>';
+              }
+
+              const activeCenterSelect = document.getElementById('activeStaffCenterSelectHeader');
+              const targetCenterId = (activeCenterSelect && activeCenterSelect.value) ? parseInt(activeCenterSelect.value, 10) : defaultAssignedCenterId;
+
+              const checkinPayload = {
+                resident_id: resData.id,
+                center_id: targetCenterId,
+                check_in_head: checkInHead,
+                member_ids: selectedMemberIds,
+                check_in_method: (window.currentHouseholdData && window.currentHouseholdData.lookup_method) ? window.currentHouseholdData.lookup_method : 'MANUAL'
+              };
+
+              const executeOfflineCheckIn = async () => {
+                const dbWrapper = window.EvakWarDB || window.EvacWarDB;
+                if (dbWrapper && typeof dbWrapper.enqueueOperation === 'function') {
+                  try {
+                    const selectedTotal = (checkInHead ? 1 : 0) + selectedMemberIds.length;
+                    await dbWrapper.enqueueOperation(
+                      'CHECK_IN',
+                      checkinPayload,
+                      targetCenterId,
+                      `Check-In: ${resData.name} (${selectedTotal} person(s))`
+                    );
+                    playSuccessChime();
+
+                    // 1. Prominent toast notification confirming offline intake is captured
+                    showOfflineNotice(`✓ Saved offline! Intake recorded for ${resData.name} (${selectedTotal} person${selectedTotal > 1 ? 's' : ''}). Will automatically sync when connection is restored.`, "success");
+
+                    // 2. Mark head checked locally if selected
+                    if (checkHead && checkInHead) {
+                      checkHead.disabled = true;
+                      checkHead.checked = true;
+                      resData.evacuation_status = 'CHECKED_IN';
+                      const headCard = document.getElementById('cardPersonHead') || checkHead.closest('.rounded-xl');
+                      if (headCard) {
+                        headCard.classList.remove('bg-slate-50', 'hover:bg-slate-100/80', 'border-slate-200');
+                        headCard.classList.add('bg-emerald-50/70', 'border-emerald-200', 'shadow-2xs');
+                      }
+                      const badgeHead = document.getElementById('badgeContainerHead') || (headCard && headCard.querySelector('.shrink-0'));
+                      if (badgeHead) {
+                        badgeHead.innerHTML = `
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                            <i class="ph ph-cloud-arrow-up"></i> Saved Offline
+                          </span>
+                        `;
+                      }
+                    }
+
+                    // 3. Mark selected family members checked locally
+                    document.querySelectorAll('.member-checkbox').forEach(cb => {
+                      const mId = parseInt(cb.value, 10);
+                      if (selectedMemberIds.includes(mId)) {
+                        cb.disabled = true;
+                        cb.checked = true;
+                        const memCard = document.getElementById(`cardPersonMember_${mId}`) || cb.closest('.rounded-xl');
+                        if (memCard) {
+                          memCard.classList.remove('bg-slate-50', 'hover:bg-slate-100/80', 'border-slate-200');
+                          memCard.classList.add('bg-emerald-50/70', 'border-emerald-200', 'shadow-2xs');
+                        }
+                        const badgeMem = document.getElementById(`badgeContainerMember_${mId}`) || (memCard && memCard.querySelector('.shrink-0'));
+                        if (badgeMem) {
+                          badgeMem.innerHTML = `
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <i class="ph ph-cloud-arrow-up"></i> Saved Offline
+                            </span>
+                          `;
+                        }
+                      }
+                    });
+
+                    // 4. Update memory object
+                    if (window.currentHouseholdData && Array.isArray(window.currentHouseholdData.members)) {
+                      window.currentHouseholdData.members.forEach(m => {
+                        if (selectedMemberIds.includes(m.id)) {
+                          m.evacuation_status = 'CHECKED_IN';
+                        }
+                      });
+                    }
+
+                    // 5. Update Dexie cached roster so subsequent offline lookups reflect this check-in
+                    try {
+                      if (typeof dbWrapper.markResidentCheckedInLocally === 'function') {
+                        await dbWrapper.markResidentCheckedInLocally(resData.id, checkInHead, selectedMemberIds);
+                      }
+                    } catch (dexErr) {
+                      console.warn('[Dexie mark error]:', dexErr);
+                    }
+
+                    // 6. Update Household Summary Header count badge
+                    const countBadge = document.getElementById('intakeCheckedInCountBadge');
+                    const allCheckboxes = document.querySelectorAll('.intake-person-checkbox');
+                    const totalCount = allCheckboxes.length;
+                    let checkedCount = 0;
+                    allCheckboxes.forEach(cb => {
+                      if (cb.disabled || cb.checked) checkedCount++;
+                    });
+                    if (countBadge) {
+                      countBadge.textContent = `Checked-In: ${checkedCount} / ${totalCount}`;
+                      countBadge.className = 'text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border-emerald-200 px-2.5 py-0.5 rounded-full border';
+                    }
+
+                    // 7. Add to Live Feed
+                    addEvacueeToLiveFeed({
+                      resident_id: resData.id,
+                      name: resData.name,
+                      barangay: resData.barangay,
+                      checked_in_count: selectedTotal,
+                      is_offline: true,
+                      timeFormatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    });
+
+                    // 8. Update check-in button state immediately: no endless spinning!
+                    if (btn) {
+                      const remainingUnchecked = Array.from(document.querySelectorAll('.intake-person-checkbox')).filter(cb => !cb.disabled);
+                      if (remainingUnchecked.length === 0) {
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-50', 'opacity-75', 'cursor-not-allowed');
+                        btn.className = 'w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer';
+                        btn.innerHTML = '<i class="ph ph-check-circle-fill text-lg"></i> <span>✓ Saved Offline — Next Resident</span>';
+                        btn.onclick = () => resetScanBox();
+                      } else {
+                        btn.disabled = true;
+                        btn.classList.remove('opacity-75');
+                        btn.classList.add('opacity-50', 'cursor-not-allowed');
+                        btn.className = 'w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer opacity-50 cursor-not-allowed';
+                        btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span id="btnIntakeLabel">Select Remaining Members</span>';
+                        btn.onclick = () => submitSelectiveIntake();
+                        updateIntakeSelectionCounter();
+                      }
+                    }
+                    return true;
+                  } catch (queueErr) {
+                    console.error("Failed to queue check-in offline:", queueErr);
+                    showOfflineNotice("Failed to save check-in offline: " + queueErr.message, "error");
+                    if (btn) {
+                      btn.disabled = false;
+                      btn.classList.remove('opacity-50', 'opacity-75', 'cursor-not-allowed');
+                      btn.innerHTML = '<i class="ph ph-arrow-counter-clockwise text-base"></i> <span id="btnIntakeLabel">Retry Check In</span>';
+                      btn.onclick = () => submitSelectiveIntake();
+                      updateIntakeSelectionCounter();
+                    }
+                    return false;
+                  }
+                }
+                return false;
+              };
+
+              // If offline: directly queue operation in Dexie
+              if (!navigator.onLine) {
+                executeOfflineCheckIn();
+                return;
+              }
+
+              // If online: post to server, fall back to offline queue if server fails
+              const csrfToken = (typeof window.getCsrfToken === 'function' ? window.getCsrfToken() : '') ||
+                document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+              fetch('/staff/qr/checkin', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify(Object.assign({}, checkinPayload, { _csrf: csrfToken }))
+              })
+                .then(res => {
+                  if (!res.ok && res.status >= 500) {
+                    throw new Error('Server unavailable (HTTP ' + res.status + ')');
+                  }
+                  return res.json();
+                })
+                .then(data => {
+                  playSuccessChime();
+                  showOfflineNotice(data.message || "Resident checked in successfully!", "success");
+
+                  addEvacueeToLiveFeed({
+                    resident_id: resData.id,
+                    name: resData.name,
+                    barangay: resData.barangay,
+                    checked_in_count: data.newly_checked_in_count || ((checkInHead ? 1 : 0) + selectedMemberIds.length),
+                    is_offline: false,
+                    timeFormatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  });
+
+                  // Reload household statuses
+                  performResidentLookup(window.currentHouseholdQuery || resData.uuid || resData.id);
+                })
+                .catch(async err => {
+                  console.warn("Online check-in network failure, falling back to offline queue:", err.message);
+                  const queued = await executeOfflineCheckIn();
+                  if (!queued && btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75');
+                    btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span id="btnIntakeLabel">Check In Selected</span>';
+                    updateIntakeSelectionCounter();
+                  }
+                });
+            }
+            window.submitSelectiveIntake = submitSelectiveIntake;
+
+            function checkoutSinglePerson(checkInId, personName) {
+              if (!confirm(`Check out ${personName} from the evacuation center?`)) return;
+
+              const csrfToken = (typeof window.getCsrfToken === 'function' ? window.getCsrfToken() : '') ||
+                document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+              fetch('/staff/checkout', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ check_in_id: checkInId, checkout_all_family: false, _csrf: csrfToken })
+              })
+                .then(res => res.json())
+                .then(data => {
+                  if (data.success) {
+                    showOfflineNotice(`${personName} checked out.`, "success");
+                    if (window.currentHouseholdQuery) {
+                      performResidentLookup(window.currentHouseholdQuery);
+                    }
+                  } else {
+                    alert('Failed to check out: ' + data.message);
+                  }
+                })
+                .catch(err => {
+                  console.error("Checkout error:", err);
+                  alert('Network or server error during checkout.');
+                });
+            }
+            window.checkoutSinglePerson = checkoutSinglePerson;
+
+            function resetScanBox() {
+              isScanning = false;
+              lastScannedCode = "";
+              window.currentHouseholdData = null;
+              window.currentHouseholdQuery = null;
+              window.currentHouseholdSearchResults = null;
+              const manualQueryInput = document.getElementById('manualQueryInput');
+              if (manualQueryInput) manualQueryInput.value = '';
+
+              if (!isCameraRunning && (!urlParams.get('tab') || urlParams.get('tab') === 'scan')) {
+                startCamera();
+              }
+
+              const scanStatus = document.getElementById('scanStatus');
+              if (scanStatus) {
+                scanStatus.innerHTML = '<p class="text-xs font-semibold text-slate-300 flex items-center justify-center sm:justify-start gap-2"><i class="ph ph-qr-code text-sky-400 text-sm"></i> <span>Point camera at resident QR code.</span></p>';
+              }
+              const intakeContainer = document.getElementById('intakeContainer');
+              if (intakeContainer) {
+                intakeContainer.className = 'hidden';
+                intakeContainer.innerHTML = '';
+              }
+            }
+            window.resetScanBox = resetScanBox;
+
+            // Initialization & Event Binding Handlers
+            document.addEventListener('DOMContentLoaded', () => {
+              const manualLookupForm = document.getElementById('manualLookupForm');
+              const manualQueryInput = document.getElementById('manualQueryInput');
+              const btnManualSearch = document.getElementById('btnManualSearch');
+
+              updateNetworkStatusUI();
+              updateRosterStatusBadge();
+
+              // Automatically download / refresh offline roster in the background when staff opens QR scan page (if online)
+              if (navigator.onLine) {
+                setTimeout(async () => {
+                  try {
+                    let res = null;
+                    const dbWrapper = window.EvakWarDB || window.EvacWarDB;
+                    if (dbWrapper && typeof dbWrapper.downloadOfflineRoster === 'function') {
+                      res = await dbWrapper.downloadOfflineRoster();
+                    } else if (typeof directDownloadOfflineRoster === 'function') {
+                      res = await directDownloadOfflineRoster();
+                    }
+                    if (res && res.success) {
+                      await updateRosterStatusBadge();
+                      console.log(`[QR Intake] Offline resident roster auto-refreshed (${res.count} residents cached).`);
+                    }
+                  } catch (autoErr) {
+                    console.warn('[QR Intake] Auto-roster update notice:', autoErr.message);
+                  }
+                }, 800);
+              }
+
+              // Bind offline roster download button explicitly
+              [document.getElementById('btnOfflineRosterSync'), document.getElementById('btnOfflineRosterSyncMobile')].forEach(btn => {
+                if (btn) {
+                  btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    handleManualRosterDownload();
+                  });
+                }
+              });
+
+              // Populate pre-rendered checked-in resident IDs
+              document.querySelectorAll('[data-resident-id]').forEach(el => {
+                const id = parseInt(el.getAttribute('data-resident-id'), 10);
+                if (!isNaN(id)) scannedResidentIds.add(id);
+              });
+
+              // Start camera if on QR tab
+              if (!urlParams.get('tab') || urlParams.get('tab') === 'scan') {
+                startCamera();
+              }
+
+              // Manual Lookup submit handler
+              function submitManualLookup() {
+                const query = manualQueryInput ? manualQueryInput.value.trim() : '';
+                if (!query) return;
+                if (btnManualSearch) {
+                  btnManualSearch.disabled = true;
+                  btnManualSearch.innerHTML = '<i class="ph ph-spinner animate-spin text-sm"></i> <span>Searching...</span>';
+                }
+                performResidentLookup(query, 'MANUAL');
+              }
+              window.submitManualLookup = submitManualLookup;
+
+              if (manualLookupForm) {
+                manualLookupForm.addEventListener('submit', (e) => {
+                  e.preventDefault();
+                  submitManualLookup();
+                });
+              }
+            });
+
+            // Walk-in Dynamic Members
+            let walkinMemberCount = 0;
+            function addWalkinMemberRow() {
+              walkinMemberCount++;
+              const container = document.getElementById('walkinMembersList');
+              const rowId = `walkin_mem_${walkinMemberCount}`;
+
+              const div = document.createElement('div');
+              div.id = rowId;
+              div.className = 'p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 relative';
+              div.innerHTML = `
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase text-slate-700">Family Member #${walkinMemberCount}</span>
+          <button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 cursor-pointer">
+            <i class="ph ph-trash"></i> Remove
+          </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">First Name *</label>
+            <input type="text" class="wmem-first-name w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-500 outline-none" required placeholder="First name">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Last Name *</label>
+            <input type="text" class="wmem-last-name w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-500 outline-none" required placeholder="Last name">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Relation</label>
+            <select class="wmem-relation w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-500 outline-none">
+              <option value="Spouse">Spouse</option>
+              <option value="Child">Child</option>
+              <option value="Parent">Parent</option>
+              <option value="Sibling">Sibling</option>
+              <option value="Relative">Relative</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">Sex</label>
+              <select class="wmem-sex w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-500 outline-none">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">Age</label>
+              <input type="number" class="wmem-age w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-500 outline-none" min="0" max="130" value="0">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 pt-1 border-t border-slate-100 flex-wrap text-xs">
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" class="wmem-pwd rounded text-purple-600">
+            <span class="text-[11px] font-semibold text-slate-600">PWD</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" class="wmem-pregnant rounded text-pink-600">
+            <span class="text-[11px] font-semibold text-slate-600">Pregnant</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" class="wmem-lactating rounded text-purple-600">
+            <span class="text-[11px] font-semibold text-slate-600">Lactating</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" class="wmem-illness rounded text-red-600">
+            <span class="text-[11px] font-semibold text-slate-600">Medical Illness</span>
+          </label>
+        </div>
+      `;
+              container.appendChild(div);
+            }
+            window.addWalkinMemberRow = addWalkinMemberRow;
+
+            // =========================================================================
+            // WALKIN FORM SUBMIT: DUPLICATE SEARCH PRIOR TO CREATING NEW RESIDENT
+            // =========================================================================
+            document.getElementById('walkinForm').addEventListener('submit', async function (e) {
+              e.preventDefault();
+              const btn = document.getElementById('btnSubmitWalkin');
+              btn.disabled = true;
+              btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> <span>Checking Roster & Saving...</span>';
+
+              const members = [];
+              const memberRows = document.querySelectorAll('#walkinMembersList > div');
+              memberRows.forEach(row => {
+                const fn = row.querySelector('.wmem-first-name').value.trim();
+                const ln = row.querySelector('.wmem-last-name').value.trim();
+                if (fn && ln) {
+                  members.push({
+                    first_name: fn,
+                    last_name: ln,
+                    relation: row.querySelector('.wmem-relation').value,
+                    sex: row.querySelector('.wmem-sex').value,
+                    age: parseInt(row.querySelector('.wmem-age').value, 10) || 0,
+                    is_pwd: row.querySelector('.wmem-pwd').checked,
+                    is_pregnant: row.querySelector('.wmem-pregnant').checked,
+                    is_lactating: row.querySelector('.wmem-lactating').checked,
+                    has_serious_illness: row.querySelector('.wmem-illness').checked
+                  });
+                }
+              });
+
+              const payload = {
+                first_name: document.getElementById('walkin_first_name').value.trim(),
+                middle_name: document.getElementById('walkin_middle_name').value.trim(),
+                last_name: document.getElementById('walkin_last_name').value.trim(),
+                sex: document.getElementById('walkin_sex').value,
+                age: parseInt(document.getElementById('walkin_age').value, 10),
+                contact_number: document.getElementById('walkin_contact').value.trim(),
+                home_address: document.getElementById('walkin_address').value.trim(),
+                barangay: document.getElementById('walkin_barangay').value.trim(),
+                is_4ps: document.getElementById('walkin_is_4ps').checked,
+                is_pwd: document.getElementById('walkin_is_pwd').checked,
+                is_pregnant: document.getElementById('walkin_is_pregnant').checked,
+                is_lactating: document.getElementById('walkin_is_lactating').checked,
+                is_single_head: document.getElementById('walkin_is_single_head').checked,
+                has_serious_illness: document.getElementById('walkin_has_illness').checked,
+                center_id: parseInt(document.getElementById('walkin_center_id')?.value, 10) || defaultAssignedCenterId || 2,
+                members: members
+              };
+
+              const executeOfflineWalkIn = async () => {
+                if (window.EvakWarDB && typeof window.EvakWarDB.enqueueOperation === 'function') {
+                  try {
+                    // Check cached roster for existing match
+                    let existingMatch = null;
+                    if (typeof window.EvakWarDB.findMatchingResident === 'function') {
+                      existingMatch = await window.EvakWarDB.findMatchingResident(payload);
+                    } else if (typeof window.EvakWarDB.findResident === 'function') {
+                      existingMatch = await window.EvakWarDB.findResident(`${payload.first_name} ${payload.last_name}`);
+                    }
+
+                    if (existingMatch && existingMatch.resident && existingMatch.resident.id) {
+                      // Existing resident matched: convert to CHECK_IN operation
+                      const existingResident = existingMatch.resident;
+                      const matchedMembers = Array.isArray(existingMatch.members) ? existingMatch.members : [];
+
+                      const memberIdsToCheckIn = [];
+                      if (Array.isArray(members) && members.length > 0) {
+                        members.forEach(subMem => {
+                          const foundMem = matchedMembers.find(m =>
+                            String(m.first_name || '').trim().toLowerCase() === String(subMem.first_name || '').trim().toLowerCase() &&
+                            String(m.last_name || '').trim().toLowerCase() === String(subMem.last_name || '').trim().toLowerCase()
+                          );
+                          if (foundMem && foundMem.id) {
+                            memberIdsToCheckIn.push(foundMem.id);
+                          }
+                        });
+                      }
+
+                      const checkinPayload = {
+                        resident_id: existingResident.id,
+                        center_id: payload.center_id,
+                        check_in_head: true,
+                        member_ids: memberIdsToCheckIn,
+                        check_in_method: 'MANUAL',
+                        matched_from_walkin: true
+                      };
+
+                      const totalCount = 1 + memberIdsToCheckIn.length;
+                      await window.EvakWarDB.enqueueOperation(
+                        'CHECK_IN',
+                        checkinPayload,
+                        payload.center_id,
+                        `Check-In (Walk-in Match): ${existingResident.name || (payload.first_name + ' ' + payload.last_name)} (${totalCount} person(s))`
+                      );
+
+                      playSuccessChime();
+                      showOfflineNotice(`Found existing resident (${existingResident.name || payload.first_name}) — Queued for Check-In offline.`, 'success');
+
+                      addEvacueeToLiveFeed({
+                        resident_id: existingResident.id,
+                        name: existingResident.name || `${payload.first_name} ${payload.last_name}`,
+                        barangay: payload.barangay,
+                        checked_in_count: totalCount,
+                        is_offline: true,
+                        timeFormatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      });
+
+                      document.getElementById('walkinForm').reset();
+                      const list = document.getElementById('walkinMembersList');
+                      if (list) list.innerHTML = '';
+                      walkinMemberCount = 0;
+                      btn.disabled = false;
+                      btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span>Register & Complete Intake</span>';
+                      return true;
+                    }
+
+                    // Only create new resident if no match is found
+                    await window.EvakWarDB.enqueueOperation(
+                      'WALK_IN',
+                      payload,
+                      payload.center_id,
+                      `Walk-In: ${payload.first_name} ${payload.last_name} (${1 + members.length} person(s))`
+                    );
+
+                    playSuccessChime();
+                    showOfflineNotice("New walk-in saved offline — will sync when online.", "info");
+
+                    addEvacueeToLiveFeed({
+                      resident_id: Date.now(),
+                      name: `${payload.first_name} ${payload.last_name}`,
+                      barangay: payload.barangay,
+                      checked_in_count: 1 + members.length,
+                      is_offline: true,
+                      timeFormatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    });
+
+                    document.getElementById('walkinForm').reset();
+                    const list = document.getElementById('walkinMembersList');
+                    if (list) list.innerHTML = '';
+                    walkinMemberCount = 0;
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span>Register & Complete Intake</span>';
+                    return true;
+                  } catch (e) {
+                    console.error("Failed to queue walk-in offline:", e);
+                    showOfflineNotice("Failed to save walk-in offline: " + e.message, "info");
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span>Register & Complete Intake</span>';
+                    return false;
+                  }
+                }
+                return false;
+              };
+
+              if (!navigator.onLine) {
+                executeOfflineWalkIn();
+                return;
+              }
+
+              fetch('/staff/walkin/checkin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              })
+                .then(res => {
+                  if (!res.ok && res.status >= 500) {
+                    throw new Error('Server unavailable (HTTP ' + res.status + ')');
+                  }
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.success) {
+                    playSuccessChime();
+                    showOfflineNotice(data.message || 'Walk-in evacuees checked in successfully!', 'success');
+
+                    addEvacueeToLiveFeed({
+                      resident_id: data.resident_id || Date.now(),
+                      name: `${payload.first_name} ${payload.last_name}`,
+                      barangay: payload.barangay,
+                      checked_in_count: 1 + members.length,
+                      is_offline: false,
+                      timeFormatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    });
+
+                    document.getElementById('walkinForm').reset();
+                    const list = document.getElementById('walkinMembersList');
+                    if (list) list.innerHTML = '';
+                    walkinMemberCount = 0;
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span>Register & Complete Intake</span>';
+                  } else {
+                    showOfflineNotice('Walk-in failed: ' + data.message, 'info');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span>Register & Complete Intake</span>';
+                  }
+                })
+                .catch(async err => {
+                  console.warn("Online walk-in failed, queueing offline:", err.message);
+                  const queued = await executeOfflineWalkIn();
+                  if (!queued) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-check-circle text-base"></i> <span>Register & Complete Intake</span>';
+                  }
+                });
+            });
+
+            // Helper to display non-blocking offline and sync status notices
+            function showOfflineNotice(msg, type = 'info') {
+              let toast = document.getElementById('Evacwar-offline-toast');
+              if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'Evacwar-offline-toast';
+                toast.className = 'fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform translate-y-6 opacity-0 pointer-events-none';
+                document.body.appendChild(toast);
+              }
+              const isSuccess = type === 'success';
+              const isError = type === 'error';
+              toast.innerHTML = `
+        <div class="flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border text-xs font-bold pointer-events-auto ${isSuccess ? 'bg-slate-900 border-emerald-500/80 text-emerald-300' :
+                  isError ? 'bg-slate-900 border-rose-500/80 text-rose-300' :
+                    'bg-slate-900 border-amber-500/80 text-amber-200'
+                }">
+          <i class="ph ${isSuccess ? 'ph-check-circle-fill text-emerald-400' : isError ? 'ph-x-circle-fill text-rose-400' : 'ph-cloud-slash text-amber-400'} text-base"></i>
+          <span>${msg}</span>
+        </div>
+      `;
+              requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-6', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+              });
+              setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-6', 'opacity-0');
+              }, 4500);
+            }
+            window.showOfflineNotice = showOfflineNotice;
+
+            // Refresh real-time Site Intake Feed from server
+            async function refreshIntakeFeed() {
+              if (!navigator.onLine) return;
+              try {
+                const activeCenterSelect = document.getElementById('activeStaffCenterSelectHeader');
+                const targetCenterId = (activeCenterSelect && activeCenterSelect.value) ? parseInt(activeCenterSelect.value, 10) : defaultAssignedCenterId;
+                const res = await fetch(`/staff/qr/feed?center_id=${targetCenterId}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.success || !Array.isArray(data.recentScanned)) return;
+
+                const container = document.getElementById('scannedEvacueesList');
+                const badge = document.getElementById('scannedCountBadge');
+                if (!container) return;
+
+                scannedTotalCount = data.count || data.recentScanned.length;
+                if (badge) {
+                  badge.textContent = `${scannedTotalCount} Checked-In`;
+                }
+
+                if (data.recentScanned.length === 0) {
+                  container.innerHTML = `
+                    <div id="emptyScannedPlaceholder" class="py-12 text-center text-slate-400 space-y-2">
+                      <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                        <i class="ph ph-qr-code text-xl"></i>
+                      </div>
+                      <p class="text-xs font-bold text-slate-600">No evacuees recorded yet for this session.</p>
+                      <p class="text-[11px] text-slate-400">Scan QR codes or use manual search to begin intake.</p>
+                    </div>
+                  `;
+                  return;
+                }
+
+                let html = '';
+                data.recentScanned.forEach(item => {
+                  html += `
+                    <div data-resident-id="${item.resident_id}"
+                      class="p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                          <i class="ph ph-check text-base"></i>
+                        </div>
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-1.5 flex-wrap">
+                            <h4 class="font-bold text-slate-900 text-xs truncate">${item.name}</h4>
+                            <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
+                              ${item.checked_in_count} Members
+                            </span>
+                          </div>
+                          <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <span>Brgy. ${item.barangay || 'San Rafael'}</span>
+                            <span>&bull;</span>
+                            <span>${item.timeFormatted}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-md shrink-0">
+                        Active
+                      </span>
+                    </div>
+                  `;
+                });
+                container.innerHTML = html;
+              } catch (err) {
+                console.warn('[refreshIntakeFeed] Error refreshing feed:', err);
+              }
+            }
+            window.refreshIntakeFeed = refreshIntakeFeed;
+
+            // Listen for automatic sync completion
+            window.addEventListener('Evacwar:sync-completed', (e) => {
+              const { syncedCount } = e.detail || {};
+              if (syncedCount > 0) {
+                playSuccessChime();
+                showOfflineNotice(`✓ Connection restored! Offline data received & synced (${syncedCount} record${syncedCount > 1 ? 's' : ''} uploaded to database).`, 'success');
+                refreshIntakeFeed();
+                // If a household is currently open on screen, refresh its status from server
+                if (window.currentHouseholdData && window.currentHouseholdData.resident) {
+                  const currRes = window.currentHouseholdData.resident;
+                  const query = window.currentHouseholdQuery || currRes.uuid || currRes.id;
+                  performResidentLookup(query);
+                }
+              }
+            });
+
+            // Notify and refresh intake feed when reconnecting online
+            window.addEventListener('online', () => {
+              showOfflineNotice("🌐 Connection restored! Syncing offline records to database...", "info");
+              setTimeout(refreshIntakeFeed, 1200);
+            });
+
+            // Hook into Socket.io if present
+            document.addEventListener('DOMContentLoaded', () => {
+              const checkSocket = setInterval(() => {
+                if (window.__appSocket) {
+                  clearInterval(checkSocket);
+                  window.__appSocket.on('center_updated', () => refreshIntakeFeed());
+                  window.__appSocket.on('checkin:new', () => refreshIntakeFeed());
+                }
+              }, 500);
+              setTimeout(() => clearInterval(checkSocket), 10000);
+            });
+          </script>
+
+          <%- include('../partials/footer') %>

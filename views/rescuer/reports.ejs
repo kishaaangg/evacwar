@@ -1,0 +1,666 @@
+<%- include('../partials/header') %>
+
+  <% const rescuer=locals.rescuer || locals.staff || locals.user || {}; %>
+
+    <div class="app-main-layout">
+      <%- include('../partials/sidebar') %>
+
+        <main
+          class="app-content flex flex-col !px-0 !pt-0 pb-36 lg:pb-12 relative overflow-x-hidden bg-slate-100/70 min-h-screen">
+
+          <div class="max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 flex-1">
+
+
+            <% const reportsList=locals.sosReports || []; const stats=locals.sosStats || { total: reportsList.length,
+              active: 0, acknowledged: 0, responding: 0, rescued: 0, resolved: 0, cancelled: 0, seniors: 0, pwd: 0,
+              pregnant: 0, medical: 0, todayCount: 0, purokCounts: {}, avgResponseMinutes: 0 }; const
+              myStats=locals.myStats || { myHandledTotal: 0, myActiveOps: 0, myRescued: 0, myTodayCount: 0, mySeniors:
+              0, myPwd: 0, myPregnant: 0, myMedical: 0, myAvgResponseMinutes: 0 }; const rescuerName=rescuer.name ||
+              (rescuer.first_name ? `${rescuer.first_name} ${rescuer.last_name || '' }`.trim() : (rescuer.email || 'You'
+              )); %>
+
+              <!-- RESCUER SOS INCIDENT & DISPATCH REPORTS -->
+              <div class="space-y-4">
+                <!-- Personalized Header & Quick Actions Bar -->
+                <div
+                  class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div class="flex items-center gap-3.5">
+                    <div
+                      class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-600 text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-md shadow-rose-600/30">
+                      <i class="ph ph-siren"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h1 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Search & Rescue Incident
+                          Reports</h1>
+                        <span
+                          class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">
+                          <i class="ph ph-user-check mr-0.5"></i>
+                          <%= rescuerName %>
+                        </span>
+                      </div>
+                      <p class="text-xs text-slate-500 font-medium mt-0.5">
+                        Personal dispatch telemetry, resident rescue logs & municipal disaster response audit
+                      </p>
+                    </div>
+                  </div>
+
+
+                </div>
+
+                <!-- Executive KPI Metrics Grid (Exclusively For This Rescuer) -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <!-- 1. My Rescued & Safe -->
+                  <div
+                    class="bg-gradient-to-b from-emerald-50/60 to-white rounded-2xl p-4 border border-emerald-200/90 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between text-emerald-800 text-xs font-bold">
+                      <span>Rescued & Safe</span>
+                      <i class="ph ph-shield-check text-base text-emerald-600"></i>
+                    </div>
+                    <div class="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
+                      <%= stats.rescued + stats.resolved %>
+                    </div>
+                    <p class="text-[11px] text-emerald-700 font-semibold truncate">Secured by you</p>
+                  </div>
+
+                  <!-- 2. Active Distress Assigned -->
+                  <div
+                    class="bg-gradient-to-b from-rose-50/60 to-white rounded-2xl p-4 border border-rose-200/90 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between text-rose-800 text-xs font-bold">
+                      <span>Active Dispatches</span>
+                      <span
+                        class="w-2.5 h-2.5 rounded-full bg-rose-600 <%= stats.active > 0 ? 'animate-ping' : '' %>"></span>
+                    </div>
+                    <div class="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight">
+                      <%= stats.active %>
+                    </div>
+                    <p class="text-[11px] text-rose-700 font-semibold truncate">Assigned to you</p>
+                  </div>
+
+                  <!-- 3. En Route / Responding -->
+                  <div
+                    class="bg-gradient-to-b from-indigo-50/60 to-white rounded-2xl p-4 border border-indigo-200/90 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between text-indigo-800 text-xs font-bold">
+                      <span>En Route / Responding</span>
+                      <i class="ph ph-paper-plane-tilt text-base text-indigo-600"></i>
+                    </div>
+                    <div class="text-2xl sm:text-3xl font-black text-indigo-600 tracking-tight">
+                      <%= stats.responding + stats.acknowledged %>
+                    </div>
+                    <p class="text-[11px] text-indigo-700 font-semibold truncate">Deploying in field</p>
+                  </div>
+
+                  <!-- 4. Total Operations Handled -->
+                  <div class="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between text-slate-700 text-xs font-bold">
+                      <span>Total Operations</span>
+                      <i class="ph ph-user-check text-base text-blue-600"></i>
+                    </div>
+                    <div class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                      <%= stats.total %>
+                    </div>
+                    <p class="text-[11px] text-slate-500 font-semibold truncate">
+                      <%= stats.todayCount %> mission(s) today
+                    </p>
+                  </div>
+
+                  <!-- 5. Avg Response Speed -->
+                  <div
+                    class="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-1 col-span-2 sm:col-span-1">
+                    <div class="flex items-center justify-between text-slate-700 text-xs font-bold">
+                      <span>Avg Response Speed</span>
+                      <i class="ph ph-timer text-base text-amber-500"></i>
+                    </div>
+                    <div class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                      <%= stats.avgResponseMinutes> 0 ? stats.avgResponseMinutes + 'm' : '< 5m' %>
+                    </div>
+                    <p class="text-[11px] text-emerald-600 font-semibold truncate">Rapid triage velocity</p>
+                  </div>
+                </div>
+
+                <!-- High-Risk Vulnerability Breakdown Bar -->
+                <div
+                  class="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span class="text-xs font-black uppercase tracking-wider text-slate-700">Vulnerabilities in Your
+                      Rescued Citizens:</span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 sm:gap-4 text-xs font-bold">
+                    <span
+                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-50 text-purple-700 border border-purple-200">
+                      <i class="ph ph-person text-sm"></i>
+                      <span>Seniors (60+):</span>
+                      <strong class="font-black">
+                        <%= stats.seniors %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-200">
+                      <i class="ph ph-wheelchair text-sm"></i>
+                      <span>PWD:</span>
+                      <strong class="font-black">
+                        <%= stats.pwd %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">
+                      <i class="ph ph-baby text-sm"></i>
+                      <span>Pregnant:</span>
+                      <strong class="font-black">
+                        <%= stats.pregnant %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200">
+                      <i class="ph ph-first-aid text-sm"></i>
+                      <span>Medical / Critical:</span>
+                      <strong class="font-black">
+                        <%= stats.medical %>
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Main Incident Table Card -->
+                <div class="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
+                  <!-- Search & Status Filters Toolbar -->
+                  <div
+                    class="p-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <!-- Search Bar -->
+                    <div class="relative flex-1 max-w-md">
+                      <i
+                        class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+                      <input type="text" id="sosSearchInput" oninput="filterSosTable()"
+                        placeholder="Search rescued resident by name, phone, or purok..."
+                        class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition-all">
+                    </div>
+
+                    <!-- Status Filter Pills -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                      <button type="button" onclick="setSosStatusFilter('ALL', this)"
+                        class="sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-2xs">All
+                        (<%= stats.total %>)</button>
+                      <button type="button" onclick="setSosStatusFilter('ACTIVE', this)"
+                        class="sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Active
+                        (<%= stats.active %>)</button>
+                      <button type="button" onclick="setSosStatusFilter('RESPONDING', this)"
+                        class="sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">En
+                        Route (<%= stats.responding + stats.acknowledged %>)</button>
+                      <button type="button" onclick="setSosStatusFilter('RESCUED', this)"
+                        class="sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Rescued
+                        (<%= stats.rescued %>)</button>
+                      <button type="button" onclick="setSosStatusFilter('RESOLVED', this)"
+                        class="sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Resolved
+                        (<%= stats.resolved %>)</button>
+                    </div>
+                  </div>
+
+                  <!-- Desktop Table View (Hidden on mobile phones, visible on md and up) -->
+                  <div class="hidden md:block overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr
+                          class="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold uppercase tracking-wider text-[10px]">
+                          <th class="py-3 px-4">Alert ID</th>
+                          <th class="py-3 px-4">Distressed Resident</th>
+                          <th class="py-3 px-4">Location & Coordinates</th>
+                          <th class="py-3 px-4">Timeline / Response</th>
+                          <th class="py-3 px-4">Status</th>
+                          <th class="py-3 px-4">Assigned Rescuer</th>
+                          <th class="py-3 px-4 text-right">Radar Action</th>
+                        </tr>
+                      </thead>
+                      <tbody id="sosTableBody" class="divide-y divide-slate-100 font-medium">
+                        <% if (reportsList.length===0) { %>
+                          <tr>
+                            <td colspan="7" class="text-center py-12 px-4">
+                              <div class="flex flex-col items-center justify-center gap-2">
+                                <div
+                                  class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-2xl">
+                                  <i class="ph ph-shield-check"></i>
+                                </div>
+                                <span class="font-bold text-slate-700 text-sm">No Rescues Recorded Yet</span>
+                                <span class="text-xs text-slate-400">You have not acknowledged or rescued any distressed
+                                  residents yet. When you perform a rescue, your operations log will appear here.</span>
+                              </div>
+                            </td>
+                          </tr>
+                          <% } else { %>
+                            <% reportsList.forEach((item, idx)=> {
+                              const resName = (item.first_name ? `${item.first_name} ${item.last_name || ''}`.trim() :
+                              (item.name || 'Resident in Distress'));
+                              const resInitial = resName.charAt(0).toUpperCase();
+                              const itemStatus = (item.status || 'ACTIVE').toUpperCase();
+                              const itemLat = item.latitude || 13.5102;
+                              const itemLng = item.longitude || 123.3470;
+                              const isSenior = (item.age >= 60 || (item.vulnerability &&
+                              String(item.vulnerability).toLowerCase().includes('senior')));
+                              const isPwd = !!(item.is_pwd || (item.vulnerability &&
+                              String(item.vulnerability).toLowerCase().includes('pwd')));
+                              const isPreg = !!(item.is_pregnant || (item.vulnerability &&
+                              String(item.vulnerability).toLowerCase().includes('pregnant')));
+                              const isMed = !!(item.has_serious_illness || (item.vulnerability &&
+                              String(item.vulnerability).toLowerCase().includes('illness')));
+
+                              const trigTime = locals.formatManilaDateTime ? locals.formatManilaDateTime(item.created_at) : (item.created_at ? new Date(item.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }) : 'N/A');
+                              const resolvedTime = item.updated_at && itemStatus !== 'ACTIVE' ? (locals.formatManilaDateTime ? locals.formatManilaDateTime(item.updated_at) : new Date(item.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' })) : null;
+                              const isMine = !!item.isMine;
+                              %>
+                              <tr
+                                class="sos-report-row transition-colors <%= isMine ? 'bg-rose-50/30 hover:bg-rose-50/60 font-semibold' : 'hover:bg-slate-50/80' %>"
+                                data-is-mine="<%= isMine ? '1' : '0' %>" data-name="<%= resName %>"
+                                data-contact="<%= item.contact_number || '' %>"
+                                data-purok="<%= item.home_address || item.barangay || 'San Rafael' %>"
+                                data-notes="<%= item.emergency_notes || item.responder_notes || '' %>"
+                                data-status="<%= itemStatus %>"
+                                data-handler="<%= (item.handler_name || '').toLowerCase() %>"
+                                data-senior="<%= isSenior ? '1' : '0' %>" data-pwd="<%= isPwd ? '1' : '0' %>"
+                                data-pregnant="<%= isPreg ? '1' : '0' %>" data-medical="<%= isMed ? '1' : '0' %>">
+
+                                <!-- ID -->
+                                <td class="py-3 px-4">
+                                  <div
+                                    class="font-mono font-black <%= isMine ? 'text-rose-700' : 'text-slate-700' %> text-xs">
+                                    SOS-#<%= item.id %>
+                                  </div>
+                                  <% if (isMine) { %>
+                                    <span
+                                      class="inline-flex items-center gap-0.5 text-[9px] font-black uppercase text-rose-600 bg-rose-100/80 px-1.5 py-0.2 rounded mt-0.5">
+                                      Your Operation
+                                    </span>
+                                    <% } %>
+                                </td>
+
+                                <!-- Resident -->
+                                <td class="py-3 px-4">
+                                  <div class="flex items-center gap-2.5">
+                                    <div
+                                      class="w-8 h-8 rounded-lg <%= isMine ? 'bg-rose-600' : 'bg-slate-800' %> text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                                      <%= resInitial %>
+                                    </div>
+                                    <div class="min-w-0">
+                                      <div class="font-extrabold text-slate-900 truncate flex items-center gap-1.5">
+                                        <span>
+                                          <%= resName %>
+                                        </span>
+                                      </div>
+                                      <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                                        <% if (item.contact_number) { %>
+                                          <a href="tel:<%= item.contact_number %>"
+                                            class="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-0.5">
+                                            <i class="ph ph-phone text-xs"></i>
+                                            <span>
+                                              <%= item.contact_number %>
+                                            </span>
+                                          </a>
+                                          <% } %>
+                                            <% if (isSenior) { %>
+                                              <span
+                                                class="px-1 py-0.2 rounded bg-purple-50 text-purple-700 font-black text-[9px] border border-purple-200">Senior</span>
+                                              <% } %>
+                                                <% if (isPwd) { %>
+                                                  <span
+                                                    class="px-1 py-0.2 rounded bg-blue-50 text-blue-700 font-black text-[9px] border border-blue-200">PWD</span>
+                                                  <% } %>
+                                                    <% if (isPreg) { %>
+                                                      <span
+                                                        class="px-1 py-0.2 rounded bg-rose-50 text-rose-700 font-black text-[9px] border border-rose-200">Pregnant</span>
+                                                      <% } %>
+                                                        <% if (isMed) { %>
+                                                          <span
+                                                            class="px-1 py-0.2 rounded bg-amber-50 text-amber-800 font-black text-[9px] border border-amber-200">Medical</span>
+                                                          <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <!-- Location & Coordinates -->
+                                <td class="py-3 px-4 text-slate-700">
+                                  <div class="font-bold truncate max-w-[170px] text-slate-900">
+                                    <%= item.home_address || item.barangay || 'San Rafael' %>
+                                  </div>
+                                  <a href="https://maps.google.com/?q=<%= itemLat %>,<%= itemLng %>" target="_blank"
+                                    class="text-[10px] font-mono text-blue-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                                    <i class="ph ph-map-pin text-[11px]"></i>
+                                    <span>
+                                      <%= Number(itemLat).toFixed(4) %>, <%= Number(itemLng).toFixed(4) %>
+                                    </span>
+                                    <% if (item.accuracy) { %>
+                                      <span class="text-slate-400 font-sans">(±<%= Math.round(item.accuracy) %>m)</span>
+                                      <% } %>
+                                  </a>
+                                </td>
+
+                                <!-- Timeline & Response Duration -->
+                                <td class="py-3 px-4 text-[11px] whitespace-nowrap">
+                                  <div class="flex items-center gap-1 text-slate-700 font-semibold">
+                                    <i class="ph ph-clock text-slate-400"></i>
+                                    <span>Triggered: <%= trigTime %></span>
+                                  </div>
+                                  <% if (resolvedTime) { %>
+                                    <div class="flex items-center gap-1 text-emerald-700 font-bold mt-0.5">
+                                      <i class="ph ph-check-circle text-emerald-500"></i>
+                                      <span>
+                                        <%= itemStatus==='RESOLVED' ? 'Resolved' : 'Handled' %>: <%= resolvedTime %>
+                                      </span>
+                                    </div>
+                                    <% if (item.responseMinutes !==null && item.responseMinutes !==undefined) { %>
+                                      <span
+                                        class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        ⚡ Responded in <%= item.responseMinutes %> min
+                                      </span>
+                                      <% } %>
+                                        <% } else { %>
+                                          <span
+                                            class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                            Awaiting full resolution
+                                          </span>
+                                          <% } %>
+                                </td>
+
+                                <!-- Status -->
+                                <td class="py-3 px-4">
+                                  <% if (itemStatus==='ACTIVE' ) { %>
+                                    <span
+                                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                                      <span class="w-1.5 h-1.5 rounded-full bg-rose-600"></span> ACTIVE SOS
+                                    </span>
+                                    <% } else if (itemStatus==='ACKNOWLEDGED' ) { %>
+                                      <span
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                                        <i class="ph ph-check text-xs"></i> ACKNOWLEDGED
+                                      </span>
+                                      <% } else if (itemStatus==='RESPONDING' ) { %>
+                                        <span
+                                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                          <i class="ph ph-paper-plane-tilt text-xs"></i> EN ROUTE
+                                        </span>
+                                        <% } else if (itemStatus==='RESCUED' ) { %>
+                                          <span
+                                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            <i class="ph ph-shield-check text-xs"></i> RESCUED
+                                          </span>
+                                          <% } else if (itemStatus==='RESOLVED' ) { %>
+                                            <span
+                                              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                                              <i class="ph ph-check-circle text-xs"></i> RESOLVED
+                                            </span>
+                                            <% } else { %>
+                                              <span
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-500">
+                                                <%= itemStatus %>
+                                              </span>
+                                              <% } %>
+                                </td>
+
+                                <!-- Assigned Rescuer -->
+                                <td class="py-3 px-4 text-slate-700">
+                                  <% if (isMine) { %>
+                                    <span
+                                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                                      <i class="ph ph-user-check text-xs"></i>
+                                      <span>You (<%= rescuerName %>)</span>
+                                    </span>
+                                    <% } else if (item.handler_name) { %>
+                                      <div class="font-bold truncate max-w-[130px] text-slate-900">
+                                        <%= item.handler_name %>
+                                      </div>
+                                      <span class="text-[10px] text-slate-500 font-semibold">
+                                        <%= item.handler_contact || 'Tactical Rescuer' %>
+                                      </span>
+                                      <% } else { %>
+                                        <span
+                                          class="text-slate-400 italic text-[11px] bg-slate-100 px-2 py-0.5 rounded">Unassigned</span>
+                                        <% } %>
+                                </td>
+
+                                <!-- Action -->
+                                <td class="py-3 px-4 text-right">
+                                  <a href="/rescuer/map?lat=<%= itemLat %>&lng=<%= itemLng %>&sos_id=<%= item.id %>"
+                                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg <%= isMine ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-2xs' : 'bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200' %> font-bold text-xs transition-colors"
+                                    title="Locate on Tactical Radar">
+                                    <i class="ph ph-crosshair text-sm"></i>
+                                    <span>Radar Pin</span>
+                                  </a>
+                                </td>
+                              </tr>
+                              <% }) %>
+                                <% } %>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Mobile Card List View (Visible on small screens, hidden on md and up) -->
+                  <div id="sosMobileContainer" class="block md:hidden divide-y divide-slate-100 bg-white">
+                    <% if (reportsList.length===0) { %>
+                      <div class="text-center py-12 px-4">
+                        <div class="flex flex-col items-center justify-center gap-2">
+                          <div
+                            class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-2xl">
+                            <i class="ph ph-shield-check"></i>
+                          </div>
+                          <span class="font-bold text-slate-700 text-sm">No Rescues Recorded Yet</span>
+                          <span class="text-xs text-slate-400 max-w-xs mx-auto">You have not acknowledged or rescued any
+                            distressed residents yet. When you perform a rescue, your operations log will appear
+                            here.</span>
+                        </div>
+                      </div>
+                      <% } else { %>
+                        <% reportsList.forEach((item, idx)=> {
+                          const resName = (item.first_name ? `${item.first_name} ${item.last_name || ''}`.trim() :
+                          (item.name || 'Resident in Distress'));
+                          const resInitial = resName.charAt(0).toUpperCase();
+                          const itemStatus = (item.status || 'ACTIVE').toUpperCase();
+                          const itemLat = item.latitude || 13.5102;
+                          const itemLng = item.longitude || 123.3470;
+                          const isSenior = (item.age >= 60 || (item.vulnerability &&
+                          String(item.vulnerability).toLowerCase().includes('senior')));
+                          const isPwd = !!(item.is_pwd || (item.vulnerability &&
+                          String(item.vulnerability).toLowerCase().includes('pwd')));
+                          const isPreg = !!(item.is_pregnant || (item.vulnerability &&
+                          String(item.vulnerability).toLowerCase().includes('pregnant')));
+                          const isMed = !!(item.has_serious_illness || (item.vulnerability &&
+                          String(item.vulnerability).toLowerCase().includes('illness')));
+
+                          const trigTime = locals.formatManilaDateTime ? locals.formatManilaDateTime(item.created_at) : (item.created_at ? new Date(item.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }) : 'N/A');
+                          const resolvedTime = item.updated_at && itemStatus !== 'ACTIVE' ? (locals.formatManilaDateTime ? locals.formatManilaDateTime(item.updated_at) : new Date(item.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' })) : null;
+                          const isMine = !!item.isMine;
+                          %>
+                          <div
+                            class="sos-report-card p-3 sm:p-3.5 hover:bg-slate-50/90 transition-colors bg-white flex flex-col gap-1.5"
+                            data-is-mine="<%= isMine ? '1' : '0' %>" data-name="<%= resName %>"
+                            data-contact="<%= item.contact_number || '' %>"
+                            data-purok="<%= item.home_address || item.barangay || 'San Rafael' %>"
+                            data-notes="<%= item.emergency_notes || item.responder_notes || '' %>"
+                            data-status="<%= itemStatus %>"
+                            data-handler="<%= (item.handler_name || '').toLowerCase() %>"
+                            data-senior="<%= isSenior ? '1' : '0' %>" data-pwd="<%= isPwd ? '1' : '0' %>"
+                            data-pregnant="<%= isPreg ? '1' : '0' %>" data-medical="<%= isMed ? '1' : '0' %>">
+
+                            <!-- Top Line: Avatar + Resident Name & Phone + Status -->
+                            <div class="flex items-center justify-between gap-2.5">
+                              <!-- Left: Avatar + Resident & ID -->
+                              <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div
+                                  class="w-9 h-9 rounded-xl <%= isMine ? 'bg-rose-600 text-white shadow-2xs' : 'bg-slate-800 text-white' %> flex items-center justify-center font-bold text-xs shrink-0">
+                                  <%= resInitial %>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex items-center gap-1.5">
+                                    <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">
+                                      <%= resName %>
+                                    </span>
+                                    <span
+                                      class="font-mono font-bold text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded shrink-0">#
+                                      <%= item.id %></span>
+                                  </div>
+                                  <% if (item.contact_number) { %>
+                                    <a href="tel:<%= item.contact_number %>"
+                                      class="text-blue-600 font-semibold hover:underline inline-flex items-center gap-0.5 text-[11px] mt-0.5">
+                                      <i class="ph ph-phone text-[10px]"></i>
+                                      <span>
+                                        <%= item.contact_number %>
+                                      </span>
+                                    </a>
+                                    <% } %>
+                                </div>
+                              </div>
+
+                              <!-- Right: Status Badge -->
+                              <div class="shrink-0">
+                                <% if (itemStatus==='ACTIVE' ) { %>
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-600"></span> ACTIVE
+                                  </span>
+                                  <% } else if (itemStatus==='ACKNOWLEDGED' ) { %>
+                                    <span
+                                      class="inline-flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                                      <i class="ph ph-check text-xs"></i> ACKNOWLEDGED
+                                    </span>
+                                    <% } else if (itemStatus==='RESPONDING' ) { %>
+                                      <span
+                                        class="inline-flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                        <i class="ph ph-paper-plane-tilt text-xs"></i> EN ROUTE
+                                      </span>
+                                      <% } else if (itemStatus==='RESCUED' ) { %>
+                                        <span
+                                          class="inline-flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                          <i class="ph ph-shield-check text-xs"></i> RESCUED
+                                        </span>
+                                        <% } else if (itemStatus==='RESOLVED' ) { %>
+                                          <span
+                                            class="inline-flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                                            <i class="ph ph-check-circle text-xs"></i> RESOLVED
+                                          </span>
+                                          <% } else { %>
+                                            <span
+                                              class="inline-flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-500">
+                                              <%= itemStatus %>
+                                            </span>
+                                            <% } %>
+                              </div>
+                            </div>
+
+                            <!-- Bottom Line: Location, Coordinates & Date / Time -->
+                            <div
+                              class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
+                              <!-- Location & Coordinates -->
+                              <div class="flex items-center gap-1 min-w-0">
+                                <i class="ph ph-map-pin text-rose-600 shrink-0 text-xs"></i>
+                                <span class="font-semibold text-slate-800 truncate">
+                                  <%= item.home_address || item.barangay || 'San Rafael' %>
+                                </span>
+                                <a href="https://maps.google.com/?q=<%= itemLat %>,<%= itemLng %>" target="_blank"
+                                  class="font-mono text-blue-600 hover:underline shrink-0 text-[10px] ml-0.5">
+                                  (<%= Number(itemLat).toFixed(4) %>, <%= Number(itemLng).toFixed(4) %>)
+                                </a>
+                              </div>
+
+                              <!-- Date and Time -->
+                              <div class="flex items-center gap-1 shrink-0 text-[11px] text-slate-500 font-medium">
+                                <i class="ph ph-clock text-slate-400 text-xs"></i>
+                                <span>
+                                  <%= trigTime %>
+                                </span>
+                              </div>
+                            </div>
+
+                          </div>
+                          <% }) %>
+                            <% } %>
+                  </div>
+
+                  <!-- Empty search result alert -->
+                  <div id="sosEmptyFilterState"
+                    class="hidden text-center py-10 px-4 bg-slate-50 border-t border-slate-100">
+                    <i class="ph ph-magnifying-glass text-3xl text-slate-300"></i>
+                    <p class="text-xs font-bold text-slate-600 mt-2">No rescued resident reports matched your search or
+                      status filter.</p>
+                    <button type="button" onclick="resetAllSosFilters()"
+                      class="mt-2 text-xs font-bold text-rose-600 hover:underline">Reset filters</button>
+                  </div>
+                </div>
+              </div>
+
+          </div>
+        </main>
+    </div>
+
+    <script>
+      let currentStatusFilter = 'ALL';
+
+      function setSosStatusFilter(status, btn) {
+        currentStatusFilter = status;
+        document.querySelectorAll('.sos-filter-btn').forEach(b => {
+          b.className = 'sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200';
+        });
+        if (btn) {
+          btn.className = 'sos-filter-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-2xs';
+        }
+        filterSosTable();
+      }
+
+      function filterSosTable() {
+        const query = (document.getElementById('sosSearchInput')?.value || '').toLowerCase().trim();
+        const rows = document.querySelectorAll('.sos-report-row');
+        const cards = document.querySelectorAll('.sos-report-card');
+        let visibleCount = 0;
+
+        function matchElement(el) {
+          const name = (el.getAttribute('data-name') || '').toLowerCase();
+          const contact = (el.getAttribute('data-contact') || '').toLowerCase();
+          const purok = (el.getAttribute('data-purok') || '').toLowerCase();
+          const notes = (el.getAttribute('data-notes') || '').toLowerCase();
+          const status = (el.getAttribute('data-status') || '').toUpperCase();
+
+          const matchesQuery = !query || name.includes(query) || contact.includes(query) || purok.includes(query) || notes.includes(query);
+
+          let matchesStatus = true;
+          if (currentStatusFilter === 'ACTIVE') matchesStatus = status === 'ACTIVE';
+          else if (currentStatusFilter === 'RESPONDING') matchesStatus = (status === 'RESPONDING' || status === 'ACKNOWLEDGED');
+          else if (currentStatusFilter === 'RESCUED') matchesStatus = status === 'RESCUED';
+          else if (currentStatusFilter === 'RESOLVED') matchesStatus = status === 'RESOLVED';
+
+          const visible = matchesQuery && matchesStatus;
+          el.style.display = visible ? '' : 'none';
+          return visible;
+        }
+
+        rows.forEach(r => {
+          if (matchElement(r)) visibleCount++;
+        });
+
+        cards.forEach(c => {
+          matchElement(c);
+        });
+
+        const emptyState = document.getElementById('sosEmptyFilterState');
+        if (emptyState) {
+          const totalItems = rows.length || cards.length;
+          if (visibleCount === 0 && totalItems > 0) {
+            emptyState.classList.remove('hidden');
+          } else {
+            emptyState.classList.add('hidden');
+          }
+        }
+      }
+
+      function resetAllSosFilters() {
+        const searchInput = document.getElementById('sosSearchInput');
+        if (searchInput) searchInput.value = '';
+        currentStatusFilter = 'ALL';
+        const firstStatusBtn = document.querySelector('.sos-filter-btn');
+        if (firstStatusBtn) setSosStatusFilter('ALL', firstStatusBtn);
+        else filterSosTable();
+      }
+
+      // Initialize on load
+      window.addEventListener('DOMContentLoaded', () => {
+        filterSosTable();
+      });
+    </script>
+
+    <%- include('../partials/footer') %>

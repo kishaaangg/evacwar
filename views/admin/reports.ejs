@@ -1,0 +1,2708 @@
+<%- include('../partials/header') %>
+  <% const nonEvacuatedReports=locals.nonEvacuatedReports || { totalNotEvacuatedHouseholds: 0,
+    totalNotEvacuatedIndividuals: 0, totalVulnerableCount: 0, topZone: 'None' , topZoneCount: 0,
+    activeEventName: 'Active Evacuation Advisory' , availableEvents: [], list: [] }; %>
+
+    <style>
+      @media print {
+        @page {
+          size: A4 portrait;
+          margin: 8mm 10mm;
+        }
+
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          box-sizing: border-box !important;
+        }
+
+        header,
+        nav,
+        .app-sidebar,
+        .no-print,
+        button,
+        footer,
+        .report-toolbar {
+          display: none !important;
+        }
+
+        html,
+        body {
+          height: auto !important;
+          min-height: auto !important;
+          overflow: visible !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+        }
+
+        .app-main-layout,
+        .app-content,
+        main {
+          display: block !important;
+          position: static !important;
+          min-height: auto !important;
+          height: auto !important;
+          overflow: visible !important;
+          background: #ffffff !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+
+        .max-w-7xl {
+          max-width: 100% !important;
+          padding: 0 !important;
+          margin: 0 auto !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+
+        /* Isolate visible tab and hide inactive tabs */
+        .report-tab-content.hidden {
+          display: none !important;
+        }
+
+        body.printing-ec-board .report-tab-content:not(#tab-evacuation) {
+          display: none !important;
+        }
+
+        #tab-evacuation {
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100% !important;
+        }
+
+        /* Specific printable sections with SAFE INNER PADDING so sides & top are NEVER cut off */
+        #printable-ec-board-report,
+        body.printing-ec-board #printable-ec-board-report,
+        #tab-evacuation:not(.hidden) #printable-ec-board-report {
+          display: block !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          margin: 0 auto !important;
+          padding: 10mm 14mm 10mm 14mm !important;
+          /* 14mm side padding, 10mm top/bottom padding */
+          background: #ffffff !important;
+          color: #000000 !important;
+          box-shadow: none !important;
+          border: none !important;
+          page-break-inside: auto;
+        }
+
+        .print-header {
+          display: block !important;
+          padding-top: 2mm !important;
+          margin-top: 0 !important;
+          margin-bottom: 8px !important;
+          border-bottom: 2px solid #0f172a !important;
+          padding-bottom: 5px !important;
+          page-break-after: avoid;
+          break-after: avoid;
+        }
+
+        .print-header h2 {
+          margin: 0 !important;
+          padding: 0 !important;
+          line-height: 1.25 !important;
+          font-size: 14pt !important;
+          font-weight: 900 !important;
+          color: #0f172a !important;
+        }
+
+        .print-header p {
+          margin: 2px 0 0 0 !important;
+          padding: 0 !important;
+          font-size: 8pt !important;
+          color: #475569 !important;
+        }
+
+        .print-table {
+          width: 100% !important;
+          max-width: 100% !important;
+          border-collapse: collapse !important;
+          margin-top: 5px !important;
+          margin-bottom: 5px !important;
+          table-layout: auto !important;
+          box-sizing: border-box !important;
+        }
+
+        .print-table th,
+        .print-table td {
+          border: 1px solid #475569 !important;
+          padding: 3px 6px !important;
+          font-size: 8pt !important;
+          line-height: 1.2 !important;
+          color: #000000 !important;
+        }
+
+        .print-table th {
+          background-color: #f1f5f9 !important;
+          font-weight: 700 !important;
+        }
+
+        .print-table tr {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+
+        .grid {
+          box-sizing: border-box !important;
+          width: 100% !important;
+        }
+
+        .rounded-xl,
+        .rounded-2xl,
+        .rounded {
+          border-radius: 4px !important;
+        }
+
+        .print-footer {
+          border-top: 1px solid #94a3b8 !important;
+          margin-top: 10px !important;
+          padding-top: 6px !important;
+          font-size: 7.5pt !important;
+          text-align: center !important;
+          color: #475569 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+      }
+
+      /* Clean layout formatting for direct PDF download generator (Single Page Portrait) */
+      .pdf-export-clone {
+        font-family: 'Open Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        line-height: 1.25 !important;
+        font-size: 11px !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+
+      .pdf-export-clone#printable-ec-board-report,
+      .pdf-export-clone#printable-non-evac-report,
+      .pdf-export-clone.rounded-2xl,
+      .pdf-export-clone.border,
+      .pdf-export-clone.shadow-2xs {
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+
+      .pdf-export-clone .no-print,
+      .pdf-export-clone button,
+      .pdf-export-clone input,
+      .pdf-export-clone select,
+      .pdf-export-clone .report-toolbar {
+        display: none !important;
+      }
+
+      .pdf-export-clone .print-header {
+        display: block !important;
+        margin-bottom: 10px !important;
+        padding-bottom: 6px !important;
+        border-bottom: 2.5px solid #0f172a !important;
+      }
+
+      .pdf-export-clone .print-header h2 {
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        color: #0f172a !important;
+        line-height: 1.2 !important;
+        margin: 0 0 3px 0 !important;
+        text-transform: uppercase !important;
+      }
+
+      .pdf-export-clone .print-header p {
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        color: #475569 !important;
+        margin: 0 !important;
+      }
+
+      /* EC Board Summary Cards (Square & Bigger) */
+      .pdf-export-clone .ec-summary-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 10px !important;
+        margin-bottom: 12px !important;
+      }
+
+      .pdf-export-clone .ec-summary-card {
+        padding: 16px 8px !important;
+        min-height: 112px !important;
+        height: 112px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+        border-radius: 8px !important;
+        border-width: 1.5px !important;
+      }
+
+      .pdf-export-clone .ec-summary-card div:first-child {
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.3px !important;
+        margin-bottom: 6px !important;
+      }
+
+      .pdf-export-clone .ec-summary-card div:last-child {
+        font-size: 28px !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
+      }
+
+      .pdf-export-clone .ec-summary-card.ratio-card div:last-child {
+        font-size: 17px !important;
+        line-height: 1.1 !important;
+      }
+
+      .pdf-export-clone .member-drawer-content,
+      .pdf-export-clone .hh-member-drawer {
+        display: none !important;
+      }
+
+      .pdf-export-clone table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin-top: 3px !important;
+        margin-bottom: 4px !important;
+      }
+
+      .pdf-export-clone th,
+      .pdf-export-clone td {
+        padding: 3px 6px !important;
+        font-size: 9.5px !important;
+        line-height: 1.2 !important;
+      }
+
+      .pdf-export-clone h1 {
+        font-size: 16px !important;
+        margin: 0 !important;
+      }
+
+      .pdf-export-clone h3 {
+        font-size: 11px !important;
+        margin-top: 5px !important;
+        margin-bottom: 3px !important;
+      }
+
+      .pdf-export-clone .p-5,
+      .pdf-export-clone .p-4,
+      .pdf-export-clone [class*="p-3.5"],
+      .pdf-export-clone .p-3:not(.ec-summary-card) {
+        padding: 6px 8px !important;
+      }
+
+      .pdf-export-clone .space-y-5>*+*,
+      .pdf-export-clone .space-y-4>*+* {
+        margin-top: 6px !important;
+      }
+
+      .pdf-export-clone .gap-3:not(.ec-summary-grid),
+      .pdf-export-clone .gap-2 {
+        gap: 6px !important;
+      }
+
+      .pdf-export-clone .rounded-2xl:not(#printable-ec-board-report):not(#printable-non-evac-report),
+      .pdf-export-clone .rounded-xl:not(#printable-ec-board-report):not(#printable-non-evac-report) {
+        border-radius: 6px !important;
+      }
+    </style>
+
+    <div class="app-main-layout">
+      <%- include('../partials/sidebar') %>
+
+        <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-24 lg:pb-8 overflow-x-hidden">
+          <div class="max-w-7xl mx-auto space-y-4 flex-1 w-full p-3 sm:p-4 lg:p-5">
+
+            <!-- 1. CLEAN PAGE HEADER -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print pt-1 pb-1">
+              <div>
+                <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                  Command Reports & Operations System
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+                  Real-time disaster management telemetry, evacuation center logistics, and resident emergency rosters.
+                </p>
+              </div>
+
+            </div>
+
+            <!-- 2. NAVIGATION TABS (5 BALANCED & CENTERED SECTIONS) -->
+            <div class="bg-white p-1.5 sm:p-2 rounded-2xl border border-slate-200/90 shadow-2xs no-print">
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 w-full">
+                <% const activeTab=(filters.tab==='non-evacuated' ? 'evacuation' : (filters.tab || 'overview' )); %>
+
+                  <!-- 1. Overview -->
+                  <button type="button" onclick="switchTab('overview')" data-tab="overview"
+                    class="report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center <%= activeTab === 'overview' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+                    <i class="ph ph-gauge text-base shrink-0"></i>
+                    <span class="truncate">Overview</span>
+                  </button>
+
+                  <!-- 2. Evacuation & EC Board -->
+                  <button type="button" onclick="switchTab('evacuation')" data-tab="evacuation"
+                    class="report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center <%= activeTab === 'evacuation' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+                    <i class="ph ph-buildings text-base shrink-0"></i>
+                    <span class="truncate">Evacuation & EC</span>
+                  </button>
+
+                  <!-- 3. Household Reports -->
+                  <button type="button" onclick="switchTab('households')" data-tab="households"
+                    class="report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center <%= (activeTab === 'households' || activeTab === 'residents') ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+                    <i class="ph ph-house text-base shrink-0"></i>
+                    <span class="truncate">Household Reports</span>
+                  </button>
+
+                  <!-- 4. SOS / Rescue -->
+                  <button type="button" onclick="switchTab('sos')" data-tab="sos"
+                    class="report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center <%= activeTab === 'sos' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+                    <i class="ph ph-siren text-base text-red-600 shrink-0"></i>
+                    <span class="truncate">SOS / Rescue</span>
+                    <% if (overview.activeSos> 0) { %>
+                      <span id="tabBadgeSos"
+                        class="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black transition-colors <%= activeTab === 'sos' ? 'bg-white text-rose-700 shadow-xs' : 'bg-red-100 text-red-800 border border-red-300' %> shrink-0">
+                        <%= overview.activeSos %>
+                      </span>
+                      <% } %>
+                  </button>
+
+                  <!-- 5. SMS / Alerts -->
+                  <button type="button" onclick="switchTab('sms')" data-tab="sms"
+                    class="report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center <%= activeTab === 'sms' ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+                    <i class="ph ph-chats-circle text-base text-blue-600 shrink-0"></i>
+                    <span class="truncate">SMS / Alerts</span>
+                  </button>
+              </div>
+            </div>
+
+            <!-- SECTION 1: OVERVIEW TAB -->
+            <div id="tab-overview" class="report-tab-content <%= activeTab === 'overview' ? '' : 'hidden' %> space-y-4">
+
+              <!-- OVERVIEW STATS (6 CRITICAL METRICS) -->
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 no-print">
+                <!-- 1. Total Population / Households -->
+                <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Population</div>
+                  <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    <%= overview.totalResidents || 0 %>
+                  </div>
+                  <div class="text-[11px] font-semibold text-blue-600">
+                    <%= overview.totalHouseholds || 0 %> Households
+                  </div>
+                </div>
+
+                <!-- 2. Evacuated -->
+                <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Evacuated</div>
+                  <div class="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
+                    <%= overview.currentEvacuees || 0 %>
+                  </div>
+                  <div class="text-[11px] font-semibold text-slate-500">In Shelters</div>
+                </div>
+
+                <!-- 3. Not Yet Evacuated -->
+                <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-rose-200/90 shadow-2xs space-y-1">
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Not Yet Evacuated</div>
+                  <div class="text-xl sm:text-2xl font-black text-rose-600 tracking-tight">
+                    <%= (nonEvacuatedReports && nonEvacuatedReports.totalNotEvacuatedHouseholds) || 0 %>
+                  </div>
+                  <div class="text-[11px] font-semibold text-rose-700">
+                    <%= (nonEvacuatedReports && nonEvacuatedReports.totalNotEvacuatedIndividuals) || 0 %> Persons
+                      Pending
+                  </div>
+                </div>
+
+                <!-- 4. Active SOS -->
+                <div
+                  class="bg-white p-3.5 sm:p-4 rounded-2xl border <%= overview.activeSos > 0 ? 'border-red-300 bg-red-50/20' : 'border-slate-200/90' %> shadow-2xs space-y-1">
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active SOS</div>
+                  <div
+                    class="text-xl sm:text-2xl font-black <%= overview.activeSos > 0 ? 'text-red-600' : 'text-slate-800' %> tracking-tight flex items-center gap-1.5">
+                    <%= overview.activeSos || 0 %>
+                      <% if (overview.activeSos> 0) { %>
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block"></span>
+                        <% } %>
+                  </div>
+                  <div
+                    class="text-[11px] font-semibold <%= overview.activeSos > 0 ? 'text-red-700' : 'text-slate-500' %>">
+                    <%= overview.activeSos> 0 ? 'Distress Active' : 'No Distress' %>
+                  </div>
+                </div>
+
+                <!-- 5. Open Evacuation Centers -->
+                <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Evac Centers</div>
+                  <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    <%= overview.totalCenters || 0 %>
+                  </div>
+                  <div class="text-[11px] font-semibold text-emerald-600">Operational</div>
+                </div>
+
+                <!-- 6. Available Capacity -->
+                <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Available Capacity</div>
+                  <div class="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
+                    <%= overview.availableSlots || 0 %>
+                  </div>
+                  <div class="text-[11px] font-semibold text-slate-500">
+                    of <%= overview.totalCapacity || 0 %> Slots
+                  </div>
+                </div>
+              </div>
+
+              <!-- NON-EVACUATED ACTION BANNER IN OVERVIEW -->
+              <div
+                class="bg-white rounded-2xl border border-rose-200 p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
+                    <i class="ph ph-warning-octagon text-xl"></i>
+                  </div>
+                  <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                        Evacuation Priority: <%= (nonEvacuatedReports &&
+                          nonEvacuatedReports.totalNotEvacuatedHouseholds) || 0 %> Registered Families Not In Shelter
+                      </h4>
+                      <span
+                        class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                        <%= (nonEvacuatedReports && nonEvacuatedReports.totalNotEvacuatedIndividuals) || 0 %>
+                          Individuals
+                          at Risk
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Reference Event: <span class="font-bold text-slate-700">
+                        <%= (nonEvacuatedReports && nonEvacuatedReports.activeEventName) || 'Active Evacuation Advisory'
+                          %>
+                      </span> &bull; Highest Pending Area: <span class="font-bold text-rose-600">
+                        <%= (nonEvacuatedReports && nonEvacuatedReports.topZone) || 'All Zones' %>
+                      </span> (<%= (nonEvacuatedReports && nonEvacuatedReports.topZoneCount) || 0 %> households)
+                    </p>
+                  </div>
+                </div>
+                <button type="button" onclick="switchTab('evacuation')"
+                  class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer">
+                  <span>View Evacuation Status</span>
+                  <i class="ph ph-arrow-right font-bold"></i>
+                </button>
+              </div>
+
+              <!-- EVACUATION CENTERS MASTER OVERVIEW TABLE -->
+              <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div class="p-3.5 sm:p-4 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
+                  <div>
+                    <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                      <i class="ph ph-buildings text-blue-600"></i>
+                      <span>Evacuation Centers Capacity & Occupancy Status</span>
+                    </h3>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Live occupancy monitoring across all designated
+                      municipal
+                      evacuation centers.</p>
+                  </div>
+                  <button type="button" onclick="switchTab('evacuation')"
+                    class="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                    <span>Open EC Board</span>
+                    <i class="ph ph-arrow-right"></i>
+                  </button>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs text-left">
+                    <thead class="bg-slate-100/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th class="p-3">Evacuation Center</th>
+                        <th class="p-3 text-center">Max Capacity</th>
+                        <th class="p-3 text-center">Occupied</th>
+                        <th class="p-3 text-center">Available</th>
+                        <th class="p-3 text-center">Families</th>
+                        <th class="p-3">Occupancy Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                      <% const centerRows=(allEcBoardStats && allEcBoardStats.center_summaries &&
+                        allEcBoardStats.center_summaries.length> 0)
+                        ? allEcBoardStats.center_summaries
+                        : ((filterOptions && filterOptions.centers && filterOptions.centers.length > 0)
+                        ? filterOptions.centers.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        address: c.address,
+                        capacity: c.max_capacity || 0,
+                        occupied: c.current_occupancy || 0,
+                        available: Math.max(0, (c.max_capacity || 0) - (c.current_occupancy || 0)),
+                        families: 0
+                        }))
+                        : []);
+                        %>
+                        <% if (centerRows.length> 0) { %>
+                          <% centerRows.forEach(c=> { %>
+                            <% const pct=c.capacity> 0 ? Math.min(100, Math.round((c.occupied / c.capacity) * 100)) : 0;
+                              const barWidthStyle = 'style="width: ' + pct + '%;"';
+                              %>
+                              <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="p-3 font-bold text-slate-900">
+                                  <div>
+                                    <%= c.name %>
+                                  </div>
+                                  <div class="text-[11px] font-normal text-slate-500">
+                                    <%= c.address %>
+                                  </div>
+                                </td>
+                                <td class="p-3 text-center font-semibold text-slate-700">
+                                  <%= c.capacity %>
+                                </td>
+                                <td class="p-3 text-center font-bold text-emerald-600">
+                                  <%= c.occupied %>
+                                </td>
+                                <td class="p-3 text-center font-bold text-blue-600">
+                                  <%= c.available %>
+                                </td>
+                                <td class="p-3 text-center font-semibold text-slate-700">
+                                  <%= c.families %>
+                                </td>
+                                <td class="p-3">
+                                  <div class="flex items-center gap-2">
+                                    <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden max-w-[120px]">
+                                      <div class="bg-blue-600 h-2 rounded-full" <%- barWidthStyle %>></div>
+                                    </div>
+                                    <span class="font-bold text-xs text-slate-700">
+                                      <%= pct %>%
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                              <% }) %>
+                                <% } else { %>
+                                  <tr>
+                                    <td colspan="6" class="p-8 text-center text-slate-400 font-semibold">No evacuation
+                                      centers registered.</td>
+                                  </tr>
+                                  <% } %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 2 & 3 & 4: EVACUATION & EC INFORMATION BOARD TAB -->
+            <div id="tab-evacuation"
+              class="report-tab-content <%= activeTab === 'evacuation' ? '' : 'hidden' %> space-y-6">
+
+              <!-- DIGITAL EC INFORMATION BOARD PRINT CONTAINER -->
+              <div id="printable-ec-board-report"
+                class="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-5">
+
+                <!-- 1. REPORT PRINT HEADER (TITLE ONLY) -->
+                <div class="print-header text-left border-b-2 border-slate-900 pb-2.5">
+                  <h2 class="text-2xl sm:text-3xl font-black text-blue-950 uppercase tracking-tight mt-0.5">
+                    EVACUATION CENTER INFORMATION BOARD REPORT
+                  </h2>
+                  <p class="text-sm sm:text-base text-slate-600 font-semibold mt-0.5">
+                    Official Masterlist & Demographic Summary
+                  </p>
+                </div>
+
+                <!-- NO-PRINT VIEW CONTROLS -->
+                <div
+                  class="no-print bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div class="flex items-center gap-2">
+                    <label class="font-bold text-slate-700 whitespace-nowrap"><i class="ph ph-funnel"></i> Select Report
+                      Center:</label>
+                    <select id="ecBoardViewSelect"
+                      onchange="window.location.href='/admin/reports?tab=evacuation&centerId=' + this.value"
+                      class="form-control text-xs font-semibold bg-white border-slate-300 py-1 rounded-lg">
+                      <option value="all" <%=(!filters.centerId || filters.centerId==='all' ) ? 'selected' : '' %>>All
+                        Evacuation Centers Combined</option>
+                      <% (filterOptions.centers || []).forEach(c=> { %>
+                        <option value="<%= c.id %>" <%=String(filters.centerId)===String(c.id) ? 'selected' : '' %>><%=
+                            c.name %>
+                        </option>
+                        <% }) %>
+                    </select>
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <button type="button" onclick="printSingleEcReport()"
+                      class="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer text-xs">
+                      <i class="ph ph-printer text-sm text-blue-600"></i> Print Board
+                    </button>
+                    <button type="button" onclick="exportEcBoardPDF()"
+                      class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer text-xs">
+                      <i class="ph ph-file-pdf text-sm"></i> Export to PDF
+                    </button>
+                  </div>
+                </div>
+
+                <% const currentStats=(filters.centerId && filters.centerId !=='all' && singleEcBoardStats) ?
+                  singleEcBoardStats : allEcBoardStats; const isSingleCenter=(filters.centerId && filters.centerId
+                  !=='all' && singleEcBoardStats); %>
+                  <% if (currentStats) { %>
+                    <!-- 2. EVACUATION CENTER INFORMATION SECTION -->
+                    <div class="text-xs space-y-1 font-semibold text-slate-900 py-1 text-left">
+                      <div
+                        class="font-bold text-slate-900 uppercase tracking-wider text-[11px] border-b border-slate-900 pb-1 mb-2">
+                        EVACUATION CENTER INFORMATION
+                      </div>
+                      <div class="space-y-1 text-left">
+                        <div><span class="font-bold text-slate-900">Name of Evacuation Center:</span>
+                          <%= isSingleCenter ? currentStats.center.name : 'ALL EVACUATION CENTERS COMBINED' %>
+                        </div>
+                        <div><span class="font-bold text-slate-900">Location:</span>
+                          <%= isSingleCenter ? currentStats.center.address : 'San Rafael, Baao, Camarines Sur' %>
+                        </div>
+                        <% if (isSingleCenter) { %>
+                          <div><span class="font-bold text-slate-900">Contact Number:</span>
+                            <%= currentStats.center.contact_number || '0912-345-6789' %>
+                          </div>
+                          <% } %>
+                            <div><span class="font-bold text-slate-900">Report Date:</span>
+                              <%= new Date().toLocaleDateString() %>
+                            </div>
+                      </div>
+                    </div>
+
+
+                    <!-- 3. SUMMARY CARDS (Square & Bigger) -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 ec-summary-grid">
+                      <div
+                        class="ec-summary-card p-4 sm:p-5 bg-blue-50 border border-blue-200 rounded-xl text-center flex flex-col items-center justify-center min-h-[115px]">
+                        <div class="text-[11px] font-extrabold text-blue-700 uppercase tracking-wider mb-2">Total
+                          Families</div>
+                        <div class="text-3xl sm:text-4xl font-black text-blue-950">
+                          <%= currentStats.metrics.total_families %>
+                        </div>
+                      </div>
+                      <div
+                        class="ec-summary-card p-4 sm:p-5 bg-emerald-50 border border-emerald-200 rounded-xl text-center flex flex-col items-center justify-center min-h-[115px]">
+                        <div class="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider mb-2">Total
+                          Evacuees</div>
+                        <div class="text-3xl sm:text-4xl font-black text-emerald-950">
+                          <%= currentStats.metrics.total_evacuees %>
+                        </div>
+                      </div>
+                      <div
+                        class="ec-summary-card p-4 sm:p-5 bg-amber-50 border border-amber-200 rounded-xl text-center flex flex-col items-center justify-center min-h-[115px]">
+                        <div class="text-[11px] font-extrabold text-amber-700 uppercase tracking-wider mb-2">4Ps
+                          Beneficiaries</div>
+                        <div class="text-3xl sm:text-4xl font-black text-amber-950">
+                          <%= currentStats.metrics.total_4ps_beneficiaries %>
+                        </div>
+                      </div>
+                      <div
+                        class="ec-summary-card ratio-card p-4 sm:p-5 bg-indigo-50 border border-indigo-200 rounded-xl text-center flex flex-col items-center justify-center min-h-[115px]">
+                        <div class="text-[11px] font-extrabold text-indigo-700 uppercase tracking-wider mb-2">Male /
+                          Female Ratio</div>
+                        <div class="text-xl sm:text-2xl font-black text-indigo-950">
+                          <%= currentStats.metrics.total_male %> M / <%= currentStats.metrics.total_female %> F
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- AGE & SEX MATRIX TABLE (7 BRACKETS) -->
+                    <div class="space-y-2">
+                      <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Age Group & Sex Matrix
+                        (Checked-In Evacuees)</h3>
+                      <table class="print-table w-full text-xs text-left border border-slate-900">
+                        <thead class="bg-slate-100 text-slate-900 font-bold uppercase border-b border-slate-900">
+                          <tr>
+                            <th class="p-2 border border-slate-900">Age Bracket</th>
+                            <th class="p-2 border border-slate-900 text-center">Male</th>
+                            <th class="p-2 border border-slate-900 text-center">Female</th>
+                            <th class="p-2 border border-slate-900 text-center">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-300 font-semibold text-slate-800">
+                          <% const brackets=[ { key: '0_11m' , label: '0–11 months' }, { key: '1_3y' ,
+                            label: '1–3 years' }, { key: '4_5y' , label: '4–5 years' }, { key: '6_12y' ,
+                            label: '6–12 years' }, { key: '13_18y' ,label: '13–18 years' }, { key: '19_59y'
+                            ,label: '19–59 years' }, { key: '60plus' ,label: '60+ years' } ]; %>
+                            <% brackets.forEach(b=> { %>
+                              <% const item=currentStats.age_groups[b.key] || { male: 0, female: 0, total: 0 }; %>
+                                <tr class="hover:bg-slate-50">
+                                  <td class="p-2 border border-slate-900 font-bold">
+                                    <%= b.label %>
+                                  </td>
+                                  <td class="p-2 border border-slate-900 text-center font-bold text-blue-700">
+                                    <%= item.male %>
+                                  </td>
+                                  <td class="p-2 border border-slate-900 text-center font-bold text-rose-700">
+                                    <%= item.female %>
+                                  </td>
+                                  <td class="p-2 border border-slate-900 text-center font-black text-slate-950">
+                                    <%= item.total %>
+                                  </td>
+                                </tr>
+                                <% }) %>
+                                  <tr class="bg-slate-200 font-black text-slate-950 border-t-2 border-slate-900">
+                                    <td class="p-2.5 border border-slate-900">TOTAL EVACUEES</td>
+                                    <td class="p-2.5 border border-slate-900 text-center text-blue-900">
+                                      <%= currentStats.metrics.total_male %>
+                                    </td>
+                                    <td class="p-2.5 border border-slate-900 text-center text-rose-900">
+                                      <%= currentStats.metrics.total_female %>
+                                    </td>
+                                    <td class="p-2.5 border border-slate-900 text-center text-black font-black">
+                                      <%= currentStats.metrics.total_evacuees %>
+                                    </td>
+                                  </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- SPECIAL CATEGORIES SECTOR BREAKDOWN -->
+                    <div class="space-y-2">
+                      <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Special Sector &
+                        Vulnerability
+                        Breakdown</h3>
+                      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                        <div class="p-2.5 border border-slate-900 rounded bg-slate-50">
+                          <div class="text-[10px] font-bold text-slate-600 uppercase">Pregnant Women</div>
+                          <div class="text-base font-black text-slate-950 mt-0.5">
+                            <%= currentStats.special_categories.pregnant %>
+                          </div>
+                        </div>
+                        <div class="p-2.5 border border-slate-900 rounded bg-slate-50">
+                          <div class="text-[10px] font-bold text-slate-600 uppercase">Breastfeeding Mothers</div>
+                          <div class="text-base font-black text-slate-950 mt-0.5">
+                            <%= currentStats.special_categories.lactating %>
+                          </div>
+                        </div>
+                        <div class="p-2.5 border border-slate-900 rounded bg-slate-50">
+                          <div class="text-[10px] font-bold text-slate-600 uppercase">Persons w/ Disability (PWD)</div>
+                          <div class="text-base font-black text-slate-950 mt-0.5">
+                            <%= currentStats.special_categories.pwd %>
+                          </div>
+                        </div>
+                        <div class="p-2.5 border border-slate-900 rounded bg-slate-50">
+                          <div class="text-[10px] font-bold text-slate-600 uppercase">Single-Headed Household</div>
+                          <div class="text-base font-black text-slate-950 mt-0.5">
+                            <%= currentStats.special_categories.single_headed %>
+                          </div>
+                        </div>
+                        <div class="p-2.5 border border-slate-900 rounded bg-slate-50">
+                          <div class="text-[10px] font-bold text-slate-600 uppercase">Serious Illness</div>
+                          <div class="text-base font-black text-slate-950 mt-0.5">
+                            <%= currentStats.special_categories.serious_illness %>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- ALL EVACUATION CENTERS SUMMARY TABLE (SHOWN IN ALL CENTERS MODE) -->
+                    <% if (!isSingleCenter && currentStats.center_summaries) { %>
+                      <div class="space-y-2 pt-2">
+                        <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Evacuation Center
+                          Occupancy
+                          Summary</h3>
+                        <table class="print-table w-full text-xs text-left border border-slate-900">
+                          <thead class="bg-slate-100 text-slate-900 font-bold uppercase border-b border-slate-900">
+                            <tr>
+                              <th class="p-2 border border-slate-900">Evacuation Center</th>
+                              <th class="p-2 border border-slate-900 text-center">Capacity</th>
+                              <th class="p-2 border border-slate-900 text-center">Occupied</th>
+                              <th class="p-2 border border-slate-900 text-center">Available</th>
+                              <th class="p-2 border border-slate-900 text-center">Families</th>
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-300 font-semibold text-slate-800">
+                            <% currentStats.center_summaries.forEach(c=> { %>
+                              <tr class="hover:bg-slate-50">
+                                <td class="p-2 border border-slate-900 font-bold">
+                                  <%= c.name %>
+                                </td>
+                                <td class="p-2 border border-slate-900 text-center">
+                                  <%= c.capacity %>
+                                </td>
+                                <td class="p-2 border border-slate-900 text-center text-orange-700 font-bold">
+                                  <%= c.occupied %>
+                                </td>
+                                <td class="p-2 border border-slate-900 text-center text-emerald-700 font-bold">
+                                  <%= c.available %>
+                                </td>
+                                <td class="p-2 border border-slate-900 text-center">
+                                  <%= c.families %>
+                                </td>
+                              </tr>
+                              <% }) %>
+                                <tr class="bg-slate-200 font-black text-slate-950 border-t-2 border-slate-900">
+                                  <td class="p-2.5 border border-slate-900">TOTAL ALL CENTERS</td>
+                                  <td class="p-2.5 border border-slate-900 text-center">
+                                    <%= currentStats.summary.capacity %>
+                                  </td>
+                                  <td class="p-2.5 border border-slate-900 text-center text-orange-950">
+                                    <%= currentStats.summary.total_occupied %>
+                                  </td>
+                                  <td class="p-2.5 border border-slate-900 text-center text-emerald-950">
+                                    <%= currentStats.summary.available_slots %>
+                                  </td>
+                                  <td class="p-2.5 border border-slate-900 text-center">
+                                    <%= currentStats.summary.total_families %>
+                                  </td>
+                                </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <% } %>
+
+                        <!-- PRINT FOOTER NOTE -->
+                        <div
+                          class="print-footer pt-3 border-t border-slate-300 text-center text-[11px] text-slate-600 font-semibold">
+                          Generated from Evacwar evacuation records &bull; Barangay San Rafael Emergency Operations
+                          Command
+                        </div>
+                        <% } else { %>
+                          <div class="p-6 text-center text-slate-400 font-semibold">No evacuation data available for the
+                            selected center.</div>
+                          <% } %>
+              </div>
+
+              <!-- ========================================================================= -->
+              <!-- DUAL TILES BELOW EC EVACUATION BOARD                                      -->
+              <!-- LEFT: RESIDENTS NOT EVACUATED | RIGHT: CHECKED-IN EVACUEES LIST           -->
+              <!-- ========================================================================= -->
+              <% const officialZones=['Zone 1', 'Zone 2' , 'Zone 3' , 'Zone 4' , 'Zone 5' , 'Zone 6' , 'Zone 7' ]; const
+                uniqueZonesSet=new Set(); ((nonEvacuatedReports && nonEvacuatedReports.list) || []).forEach(h=> {
+                if (h.zone && officialZones.includes(h.zone)) {
+                uniqueZonesSet.add(h.zone);
+                }
+                });
+                const allZonesList = uniqueZonesSet.size > 0 ? Array.from(uniqueZonesSet).sort() : officialZones;
+                const activeEvacueeItems = (evacuationReports && evacuationReports.activeEvacuees &&
+                evacuationReports.activeEvacuees.length > 0)
+                ? evacuationReports.activeEvacuees
+                : ((evacuationReports && evacuationReports.logs) || []).filter(c => c.status === 'ACTIVE' || c.status
+                === 'CHECKED_IN');
+                const activeHouseholdItems = (evacuationReports && evacuationReports.activeHouseholds &&
+                evacuationReports.activeHouseholds.length > 0)
+                ? evacuationReports.activeHouseholds
+                : (() => {
+                const map = {};
+                activeEvacueeItems.forEach(c => {
+                const resId = c.resident_id || c.id;
+                if (!map[resId]) {
+                map[resId] = {
+                resident_id: resId,
+                head_name: c.resident_name || c.evacuee_name || 'Household Head',
+                name: c.resident_name || c.evacuee_name || 'Household Head',
+                contact_number: c.resident_contact || '',
+                home_address: c.resident_purok || 'Barangay San Rafael',
+                zone: c.resident_purok || c.resident_barangay || 'Zone 1',
+                household_size: 1,
+                total_members: 1,
+                members: [],
+                center_name: c.center_name || 'Evacuation Center',
+                check_in_time: c.check_in_time,
+                vuln_types: []
+                };
+                }
+                if (c.household_member_id) {
+                map[resId].members.push({
+                name: c.member_name || c.evacuee_name || 'Family Member',
+                first_name: c.member_name || '',
+                last_name: '',
+                relation: c.member_relation || ''
+                });
+                map[resId].household_size++;
+                map[resId].total_members++;
+                }
+                if (c.check_in_time && (!map[resId].check_in_time || new Date(c.check_in_time) > new
+                Date(map[resId].check_in_time))) {
+                map[resId].check_in_time = c.check_in_time;
+                }
+                });
+                return Object.values(map);
+                })();
+                const nonEvacItems = ((nonEvacuatedReports && nonEvacuatedReports.list) || []).filter(h =>
+                !h.is_evacuated && (!h.approval_status || h.approval_status === 'APPROVED'));
+                %>
+                <div class="space-y-6 no-print" id="evacuationDualTiles">
+
+                  <!-- TOP SECTION: CHECKED-IN EVACUEES (PER HOUSEHOLD) -->
+                  <div
+                    class="bg-white rounded-2xl border border-emerald-200/90 shadow-2xs overflow-hidden flex flex-col">
+                    <!-- Header -->
+                    <div
+                      class="p-4 bg-gradient-to-r from-emerald-50/90 via-teal-50/40 to-white border-b border-emerald-200/80 flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <div
+                            class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                            <i class="ph ph-check-circle text-lg"></i>
+                          </div>
+                          <h3 class="font-black text-slate-900 text-sm tracking-tight">
+                            Checked-In Evacuees
+                          </h3>
+                          <span id="evacCountBadge"
+                            class="px-2 py-0.5 rounded-full text-[11px] font-black bg-emerald-600 text-white shrink-0">
+                            <%= activeHouseholdItems.length %> Families In Shelter
+                          </span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 font-medium mt-1 truncate">
+                          Shelter roster for: <strong class="text-slate-800">
+                            <%= isSingleCenter ? currentStats.center.name : 'All Evacuation Centers Combined' %>
+                          </strong>
+                        </p>
+                      </div>
+
+                      <div class="shrink-0">
+                        <% if (isSingleCenter) { %>
+                          <a href="/admin/reports?tab=evacuation&centerId=all"
+                            class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1 transition-colors shadow-2xs"
+                            title="Show All Centers Combined">
+                            <i class="ph ph-arrows-out"></i>
+                            <span class="hidden sm:inline">Show All</span>
+                          </a>
+                          <% } %>
+                      </div>
+                    </div>
+
+                    <!-- Controls / Search Filter (Site selector removed as EC Board has it) -->
+                    <div class="p-3 bg-slate-50/70 border-b border-slate-200/80 text-xs">
+                      <div class="relative">
+                        <i
+                          class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="tileEvacSearch" oninput="filterTileEvacuated()"
+                          placeholder="Search checked-in families by name, zone, or purok..."
+                          class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none transition-all shadow-2xs" />
+                      </div>
+                    </div>
+
+                    <!-- Scrollable Roster (PER HOUSEHOLD) -->
+                    <div
+                      class="p-3.5 space-y-2.5 max-h-[620px] overflow-y-auto custom-scrollbar flex-1 divide-y divide-slate-100"
+                      id="tileEvacList">
+                      <% if (activeHouseholdItems.length> 0) { %>
+                        <% activeHouseholdItems.forEach((hh)=> { %>
+                          <% const headDisplayName=hh.head_name || hh.name || 'Household Head' ; const
+                            memNames=(hh.members || []).map(m=> m.name || `${m.first_name || ''} ${m.last_name ||
+                            ''}`.trim() || 'Member');
+                            %>
+                            <div class="tile-evac-row pt-2.5 first:pt-0"
+                              data-name="<%= headDisplayName.toLowerCase() %> <%= memNames.join(' ').toLowerCase() %>"
+                              data-center="<%= (hh.center_name || '').toLowerCase() %>"
+                              data-zone="<%= (hh.zone || '').toLowerCase() %>"
+                              data-address="<%= (hh.home_address || '').toLowerCase() %>">
+                              <div
+                                class="p-3 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 hover:shadow-xs transition-all">
+                                <div class="flex items-stretch justify-between gap-3">
+                                  <!-- Left Info: Head, Zone, Address, Phone, Vulns, Family Members -->
+                                  <div class="min-w-0 flex-1 flex flex-col justify-between space-y-1">
+                                    <div>
+                                      <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span
+                                          class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">
+                                          <%= headDisplayName %>
+                                        </span>
+                                        <span
+                                          class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                          <%= hh.zone || 'Zone 1' %>
+                                        </span>
+                                      </div>
+                                      <% if (hh.home_address && hh.zone && hh.home_address.trim().toLowerCase()
+                                        !==hh.zone.trim().toLowerCase()) { %>
+                                        <div
+                                          class="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                                          <i class="ph ph-map-pin text-emerald-600 shrink-0"></i>
+                                          <span class="truncate">
+                                            <%= hh.home_address %>
+                                          </span>
+                                        </div>
+                                        <% } %>
+                                          <% if (hh.contact_number) { %>
+                                            <div
+                                              class="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                                              <i class="ph ph-phone text-slate-400"></i>
+                                              <span>
+                                                <%= hh.contact_number %>
+                                              </span>
+                                            </div>
+                                            <% } %>
+
+                                              <% const vulnList=(hh.vuln_types && hh.vuln_types.length> 0) ?
+                                                hh.vuln_types : (hh.vulnerability_types || []); %>
+                                                <% if (vulnList && vulnList.length> 0) { %>
+                                                  <div class="flex items-center gap-1 flex-wrap pt-0.5">
+                                                    <% vulnList.forEach(v=> { %>
+                                                      <span
+                                                        class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                                        <%= v %>
+                                                      </span>
+                                                      <% }) %>
+                                                  </div>
+                                                  <% } %>
+                                    </div>
+
+                                    <% if (hh.members && hh.members.length> 0) { %>
+                                      <div class="text-[11px] text-slate-600 pt-1 leading-snug">
+                                        <span class="font-bold text-slate-700">Family Members:</span>
+                                        <span>
+                                          <%= hh.members.map(m=> m.name || `${m.first_name || ''} ${m.last_name ||
+                                            ''}`.trim() || 'Family Member').join(', ') %>
+                                        </span>
+                                      </div>
+                                      <% } %>
+                                  </div>
+
+                                  <!-- Right Info: In Shelter status, Site Name, and Date/Time aligned on bottom with family members -->
+                                  <div class="shrink-0 flex flex-col items-end justify-between text-right">
+                                    <div class="flex flex-col items-end gap-1">
+                                      <span
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        In Shelter
+                                      </span>
+                                      <span
+                                        class="inline-flex items-center gap-1 font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200/70 text-[10px] max-w-[170px] truncate"
+                                        title="<%= hh.center_name %>">
+                                        <i class="ph ph-buildings shrink-0"></i>
+                                        <span class="truncate">
+                                          <%= hh.center_name %>
+                                        </span>
+                                      </span>
+                                    </div>
+                                    <div class="pt-1.5 flex items-center justify-end">
+                                      <span class="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                        <i class="ph ph-clock text-slate-400"></i>
+                                        <span>
+                                          <%= hh.check_in_time ? new Date(hh.check_in_time).toLocaleDateString([],
+                                            {month:'short', day:'numeric'}) + ' ' + new
+                                            Date(hh.check_in_time).toLocaleTimeString([], {hour:'2-digit',
+                                            minute:'2-digit'}) : 'Active' %>
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <% }) %>
+                              <% } else { %>
+                                <div class="p-8 text-center text-slate-400 font-semibold">
+                                  <i class="ph ph-users-three text-slate-300 text-3xl mb-1"></i>
+                                  <p class="text-xs text-slate-700 font-bold">No active evacuees checked in.</p>
+                                  <p class="text-[11px] text-slate-400">No checked-in families found for the selected
+                                    facility.</p>
+                                </div>
+                                <% } %>
+                                  <div id="tileEvacNoResults"
+                                    class="hidden p-8 text-center text-slate-400 text-xs font-semibold">
+                                    No matching checked-in families found.
+                                  </div>
+                    </div>
+                  </div>
+
+                  <!-- BOTTOM SECTION: NOT EVACUATED RESIDENTS -->
+                  <div class="bg-white rounded-2xl border border-rose-200/90 shadow-2xs overflow-hidden flex flex-col">
+                    <!-- Header -->
+                    <div
+                      class="p-4 bg-gradient-to-r from-rose-50/90 via-orange-50/40 to-white border-b border-rose-200/80 flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <div
+                            class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                            <i class="ph ph-warning-octagon text-lg"></i>
+                          </div>
+                          <h3 class="font-black text-slate-900 text-sm tracking-tight">
+                            Residents Not Evacuated
+                          </h3>
+                          <span id="notEvacCountBadge"
+                            class="px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white shrink-0">
+                            <%= nonEvacItems.length %> Families
+                          </span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 font-medium mt-1">
+                          Registered households not currently checked in to any evacuation center
+                        </p>
+                      </div>
+
+
+                    </div>
+
+                    <!-- Controls / Filters -->
+                    <div
+                      class="p-3 bg-slate-50/70 border-b border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div class="relative">
+                        <i
+                          class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="tileNotEvacSearch" oninput="filterTileNotEvacuated()"
+                          placeholder="Search un-evacuated names..."
+                          class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:border-rose-500 focus:ring-1 focus:ring-rose-200 outline-none transition-all shadow-2xs" />
+                      </div>
+                      <div>
+                        <select id="tileNotEvacZoneFilter" onchange="filterTileNotEvacuated()"
+                          class="w-full py-1.5 px-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:border-rose-500 outline-none font-medium text-slate-700 shadow-2xs">
+                          <option value="all">All Zones / Locations</option>
+                          <% allZonesList.forEach(z=> { %>
+                            <option value="<%= z.toLowerCase() %>">
+                              <%= z %>
+                            </option>
+                            <% }) %>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Scrollable Roster -->
+                    <div
+                      class="p-3.5 space-y-2.5 max-h-[620px] overflow-y-auto custom-scrollbar flex-1 divide-y divide-slate-100"
+                      id="tileNotEvacList">
+                      <% if (nonEvacItems.length> 0) { %>
+                        <% nonEvacItems.forEach((h)=> { %>
+                          <% const headDisplayName=h.head_name || h.name || `${h.first_name || '' } ${h.last_name || ''
+                            }`.trim() || 'Household Head' ; %>
+                            <div class="tile-not-evac-row pt-2.5 first:pt-0"
+                              data-name="<%= headDisplayName.toLowerCase() %> <%= ((h.members || []).map(m => (m.first_name + ' ' + m.last_name).toLowerCase())).join(' ') %>"
+                              data-zone="<%= (h.zone || '').toLowerCase() %>"
+                              data-address="<%= (h.home_address || '').toLowerCase() %>">
+                              <div
+                                class="p-3 rounded-xl bg-white border border-slate-200/80 hover:border-rose-300 hover:shadow-xs transition-all space-y-2">
+                                <div class="flex items-start justify-between gap-2">
+                                  <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                      <span
+                                        class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">
+                                        <%= headDisplayName %>
+                                      </span>
+                                      <span
+                                        class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                                        <%= h.zone || 'Zone 1' %>
+                                      </span>
+                                    </div>
+                                    <% if (h.home_address && h.zone && h.home_address.trim().toLowerCase()
+                                      !==h.zone.trim().toLowerCase()) { %>
+                                      <div
+                                        class="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                                        <i class="ph ph-map-pin text-rose-500 shrink-0"></i>
+                                        <span class="truncate">
+                                          <%= h.home_address %>
+                                        </span>
+                                      </div>
+                                      <% } %>
+                                        <% if (h.contact_number) { %>
+                                          <div
+                                            class="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                                            <i class="ph ph-phone text-slate-400"></i>
+                                            <span>
+                                              <%= h.contact_number %>
+                                            </span>
+                                          </div>
+                                          <% } %>
+                                  </div>
+
+                                  <span
+                                    class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                                    Not In Shelter
+                                  </span>
+                                </div>
+
+                                <% const vulnList=(h.vuln_types && h.vuln_types.length> 0) ? h.vuln_types :
+                                  (h.vulnerability_types || []); %>
+                                  <% if (vulnList && vulnList.length> 0) { %>
+                                    <div class="flex items-center gap-1 flex-wrap pt-0.5">
+                                      <% vulnList.forEach(v=> { %>
+                                        <span
+                                          class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                          <%= v %>
+                                        </span>
+                                        <% }) %>
+                                    </div>
+                                    <% } %>
+
+                                      <% if (h.members && h.members.length> 0) { %>
+                                        <div
+                                          class="text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200/60 leading-relaxed">
+                                          <span class="font-bold text-slate-700">Family Members:</span>
+                                          <span>
+                                            <%= h.members.map(m=> (m.name || `${m.first_name || ''} ${m.last_name ||
+                                              ''}`.trim() || 'Family Member')).join(', ') %>
+                                          </span>
+                                        </div>
+                                        <% } %>
+                              </div>
+                            </div>
+                            <% }) %>
+                              <% } else { %>
+                                <div class="p-8 text-center text-slate-400 font-semibold">
+                                  <i class="ph ph-check-circle text-emerald-500 text-3xl mb-1"></i>
+                                  <p class="text-xs text-slate-700 font-bold">All registered residents have evacuated!
+                                  </p>
+                                  <p class="text-[11px] text-slate-400">Zero households currently pending evacuation.
+                                  </p>
+                                </div>
+                                <% } %>
+                                  <div id="tileNotEvacNoResults"
+                                    class="hidden p-8 text-center text-slate-400 text-xs font-semibold">
+                                    No matching un-evacuated households found.
+                                  </div>
+                    </div>
+                  </div>
+
+                </div>
+            </div>
+
+            <!-- SECTION 3: HOUSEHOLD REPORTS TAB -->
+            <% const hhData=(typeof householdReports !=='undefined' && householdReports) ? householdReports : ((typeof
+              residentReports !=='undefined' && residentReports) ? residentReports : { list: [], totalHouseholds: 0,
+              totalIndividuals: 0, vulnerableHouseholds: 0, fourPsHouseholds: 0, barangayCounts: {}, demographics: {}
+              }); %>
+              <div id="tab-households"
+                class="report-tab-content <%= (activeTab === 'households' || activeTab === 'residents') ? '' : 'hidden' %> space-y-4">
+
+                <!-- PRINT HEADER (Visible only during print) -->
+                <div class="hidden print-header text-left border-b-2 border-slate-900 pb-2.5 mb-4">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h1 class="text-lg font-black text-slate-900 uppercase tracking-tight">MUNICIPALITY OF BAAO
+                        &mdash; MDRRMO DISASTER RESPONSE</h1>
+                      <h2 class="text-xs font-bold text-slate-700">Evacwar Emergency Operations Center &bull; Official
+                        Household Masterlist &amp; Family Demographics Roster</h2>
+                      <p class="text-[10px] text-slate-500 mt-0.5">Barangay San Rafael &bull; Generated: <%=
+                          locals.formatManilaDateTime ? locals.formatManilaDateTime(new Date()) : new
+                          Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }) %>
+                      </p>
+                    </div>
+                    <div class="text-right">
+                      <span
+                        class="inline-block px-2.5 py-1 rounded bg-blue-100 text-blue-800 text-[10px] font-black border border-blue-300 uppercase">
+                        OFFICIAL HOUSEHOLD ROSTER
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- HOUSEHOLD KPI METRICS -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Registered Households
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                      <%= hhData.totalHouseholds || (hhData.list ? hhData.list.length : 0) %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-blue-600">Family Units Profiled</div>
+                  </div>
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Population</div>
+                    <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                      <%= hhData.totalIndividuals || (overview && overview.totalResidents) || 0 %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-emerald-600">Heads &amp; Family Members</div>
+                  </div>
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vulnerable Households
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-purple-600 tracking-tight">
+                      <%= hhData.vulnerableHouseholds || 0 %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-purple-700">Special Needs Priority</div>
+                  </div>
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">4Ps Beneficiaries</div>
+                    <div class="text-xl sm:text-2xl font-black text-blue-700 tracking-tight">
+                      <%= hhData.fourPsHouseholds || 0 %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">DSWD Pantawid Pamilya</div>
+                  </div>
+                </div>
+
+                <!-- DEMOGRAPHIC PROFILE QUICK PILLS BAR (NO-PRINT) -->
+                <% const demo=hhData.demographics || {}; %>
+                  <div
+                    class="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 no-print flex flex-wrap items-center gap-2">
+                    <span
+                      class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mr-1 flex items-center gap-1.5">
+                      <i class="ph ph-chart-pie-slice text-blue-600 text-sm"></i> Sector Demographics:
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                      <i class="ph ph-person"></i> Seniors: <strong class="font-black text-amber-900">
+                        <%= demo.seniors || 0 %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 text-xs font-bold">
+                      <i class="ph ph-baby"></i> Children (0-17): <strong class="font-black text-cyan-900">
+                        <%= demo.children || 0 %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-bold">
+                      <i class="ph ph-wheelchair"></i> PWD: <strong class="font-black text-indigo-900">
+                        <%= demo.is_pwd || 0 %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-pink-50 border border-pink-200 text-pink-800 text-xs font-bold">
+                      <i class="ph ph-gender-female"></i> Pregnant: <strong class="font-black text-pink-900">
+                        <%= demo.is_pregnant || 0 %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                      <i class="ph ph-drop"></i> Lactating: <strong class="font-black text-emerald-900">
+                        <%= demo.is_lactating || 0 %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-bold">
+                      <i class="ph ph-user"></i> Solo Parents: <strong class="font-black text-purple-900">
+                        <%= demo.is_single_head || 0 %>
+                      </strong>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                      <i class="ph ph-first-aid"></i> Medical Needs: <strong class="font-black text-rose-900">
+                        <%= demo.has_serious_illness || 0 %>
+                      </strong>
+                    </span>
+                  </div>
+
+                  <!-- HOUSEHOLDS TABLE & MEMBER BREAKDOWN -->
+                  <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                    <div
+                      class="p-3.5 sm:p-4 bg-slate-50/70 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div>
+                        <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                          <i class="ph ph-house text-blue-600 text-base"></i>
+                          <span>Household Masterlist &amp; Family Member Roster</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">
+                          <%= (hhData.list || []).length %> registered households covering <%= hhData.totalIndividuals
+                              || 0 %> total individuals.
+                        </p>
+                      </div>
+                      <div class="flex items-center gap-2 no-print">
+                        <button type="button" onclick="toggleAllHouseholdDrawers(true)"
+                          class="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors flex items-center gap-1">
+                          <i class="ph ph-caret-double-down"></i> Expand All Members
+                        </button>
+                        <button type="button" onclick="toggleAllHouseholdDrawers(false)"
+                          class="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors flex items-center gap-1">
+                          <i class="ph ph-caret-double-up"></i> Collapse
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-100/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                          <tr>
+                            <th class="p-3 w-16 text-center">HH #</th>
+                            <th class="p-3">Head of Household</th>
+                            <th class="p-3">Barangay / Purok</th>
+                            <th class="p-3 text-center">Family Size</th>
+                            <th class="p-3">Vulnerability Profile</th>
+                            <th class="p-3 text-center">LoRa Node</th>
+                            <th class="p-3 text-center no-print">Member Details</th>
+                            <th class="p-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                          <% if (hhData.list && hhData.list.length> 0) { %>
+                            <% hhData.list.forEach(hh=> { %>
+                              <!-- MAIN HOUSEHOLD ROW -->
+                              <tr class="hover:bg-blue-50/30 transition-colors border-t border-slate-100">
+                                <td class="p-3 text-center font-black text-slate-500">
+                                  #<%= hh.household_id || hh.id %>
+                                </td>
+                                <td class="p-3">
+                                  <div class="font-extrabold text-slate-900 text-xs sm:text-[13px]">
+                                    <%= hh.head_name || `${hh.first_name || '' } ${hh.last_name || '' }` %>
+                                  </div>
+                                  <div class="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                    <span>Age <%= hh.age || '—' %> / <%= hh.sex || '—' %></span>
+                                    <% if (hh.contact_number) { %>
+                                      &bull; <a href="tel:<%= hh.contact_number %>"
+                                        class="text-blue-600 hover:underline">
+                                        <%= hh.contact_number %>
+                                      </a>
+                                      <% } %>
+                                  </div>
+                                </td>
+                                <td class="p-3 text-slate-700">
+                                  <div class="font-bold">
+                                    <%= hh.barangay || 'San Rafael' %>
+                                  </div>
+                                  <% if (hh.home_address) { %>
+                                    <div class="text-[11px] text-slate-500 truncate max-w-xs">
+                                      <%= hh.home_address %>
+                                    </div>
+                                    <% } %>
+                                </td>
+                                <td class="p-3 text-center">
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-black bg-blue-50 text-blue-700 border border-blue-200">
+                                    <i class="ph ph-users text-sm"></i>
+                                    <%= hh.total_members || hh.family_size || 1 %>
+                                      <%= (hh.total_members || hh.family_size || 1)===1 ? 'Person' : 'Members' %>
+                                  </span>
+                                  <div class="text-[10px] text-slate-400 font-medium mt-0.5">
+                                    1 Head, <%= (hh.members || []).length %>
+                                      <%= (hh.members || []).length===1 ? 'member' : 'members' %>
+                                  </div>
+                                </td>
+                                <td class="p-3">
+                                  <div class="flex flex-wrap gap-1">
+                                    <% if (hh.vuln_badges && hh.vuln_badges.length> 0) { %>
+                                      <% hh.vuln_badges.forEach(vb=> { %>
+                                        <% let badgeClass='bg-slate-100 text-slate-700 border-slate-200' ; if
+                                          (vb.color==='blue' ) badgeClass='bg-blue-50 text-blue-700 border-blue-200' ;
+                                          else if (vb.color==='amber' )
+                                          badgeClass='bg-amber-50 text-amber-800 border-amber-200' ; else if
+                                          (vb.color==='indigo' )
+                                          badgeClass='bg-indigo-50 text-indigo-700 border-indigo-200' ; else if
+                                          (vb.color==='cyan' ) badgeClass='bg-cyan-50 text-cyan-800 border-cyan-200' ;
+                                          else if (vb.color==='rose' )
+                                          badgeClass='bg-rose-50 text-rose-700 border-rose-200' ; else if
+                                          (vb.color==='pink' ) badgeClass='bg-pink-50 text-pink-700 border-pink-200' ;
+                                          else if (vb.color==='purple' )
+                                          badgeClass='bg-purple-50 text-purple-700 border-purple-200' ; %>
+                                          <span
+                                            class="px-2 py-0.5 rounded-md text-[10px] font-bold border <%= badgeClass %>">
+                                            <%= vb.label %>
+                                          </span>
+                                          <% }) %>
+                                            <% } else { %>
+                                              <span class="text-slate-400 text-[11px] font-normal">&mdash; Standard
+                                                Household</span>
+                                              <% } %>
+                                  </div>
+                                </td>
+                                <td class="p-3 text-center">
+                                  <% if (hh.has_lora) { %>
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
+                                      <i class="ph ph-broadcast text-emerald-600 font-bold"></i>
+                                      <span>LoRa Node (<%= hh.lora_node_id || '!f4e213d4' %>)</span>
+                                    </span>
+                                  <% } else { %>
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                      <i class="ph ph-x-circle text-slate-400"></i>
+                                      <span>No LoRa Node</span>
+                                    </span>
+                                  <% } %>
+                                </td>
+                                <td class="p-3 text-center no-print">
+                                  <button type="button"
+                                    onclick="toggleHouseholdDrawer('<%= hh.household_id || hh.id %>')"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 transition-all">
+                                    <span>
+                                      <%= (hh.members || []).length %> Members
+                                    </span>
+                                    <i id="hh-icon-<%= hh.household_id || hh.id %>"
+                                      class="ph ph-caret-down hh-caret-icon text-xs"></i>
+                                  </button>
+                                </td>
+                                <td class="p-3 text-center">
+                                  <span
+                                    class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    Registered
+                                  </span>
+                                </td>
+                              </tr>
+
+                              <!-- EXPANDABLE HOUSEHOLD MEMBERS DRAWER ROW -->
+                              <tr id="hh-drawer-<%= hh.household_id || hh.id %>"
+                                class="hh-member-drawer member-drawer-content hidden bg-slate-50/70 border-b border-slate-200">
+                                <td colspan="8" class="p-3 sm:p-4">
+                                  <div
+                                    class="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                                    <div
+                                      class="px-3.5 py-2.5 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
+                                      <div class="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                                        <i class="ph ph-users-three text-blue-600"></i>
+                                        <span>Family Roster &bull; <%= hh.head_name || 'Household' %> (Total: <%=
+                                              hh.total_members || 1 %>)</span>
+                                      </div>
+                                      <span class="text-[10px] text-slate-500 font-semibold">
+                                        1 Head of Family + <%= (hh.members || []).length %> Dependents
+                                      </span>
+                                    </div>
+
+                                    <div class="overflow-x-auto">
+                                      <table class="w-full text-xs text-left">
+                                        <thead
+                                          class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200/80">
+                                          <tr>
+                                            <th class="p-2.5 pl-3.5">Name</th>
+                                            <th class="p-2.5">Relation</th>
+                                            <th class="p-2.5 text-center">Age / Sex</th>
+                                            <th class="p-2.5">Special Needs / Vulnerability</th>
+                                            <th class="p-2.5 text-center">Role</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 text-slate-700">
+                                          <!-- 1. Head of Household Row -->
+                                          <tr class="bg-blue-50/40">
+                                            <td
+                                              class="p-2.5 pl-3.5 font-extrabold text-blue-950 flex items-center gap-1.5">
+                                              <i class="ph ph-crown-simple text-amber-500 text-sm"></i>
+                                              <span>
+                                                <%= hh.head_name || `${hh.first_name || '' } ${hh.last_name || '' }` %>
+                                              </span>
+                                            </td>
+                                            <td class="p-2.5 font-bold text-blue-800">Head of Household</td>
+                                            <td class="p-2.5 text-center text-slate-700">
+                                              <%= hh.age || '—' %> / <%= hh.sex || '—' %>
+                                            </td>
+                                            <td class="p-2.5">
+                                              <div class="flex flex-wrap gap-1">
+                                                <% if (hh.is_4ps) { %><span
+                                                    class="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded text-[9px] font-bold">4Ps
+                                                    Head</span>
+                                                  <% } %>
+                                                    <% if (Number(hh.age)>= 60) { %><span
+                                                        class="bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Senior
+                                                        Head</span>
+                                                      <% } %>
+                                                        <% if (hh.is_pwd) { %><span
+                                                            class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.2 rounded text-[9px] font-bold">PWD</span>
+                                                          <% } %>
+                                                            <% if (hh.is_pregnant) { %><span
+                                                                class="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Pregnant</span>
+                                                              <% } %>
+                                                                <% if (hh.is_lactating) { %><span
+                                                                    class="bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Lactating</span>
+                                                                  <% } %>
+                                                                    <% if (hh.is_single_head) { %><span
+                                                                        class="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Solo
+                                                                        Parent</span>
+                                                                      <% } %>
+                                                                        <% if (hh.has_serious_illness) { %><span
+                                                                            class="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Medical
+                                                                            Need</span>
+                                                                          <% } %>
+                                                                            <% if (!hh.is_4ps && !(Number(hh.age)>= 60)
+                                                                              && !hh.is_pwd && !hh.is_pregnant &&
+                                                                              !hh.is_lactating && !hh.is_single_head &&
+                                                                              !hh.has_serious_illness) { %>
+                                                                              <span
+                                                                                class="text-slate-400 text-[10px]">None</span>
+                                                                              <% } %>
+                                              </div>
+                                            </td>
+                                            <td class="p-2.5 text-center">
+                                              <span
+                                                class="px-2 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-800">
+                                                PRIMARY
+                                              </span>
+                                            </td>
+                                          </tr>
+
+                                          <!-- 2. Household Members Rows -->
+                                          <% if (hh.members && hh.members.length> 0) { %>
+                                            <% hh.members.forEach(m=> { %>
+                                              <tr class="hover:bg-slate-50 transition-colors">
+                                                <td class="p-2.5 pl-3.5 font-bold text-slate-800">
+                                                  <%= m.first_name %>
+                                                    <%= m.middle_name ? m.middle_name + ' ' : '' %>
+                                                      <%= m.last_name %>
+                                                </td>
+                                                <td class="p-2.5 text-slate-600 font-semibold">
+                                                  <%= m.relation || 'Dependent' %>
+                                                </td>
+                                                <td class="p-2.5 text-center text-slate-600">
+                                                  <%= m.age || '—' %> / <%= m.sex || '—' %>
+                                                </td>
+                                                <td class="p-2.5">
+                                                  <div class="flex flex-wrap gap-1">
+                                                    <% const mStatus=(m.status || '' ).toLowerCase(); %>
+                                                      <% if (m.is_pwd || mStatus.includes('pwd')) { %>
+                                                        <span
+                                                          class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.2 rounded text-[9px] font-bold">PWD</span>
+                                                        <% } %>
+                                                          <% if (m.is_pregnant || mStatus.includes('pregnant')) { %>
+                                                            <span
+                                                              class="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Pregnant</span>
+                                                            <% } %>
+                                                              <% if (m.is_lactating || mStatus.includes('lactating')) {
+                                                                %>
+                                                                <span
+                                                                  class="bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Lactating</span>
+                                                                <% } %>
+                                                                  <% if (Number(m.age)>= 60 ||
+                                                                    mStatus.includes('elderly') ||
+                                                                    mStatus.includes('senior')) { %>
+                                                                    <span
+                                                                      class="bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Senior</span>
+                                                                    <% } %>
+                                                                      <% if ((Number(m.age)> 0 && Number(m.age) < 18) ||
+                                                                          mStatus.includes('infant') ||
+                                                                          mStatus.includes('toddler') ||
+                                                                          mStatus.includes('student')) { %>
+                                                                          <span
+                                                                            class="bg-cyan-50 text-cyan-700 border border-cyan-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Minor
+                                                                            / Child</span>
+                                                                          <% } %>
+                                                                            <% if (m.has_serious_illness ||
+                                                                              mStatus.includes('illness') ||
+                                                                              mStatus.includes('bedridden')) { %>
+                                                                              <span
+                                                                                class="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded text-[9px] font-bold">Medical
+                                                                                Need</span>
+                                                                              <% } %>
+                                                                                <% if (!m.is_pwd && !m.is_pregnant &&
+                                                                                  !m.is_lactating && !(Number(m.age)>=
+                                                                                  60) && !(Number(m.age) < 18) &&
+                                                                                    !m.has_serious_illness &&
+                                                                                    !mStatus.includes('pwd') &&
+                                                                                    !mStatus.includes('pregnant') &&
+                                                                                    !mStatus.includes('lactating') &&
+                                                                                    !mStatus.includes('elderly') &&
+                                                                                    !mStatus.includes('infant') &&
+                                                                                    !mStatus.includes('illness') &&
+                                                                                    !mStatus.includes('bedridden')) { %>
+                                                                                    <span
+                                                                                      class="text-slate-400 text-[10px]">None</span>
+                                                                                    <% } %>
+                                                  </div>
+                                                </td>
+                                                <td class="p-2.5 text-center">
+                                                  <span
+                                                    class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-slate-100 text-slate-600">
+                                                    MEMBER
+                                                  </span>
+                                                </td>
+                                              </tr>
+                                              <% }) %>
+                                                <% } else { %>
+                                                  <tr>
+                                                    <td colspan="5"
+                                                      class="p-2.5 pl-3.5 text-slate-400 italic text-[11px]">
+                                                      No dependent household members registered under this family.
+                                                    </td>
+                                                  </tr>
+                                                  <% } %>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                              <% }) %>
+                                <% } else { %>
+                                  <tr>
+                                    <td colspan="7" class="p-8 text-center text-slate-400 font-semibold">
+                                      No household records found matching filter criteria.
+                                    </td>
+                                  </tr>
+                                  <% } %>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+              </div>
+
+              <!-- SOS / RESCUE REPORTS TAB -->
+              <div id="tab-sos" class="report-tab-content <%= activeTab === 'sos' ? '' : 'hidden' %> space-y-4">
+
+                <!-- 1. SOS EXECUTIVE METRICS (4 SUMMARY CARDS) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
+                  <!-- Active Signals -->
+                  <div
+                    class="bg-white p-3.5 sm:p-4 rounded-2xl border <%= overview.activeSos > 0 ? 'border-red-300 bg-red-50/10' : 'border-slate-200/90' %> shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Distress Signals
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-red-600 tracking-tight flex items-center gap-2">
+                      <span>
+                        <%= overview.activeSos || 0 %>
+                      </span>
+                      <% if (overview.activeSos> 0) { %>
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                        <% } %>
+                    </div>
+                    <div
+                      class="text-[11px] font-semibold <%= overview.activeSos > 0 ? 'text-red-700' : 'text-slate-500' %>">
+                      <%= overview.activeSos> 0 ? 'Immediate field deployment' : 'Zero pending distress' %>
+                    </div>
+                  </div>
+
+                  <!-- Rescued & Safe -->
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-emerald-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Secured & Rescued</div>
+                    <div class="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
+                      <%= (sosReports.list || []).filter(s=> ['RESCUED', 'RESOLVED'].includes((s.status ||
+                        '').toUpperCase())).length %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-emerald-700">Evacuees extracted safe</div>
+                  </div>
+
+                  <!-- In Progress / En Route -->
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-indigo-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-indigo-800 uppercase tracking-wider">Dispatched / En Route
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">
+                      <%= (sosReports.list || []).filter(s=> ['ACKNOWLEDGED', 'RESPONDING'].includes((s.status ||
+                        '').toUpperCase())).length %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-indigo-700">Responders actively deploying</div>
+                  </div>
+
+                  <!-- Total SOS Logged -->
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Distress Logged
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                      <%= (sosReports.list || []).length %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">Cumulative field signals</div>
+                  </div>
+                </div>
+
+                <!-- 2. SOS AUDIT LOGS TABLE & CONTROLS -->
+                <% const rescuerList=(locals.sosReports && locals.sosReports.rescuers &&
+                  locals.sosReports.rescuers.length> 0) ? locals.sosReports.rescuers : []; %>
+                  <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                    <!-- Header & Export Button -->
+                    <div
+                      class="p-3.5 sm:p-4 bg-slate-50/70 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                          <i class="ph ph-siren text-red-600 text-base"></i>
+                          <span>Search & Rescue Operations & Distress Telemetry Log</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">
+                          Comprehensive incident records with GPS coordinates, timeline, responder identity, and
+                          resolution duration.
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- Toolbar & Quick Filters -->
+                    <div
+                      class="p-3.5 border-b border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3 no-print">
+                      <!-- Search Input -->
+                      <div class="relative flex-1 max-w-md">
+                        <i
+                          class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                        <input type="text" id="adminSosSearch" oninput="filterAdminSosTable()"
+                          placeholder="Search by resident name, rescuer, purok, or notes..."
+                          class="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 transition-all">
+                      </div>
+
+                      <!-- Rescuer Dropdown & Status Filter -->
+                      <div class="flex flex-wrap items-center gap-2">
+                        <select id="adminSosRescuerSelect" onchange="filterAdminSosTable()"
+                          class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+                          <option value="all">All Rescuers</option>
+                          <% rescuerList.forEach(rec=> { %>
+                            <option value="<%= rec.name.toLowerCase() %>">
+                              <%= rec.name %> (Rescuer)
+                            </option>
+                            <% }); %>
+                        </select>
+
+                        <div class="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                          <button type="button" onclick="setAdminSosStatus('ALL', this)"
+                            class="admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-2xs">All</button>
+                          <button type="button" onclick="setAdminSosStatus('ACTIVE', this)"
+                            class="admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Active</button>
+                          <button type="button" onclick="setAdminSosStatus('RESPONDING', this)"
+                            class="admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">En
+                            Route</button>
+                          <button type="button" onclick="setAdminSosStatus('RESCUED', this)"
+                            class="admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Rescued</button>
+                          <button type="button" onclick="setAdminSosStatus('RESOLVED', this)"
+                            class="admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Resolved</button>
+                        </div>
+
+                        <button type="button" onclick="resetAdminSosFilters()"
+                          class="text-xs font-bold text-slate-500 hover:text-slate-800 px-2 py-1 rounded hover:bg-slate-100 transition-colors">
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Telemetry Table -->
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs text-left border-collapse">
+                        <thead class="bg-slate-100/80 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                          <tr>
+                            <th class="p-3">Alert ID</th>
+                            <th class="p-3">Distressed Resident</th>
+                            <th class="p-3">Location & Coordinates</th>
+                            <th class="p-3">Triggered Date / Time</th>
+                            <th class="p-3">Acknowledged / Rescuer</th>
+                            <th class="p-3">Resolution & Duration</th>
+                            <th class="p-3 text-center">Status</th>
+                            <th class="p-3 text-right">Radar Link</th>
+                          </tr>
+                        </thead>
+                        <tbody id="adminSosTableBody" class="divide-y divide-slate-100 text-slate-700 font-medium">
+                          <% if (sosReports.list && sosReports.list.length> 0) { %>
+                            <% sosReports.list.forEach(sos=> {
+                              const resName = sos.resident_name || (sos.first_name ? `${sos.first_name} ${sos.last_name
+                              || ''}`.trim() : (sos.name || 'Resident in Distress'));
+                              const resInitial = resName.charAt(0).toUpperCase();
+                              const st = (sos.status || 'ACTIVE').toUpperCase();
+                              const lat = sos.latitude || 13.5102;
+                              const lng = sos.longitude || 123.3470;
+                              const isSenior = (sos.age >= 60);
+                              const isPwd = !!sos.is_pwd;
+                              const isPreg = !!sos.is_pregnant;
+                              const isMed = !!sos.has_serious_illness;
+                              const trigTime = locals.formatManilaDateTime ? locals.formatManilaDateTime(sos.created_at)
+                              : (sos.created_at ? new Date(sos.created_at).toLocaleString('en-US', { month: 'short',
+                              day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila'
+                              }) : 'N/A');
+                              const resolvedTime = sos.updated_at && st !== 'ACTIVE' ? (locals.formatManilaDateTime ?
+                              locals.formatManilaDateTime(sos.updated_at) : new
+                              Date(sos.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour:
+                              'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' })) : null;
+                              %>
+                              <tr class="admin-sos-row hover:bg-slate-50/80 transition-colors"
+                                data-resident="<%= resName.toLowerCase() %>"
+                                data-contact="<%= (sos.contact_number || '').toLowerCase() %>"
+                                data-location="<%= (sos.barangay || sos.home_address || '').toLowerCase() %>"
+                                data-handler="<%= (sos.handler_name || sos.handler_email || '').toLowerCase() %>"
+                                data-status="<%= st %>" data-notes="<%= (sos.responder_notes || '').toLowerCase() %>">
+
+                                <!-- Alert ID -->
+                                <td class="p-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                  SOS-#<%= sos.id %>
+                                </td>
+
+                                <!-- Resident -->
+                                <td class="p-3">
+                                  <div class="flex items-center gap-2">
+                                    <div
+                                      class="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                      <%= resInitial %>
+                                    </div>
+                                    <div class="min-w-0">
+                                      <div class="font-extrabold text-slate-900 truncate">
+                                        <%= resName %>
+                                      </div>
+                                      <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                                        <% if (sos.contact_number) { %>
+                                          <a href="tel:<%= sos.contact_number %>"
+                                            class="text-[10px] text-blue-600 hover:underline font-semibold flex items-center gap-0.5">
+                                            <i class="ph ph-phone"></i>
+                                            <span>
+                                              <%= sos.contact_number %>
+                                            </span>
+                                          </a>
+                                          <% } %>
+                                            <% if (isSenior) { %>
+                                              <span
+                                                class="px-1 py-0.2 rounded bg-purple-50 text-purple-700 font-black text-[9px] border border-purple-200">Senior</span>
+                                              <% } %>
+                                                <% if (isPwd) { %>
+                                                  <span
+                                                    class="px-1 py-0.2 rounded bg-blue-50 text-blue-700 font-black text-[9px] border border-blue-200">PWD</span>
+                                                  <% } %>
+                                                    <% if (isPreg) { %>
+                                                      <span
+                                                        class="px-1 py-0.2 rounded bg-rose-50 text-rose-700 font-black text-[9px] border border-rose-200">Pregnant</span>
+                                                      <% } %>
+                                                        <% if (isMed) { %>
+                                                          <span
+                                                            class="px-1 py-0.2 rounded bg-amber-50 text-amber-800 font-black text-[9px] border border-amber-200">Medical</span>
+                                                          <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <!-- Location & Coordinates -->
+                                <td class="p-3 text-slate-700">
+                                  <div class="font-bold truncate max-w-[150px]">
+                                    <%= sos.barangay || sos.home_address || 'San Rafael' %>
+                                  </div>
+                                  <a href="https://maps.google.com/?q=<%= lat %>,<%= lng %>" target="_blank"
+                                    class="text-[10px] font-mono text-blue-600 hover:underline inline-flex items-center gap-0.5 mt-0.5">
+                                    <i class="ph ph-map-pin"></i>
+                                    <span>
+                                      <%= Number(lat).toFixed(4) %>, <%= Number(lng).toFixed(4) %>
+                                    </span>
+                                    <% if (sos.accuracy) { %>
+                                      <span class="text-slate-400 font-sans">(±<%= Math.round(sos.accuracy) %>m)</span>
+                                      <% } %>
+                                  </a>
+                                </td>
+
+                                <!-- Triggered Date / Time -->
+                                <td class="p-3 text-slate-600 whitespace-nowrap text-[11px]">
+                                  <div class="flex items-center gap-1 font-semibold">
+                                    <i class="ph ph-clock text-slate-400"></i>
+                                    <span>
+                                      <%= trigTime %>
+                                    </span>
+                                  </div>
+                                </td>
+
+                                <!-- Acknowledged / Rescuer -->
+                                <td class="p-3">
+                                  <% if ((sos.handler_name || sos.handler_email) && sos.handler_staff_type==='RESCUER' )
+                                    { %>
+                                    <div
+                                      class="font-bold text-slate-900 truncate max-w-[140px] flex items-center gap-1">
+                                      <i class="ph ph-user-check text-rose-600"></i>
+                                      <span>
+                                        <%= sos.handler_name || sos.handler_email %>
+                                      </span>
+                                    </div>
+                                    <div class="text-[10px] text-slate-500 font-medium">
+                                      <%= sos.handler_contact || 'Tactical Rescuer Unit' %>
+                                    </div>
+                                    <% } else { %>
+                                      <span
+                                        class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">Unassigned</span>
+                                      <% } %>
+                                </td>
+
+                                <!-- Resolution & Duration -->
+                                <td class="p-3 whitespace-nowrap text-[11px]">
+                                  <% if (resolvedTime) { %>
+                                    <div class="font-bold text-emerald-700 flex items-center gap-1">
+                                      <i class="ph ph-check-circle text-emerald-500"></i>
+                                      <span>
+                                        <%= resolvedTime %>
+                                      </span>
+                                    </div>
+                                    <% if (sos.responseMinutes !==null && sos.responseMinutes !==undefined) { %>
+                                      <span
+                                        class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        ⚡ Responded in <%= sos.responseMinutes %> min
+                                      </span>
+                                      <% } %>
+                                        <% } else { %>
+                                          <span class="text-slate-400 font-semibold italic text-[10px]">Awaiting rescue
+                                            resolution</span>
+                                          <% } %>
+                                </td>
+
+                                <!-- Status Badge -->
+                                <td class="p-3 text-center whitespace-nowrap">
+                                  <span
+                                    class="px-2.5 py-0.5 rounded-full text-[10px] font-black <%= st === 'ACTIVE' ? 'bg-red-50 text-red-700 border border-red-200' : (st === 'RESCUED' || st === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200') %>">
+                                    <%= st %>
+                                  </span>
+                                </td>
+
+                                <!-- Action / Radar Link -->
+                                <td class="p-3 text-right whitespace-nowrap">
+                                  <a href="/admin/evacuation?sos_id=<%= sos.id %>&lat=<%= lat %>&lng=<%= lng %>"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold text-xs transition-colors border border-slate-200"
+                                    title="View on Command Radar">
+                                    <i class="ph ph-crosshair text-sm"></i>
+                                    <span>Radar</span>
+                                  </a>
+                                </td>
+                              </tr>
+                              <% }); %>
+                                <% } else { %>
+                                  <tr>
+                                    <td colspan="8" class="p-8 text-center text-slate-400 font-semibold">No SOS distress
+                                      signals logged.</td>
+                                  </tr>
+                                  <% } %>
+                        </tbody>
+                      </table>
+
+                      <div id="adminSosEmptyNotice"
+                        class="hidden p-8 text-center text-slate-400 font-semibold bg-slate-50 border-t border-slate-100">
+                        <i class="ph ph-magnifying-glass text-2xl text-slate-300"></i>
+                        <p class="text-xs font-bold text-slate-600 mt-1">No emergency SOS signals matched your filters.
+                        </p>
+                        <button type="button" onclick="resetAdminSosFilters()"
+                          class="mt-2 text-xs font-bold text-rose-600 hover:underline">Reset Filters</button>
+                      </div>
+                    </div>
+                  </div>
+              </div>
+
+              <!-- SMS / ALERT REPORTS TAB -->
+              <div id="tab-sms" class="report-tab-content <%= activeTab === 'sms' ? '' : 'hidden' %> space-y-4">
+                <!-- SMS / ALERT SUMMARY CARDS -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Broadcasts
+                      Dispatched
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                      <%= alertReports.list.length %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-blue-600">SMS Outbox Executions</div>
+                  </div>
+
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Recipients Reached
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
+                      <%= alertReports.totalRecipients || (alertReports.list || []).reduce((acc, a)=> acc +
+                        (a.recipient_count || 0), 0) %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">Phones via iProgSMS</div>
+                  </div>
+
+                  <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">High-Severity Warnings
+                    </div>
+                    <div class="text-xl sm:text-2xl font-black text-rose-600 tracking-tight">
+                      <%= (alertReports.list || []).filter(a=> (a.severity || '').toUpperCase() === 'RED').length %>
+                    </div>
+                    <div class="text-[11px] font-semibold text-rose-700">Red Emergency Alerts</div>
+                  </div>
+                </div>
+
+                <!-- SMS LOGS TABLE -->
+                <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  <div
+                    class="p-3.5 sm:p-4 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                        <i class="ph ph-chats-circle text-blue-600"></i>
+                        <span>Broadcast SMS Emergency Alert Audit Logs</span>
+                      </h3>
+                      <p class="text-[11px] text-slate-500 mt-0.5">
+                        <%= alertReports.list.length %> mass notifications broadcasted to residents.
+                      </p>
+                    </div>
+                  </div>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                      <thead class="bg-slate-100/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                        <tr>
+                          <th class="p-3">Alert Title & Message</th>
+                          <th class="p-3 text-center">Severity</th>
+                          <th class="p-3 text-center">Recipients</th>
+                          <th class="p-3">Delivery Reference</th>
+                          <th class="p-3">Dispatched By</th>
+                          <th class="p-3">Sent Date / Time</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                        <% if (alertReports.list.length> 0) { %>
+                          <% alertReports.list.forEach(alert=> { %>
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                              <td class="p-3 max-w-sm">
+                                <div class="font-bold text-slate-900">
+                                  <%= alert.title %>
+                                </div>
+                                <div class="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                                  <%= alert.message %>
+                                </div>
+                              </td>
+                              <td class="p-3 text-center">
+                                <% const sev=(alert.severity || 'BLUE' ).toUpperCase(); %>
+                                  <span
+                                    class="px-2.5 py-0.5 rounded-full text-[10px] font-bold <%= sev === 'RED' ? 'bg-red-50 text-red-700 border border-red-200' : (sev === 'ORANGE' ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-blue-50 text-blue-700 border border-blue-200') %>">
+                                    <%= alert.severity %>
+                                  </span>
+                              </td>
+                              <td class="p-3 text-center font-bold text-slate-800">
+                                <%= alert.recipient_count || 0 %> Phones
+                              </td>
+                              <td class="p-3 font-mono text-[11px] text-slate-500">
+                                <% if (alert.message_id) { %>
+                                  <span class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px]">
+                                    <%= alert.message_id %>
+                                  </span>
+                                  <% } else { %>
+                                    <span class="text-slate-400">Processed</span>
+                                    <% } %>
+                              </td>
+                              <td class="p-3 font-semibold text-slate-800">
+                                <%= alert.sender_name || 'System Admin' %>
+                              </td>
+                              <td class="p-3 text-slate-500">
+                                <%= locals.formatManilaDateTime ? locals.formatManilaDateTime(alert.sent_at) :
+                                  (alert.sent_at ? new Date(alert.sent_at).toLocaleString('en-US', {
+                                  timeZone: 'Asia/Manila' }) : 'N/A' ) %>
+                              </td>
+                            </tr>
+                            <% }) %>
+                              <% } else { %>
+                                <tr>
+                                  <td colspan="6" class="p-8 text-center text-slate-400 font-semibold">No SMS broadcast
+                                    alerts logged.</td>
+                                </tr>
+                                <% } %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- STAFF ACTIVITY TAB -->
+              <div id="tab-staff" class="report-tab-content <%= activeTab === 'staff' ? '' : 'hidden' %> space-y-4">
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+                  <div class="p-3.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
+                    <h3 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <i class="ph ph-user-gear text-indigo-600"></i> Command Staff Roster & Station Assignments (<%=
+                        staffReports.list.length %> Personnel)
+                    </h3>
+                  </div>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                      <thead class="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                        <tr>
+                          <th class="p-2.5">Staff Name</th>
+                          <th class="p-2.5">Role / Staff Type</th>
+                          <th class="p-2.5">Assigned Evacuation Center</th>
+                          <th class="p-2.5">Assigned Barangay</th>
+                          <th class="p-2.5">Email / Contact</th>
+                          <th class="p-2.5">Joined Date</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                        <% if (staffReports.list.length> 0) { %>
+                          <% staffReports.list.forEach(st=> { %>
+                            <tr class="hover:bg-slate-50 transition-colors">
+                              <td class="p-2.5 font-bold text-slate-900">
+                                <%= st.first_name ? `${st.first_name} ${st.last_name || '' }` : st.email %>
+                              </td>
+                              <td class="p-2.5">
+                                <span
+                                  class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 uppercase">
+                                  <%= st.staff_type || st.role %>
+                                </span>
+                              </td>
+                              <td class="p-2.5 font-semibold text-blue-700">
+                                <%= st.center_name || 'Command Center' %>
+                              </td>
+                              <td class="p-2.5">
+                                <%= st.center_address || 'San Rafael' %>
+                              </td>
+                              <td class="p-2.5">
+                                <%= st.contact_number || st.email %>
+                              </td>
+                              <td class="p-2.5 text-slate-500">
+                                <%= new Date(st.created_at).toLocaleDateString() %>
+                              </td>
+                            </tr>
+                            <% }) %>
+                              <% } else { %>
+                                <tr>
+                                  <td colspan="6" class="p-6 text-center text-slate-400 font-semibold">No staff
+                                    personnel
+                                    registered.</td>
+                                </tr>
+                                <% } %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+          </div>
+          <%- include('../partials/footer-visible') %>
+        </main>
+    </div>
+
+    <script src="/js/html2pdf.bundle.min.js"></script>
+    <script>
+      function toggleHouseholdDrawer(hhId) {
+        const drawer = document.getElementById('hh-drawer-' + hhId);
+        const icon = document.getElementById('hh-icon-' + hhId);
+        if (!drawer) return;
+        drawer.classList.toggle('hidden');
+        if (icon) {
+          icon.classList.toggle('ph-caret-down');
+          icon.classList.toggle('ph-caret-up');
+        }
+      }
+
+      function toggleAllHouseholdDrawers(show) {
+        const drawers = document.querySelectorAll('.hh-member-drawer');
+        const icons = document.querySelectorAll('.hh-caret-icon');
+        drawers.forEach(d => {
+          if (show === undefined) {
+            d.classList.toggle('hidden');
+          } else if (show) {
+            d.classList.remove('hidden');
+          } else {
+            d.classList.add('hidden');
+          }
+        });
+        icons.forEach(ic => {
+          if (show) {
+            ic.classList.remove('ph-caret-down');
+            ic.classList.add('ph-caret-up');
+          } else if (show === false) {
+            ic.classList.add('ph-caret-down');
+            ic.classList.remove('ph-caret-up');
+          }
+        });
+      }
+
+      function switchTab(tabName) {
+        if (tabName === 'residents') tabName = 'households';
+        if (tabName === 'non-evacuated') tabName = 'evacuation';
+        document.querySelectorAll('.report-tab-content').forEach(el => el.classList.add('hidden'));
+        const activeEl = document.getElementById('tab-' + tabName) || (tabName === 'households' ? document.getElementById('tab-residents') : null);
+        if (activeEl) activeEl.classList.remove('hidden');
+
+        document.querySelectorAll('.report-tab-btn').forEach(btn => {
+          const btnTab = btn.getAttribute('data-tab');
+          const isTarget = btnTab === tabName || (tabName === 'households' && btnTab === 'residents');
+          if (isTarget) {
+            btn.className = 'report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20';
+          } else {
+            btn.className = 'report-tab-btn w-full px-2 sm:px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80';
+          }
+        });
+
+        if (tabName === 'sos' && typeof filterAdminSosTable === 'function') {
+          filterAdminSosTable();
+        }
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tabName);
+        window.history.pushState({}, '', url);
+      }
+
+      // =========================================================================
+      // ADMIN SOS REPORTS INTERACTIVE CONTROLS
+      // =========================================================================
+      let adminSosCurrentStatus = 'ALL';
+
+      function setAdminSosStatus(status, btn) {
+        adminSosCurrentStatus = status;
+        document.querySelectorAll('.admin-sos-status-btn').forEach(b => {
+          b.className = 'admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200';
+        });
+        if (btn) {
+          btn.className = 'admin-sos-status-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-2xs';
+        }
+        filterAdminSosTable();
+      }
+
+      function filterByRescuerName(rescuerName) {
+        switchTab('sos');
+        const sel = document.getElementById('adminSosRescuerSelect');
+        if (sel) {
+          sel.value = rescuerName.toLowerCase();
+        }
+        filterAdminSosTable();
+      }
+
+      function filterAdminSosTable() {
+        const query = (document.getElementById('adminSosSearch')?.value || '').toLowerCase().trim();
+        const rescuerVal = (document.getElementById('adminSosRescuerSelect')?.value || 'all').toLowerCase().trim();
+        const rows = document.querySelectorAll('.admin-sos-row');
+        let visibleCount = 0;
+
+        rows.forEach(r => {
+          const resident = (r.getAttribute('data-resident') || '').toLowerCase();
+          const contact = (r.getAttribute('data-contact') || '').toLowerCase();
+          const location = (r.getAttribute('data-location') || '').toLowerCase();
+          const handler = (r.getAttribute('data-handler') || '').toLowerCase();
+          const status = (r.getAttribute('data-status') || '').toUpperCase();
+          const notes = (r.getAttribute('data-notes') || '').toLowerCase();
+
+          // Rescuer filter
+          if (rescuerVal !== 'all' && !handler.includes(rescuerVal)) {
+            r.style.display = 'none';
+            return;
+          }
+
+          // Status filter
+          let matchesStatus = true;
+          if (adminSosCurrentStatus === 'ACTIVE') matchesStatus = (status === 'ACTIVE');
+          else if (adminSosCurrentStatus === 'RESPONDING') matchesStatus = (status === 'RESPONDING' || status === 'ACKNOWLEDGED');
+          else if (adminSosCurrentStatus === 'RESCUED') matchesStatus = (status === 'RESCUED');
+          else if (adminSosCurrentStatus === 'RESOLVED') matchesStatus = (status === 'RESOLVED');
+
+          // Query filter
+          const matchesQuery = !query || resident.includes(query) || contact.includes(query) || location.includes(query) || handler.includes(query) || notes.includes(query);
+
+          if (matchesStatus && matchesQuery) {
+            r.style.display = '';
+            visibleCount++;
+          } else {
+            r.style.display = 'none';
+          }
+        });
+
+        const emptyNotice = document.getElementById('adminSosEmptyNotice');
+        if (emptyNotice) {
+          if (visibleCount === 0 && rows.length > 0) {
+            emptyNotice.classList.remove('hidden');
+          } else {
+            emptyNotice.classList.add('hidden');
+          }
+        }
+      }
+
+      function resetAdminSosFilters() {
+        const search = document.getElementById('adminSosSearch');
+        if (search) search.value = '';
+        const sel = document.getElementById('adminSosRescuerSelect');
+        if (sel) sel.value = 'all';
+        adminSosCurrentStatus = 'ALL';
+        const firstBtn = document.querySelector('.admin-sos-status-btn');
+        if (firstBtn) setAdminSosStatus('ALL', firstBtn);
+        else filterAdminSosTable();
+      }
+
+      function printSingleEcReport() {
+        switchTab('evacuation');
+        document.body.classList.add('printing-ec-board');
+        setTimeout(() => {
+          window.print();
+          document.body.classList.remove('printing-ec-board');
+        }, 150);
+      }
+
+      function printActiveReport() {
+        const activeBtn = document.querySelector('.report-tab-btn.bg-blue-600, .report-tab-btn.bg-rose-600');
+        const activeTab = activeBtn ? activeBtn.getAttribute('data-tab') : 'overview';
+        if (activeTab === 'evacuation') {
+          printSingleEcReport();
+          return;
+        }
+        if (activeTab === 'non-evacuated') {
+          printNonEvacuatedReport();
+          return;
+        }
+        const activeContainer = document.getElementById('tab-' + activeTab);
+        if (activeContainer) {
+          activeContainer.querySelectorAll('.member-drawer-content').forEach(el => el.classList.remove('hidden'));
+        }
+        setTimeout(() => window.print(), 150);
+      }
+
+      // =========================================================================
+      // DIRECT CLIENT-SIDE PDF FILE DOWNLOAD ENGINE
+      // =========================================================================
+      function showPdfToast(message, isSuccess = null) {
+        let toast = document.getElementById('pdf-export-toast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'pdf-export-toast';
+          document.body.appendChild(toast);
+        }
+        if (isSuccess === true) {
+          toast.className = 'fixed bottom-5 right-5 z-[9999] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 transform translate-y-0 opacity-100 bg-emerald-950 text-emerald-200 border border-emerald-700/80';
+          toast.innerHTML = '<i class="ph ph-check-circle text-lg text-emerald-400"></i> <span>' + message + '</span>';
+        } else if (isSuccess === false) {
+          toast.className = 'fixed bottom-5 right-5 z-[9999] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 transform translate-y-0 opacity-100 bg-rose-950 text-rose-200 border border-rose-700/80';
+          toast.innerHTML = '<i class="ph ph-warning-circle text-lg text-rose-400"></i> <span>' + message + '</span>';
+        } else {
+          toast.className = 'fixed bottom-5 right-5 z-[9999] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 transform translate-y-0 opacity-100 bg-slate-900 text-white border border-slate-700';
+          toast.innerHTML = '<i class="ph ph-spinner animate-spin text-lg text-blue-400"></i> <span>' + message + '</span>';
+        }
+
+        if (isSuccess !== null) {
+          setTimeout(() => {
+            if (toast) {
+              toast.className = 'fixed bottom-5 right-5 z-[9999] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 transform translate-y-10 opacity-0 pointer-events-none bg-slate-900 text-white border border-slate-700';
+            }
+          }, 4000);
+        }
+      }
+
+      async function downloadPdfViaPuppeteer(tab, centerId = 'all', defaultFilename = 'Evacwar_Report.pdf') {
+        const pdfButtons = document.querySelectorAll('button[onclick*="PDF"]');
+        const originalStates = [];
+        pdfButtons.forEach(btn => {
+          originalStates.push({ btn, html: btn.innerHTML, disabled: btn.disabled });
+          btn.disabled = true;
+          btn.innerHTML = '<i class="ph ph-spinner animate-spin text-sm"></i> <span>Exporting PDF...</span>';
+        });
+
+        showPdfToast('Generating PDF file, please wait...');
+
+        try {
+          const queryParams = new URLSearchParams({ tab, centerId });
+
+          // 1. Try server-side Puppeteer export first
+          let serverSuccess = false;
+          try {
+            const res = await fetch(`/admin/reports/export-pdf?${queryParams.toString()}`);
+            if (res.ok) {
+              const blob = await res.blob();
+              if (blob && blob.size > 1000) {
+                let downloadName = defaultFilename;
+                const disposition = res.headers.get('Content-Disposition');
+                if (disposition && disposition.includes('filename=')) {
+                  const match = disposition.match(/filename="?([^"]+)"?/);
+                  if (match && match[1]) downloadName = match[1];
+                }
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = downloadName;
+                document.body.appendChild(a);
+                a.click();
+
+                setTimeout(() => {
+                  window.URL.revokeObjectURL(url);
+                  if (a.parentNode) a.parentNode.removeChild(a);
+                }, 1500);
+
+                showPdfToast('PDF exported successfully: ' + downloadName, true);
+                serverSuccess = true;
+                return;
+              }
+            }
+          } catch (serverErr) {
+            console.warn('[PDF Export] Server export unavailable, switching to browser PDF engine...', serverErr);
+          }
+
+          // 2. Client-side PDF engine (captures directly from active DOM, 100% filled, zero blank pages)
+          showPdfToast('Exporting PDF file, please wait...');
+
+          // Ensure html2pdf bundle is loaded
+          if (typeof html2pdf === 'undefined') {
+            await new Promise((resolve, reject) => {
+              const s1 = document.createElement('script');
+              s1.src = '/js/html2pdf.bundle.min.js';
+              s1.onload = resolve;
+              s1.onerror = () => {
+                const s2 = document.createElement('script');
+                s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+                s2.onload = resolve;
+                s2.onerror = reject;
+                document.head.appendChild(s2);
+              };
+              document.head.appendChild(s1);
+            });
+          }
+
+          // Locate the element corresponding to the requested tab
+          let targetEl = null;
+          if (tab === 'evacuation') {
+            targetEl = document.getElementById('printable-ec-board-report') || document.getElementById('tab-evacuation');
+          } else if (tab === 'non-evacuated') {
+            targetEl = document.getElementById('printable-non-evac-report') || document.getElementById('tab-non-evacuated');
+          } else if (tab === 'households' || tab === 'residents') {
+            targetEl = document.getElementById('tab-households') || document.getElementById('tab-residents');
+          } else if (tab === 'sos') {
+            targetEl = document.getElementById('tab-sos');
+          } else if (tab === 'sms') {
+            targetEl = document.getElementById('tab-sms');
+          } else {
+            targetEl = document.getElementById('tab-overview');
+          }
+
+          if (!targetEl) {
+            throw new Error('Report section could not be found.');
+          }
+
+          // Temporarily unhide if hidden
+          const wasHidden = targetEl.classList.contains('hidden');
+          if (wasHidden) targetEl.classList.remove('hidden');
+
+          // Clean export formatting (zero outer borders or outlines on report)
+          targetEl.classList.add('pdf-export-clone');
+          const originalBorder = targetEl.style.border;
+          const originalRadius = targetEl.style.borderRadius;
+          const originalShadow = targetEl.style.boxShadow;
+          targetEl.style.border = 'none';
+          targetEl.style.borderRadius = '0';
+          targetEl.style.boxShadow = 'none';
+
+          // Prepend temporary official header if none exists in this section
+          let tempHeader = null;
+          if (!targetEl.querySelector('.print-header')) {
+            tempHeader = document.createElement('div');
+            tempHeader.className = 'print-header';
+            tempHeader.style.cssText = 'border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 14px;';
+            tempHeader.innerHTML = `
+              <h1 style="font-size: 15px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase;">
+                BARANGAY SAN RAFAEL &mdash; EVACWAR EMERGENCY OPERATIONS
+              </h1>
+              <h2 style="font-size: 11px; font-weight: 700; color: #334155; margin: 3px 0 0 0;">
+                Command Operations & Emergency Masterlist
+              </h2>
+              <p style="font-size: 9px; color: #64748b; margin: 2px 0 0 0;">
+                Official Public Document &bull; Generated: ${new Date().toLocaleDateString()}
+              </p>
+            `;
+            targetEl.insertBefore(tempHeader, targetEl.firstChild);
+          }
+
+          const opt = {
+            margin: [6, 6, 6, 6],
+            filename: defaultFilename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              backgroundColor: '#ffffff'
+            },
+            jsPDF: {
+              unit: 'mm',
+              format: 'a4',
+              orientation: 'portrait'
+            }
+          };
+
+          try {
+            await html2pdf().set(opt).from(targetEl).save();
+            showPdfToast('PDF exported successfully: ' + defaultFilename, true);
+          } finally {
+            if (tempHeader && tempHeader.parentNode) {
+              tempHeader.parentNode.removeChild(tempHeader);
+            }
+            targetEl.classList.remove('pdf-export-clone');
+            targetEl.style.border = originalBorder;
+            targetEl.style.borderRadius = originalRadius;
+            targetEl.style.boxShadow = originalShadow;
+            if (wasHidden) targetEl.classList.add('hidden');
+          }
+        } catch (err) {
+          console.error('[PDF Export] Failed:', err);
+          showPdfToast('PDF export failed: ' + (err.message || 'Unknown error'), false);
+        } finally {
+          originalStates.forEach(s => {
+            s.btn.innerHTML = s.html;
+            s.btn.disabled = s.disabled;
+          });
+        }
+      }
+
+      function exportReportPDF() {
+        const activeBtn = document.querySelector('.report-tab-btn.bg-blue-600, .report-tab-btn.bg-rose-600');
+        const activeTab = activeBtn ? activeBtn.getAttribute('data-tab') : 'overview';
+        const dateStr = new Date().toISOString().slice(0, 10);
+
+        if (activeTab === 'evacuation') {
+          exportEcBoardPDF();
+          return;
+        }
+        if (activeTab === 'non-evacuated') {
+          exportNonEvacuatedPDF();
+          return;
+        }
+        if (activeTab === 'households' || activeTab === 'residents') {
+          downloadPdfViaPuppeteer('households', 'all', `Evacwar_Household_Masterlist_${dateStr}.pdf`);
+          return;
+        }
+        if (activeTab === 'sos') {
+          downloadPdfViaPuppeteer('sos', 'all', `Evacwar_SOS_Rescue_Log_${dateStr}.pdf`);
+          return;
+        }
+        if (activeTab === 'sms') {
+          downloadPdfViaPuppeteer('sms', 'all', `Evacwar_SMS_Broadcast_Log_${dateStr}.pdf`);
+          return;
+        }
+
+        // Default: overview tab
+        downloadPdfViaPuppeteer('overview', 'all', `Evacwar_Command_Overview_${dateStr}.pdf`);
+      }
+
+      function exportEcBoardPDF() {
+        const select = document.getElementById('ecBoardViewSelect');
+        const centerId = (select && select.value) ? select.value : 'all';
+        const centerName = (select && select.value !== 'all') ? (select.options[select.selectedIndex]?.text?.trim()?.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Center') : 'All_Centers';
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const filename = `Evacwar_EC_Board_${centerName}_${dateStr}.pdf`;
+        downloadPdfViaPuppeteer('evacuation', centerId, filename);
+      }
+
+      function exportNonEvacuatedPDF() {
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const filename = `Evacwar_Residents_Not_Yet_Evacuated_${dateStr}.pdf`;
+        downloadPdfViaPuppeteer('non-evacuated', 'all', filename);
+      }
+
+      // Backwards compatibility alias
+      function generateAndDownloadPDF(targetEl, filename, options = {}) {
+        exportReportPDF();
+      }
+
+      // =========================================================================
+      // DUAL TILES INTERACTIVE CONTROLS (NOT EVACUATED & EVACUATED LISTS)
+      // =========================================================================
+      function filterTileNotEvacuated() {
+        const query = (document.getElementById('tileNotEvacSearch')?.value || '').trim().toLowerCase();
+        const zoneVal = (document.getElementById('tileNotEvacZoneFilter')?.value || 'all').toLowerCase();
+        let visibleCount = 0;
+
+        document.querySelectorAll('.tile-not-evac-row').forEach(row => {
+          const nameData = row.getAttribute('data-name') || '';
+          const zoneData = row.getAttribute('data-zone') || '';
+          const addrData = row.getAttribute('data-address') || '';
+
+          const matchQuery = !query || nameData.includes(query) || addrData.includes(query);
+          const matchZone = zoneVal === 'all' || zoneData === zoneVal;
+
+          if (matchQuery && matchZone) {
+            row.classList.remove('hidden');
+            visibleCount++;
+          } else {
+            row.classList.add('hidden');
+          }
+        });
+
+        const badge = document.getElementById('notEvacCountBadge');
+        if (badge) badge.innerText = `${visibleCount} Families`;
+
+        const noResults = document.getElementById('tileNotEvacNoResults');
+        if (noResults) {
+          if (visibleCount === 0) noResults.classList.remove('hidden');
+          else noResults.classList.add('hidden');
+        }
+      }
+
+      function filterTileEvacuated() {
+        const query = (document.getElementById('tileEvacSearch')?.value || '').trim().toLowerCase();
+        let visibleCount = 0;
+
+        document.querySelectorAll('.tile-evac-row').forEach(row => {
+          const nameData = row.getAttribute('data-name') || '';
+          const centerData = row.getAttribute('data-center') || '';
+          const purokData = row.getAttribute('data-purok') || '';
+
+          const matchQuery = !query || nameData.includes(query) || centerData.includes(query) || purokData.includes(query);
+
+          if (matchQuery) {
+            row.classList.remove('hidden');
+            visibleCount++;
+          } else {
+            row.classList.add('hidden');
+          }
+        });
+
+        const badge = document.getElementById('evacCountBadge');
+        if (badge) badge.innerText = `${visibleCount} In Shelter`;
+
+        const noResults = document.getElementById('tileEvacNoResults');
+        if (noResults) {
+          if (visibleCount === 0) noResults.classList.remove('hidden');
+          else noResults.classList.add('hidden');
+        }
+      }
+
+      function printNonEvacuatedReport() {
+        switchTab('evacuation');
+        const tilesEl = document.getElementById('evacuationDualTiles');
+        if (tilesEl) tilesEl.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        if (tabParam) {
+          switchTab(tabParam);
+        }
+        if (urlParams.get('print') === '1') {
+          const targetTab = tabParam || 'overview';
+          if (targetTab === 'evacuation' || targetTab === 'non-evacuated') {
+            document.body.classList.add('printing-ec-board');
+          }
+          setTimeout(() => {
+            window.print();
+            document.body.classList.remove('printing-ec-board');
+          }, 350);
+        }
+      });
+    </script>
+
+    <%- include('../partials/footer') %>

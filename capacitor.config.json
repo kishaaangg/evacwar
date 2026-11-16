@@ -1,0 +1,28 @@
+{
+  "appId": "ph.gov.baao.evakwar.resident",
+  "appName": "EvakWar",
+  "webDir": "resident-mobile",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": [
+      "*"
+    ]
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#DC2626",
+      "sound": "beep.wav"
+    },
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Scanning for EvakWar 433.875 MHz LoRa Nodes (RES1 !f4e213d4 / REL1 !0f778ab0 / HALL !d88b1a58)...",
+        "cancel": "Cancel",
+        "availableDevices": "Available EvakWar LoRa Nodes",
+        "noDeviceFound": "No EvakWar LoRa Node found nearby"
+      }
+    }
+  }
+}

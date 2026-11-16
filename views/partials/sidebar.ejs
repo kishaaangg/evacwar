@@ -1,0 +1,339 @@
+<% const role=(user && user.role) ? user.role : "guest" ; %>
+
+  <style>
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+
+  <div id="sidebarOverlay" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-xs lg:hidden transition-opacity duration-300"></div>
+
+  <aside id="sidebar" class="app-sidebar hidden lg:flex">
+    <!-- Mobile Drawer Header -->
+    <div class="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.08] lg:hidden">
+      <div class="flex items-center gap-2">
+        <div class="h-2 w-2 rounded-full bg-blue-400 animate-pulse"></div>
+        <div class="font-heading text-xs font-bold text-white tracking-widest uppercase">Navigation Menu</div>
+      </div>
+      <button id="sidebarClose"
+        class="focus-ring rounded-lg bg-white/10 p-1.5 text-slate-300 hover:text-white hover:bg-white/20 transition-all cursor-pointer" type="button" aria-label="Close sidebar">
+        <i class="ph ph-x text-lg"></i>
+      </button>
+    </div>
+
+    <div class="flex h-full flex-col overflow-hidden">
+      <div class="flex-1 overflow-y-auto overflow-x-hidden p-3.5 pb-2 no-scrollbar">
+
+        <% if (role !=="guest" ) { %>
+          <% 
+            let currentUser = (locals.user) ? locals.user : (typeof user !== 'undefined' ? user : {});
+            let rawSidebarPhoto = (typeof profilePhoto !== 'undefined' && profilePhoto) 
+              ? profilePhoto 
+              : (locals.profilePhoto 
+                ? locals.profilePhoto 
+                : (currentUser && currentUser.profile_photo ? currentUser.profile_photo : null));
+            let sidebarPhotoSrc = null;
+            if (rawSidebarPhoto) {
+              sidebarPhotoSrc = (rawSidebarPhoto.startsWith('http') || rawSidebarPhoto.startsWith('/')) 
+                ? rawSidebarPhoto 
+                : `/uploads/profiles/${rawSidebarPhoto}`;
+            }
+            let rawDisplayName = currentUser && currentUser.name ? currentUser.name : (role === 'admin' ? 'Administrator' : 'Official');
+            if (role === 'admin' && (rawDisplayName === 'Super Admin' || rawDisplayName === 'Super Administrator' || rawDisplayName === 'Administrator Administrator' || rawDisplayName === 'Super')) {
+              rawDisplayName = 'Administrator';
+            }
+            let displayName = rawDisplayName;
+            let displayRole = role === 'staff' || role === 'barangay_council' ? 'Barangay Council' : (role === 'admin' ? 'ADMIN' : role);
+          %>
+          <!-- User Profile Section -->
+          <div class="mb-3.5 rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-3.5 border border-white/[0.08] shadow-sm backdrop-blur-xs">
+            <div class="flex items-center gap-3">
+              <% if (sidebarPhotoSrc) { %>
+                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-800 ring-2 ring-blue-500/30 overflow-hidden shadow-inner">
+                  <img loading="lazy" src="<%= sidebarPhotoSrc %>" decoding="async" alt="Profile"
+                    class="h-full w-full object-cover"
+                    onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
+                  <div class="hidden flex h-full w-full items-center justify-center bg-slate-800 text-blue-300">
+                    <i class="ph ph-user text-2xl"></i>
+                  </div>
+                  <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
+                </div>
+              <% } else { %>
+                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-1 ring-white/15 text-blue-300 shadow-inner">
+                  <i class="ph ph-user text-2xl"></i>
+                  <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
+                </div>
+              <% } %>
+              <div class="min-w-0 flex-1">
+                <div class="text-[11px] font-medium text-slate-400 leading-none mb-1">Welcome back,</div>
+                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="<%= displayName %>">
+                  <%= displayName %>
+                </div>
+                <div class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/20">
+                  <span class="h-1.5 w-1.5 rounded-full bg-blue-400"></span>
+                  <%= displayRole %>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% } %>
+
+        <!-- Navigation Section Header -->
+        <div class="px-2 pt-1 pb-2">
+          <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400/70 px-1 flex items-center gap-2">
+            <span>Navigation</span>
+            <span class="h-px flex-1 bg-white/[0.08]"></span>
+          </div>
+        </div>
+
+        <nav class="app-sidebar-nav space-y-1 text-sm">
+          <% if (role==="admin" ) { %>
+            <a href="/admin"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Admin Dashboard') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-gauge text-lg"></i>
+              </div>
+              <span data-i18n="nav_dashboard">Dashboard</span>
+            </a>
+            <a href="/admin/residents"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Manage Residents') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-users text-lg"></i>
+              </div>
+              <span data-i18n="nav_residents">Manage Residents</span>
+            </a>
+            <a href="/admin/staff"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Manage Staff') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-user-gear text-lg"></i>
+              </div>
+              <span data-i18n="nav_staff">Manage Staff</span>
+            </a>
+            <a href="/admin/typhoon"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Typhoon Monitoring') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-cloud-rain text-lg"></i>
+              </div>
+              <span data-i18n="nav_typhoon">Typhoon Monitoring</span>
+            </a>
+            <a href="/admin/evacuation"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Evacuation Site' || page && page.title === 'Emergency Map') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-map-pin text-lg"></i>
+              </div>
+              <span data-i18n="nav_map">Emergency Map</span>
+            </a>
+            <a href="/admin/broadcast"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Send Warnings') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-megaphone-simple text-lg"></i>
+              </div>
+              <span data-i18n="nav_alerts">Send SMS / Warnings</span>
+            </a>
+            <a href="/admin/chat"
+              class="sidebar-link focus-ring <%= (page && (page.title === 'LoRa Mesh Chat' || page.title === 'Community LoRa Chat')) ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-chats-circle text-lg"></i>
+              </div>
+              <span data-i18n="nav_chat">LoRa Mesh Chat</span>
+            </a>
+            <a href="/admin/reports"
+              class="sidebar-link focus-ring <%= (page && (page.title === 'Reports' || page.title === 'Admin Reports' || (page.title && page.title.includes('Report')))) ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-chart-bar text-lg"></i>
+              </div>
+              <span data-i18n="nav_reports">Reports</span>
+            </a>
+            <a href="/admin/settings"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Settings') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-gear text-lg"></i>
+              </div>
+              <span data-i18n="nav_settings">Settings</span>
+            </a>
+          <% } else if (role==="staff" || role==="barangay_council" ) { %>
+            <%
+              const currentStaff = (locals.staff) ? locals.staff : ((locals.user && locals.user.staff_type) ? locals.user : {});
+              const isRescuer = currentStaff && currentStaff.staff_type === 'RESCUER';
+            %>
+            <% if (isRescuer) { %>
+              <!-- Rescuer Navigation: Dashboard, Weather, MAP, Reports, Profile (NO QR SCANNER) -->
+              <a href="/rescuer"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Staff Dashboard' || page.title === 'Rescuer Dashboard' || page.title === 'Rescuer Command Dashboard' || page.title === 'Rescuer Emergency Dashboard')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-gauge text-lg"></i>
+                </div>
+                <span data-i18n="nav_dashboard">Dashboard</span>
+              </a>
+              <a href="/rescuer/typhoon"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Typhoon Monitoring' || page.title === 'Typhoon' || page.title === 'Weather' || page.title === 'Weather Telemetry' || page.title === 'Rescuer Typhoon & Weather Radar')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-cloud-rain text-lg"></i>
+                </div>
+                <span data-i18n="nav_weather">Weather</span>
+              </a>
+              <a href="/rescuer/map"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Staff Map & Rescue' || page.title === 'Evacuation Map' || page.title === 'Rescuer SOS Map' || page.title === 'Rescuer SOS Tactical Radar Map' || page.title === 'Emergency Map')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-map-pin text-lg"></i>
+                </div>
+                <span data-i18n="nav_map">MAP</span>
+              </a>
+              <a href="/rescuer/chat"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'LoRa Mesh Chat' || page.title === 'Rescuer LoRa Chat')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-chats-circle text-lg"></i>
+                </div>
+                <span data-i18n="nav_chat">LoRa Mesh Chat</span>
+              </a>
+              <a href="/rescuer/reports"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Reports & EC Board' || page.title === 'Resident Reports & Masterlist' || page.title === 'Reports' || page.title === 'SOS Incident Reports' || page.title === 'Rescuer SOS Incident Reports' || page.title === 'Rescuer Reports')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-chart-bar text-lg"></i>
+                </div>
+                <span data-i18n="nav_reports">Reports</span>
+              </a>
+              <a href="/rescuer/profile"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Profile' || page.title === 'Staff Profile' || page.title === 'Rescuer Profile & Settings' || page.title === 'Settings')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-user-circle text-lg"></i>
+                </div>
+                <span data-i18n="nav_profile">Profile</span>
+              </a>
+            <% } else { %>
+              <!-- Evacuation Site Staff Navigation: Dashboard, QR Scanner, Map, Reports, Typhoon Monitoring, Profile -->
+              <a href="/staff"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Staff Dashboard' || page.title === 'Evacuation Staff Dashboard')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-gauge text-lg"></i>
+                </div>
+                <span data-i18n="nav_dashboard">Dashboard</span>
+              </a>
+              <a href="/staff/qr"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'QR Scanner & Intake' || page.title === 'QR Scan')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-qr-code text-lg"></i>
+                </div>
+                <span data-i18n="nav_qr">QR Scanner</span>
+              </a>
+              <a href="/staff/map"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Staff Map & Rescue' || page.title === 'Evacuation Map' || page.title === 'Rescuer SOS Map' || page.title === 'Emergency Map')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-map-pin text-lg"></i>
+                </div>
+                <span data-i18n="nav_map">Map</span>
+              </a>
+              <a href="/staff/chat"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'LoRa Mesh Chat' || page.title === 'Staff LoRa Chat')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-chats-circle text-lg"></i>
+                </div>
+                <span data-i18n="nav_chat">LoRa Mesh Chat</span>
+              </a>
+              <a href="/staff/reports"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Reports & EC Board' || page.title === 'Resident Reports & Masterlist' || page.title === 'Reports')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-chart-bar text-lg"></i>
+                </div>
+                <span data-i18n="nav_reports">Reports</span>
+              </a>
+              <a href="/staff/typhoon"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Typhoon Monitoring' || page.title === 'Typhoon')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-cloud-rain text-lg"></i>
+                </div>
+                <span data-i18n="nav_typhoon">Typhoon Monitoring</span>
+              </a>
+              <a href="/staff/profile"
+                class="sidebar-link focus-ring <%= (page && (page.title === 'Profile' || page.title === 'Staff Profile' || page.title === 'Settings')) ? 'active' : 'inactive' %>">
+                <div class="nav-icon-box">
+                  <i class="ph ph-user-circle text-lg"></i>
+                </div>
+                <span data-i18n="nav_profile">Profile</span>
+              </a>
+            <% } %>
+          <% } else if (role==="resident" ) { %>
+            <a href="/resident"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Resident Dashboard') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-house text-lg"></i>
+              </div>
+              <span data-i18n="nav_dashboard">Dashboard</span>
+            </a>
+            <a href="/resident/qr"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Household QR') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-qr-code text-lg"></i>
+              </div>
+              <span data-i18n="nav_household_qr">Household QR</span>
+            </a>
+            <a href="/resident/evacuation"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Evacuation Map') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-map-pin text-lg"></i>
+              </div>
+              <span data-i18n="nav_map">Evacuation Map</span>
+            </a>
+            <a href="/resident/typhoon"
+              class="sidebar-link focus-ring <%= (page && page.title === 'Typhoon Monitoring') ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-cloud-rain text-lg"></i>
+              </div>
+              <span data-i18n="nav_typhoon">Typhoon Monitoring</span>
+            </a>
+            <a href="/resident/chat"
+              class="sidebar-link focus-ring <%= (page && (page.title === 'LoRa Mesh Chat' || page.title === 'Community LoRa Chat')) ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-chats-circle text-lg"></i>
+              </div>
+              <span data-i18n="nav_chat">LoRa Mesh Chat</span>
+            </a>
+            <a href="/resident/sos"
+              class="sidebar-link focus-ring <%= (page && (page.title === 'Emergency SOS' || page.title === 'SOS & Reports')) ? '!bg-red-600 !text-white shadow-md shadow-red-600/30' : '!bg-red-500/10 !text-red-300 hover:!bg-red-500/20 hover:!text-white border border-red-500/20' %>">
+              <div class="nav-icon-box <%= (page && (page.title === 'Emergency SOS' || page.title === 'SOS & Reports')) ? '!bg-white/20 !text-white' : '!bg-red-500/20 !text-red-400' %>">
+                <i class="ph ph-lifebuoy text-lg animate-pulse"></i>
+              </div>
+              <span class="font-bold tracking-wide" data-i18n="nav_emergency_sos">Emergency SOS</span>
+            </a>
+            <a href="/resident/profile"
+              class="sidebar-link focus-ring <%= (page && (page.title === 'Profile' || page.title === 'Settings')) ? 'active' : 'inactive' %>">
+              <div class="nav-icon-box">
+                <i class="ph ph-user-circle text-lg"></i>
+              </div>
+              <span data-i18n="nav_profile">Profile</span>
+            </a>
+          <% } else { %>
+            <a href="/login"
+              class="sidebar-link inactive focus-ring">
+              <div class="nav-icon-box">
+                <i class="ph ph-sign-in text-lg"></i>
+              </div>
+              <span>Login</span>
+            </a>
+            <a href="/register"
+              class="sidebar-link inactive focus-ring">
+              <div class="nav-icon-box">
+                <i class="ph ph-user-plus text-lg"></i>
+              </div>
+              <span>Register</span>
+            </a>
+          <% } %>
+        </nav>
+      </div>
+
+      <% if (role !=="guest" ) { %>
+        <div class="shrink-0 p-3.5 border-t border-white/[0.08] bg-slate-950/30">
+          <a href="/logout" onclick="openLogoutModal(event)"
+            class="focus-ring group flex w-full items-center justify-center gap-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-white px-3.5 py-2.5 text-xs font-bold transition-all duration-200 border border-red-500/20 hover:border-red-500/40 shadow-2xs active:scale-[0.98] cursor-pointer">
+            <i class="ph ph-sign-out text-base text-red-400 group-hover:text-white transition-colors"></i>
+            <span>Logout</span>
+          </a>
+        </div>
+      <% } %>
+    </div>
+  </aside>

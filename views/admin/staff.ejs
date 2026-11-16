@@ -1,0 +1,1276 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-28 lg:pb-12 overflow-x-hidden">
+        <div class="max-w-7xl mx-auto space-y-5 flex-1 w-full p-4 sm:p-6 lg:p-7">
+
+          <!-- Page Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 class="text-2xl sm:text-3xl font-black text-blue-950 tracking-tight">Manage Staff</h1>
+              <p class="text-sm text-slate-500 font-medium mt-0.5">Configure emergency staff roster, operational roles,
+                and center assignments.</p>
+            </div>
+            <button
+              class="btn btn-primary px-5 py-3 rounded-2xl shadow-md shadow-blue-500/20 text-sm font-bold flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-98"
+              onclick="openAddStaffModal()">
+              <i class="ph ph-user-plus text-xl"></i> Add New Staff
+            </button>
+          </div>
+
+          <!-- Main Staff Card Container -->
+          <div class="card p-0 overflow-hidden shadow-sm bg-white border border-slate-200/90 rounded-3xl">
+
+            <!-- Search & Multi-Filter Toolbar -->
+            <div
+              class="p-4 sm:p-5 border-b border-slate-200/80 bg-slate-50/70 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4">
+
+              <!-- Search Input -->
+              <div class="relative w-full lg:max-w-sm shrink-0">
+                <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                <input type="text" id="staffSearchInput" oninput="debouncedFilterStaff()"
+                  placeholder="Search name, email, occupation, center..."
+                  class="w-full pl-11 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-2xs font-medium text-slate-800 placeholder:text-slate-400" />
+              </div>
+
+              <!-- Filter Dropdowns Grid -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full lg:w-auto">
+
+                <!-- Filter: Staff Type -->
+                <div class="min-w-[170px]">
+                  <select id="staffTypeFilter" onchange="filterStaff()"
+                    class="w-full text-xs sm:text-sm py-2.5 px-3.5 bg-white font-semibold border border-slate-200 rounded-2xl outline-none focus:border-blue-500 shadow-2xs text-slate-700 cursor-pointer">
+                    <option value="all" selected>All Roles</option>
+                    <option value="EVACUATION">Site Staff</option>
+                    <option value="RESCUER">Rescuer</option>
+                  </select>
+                </div>
+
+                <!-- Filter: Evacuation Center -->
+                <div class="min-w-[200px]">
+                  <select id="staffCenterFilter" onchange="filterStaff()"
+                    class="w-full text-xs sm:text-sm py-2.5 px-3.5 bg-white font-semibold border border-slate-200 rounded-2xl outline-none focus:border-blue-500 shadow-2xs text-slate-700 truncate cursor-pointer">
+                    <option value="all" selected>All Assigned Centers</option>
+                    <% if (locals.centers && locals.centers.length> 0) { %>
+                      <% locals.centers.forEach(c=> { %>
+                        <option value="<%= c.name.toLowerCase() %>">
+                          <%= c.name %>
+                        </option>
+                        <% }) %>
+                          <% } %>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Desktop View: Table -->
+            <div class="hidden md:block border-0 rounded-none overflow-x-auto">
+              <table class="w-full text-left border-collapse table-fixed">
+                <colgroup>
+                  <col style="width: 60px;">
+                  <col style="width: 28%;">
+                  <col style="width: 18%;">
+                  <col style="width: 18%;">
+                  <col style="width: 20%;">
+                  <col style="width: 16%;">
+                  <col style="width: 90px;">
+                </colgroup>
+                <thead
+                  class="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 border-b border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 select-none shadow-xs font-extrabold">
+                  <tr>
+                    <th
+                      class="py-3.5 px-3 text-[11px] font-extrabold uppercase tracking-wider text-center bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      ID</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Staff Member</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Occupation</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Staff Type</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Assigned Center</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Contact</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider text-right bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="staffTableBody" class="divide-y divide-slate-100 bg-white">
+                  <% if (locals.staffMembers && locals.staffMembers.length> 0) { %>
+                    <% locals.staffMembers.forEach(staff=> {
+                      const staffType = (staff.staff_type || 'BOTH').toUpperCase();
+                      const isOnline = Boolean(staff.is_online);
+                      const photoUrl = staff.profile_photo ? ((staff.profile_photo.startsWith('http') ||
+                      staff.profile_photo.startsWith('/')) ? staff.profile_photo :
+                      `/uploads/profiles/${staff.profile_photo}`) : null;
+                      %>
+                      <tr class="hover:bg-blue-50/40 transition-colors group"
+                        data-name="<%= (staff.name || '').toLowerCase() %>"
+                        data-email="<%= (staff.email || '').toLowerCase() %>"
+                        data-occupation="<%= (staff.occupation || '').toLowerCase() %>" data-type="<%= staffType %>"
+                        data-center="<%= (staff.assigned_center_name || '').toLowerCase() %>">
+
+                        <!-- ID -->
+                        <td class="py-4 px-3 text-center font-mono text-xs font-bold text-slate-400">#<%= staff.id %>
+                        </td>
+
+                        <!-- Staff Name & Email (with Online Indicator Circle on top layer) -->
+                        <td class="py-4 px-4">
+                          <div class="flex items-center gap-3 min-w-0">
+                            <div
+                              class="relative shrink-0 w-10 h-10 min-w-[40px] max-w-[40px] min-h-[40px] max-h-[40px]">
+                              <div
+                                class="w-full h-full aspect-square rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 font-bold text-sm shadow-2xs overflow-hidden">
+                                <% if (photoUrl) { %>
+                                  <img src="<%= photoUrl %>" alt="<%= staff.name %>"
+                                    loading="lazy" decoding="async"
+                                    class="w-full h-full object-cover rounded-2xl"
+                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                  <span style="display:none;"
+                                    class="w-full h-full flex items-center justify-center font-bold text-xs">
+                                    <%= (staff.first_name || staff.name || 'S' ).charAt(0).toUpperCase() %>
+                                  </span>
+                                  <% } else { %>
+                                    <span class="font-bold text-xs">
+                                      <%= (staff.first_name || staff.name || 'S' ).charAt(0).toUpperCase() %>
+                                    </span>
+                                    <% } %>
+                              </div>
+
+                              <!-- Status Circle on top layer OUTSIDE overflow-hidden -->
+                              <span
+                                class="staff-status-dot staff-status-dot-<%= staff.user_id %> absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full z-10 <%= isOnline ? 'bg-emerald-500 ring-2 ring-white animate-pulse' : 'bg-slate-300 ring-2 ring-white' %>"
+                                title="<%= isOnline ? 'Online' : 'Offline' %>"></span>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                              <div
+                                class="font-bold text-slate-900 text-sm truncate group-hover:text-blue-900 transition-colors"
+                                title="<%= staff.name %>">
+                                <%= staff.name %>
+                              </div>
+                              <div class="text-xs text-slate-400 font-medium truncate" title="<%= staff.email || '' %>">
+                                <%= staff.email || 'N/A' %>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <!-- Occupation -->
+                        <td class="py-4 px-4">
+                          <span class="font-medium text-slate-700 text-sm block truncate"
+                            title="<%= staff.occupation || 'Emergency Staff' %>">
+                            <%= staff.occupation || 'Emergency Staff' %>
+                          </span>
+                        </td>
+
+                        <!-- Staff Type Badge -->
+                        <td class="py-4 px-4">
+                          <% if (staffType==='RESCUER' ) { %>
+                            <span
+                              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs">
+                              <i class="ph ph-lifebuoy text-sm"></i> Rescuer
+                            </span>
+                            <% } else if (staffType==='EVACUATION' ) { %>
+                              <span
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                                <i class="ph ph-buildings text-sm"></i> Site Staff
+                              </span>
+                              <% } else { %>
+                                <span
+                                  class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs">
+                                  <i class="ph ph-shield-check text-sm"></i> Both
+                                </span>
+                                <% } %>
+                        </td>
+
+                        <!-- Assigned Centers (Up to 3) -->
+                        <td class="py-4 px-4">
+                          <div class="flex flex-wrap gap-1 max-w-[240px]">
+                            <% if (staffType==='RESCUER' ) { %>
+                              <span
+                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs"
+                                title="Emergency SOS Field Response (No Site Assignment)">
+                                <i class="ph ph-lifebuoy text-xs text-amber-600"></i>
+                                <span>No Site (Rescuer)</span>
+                              </span>
+                              <% } else if (staff.assigned_centers && staff.assigned_centers.length> 0) { %>
+                                <% staff.assigned_centers.slice(0, 1).forEach(c=> { %>
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 truncate"
+                                    title="<%= c.name %>">
+                                    <i class="ph ph-buildings text-[11px] text-blue-600"></i>
+                                    <span class="truncate max-w-[130px]">
+                                      <%= c.name %>
+                                    </span>
+                                  </span>
+                                  <% }) %>
+                                    <% } else { %>
+                                      <span class="text-xs text-slate-400 italic">Unassigned</span>
+                                      <% } %>
+                          </div>
+                        </td>
+
+                        <!-- Contact -->
+                        <td class="py-4 px-4">
+                          <div class="text-slate-600 text-xs font-medium flex items-center gap-1.5 truncate"
+                            title="<%= staff.contact || 'No phone' %>">
+                            <i class="ph ph-phone text-slate-400 text-sm shrink-0"></i>
+                            <span class="truncate">
+                              <%= staff.contact || 'None' %>
+                            </span>
+                          </div>
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="py-4 px-4 text-right">
+                          <div class="flex items-center justify-end gap-1.5">
+                            <button
+                              class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                              title="Edit Staff" data-id="<%= staff.id %>"
+                              data-first-name="<%= staff.first_name || '' %>"
+                              data-middle-name="<%= staff.middle_name || '' %>"
+                              data-last-name="<%= staff.last_name || '' %>"
+                              data-occupation="<%= staff.occupation || '' %>" data-email="<%= staff.email || '' %>"
+                              data-contact="<%= staff.contact || '' %>" data-staff-type="<%= staffType %>"
+                              data-center-id="<%= staff.assigned_center_id || '' %>"
+                              data-center-ids="<%= JSON.stringify(staff.assigned_center_ids || (staff.assigned_center_id ? [staff.assigned_center_id] : [])) %>"
+                              data-photo="<%= photoUrl || '' %>" onclick="openEditModalFromBtn(this)">
+                              <i class="ph ph-pencil-simple text-sm"></i>
+                            </button>
+                            <button type="button"
+                              class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-all shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                              title="Delete Staff" data-id="<%= staff.id %>" data-name="<%= staff.name || '' %>"
+                              onclick="confirmDeleteStaff(this)">
+                              <i class="ph ph-trash text-sm"></i>
+                            </button>
+                          </div>
+                        </td>
+
+                      </tr>
+                      <% }) %>
+                        <% } %>
+                        <tr id="noStaffDesktopRow" <%= (locals.staffMembers && locals.staffMembers.length > 0) ? 'style="display: none;"' : '' %>>
+                          <td colspan="7" class="text-center py-14 text-slate-400">
+                            <i class="ph ph-users text-4xl mb-2 text-slate-300"></i>
+                            <p class="font-semibold text-sm">No staff records found.</p>
+                          </td>
+                        </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile View: Card List -->
+            <div id="staffMobileContainer"
+              class="block md:hidden border-t border-slate-100 divide-y divide-slate-100">
+              <% if (locals.staffMembers && locals.staffMembers.length> 0) { %>
+                <% locals.staffMembers.forEach(staff=> {
+                  const staffType = (staff.staff_type || 'BOTH').toUpperCase();
+                  const isOnline = Boolean(staff.is_online);
+                  const photoUrl = staff.profile_photo ? ((staff.profile_photo.startsWith('http') ||
+                  staff.profile_photo.startsWith('/')) ? staff.profile_photo :
+                  `/uploads/profiles/${staff.profile_photo}`) : null;
+                  %>
+                  <div class="staff-card-item p-4 bg-white hover:bg-slate-50 transition-colors"
+                    data-name="<%= (staff.name || '').toLowerCase() %>"
+                    data-email="<%= (staff.email || '').toLowerCase() %>"
+                    data-occupation="<%= (staff.occupation || '').toLowerCase() %>" data-type="<%= staffType %>"
+                    data-center="<%= (staff.assigned_center_name || '').toLowerCase() %>">
+
+                    <!-- Top header -->
+                    <div class="flex items-start justify-between mb-3">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div class="relative shrink-0 w-11 h-11 min-w-[44px] max-w-[44px] min-h-[44px] max-h-[44px]">
+                          <div
+                            class="w-full h-full aspect-square rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 font-bold shadow-2xs overflow-hidden">
+                            <% if (photoUrl) { %>
+                              <img src="<%= photoUrl %>" alt="<%= staff.name %>"
+                                loading="lazy" decoding="async"
+                                class="w-full h-full object-cover rounded-2xl"
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                              <span style="display:none;"
+                                class="w-full h-full flex items-center justify-center font-bold text-sm">
+                                <%= (staff.first_name || staff.name || 'S' ).charAt(0).toUpperCase() %>
+                              </span>
+                              <% } else { %>
+                                <span class="font-bold text-sm">
+                                  <%= (staff.first_name || staff.name || 'S' ).charAt(0).toUpperCase() %>
+                                </span>
+                                <% } %>
+                          </div>
+
+                          <!-- Circle indicator on photo (Real-time Live Online/Offline on top layer) -->
+                          <span
+                            class="staff-status-dot staff-status-dot-<%= staff.user_id %> absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full z-10 <%= isOnline ? 'bg-emerald-500 ring-2 ring-white animate-pulse' : 'bg-slate-300 ring-2 ring-white' %>"
+                            title="<%= isOnline ? 'Online' : 'Offline' %>"></span>
+                        </div>
+                        <div class="min-w-0">
+                          <div class="font-bold text-slate-900 text-sm truncate">
+                            <%= staff.name %>
+                          </div>
+                          <div class="text-xs text-slate-600 font-medium truncate">
+                            <%= staff.occupation || 'Emergency Staff' %>
+                          </div>
+                          <div class="text-[11px] text-slate-400 font-medium truncate">
+                            <%= staff.email || 'N/A' %>
+                          </div>
+                        </div>
+                      </div>
+
+                      <span
+                        class="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 shrink-0">#
+                        <%= staff.id %></span>
+                    </div>
+
+                    <!-- Centers & Contact -->
+                    <div class="mb-3 space-y-1.5 bg-slate-50/90 p-3 rounded-2xl border border-slate-100 text-xs">
+                      <div class="flex flex-wrap items-center gap-1">
+                        <% if (staffType==='RESCUER' ) { %>
+                          <span
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <i class="ph ph-lifebuoy text-[11px] text-amber-600"></i>
+                            <span>No Site (Rescuer)</span>
+                          </span>
+                          <% } else if (staff.assigned_centers && staff.assigned_centers.length> 0) { %>
+                            <% staff.assigned_centers.slice(0, 1).forEach(c=> { %>
+                              <span
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                <i class="ph ph-buildings text-[11px] text-blue-600"></i>
+                                <span>
+                                  <%= c.name %>
+                                </span>
+                              </span>
+                              <% }) %>
+                                <% } else { %>
+                                  <span class="text-xs text-slate-400 italic">No Center Assigned</span>
+                                  <% } %>
+                      </div>
+                      <div
+                        class="text-slate-600 flex items-center gap-1.5 pt-1 border-t border-slate-200/60 font-medium">
+                        <i class="ph ph-phone text-slate-400 text-sm"></i>
+                        <span>
+                          <%= staff.contact || 'No phone' %>
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Badges & Action Buttons -->
+                    <div class="flex items-center justify-between pt-1">
+                      <div>
+                        <% if (staffType==='RESCUER' ) { %>
+                          <span
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <i class="ph ph-lifebuoy"></i> Rescuer
+                          </span>
+                          <% } else if (staffType==='EVACUATION' ) { %>
+                            <span
+                              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              <i class="ph ph-buildings"></i> Site Staff
+                            </span>
+                            <% } else { %>
+                              <span
+                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <i class="ph ph-shield-check"></i> Both
+                              </span>
+                              <% } %>
+                      </div>
+
+                      <div class="flex items-center gap-2 shrink-0">
+                        <button
+                          class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
+                          title="Edit Staff" data-id="<%= staff.id %>" data-first-name="<%= staff.first_name || '' %>"
+                          data-middle-name="<%= staff.middle_name || '' %>"
+                          data-last-name="<%= staff.last_name || '' %>" data-occupation="<%= staff.occupation || '' %>"
+                          data-email="<%= staff.email || '' %>" data-contact="<%= staff.contact || '' %>"
+                          data-staff-type="<%= staffType %>" data-center-id="<%= staff.assigned_center_id || '' %>"
+                          data-center-ids="<%= JSON.stringify(staff.assigned_center_ids || (staff.assigned_center_id ? [staff.assigned_center_id] : [])) %>"
+                          data-photo="<%= photoUrl || '' %>" onclick="openEditModalFromBtn(this)">
+                          <i class="ph ph-pencil-simple text-sm"></i>
+                        </button>
+                        <button type="button"
+                          class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors shadow-2xs"
+                          title="Delete Staff" data-id="<%= staff.id %>" data-name="<%= staff.name || '' %>"
+                          onclick="confirmDeleteStaff(this)">
+                          <i class="ph ph-trash text-sm"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                  <% }) %>
+                    <% } %>
+                    <div id="noStaffMobileRow" class="text-center py-14 text-slate-400" <%= (locals.staffMembers && locals.staffMembers.length > 0) ? 'style="display: none;"' : '' %>>
+                      <i class="ph ph-users text-4xl mb-2 text-slate-300"></i>
+                      <p class="font-semibold text-sm">No staff records found.</p>
+                    </div>
+            </div>
+
+            <!-- Pagination Controls (Matching Resident page paging & scrolling) -->
+            <div id="staffPaginationBar" class="p-4 border-t border-slate-200/80 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+              <div id="staffPaginationInfo">
+                Showing <span id="pagStart">1</span>-<span id="pagEnd">25</span> of <span id="pagTotal">0</span> staff members
+              </div>
+              <div class="flex items-center gap-1.5" id="staffPaginationBtns">
+                <button type="button" id="prevPageBtn" onclick="changeStaffPage(-1)" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all">
+                  <i class="ph ph-caret-left font-bold"></i> Previous
+                </button>
+                <div id="paginationPageNumbers" class="flex items-center gap-1"></div>
+                <button type="button" id="nextPageBtn" onclick="changeStaffPage(1)" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all">
+                  Next <i class="ph ph-caret-right font-bold"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+      </main>
+
+      <!-- 1. ADD STAFF MODAL (CLEAN HEADER) -->
+      <div id="staffModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+
+          <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+            <h3 class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2.5">
+              <i class="ph ph-user-plus text-xl text-blue-600"></i> Create Staff Account
+            </h3>
+            <button onclick="document.getElementById('staffModal').classList.add('hidden')"
+              class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+              <i class="ph ph-x text-base font-bold"></i>
+            </button>
+          </div>
+
+          <form id="addStaffForm" action="/admin/staff/create" method="POST" enctype="multipart/form-data"
+            class="p-6 space-y-4 overflow-y-auto">
+            <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+            <!-- Photo Upload Header -->
+            <div class="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80">
+              <div
+                class="w-14 h-14 min-w-[56px] max-w-[56px] min-h-[56px] max-h-[56px] aspect-square rounded-2xl bg-blue-100 border-2 border-white shadow-xs flex items-center justify-center overflow-hidden shrink-0 relative">
+                <img id="add_avatar_preview" src="" class="w-full h-full object-cover hidden" />
+                <i id="add_avatar_icon" class="ph ph-user text-2xl text-blue-600"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Profile Photo (Optional)</label>
+                <input type="file" name="profile_photo" accept="image/*" onchange="previewAddAvatar(this)"
+                  class="text-xs text-slate-500 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
+              </div>
+            </div>
+
+            <!-- Name Fields (3 Columns) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">First Name <span
+                    class="text-red-500">*</span></label>
+                <input type="text" name="first_name" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Juan">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Middle Name</label>
+                <input type="text" name="middle_name"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Santos">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Last Name <span
+                    class="text-red-500">*</span></label>
+                <input type="text" name="last_name" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Dela Cruz">
+              </div>
+            </div>
+
+            <!-- Occupation & Email -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Occupation / Title</label>
+                <input type="text" name="occupation" value="Emergency Responder" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="e.g. Intake Officer">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Email <span
+                    class="text-slate-400 font-normal">(Optional)</span></label>
+                <input type="email" name="email"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Optional: staff@gmail.com">
+              </div>
+            </div>
+
+            <!-- Phone & Temporary Password with Eye Icon -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Contact Number (Login) <span
+                    class="text-red-500">*</span></label>
+                <input type="text" id="add_staff_contact" name="contact_number" required
+                  pattern="09[0-9]{9}" maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="09181234567" title="11-digit Philippine mobile number starting with 09">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Temporary Password</label>
+                <div class="relative flex items-center">
+                  <input type="password" id="add_staff_password" name="password" minlength="8"
+                    class="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                    placeholder="(Defaults to staff123)">
+                  <button type="button" onclick="togglePasswordVisibility('add_staff_password', this)"
+                    class="absolute right-2.5 p-1.5 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                    title="Show/Hide Password" aria-label="Toggle password visibility">
+                    <i class="ph ph-eye text-lg"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Staff Type -->
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Staff Type / Role</label>
+              <select name="staff_type" id="add_staff_type" onchange="syncStaffTypeUi('add')" required
+                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                <option value="EVACUATION">Evacuation Staff (Site Assignment & Occupancy)</option>
+                <option value="RESCUER">Rescuer (Emergency SOS & Field Response)</option>
+              </select>
+            </div>
+
+            <!-- Rescuer Notice (when Rescuer selected) -->
+            <div id="add_rescuer_notice"
+              class="hidden p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 space-y-1">
+              <div class="flex items-center gap-2 font-bold text-amber-800">
+                <i class="ph ph-lifebuoy text-base text-amber-600"></i>
+                <span>Rescuer Role (Emergency SOS Focus)</span>
+              </div>
+              <p class="text-[11px] text-amber-700 leading-relaxed font-medium">
+                Rescuers focus exclusively on emergency SOS distress signals, dispatch, and field rescue operations. No
+                evacuation-site assignments are required.
+              </p>
+            </div>
+
+            <!-- Assigned Evacuation Site (Select 1 Site) -->
+            <div id="add_sites_section" class="space-y-1.5 pt-1">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-bold uppercase text-slate-700">
+                  Assigned Evacuation Site <span class="text-xs font-normal text-slate-400">(Select 1 site)</span>
+                </label>
+                <span id="add_center_count_badge"
+                  class="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                  0 / 1 Selected
+                </span>
+              </div>
+
+              <!-- Facilities Staffing Overview Bar -->
+              <% 
+                const addTotalCenters = (locals.centers || []).length;
+                const addUnstaffedCount = (locals.centers || []).filter(c => !c.has_staff).length;
+                const addStaffedCount = addTotalCenters - addUnstaffedCount;
+              %>
+              <div class="flex items-center justify-between text-[11px] font-semibold bg-slate-100/80 px-2.5 py-1.5 rounded-lg border border-slate-200/70">
+                <span class="text-slate-500">Facility Status:</span>
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center gap-1 text-emerald-700 font-extrabold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <%= addUnstaffedCount %> No Staff Yet
+                  </span>
+                  <span class="text-slate-300">•</span>
+                  <span class="inline-flex items-center gap-1 text-slate-600 font-medium">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <%= addStaffedCount %> Staffed
+                  </span>
+                </div>
+              </div>
+
+              <p id="add_center_warning"
+                class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl font-semibold flex items-center gap-1.5">
+                <i class="ph ph-warning-circle text-sm"></i> Only 1 evacuation site allowed per staff member.
+              </p>
+
+              <div
+                class="max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 custom-scrollbar">
+                <% if (locals.centers && locals.centers.length> 0) { %>
+                  <% locals.centers.forEach(c=> { %>
+                    <label
+                      class="flex items-center justify-between gap-2.5 p-2 rounded-xl transition-all cursor-pointer text-xs <%= c.has_staff ? 'bg-white border border-slate-200/80 hover:border-slate-300' : 'bg-emerald-50/50 border border-emerald-200/80 hover:bg-emerald-50 hover:border-emerald-300' %>">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <input type="checkbox" name="assigned_center_ids[]" value="<%= c.id %>"
+                          class="add-center-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer shrink-0"
+                          onchange="handleCenterCheckboxChange('add', this)">
+                        <div class="min-w-0">
+                          <span class="font-bold text-slate-900 block truncate">
+                            <%= c.name %>
+                          </span>
+                          <span class="text-[10px] text-slate-400 font-medium block truncate">
+                            <%= c.address || 'San Rafael' %>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="shrink-0 flex items-center ml-2">
+                        <% if (!c.has_staff) { %>
+                          <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300/80 flex items-center gap-1 shrink-0">
+                            <i class="ph ph-check-circle text-emerald-600"></i> No Staff Yet
+                          </span>
+                        <% } else { %>
+                          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 shrink-0 max-w-[140px] truncate" title="Assigned Staff: <%= c.staff_names %>">
+                            <i class="ph ph-user text-slate-400"></i> <span class="truncate"><%= c.staff_names %></span>
+                          </span>
+                        <% } %>
+                      </div>
+                    </label>
+                  <% }) %>
+                <% } else { %>
+                  <div class="text-xs text-slate-400 italic p-2">No evacuation centers registered yet.</div>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="pt-3 flex gap-3">
+              <button type="button" onclick="document.getElementById('staffModal').classList.add('hidden')"
+                class="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 text-xs uppercase tracking-wider">Cancel</button>
+              <button type="submit"
+                class="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 text-xs uppercase tracking-wider transition-all">Save
+                Staff</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 2. EDIT STAFF MODAL (CLEAN HEADER) -->
+      <div id="editStaffModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+
+          <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+            <h3 class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2.5">
+              <i class="ph ph-pencil-simple text-xl text-blue-600"></i> Edit Staff Profile
+            </h3>
+            <button onclick="document.getElementById('editStaffModal').classList.add('hidden')"
+              class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+              <i class="ph ph-x text-base font-bold"></i>
+            </button>
+          </div>
+
+          <form id="editStaffForm" method="POST" enctype="multipart/form-data" class="p-6 space-y-4 overflow-y-auto">
+            <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+            <!-- Photo Upload Header -->
+            <div class="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80">
+              <div
+                class="w-14 h-14 min-w-[56px] max-w-[56px] min-h-[56px] max-h-[56px] aspect-square rounded-2xl bg-blue-100 border-2 border-white shadow-xs flex items-center justify-center overflow-hidden shrink-0 relative">
+                <img id="edit_avatar_preview" src="" class="w-full h-full object-cover hidden" />
+                <i id="edit_avatar_icon" class="ph ph-user text-2xl text-blue-600"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Change Profile Photo</label>
+                <input type="file" name="profile_photo" accept="image/*" onchange="previewEditAvatar(this)"
+                  class="text-xs text-slate-500 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
+              </div>
+            </div>
+
+            <!-- Name Fields (3 Columns) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">First Name <span
+                    class="text-red-500">*</span></label>
+                <input type="text" id="edit_first_name" name="first_name" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Middle Name</label>
+                <input type="text" id="edit_middle_name" name="middle_name"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Last Name <span
+                    class="text-red-500">*</span></label>
+                <input type="text" id="edit_last_name" name="last_name" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+            </div>
+
+            <!-- Occupation & Email -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Occupation / Title</label>
+                <input type="text" id="edit_occupation" name="occupation" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Email <span
+                    class="text-slate-400 font-normal">(Optional)</span></label>
+                <input type="email" id="edit_email" name="email"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Optional: staff@gmail.com">
+              </div>
+            </div>
+
+            <!-- Contact & Staff Type -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Contact Number (Login) <span
+                    class="text-red-500">*</span></label>
+                <input type="text" id="edit_contact_number" name="contact_number" required
+                  pattern="09[0-9]{9}" maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="09XXXXXXXXX" title="11-digit Philippine mobile number starting with 09">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Staff Type / Role</label>
+                <select id="edit_staff_type" name="staff_type" onchange="syncStaffTypeUi('edit')" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                  <option value="EVACUATION">Evacuation Staff (Site Assignment & Occupancy)</option>
+                  <option value="RESCUER">Rescuer (Emergency SOS & Field Response)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Rescuer Notice (when Rescuer selected) -->
+            <div id="edit_rescuer_notice"
+              class="hidden p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 space-y-1">
+              <div class="flex items-center gap-2 font-bold text-amber-800">
+                <i class="ph ph-lifebuoy text-base text-amber-600"></i>
+                <span>Rescuer Role (Emergency SOS Focus)</span>
+              </div>
+              <p class="text-[11px] text-amber-700 leading-relaxed font-medium">
+                Rescuers focus exclusively on emergency SOS distress signals, dispatch, and field rescue operations. No
+                evacuation-site assignments are required.
+              </p>
+            </div>
+
+            <!-- Assigned Evacuation Site (Select 1 Site) -->
+            <div id="edit_sites_section" class="space-y-1.5 pt-1">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-bold uppercase text-slate-700">
+                  Assigned Evacuation Site <span class="text-xs font-normal text-slate-400">(Select 1 site)</span>
+                </label>
+                <span id="edit_center_count_badge"
+                  class="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                  0 / 1 Selected
+                </span>
+              </div>
+
+              <!-- Facilities Staffing Overview Bar -->
+              <div class="flex items-center justify-between text-[11px] font-semibold bg-slate-100/80 px-2.5 py-1.5 rounded-lg border border-slate-200/70">
+                <span class="text-slate-500">Facility Status:</span>
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center gap-1 text-emerald-700 font-extrabold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <%= addUnstaffedCount %> No Staff Yet
+                  </span>
+                  <span class="text-slate-300">•</span>
+                  <span class="inline-flex items-center gap-1 text-slate-600 font-medium">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <%= addStaffedCount %> Staffed
+                  </span>
+                </div>
+              </div>
+
+              <p id="edit_center_warning"
+                class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl font-semibold flex items-center gap-1.5">
+                <i class="ph ph-warning-circle text-sm"></i> Only 1 evacuation site allowed per staff member.
+              </p>
+
+              <div
+                class="max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 custom-scrollbar">
+                <% if (locals.centers && locals.centers.length> 0) { %>
+                  <% locals.centers.forEach(c=> { %>
+                    <label id="edit_center_label_<%= c.id %>"
+                      class="edit-center-row flex items-center justify-between gap-2.5 p-2 rounded-xl transition-all cursor-pointer text-xs <%= c.has_staff ? 'bg-white border border-slate-200/80 hover:border-slate-300' : 'bg-emerald-50/50 border border-emerald-200/80 hover:bg-emerald-50 hover:border-emerald-300' %>"
+                      data-center-id="<%= c.id %>"
+                      data-has-staff="<%= c.has_staff ? '1' : '0' %>"
+                      data-staff-names="<%= c.staff_names || '' %>"
+                      data-staff-ids="<%= JSON.stringify((c.assigned_staff || []).map(s => s.id)) %>">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <input type="checkbox" name="assigned_center_ids[]" value="<%= c.id %>"
+                          class="edit-center-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer shrink-0"
+                          onchange="handleCenterCheckboxChange('edit', this)">
+                        <div class="min-w-0">
+                          <span class="font-bold text-slate-900 block truncate">
+                            <%= c.name %>
+                          </span>
+                          <span class="text-[10px] text-slate-400 font-medium block truncate">
+                            <%= c.address || 'San Rafael' %>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="shrink-0 flex items-center ml-2" id="edit_center_badge_<%= c.id %>">
+                        <% if (!c.has_staff) { %>
+                          <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300/80 flex items-center gap-1 shrink-0">
+                            <i class="ph ph-check-circle text-emerald-600"></i> No Staff Yet
+                          </span>
+                        <% } else { %>
+                          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 shrink-0 max-w-[140px] truncate" title="Assigned Staff: <%= c.staff_names %>">
+                            <i class="ph ph-user text-slate-400"></i> <span class="truncate"><%= c.staff_names %></span>
+                          </span>
+                        <% } %>
+                      </div>
+                    </label>
+                  <% }) %>
+                <% } else { %>
+                  <div class="text-xs text-slate-400 italic p-2">No evacuation centers registered yet.</div>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="pt-3 flex gap-3">
+              <button type="button" onclick="document.getElementById('editStaffModal').classList.add('hidden')"
+                class="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 text-xs uppercase tracking-wider">Cancel</button>
+              <button type="submit"
+                class="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 text-xs uppercase tracking-wider transition-all">Save
+                Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 3. DELETE STAFF CONFIRMATION MODAL -->
+      <div id="deleteStaffModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4 border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-150">
+          <div
+            class="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+            <i class="ph ph-warning-circle font-bold"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-900">Confirm Staff Deletion</h3>
+            <p class="text-xs text-slate-500 mt-1" id="deleteStaffModalText">Are you sure you want to delete this staff
+              member and account? This action cannot be undone.</p>
+          </div>
+          <form id="deleteStaffForm" action="" method="POST" class="flex gap-3 pt-2">
+            <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+            <button type="button" onclick="closeDeleteStaffModal()"
+              class="flex-1 px-4 py-2.5 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all text-xs uppercase tracking-wider">No,
+              Cancel</button>
+            <button type="submit"
+              class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/20 transition-all text-xs uppercase tracking-wider">Yes,
+              Delete</button>
+          </form>
+        </div>
+      </div>
+
+  </div>
+
+  <%- include('../partials/footer') %>
+
+    <script>
+      // Avatar instant previews
+      function previewAddAvatar(input) {
+        if (input.files && input.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = document.getElementById('add_avatar_preview');
+            const icon = document.getElementById('add_avatar_icon');
+            if (img && icon) {
+              img.src = e.target.result;
+              img.classList.remove('hidden');
+              icon.classList.add('hidden');
+            }
+          };
+          reader.readAsDataURL(input.files[0]);
+        }
+      }
+
+      function previewEditAvatar(input) {
+        if (input.files && input.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = document.getElementById('edit_avatar_preview');
+            const icon = document.getElementById('edit_avatar_icon');
+            if (img && icon) {
+              img.src = e.target.result;
+              img.classList.remove('hidden');
+              icon.classList.add('hidden');
+            }
+          };
+          reader.readAsDataURL(input.files[0]);
+        }
+      }
+
+      // Toggle Password Visibility
+      function togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+          input.type = 'text';
+          if (icon) {
+            icon.classList.remove('ph-eye');
+            icon.classList.add('ph-eye-slash');
+          }
+        } else {
+          input.type = 'password';
+          if (icon) {
+            icon.classList.remove('ph-eye-slash');
+            icon.classList.add('ph-eye');
+          }
+        }
+      }
+
+      // Limit assigned center checkboxes to maximum 1 (auto-switches to newly checked site)
+      function handleCenterCheckboxChange(prefix, changedBox) {
+        const checkboxes = document.querySelectorAll(`.${prefix}-center-checkbox`);
+        const checkedBoxes = Array.from(checkboxes).filter(cb => cb.checked);
+        const countBadge = document.getElementById(`${prefix}_center_count_badge`);
+        const warningEl = document.getElementById(`${prefix}_center_warning`);
+
+        if (checkedBoxes.length > 1) {
+          // Auto-switch: uncheck other checkboxes so only the newly clicked one remains selected
+          if (changedBox && changedBox.checked) {
+            checkboxes.forEach(cb => {
+              if (cb !== changedBox) cb.checked = false;
+            });
+          } else {
+            checkedBoxes.slice(1).forEach(cb => { cb.checked = false; });
+          }
+        }
+        if (warningEl) warningEl.classList.add('hidden');
+
+        const activeCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (countBadge) {
+          countBadge.textContent = `${activeCount} / 1 Selected`;
+          if (activeCount === 1) {
+            countBadge.className = 'text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full';
+          } else {
+            countBadge.className = 'text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full';
+          }
+        }
+      }
+
+      // Toggle Evacuation Sites assignment section based on Staff Type / Role
+      function syncStaffTypeUi(prefix) {
+        const typeSelect = document.getElementById(prefix === 'add' ? 'add_staff_type' : 'edit_staff_type');
+        const sitesSection = document.getElementById(prefix === 'add' ? 'add_sites_section' : 'edit_sites_section');
+        const rescuerNotice = document.getElementById(prefix === 'add' ? 'add_rescuer_notice' : 'edit_rescuer_notice');
+        const isRescuer = typeSelect && typeSelect.value === 'RESCUER';
+
+        if (sitesSection && rescuerNotice) {
+          if (isRescuer) {
+            sitesSection.classList.add('hidden');
+            rescuerNotice.classList.remove('hidden');
+            // Uncheck and clear any selected centers for Rescuers
+            document.querySelectorAll(`.${prefix}-center-checkbox`).forEach(cb => { cb.checked = false; });
+            handleCenterCheckboxChange(prefix);
+          } else {
+            sitesSection.classList.remove('hidden');
+            rescuerNotice.classList.add('hidden');
+          }
+        }
+      }
+
+      function openAddStaffModal() {
+        document.getElementById('staffModal').classList.remove('hidden');
+        syncStaffTypeUi('add');
+      }
+
+      // Open Edit Modal with populated data
+      function openEditModalFromBtn(btn) {
+        const id = btn.getAttribute('data-id');
+        const firstName = btn.getAttribute('data-first-name');
+        const middleName = btn.getAttribute('data-middle-name');
+        const lastName = btn.getAttribute('data-last-name');
+        const occupation = btn.getAttribute('data-occupation');
+        const email = btn.getAttribute('data-email');
+        const contact = btn.getAttribute('data-contact');
+        const staffType = btn.getAttribute('data-staff-type') || 'BOTH';
+        const centerId = btn.getAttribute('data-center-id') || '';
+        const photo = btn.getAttribute('data-photo');
+
+        document.getElementById('editStaffForm').action = '/admin/staff/edit/' + id;
+        document.getElementById('edit_first_name').value = firstName || '';
+        document.getElementById('edit_middle_name').value = middleName || '';
+        document.getElementById('edit_last_name').value = lastName || '';
+        document.getElementById('edit_occupation').value = occupation || 'Emergency Staff';
+        document.getElementById('edit_email').value = email || '';
+        document.getElementById('edit_contact_number').value = contact || '';
+        document.getElementById('edit_staff_type').value = (staffType === 'RESCUER' ? 'RESCUER' : 'EVACUATION');
+        syncStaffTypeUi('edit');
+
+        // Populate single site checkbox (1 site max)
+        const rawCenterIds = btn.getAttribute('data-center-ids');
+        let centerIds = [];
+        try {
+          centerIds = JSON.parse(rawCenterIds || '[]');
+        } catch (e) {
+          if (centerId) centerIds = [parseInt(centerId, 10)];
+        }
+        if (!Array.isArray(centerIds) && centerId) {
+          centerIds = [parseInt(centerId, 10)];
+        }
+        if (centerIds.length > 1) {
+          centerIds = [centerIds[0]];
+        }
+
+        document.querySelectorAll('.edit-center-checkbox').forEach(cb => {
+          cb.checked = centerIds.includes(parseInt(cb.value, 10));
+        });
+        handleCenterCheckboxChange('edit');
+
+        // Dynamic badges for Edit Modal: distinguish Current Site vs No Staff Yet vs Other Staff
+        const editingStaffId = parseInt(id, 10);
+        document.querySelectorAll('.edit-center-row').forEach(row => {
+          const cId = parseInt(row.getAttribute('data-center-id'), 10);
+          const rawStaffIds = row.getAttribute('data-staff-ids') || '[]';
+          const staffNames = row.getAttribute('data-staff-names') || '';
+          let staffIds = [];
+          try { staffIds = JSON.parse(rawStaffIds); } catch(e) {}
+          const badgeEl = document.getElementById(`edit_center_badge_${cId}`);
+          if (badgeEl) {
+            if (staffIds.includes(editingStaffId)) {
+              badgeEl.innerHTML = `<span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1 shrink-0"><i class="ph ph-check text-blue-600"></i> Current Site</span>`;
+              row.className = 'edit-center-row flex items-center justify-between gap-2.5 p-2 rounded-xl transition-all cursor-pointer text-xs bg-blue-50/60 border border-blue-200 hover:border-blue-300';
+            } else if (staffIds.length === 0) {
+              badgeEl.innerHTML = `<span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300/80 flex items-center gap-1 shrink-0"><i class="ph ph-check-circle text-emerald-600"></i> No Staff Yet</span>`;
+              row.className = 'edit-center-row flex items-center justify-between gap-2.5 p-2 rounded-xl transition-all cursor-pointer text-xs bg-emerald-50/50 border border-emerald-200/80 hover:bg-emerald-50 hover:border-emerald-300';
+            } else {
+              badgeEl.innerHTML = `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 shrink-0 max-w-[140px] truncate" title="Assigned Staff: ${staffNames}"><i class="ph ph-user text-slate-400"></i> <span class="truncate">${staffNames}</span></span>`;
+              row.className = 'edit-center-row flex items-center justify-between gap-2.5 p-2 rounded-xl transition-all cursor-pointer text-xs bg-white border border-slate-200/80 hover:border-slate-300';
+            }
+          }
+        });
+
+        // Preview avatar if exists
+        const img = document.getElementById('edit_avatar_preview');
+        const icon = document.getElementById('edit_avatar_icon');
+        if (photo && photo.trim() !== '') {
+          img.src = photo;
+          img.classList.remove('hidden');
+          icon.classList.add('hidden');
+        } else {
+          img.src = '';
+          img.classList.add('hidden');
+          icon.classList.remove('hidden');
+        }
+
+        document.getElementById('editStaffModal').classList.remove('hidden');
+      }
+
+      // Client-Side Pagination & Filtering (Matching Residents page ITE-PT-DOM001)
+      let staffCurrentPage = 1;
+      const staffPageSize = 25;
+      let matchedStaffRows = [];
+      let matchedStaffCards = [];
+
+      let staffSearchDebounceTimer = null;
+      function debouncedFilterStaff() {
+        clearTimeout(staffSearchDebounceTimer);
+        staffSearchDebounceTimer = setTimeout(filterStaff, 200);
+      }
+
+      function filterStaff() {
+        const query = (document.getElementById('staffSearchInput')?.value || '').toLowerCase().trim();
+        const typeFilter = (document.getElementById('staffTypeFilter')?.value || 'all').toUpperCase().trim();
+        const centerFilter = (document.getElementById('staffCenterFilter')?.value || 'all').toLowerCase().trim();
+
+        const rows = Array.from(document.querySelectorAll('#staffTableBody tr[data-name]'));
+        const cards = Array.from(document.querySelectorAll('#staffMobileContainer > div.staff-card-item'));
+
+        matchedStaffRows = [];
+        matchedStaffCards = [];
+
+        rows.forEach(row => {
+          const name = row.getAttribute('data-name') || '';
+          const email = row.getAttribute('data-email') || '';
+          const occupation = row.getAttribute('data-occupation') || '';
+          const type = row.getAttribute('data-type') || '';
+          const center = row.getAttribute('data-center') || '';
+
+          const fullText = (name + ' ' + email + ' ' + occupation + ' ' + center).toLowerCase();
+
+          const matchesQuery = !query || fullText.includes(query);
+          const matchesType = (typeFilter === 'ALL' || type === typeFilter);
+          const matchesCenter = (centerFilter === 'all' || center.includes(centerFilter));
+
+          if (matchesQuery && matchesType && matchesCenter) {
+            matchedStaffRows.push(row);
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        cards.forEach(card => {
+          const name = card.getAttribute('data-name') || '';
+          const email = card.getAttribute('data-email') || '';
+          const occupation = card.getAttribute('data-occupation') || '';
+          const type = card.getAttribute('data-type') || '';
+          const center = card.getAttribute('data-center') || '';
+
+          const fullText = (name + ' ' + email + ' ' + occupation + ' ' + center).toLowerCase();
+
+          const matchesQuery = !query || fullText.includes(query);
+          const matchesType = (typeFilter === 'ALL' || type === typeFilter);
+          const matchesCenter = (centerFilter === 'all' || center.includes(centerFilter));
+
+          if (matchesQuery && matchesType && matchesCenter) {
+            matchedStaffCards.push(card);
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        staffCurrentPage = 1;
+        renderPaginatedStaffView();
+      }
+
+      function renderPaginatedStaffView() {
+        const total = Math.max(matchedStaffRows.length, matchedStaffCards.length);
+        const totalPages = Math.ceil(total / staffPageSize) || 1;
+        if (staffCurrentPage > totalPages) staffCurrentPage = totalPages;
+        if (staffCurrentPage < 1) staffCurrentPage = 1;
+
+        const startIdx = (staffCurrentPage - 1) * staffPageSize;
+        const endIdx = startIdx + staffPageSize;
+
+        matchedStaffRows.forEach((row, idx) => {
+          row.style.display = (idx >= startIdx && idx < endIdx) ? '' : 'none';
+        });
+
+        matchedStaffCards.forEach((card, idx) => {
+          card.style.display = (idx >= startIdx && idx < endIdx) ? '' : 'none';
+        });
+
+        // Toggle Empty States
+        const noStaffDesk = document.getElementById('noStaffDesktopRow');
+        const noStaffMob = document.getElementById('noStaffMobileRow');
+        if (noStaffDesk) noStaffDesk.style.display = total === 0 ? '' : 'none';
+        if (noStaffMob) noStaffMob.style.display = total === 0 ? '' : 'none';
+
+        const pagStart = document.getElementById('pagStart');
+        const pagEnd = document.getElementById('pagEnd');
+        const pagTotal = document.getElementById('pagTotal');
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        const numContainer = document.getElementById('paginationPageNumbers');
+
+        if (pagStart) pagStart.textContent = total > 0 ? (startIdx + 1) : 0;
+        if (pagEnd) pagEnd.textContent = Math.min(endIdx, total);
+        if (pagTotal) pagTotal.textContent = total;
+
+        if (prevBtn) prevBtn.disabled = (staffCurrentPage <= 1);
+        if (nextBtn) nextBtn.disabled = (staffCurrentPage >= totalPages);
+
+        if (numContainer) {
+          numContainer.innerHTML = '';
+          const maxVisiblePages = 5;
+          let pStart = Math.max(1, staffCurrentPage - 2);
+          let pEnd = Math.min(totalPages, pStart + maxVisiblePages - 1);
+          if (pEnd - pStart < maxVisiblePages - 1) {
+            pStart = Math.max(1, pEnd - maxVisiblePages + 1);
+          }
+
+          for (let p = pStart; p <= pEnd; p++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `w-7 h-7 rounded-lg text-xs font-bold transition-all ${p === staffCurrentPage ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'}`;
+            btn.textContent = p;
+            btn.onclick = () => { staffCurrentPage = p; renderPaginatedStaffView(); };
+            numContainer.appendChild(btn);
+          }
+        }
+      }
+
+      function changeStaffPage(direction) {
+        staffCurrentPage += direction;
+        renderPaginatedStaffView();
+      }
+
+      // Delete confirmation helper
+      window.confirmDeleteStaff = function (btn) {
+        let id = '';
+        let name = '';
+        if (typeof btn === 'object') {
+          id = btn.getAttribute('data-id');
+          name = btn.getAttribute('data-name');
+        } else {
+          id = btn;
+        }
+        const form = document.getElementById('deleteStaffForm');
+        const text = document.getElementById('deleteStaffModalText');
+        if (form) form.action = '/admin/staff/delete/' + id;
+        if (text) text.textContent = `Are you sure you want to delete "${name || 'this staff member'}" and their staff account? This action cannot be undone.`;
+        const modal = document.getElementById('deleteStaffModal');
+        if (modal) modal.classList.remove('hidden');
+      };
+
+      window.closeDeleteStaffModal = function () {
+        const modal = document.getElementById('deleteStaffModal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      // Live Real-Time Online / Offline Status Synchronizer & Initialization
+      document.addEventListener('DOMContentLoaded', () => {
+        filterStaff();
+
+        if (typeof io !== 'undefined') {
+          const socket = window.__appSocket || io();
+          window.__appSocket = socket;
+
+          socket.on('user:status_change', (data) => {
+            if (!data || !data.userId) return;
+            const dots = document.querySelectorAll('.staff-status-dot-' + data.userId);
+            dots.forEach((dot) => {
+              if (data.isOnline) {
+                dot.className = 'staff-status-dot staff-status-dot-' + data.userId + ' absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white animate-pulse';
+                dot.title = 'Online';
+              } else {
+                dot.className = 'staff-status-dot staff-status-dot-' + data.userId + ' absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-slate-300 ring-2 ring-white';
+                dot.title = 'Offline';
+              }
+            });
+          });
+        }
+
+        // Frontend Validation for Add Staff Form
+        const addStaffForm = document.getElementById('addStaffForm');
+        if (addStaffForm) {
+          addStaffForm.addEventListener('submit', function (e) {
+            const phone = (document.getElementById('add_staff_contact')?.value || '').trim();
+            const password = (document.getElementById('add_staff_password')?.value || '').trim();
+
+            // Validate phone: strictly 11 digits starting with 09
+            if (!/^09\d{9}$/.test(phone)) {
+              e.preventDefault();
+              alert('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789).');
+              document.getElementById('add_staff_contact')?.focus();
+              return false;
+            }
+
+            // Validate password if provided (since default is staff123 if blank)
+            if (password && (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password))) {
+              e.preventDefault();
+              alert('Password must be at least 8 characters long and contain both letters and numbers.');
+              document.getElementById('add_staff_password')?.focus();
+              return false;
+            }
+          });
+        }
+
+        // Frontend Validation for Edit Staff Form
+        const editStaffForm = document.getElementById('editStaffForm');
+        if (editStaffForm) {
+          editStaffForm.addEventListener('submit', function (e) {
+            const phone = (document.getElementById('edit_contact_number')?.value || '').trim();
+            if (!/^09\d{9}$/.test(phone)) {
+              e.preventDefault();
+              alert('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789).');
+              document.getElementById('edit_contact_number')?.focus();
+              return false;
+            }
+          });
+        }
+      });
+    </script>

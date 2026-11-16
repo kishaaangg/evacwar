@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1329">
+  <title>Signed Out - EvakWar</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0b1329;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h2 style="font-size: 18px; font-weight: 800; margin: 0 0 6px;">Signing Out...</h2>
+    <p style="font-size: 12px; color: #94a3b8; margin: 0;">Securing offline session data</p>
+  </div>
+  <script>
+    (function () {
+      try {
+        localStorage.setItem('evacwar_logged_out', 'true');
+        localStorage.removeItem('evw_cached_resident');
+        localStorage.removeItem('evw_cached_staff');
+        localStorage.removeItem('evw_user_role');
+        localStorage.removeItem('evw_cached_email');
+        localStorage.removeItem('evw_cached_members');
+        sessionStorage.clear();
+        var base = (localStorage.getItem('evw_server_url') || '').replace(new RegExp('/+$'), '');
+        if (base && navigator.onLine) {
+          fetch(base + '/logout', { credentials: 'include', mode: 'no-cors' }).catch(function () {});
+        }
+      } catch (_) {}
+      setTimeout(function () {
+        window.location.replace('/login/index.html');
+      }, 350);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,436 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-24 lg:pb-8 overflow-x-hidden">
+        <div class="max-w-7xl mx-auto space-y-6 flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+
+          <!-- FEEDBACK NOTIFICATIONS -->
+          <% if (locals.statusMsg) { %>
+            <div
+              class="p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-900 rounded-xl shadow-xs flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                <i class="ph ph-check-circle text-xl text-emerald-600"></i>
+                <span>
+                  <%= locals.statusMsg %>
+                </span>
+              </div>
+              <button onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 text-base"><i
+                  class="ph ph-x"></i></button>
+            </div>
+            <% } %>
+
+              <% if (locals.errorMsg) { %>
+                <div
+                  class="p-4 bg-red-50 border-l-4 border-red-500 text-red-900 rounded-xl shadow-xs flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                    <i class="ph ph-warning-circle text-xl text-red-600"></i>
+                    <span>
+                      <%= locals.errorMsg %>
+                    </span>
+                  </div>
+                  <button onclick="this.parentElement.remove()" class="text-red-700 hover:text-red-950 text-base"><i
+                      class="ph ph-x"></i></button>
+                </div>
+                <% } %>
+
+                  <!-- 1. USER PROFILE AVATAR & HERO CARD (OWN DEDICATED PHOTO SAVE FORM) -->
+                  <form id="avatarUploadForm" action="/admin/settings" method="POST" enctype="multipart/form-data"
+                    class="card p-5 sm:p-6 bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900 text-white rounded-2xl shadow-md border border-white/10 relative overflow-hidden">
+                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+                    <!-- Hidden File Input for Avatar Upload -->
+                    <input type="file" id="photo-upload-input" name="profile_photo" accept="image/*" class="hidden"
+                      onchange="previewProfilePhoto(this)" />
+
+                    <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10">
+
+                      <!-- Profile Photo & Change Avatar Trigger -->
+                      <div class="relative group shrink-0">
+                        <div
+                          class="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-white/10 border-4 border-white/20 shadow-md flex items-center justify-center relative">
+                          <% let rawSettingsPhoto=(user && user.profile_photo) ? user.profile_photo :
+                            (locals.profilePhoto ? locals.profilePhoto : null); let settingsPhotoSrc=null; if
+                            (rawSettingsPhoto) { settingsPhotoSrc=(rawSettingsPhoto.startsWith('http') ||
+                            rawSettingsPhoto.startsWith('/')) ? rawSettingsPhoto :
+                            `/uploads/profiles/${rawSettingsPhoto}`; } %>
+                            <% if (settingsPhotoSrc) { %>
+                              <img loading="lazy" id="profile-avatar-img" src="<%= settingsPhotoSrc %>" decoding="async" alt="Profile"
+                                class="w-full h-full object-cover"
+                                onerror="this.style.display='none'; const ph=document.getElementById('profile-avatar-placeholder'); if(ph) ph.classList.remove('hidden');" />
+                              <i class="ph ph-user-circle text-5xl text-blue-200 hidden"
+                                id="profile-avatar-placeholder"></i>
+                              <% } else { %>
+                                <i class="ph ph-user-circle text-5xl text-blue-200" id="profile-avatar-placeholder"></i>
+                                <img loading="lazy" id="profile-avatar-img" src="" alt="Profile"
+                                  class="w-full h-full object-cover hidden" / decoding="async">
+                                <% } %>
+                        </div>
+
+                        <!-- Change Photo Overlay Button -->
+                        <label for="photo-upload-input" title="Click to choose a new profile photo"
+                          class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center cursor-pointer shadow-md transition-transform hover:scale-110 border-2 border-white">
+                          <i class="ph ph-camera text-base"></i>
+                        </label>
+                      </div>
+
+                      <!-- User Meta Info -->
+                      <div class="text-center sm:text-left flex-1 min-w-0">
+                        <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                          <% let headerName=(user && user.name) ? user.name : 'Administrator' ; if
+                            (headerName==='Super Admin' || headerName==='Super Administrator' ||
+                            headerName==='Administrator Administrator' || headerName==='Super' ) {
+                            headerName='Administrator' ; } %>
+                            <h2 class="text-xl sm:text-2xl font-black text-white tracking-wide truncate max-w-md">
+                              <%= headerName %>
+                            </h2>
+                            <span
+                              class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/30 text-purple-200 border border-purple-400/30 shadow-2xs">
+                              Administrator
+                            </span>
+                        </div>
+
+                        <p class="text-xs sm:text-sm text-blue-200/90 font-medium truncate mb-2.5">
+                          <%= user.email || 'admin@evakwar.gov.ph' %>
+                        </p>
+
+                        <div
+                          class="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-blue-100/80 font-semibold">
+                          <span class="flex items-center gap-1"><i class="ph ph-phone text-blue-300"></i>
+                            <%= (resident && resident.contact_number) ? resident.contact_number
+                              : 'Hotline: 0900-000-0000' %>
+                          </span>
+                          <span class="flex items-center gap-1"><i class="ph ph-shield-check text-blue-300"></i> Global
+                            Municipal Authority</span>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <!-- Dedicated Avatar Save Bar right inside Hero Card -->
+                    <div id="avatar-actions-bar"
+                      class="hidden mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div class="flex items-center gap-2 text-emerald-300 font-bold">
+                        <i class="ph ph-check-circle text-lg"></i>
+                        <span>New photo ready to save!</span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <button type="button" onclick="resetProfilePhoto()"
+                          class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors">
+                          Cancel
+                        </button>
+                        <button type="submit" id="save-avatar-btn"
+                          class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+                          <i class="ph ph-floppy-disk text-sm"></i> Save Profile Photo
+                        </button>
+                      </div>
+                    </div>
+
+                  </form>
+
+                  <!-- 2. PERSONAL INFORMATION FORM CARD (OWN DEDICATED SAVE CHANGES FORM) -->
+                  <form id="profileDetailsForm" action="/admin/settings" method="POST"
+                    class="card p-5 sm:p-6 bg-white border border-slate-200 shadow-soft rounded-2xl space-y-6">
+                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <h3 class="font-bold text-blue-950 text-base sm:text-lg flex items-center gap-2.5">
+                        <i class="ph ph-user-circle-gear text-xl text-blue-600"></i> Administrator Profile Details
+                      </h3>
+
+                      <div class="flex items-center gap-2">
+                        <span id="editing-indicator"
+                          class="hidden text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 animate-pulse">
+                          ✏️ Editing Mode
+                        </span>
+                        <button id="edit-profile-btn" type="button" onclick="toggleEditMode(true)"
+                          class="btn bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs sm:text-sm font-bold py-1.5 px-3.5 rounded-xl border border-blue-200 flex items-center gap-1.5 transition-all active:scale-95 shadow-xs">
+                          <i class="ph ph-pencil-simple text-sm"></i> Edit Profile
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <!-- First Name -->
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">First Name</label>
+                        <div
+                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                          <% if (resident && resident.first_name && resident.first_name !=='Super' &&
+                            resident.first_name !=='Administrator' ) { %>
+                            <%= resident.first_name %>
+                              <% } else { %>
+                                <span class="text-slate-400 font-normal italic">Not set (Click Edit Profile)</span>
+                                <% } %>
+                        </div>
+                        <input type="text" name="first_name"
+                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                          value="<%= (resident && resident.first_name && resident.first_name !== 'Super' && resident.first_name !== 'Administrator') ? resident.first_name : '' %>"
+                          placeholder="Enter first name" />
+                      </div>
+
+                      <!-- Last Name -->
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Last Name</label>
+                        <div
+                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                          <% if (resident && resident.last_name && resident.last_name !=='Admin' && resident.last_name
+                            !=='Administrator' ) { %>
+                            <%= resident.last_name %>
+                              <% } else { %>
+                                <span class="text-slate-400 font-normal italic">Not set (Click Edit Profile)</span>
+                                <% } %>
+                        </div>
+                        <input type="text" name="last_name"
+                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                          value="<%= (resident && resident.last_name && resident.last_name !== 'Admin' && resident.last_name !== 'Administrator') ? resident.last_name : '' %>"
+                          placeholder="Enter last name" />
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <!-- Contact Number -->
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mobile / Contact
+                          Number</label>
+                        <div
+                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                          <%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>
+                        </div>
+                        <input type="text" id="admin_contact_number" name="contact_number" pattern="09[0-9]{9}"
+                          maxlength="11"
+                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                          value="<%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>"
+                          placeholder="09123456789" title="11-digit Philippine mobile number starting with 09" />
+                      </div>
+
+                      <!-- Email Address -->
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email Address</label>
+                        <div
+                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                          <%= user ? (user.email || 'admin@evakwar.gov.ph' ) : 'admin@evakwar.gov.ph' %>
+                        </div>
+                        <input type="email" name="email"
+                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                          value="<%= user ? (user.email || 'admin@evakwar.gov.ph') : 'admin@evakwar.gov.ph' %>" />
+                      </div>
+                    </div>
+
+                    <!-- Role Identifier -->
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 uppercase mb-1">System Role &
+                        Jurisdiction</label>
+                      <div
+                        class="font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-100 rounded-xl border border-slate-200">
+                        Administrator
+                      </div>
+                    </div>
+
+                    <!-- ACTION BUTTONS (VISIBLE ONLY IN EDIT MODE) -->
+                    <div id="profile-actions"
+                      class="hidden flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                      <button type="button" onclick="toggleEditMode(false)"
+                        class="btn btn-outline text-xs sm:text-sm font-bold text-slate-600 bg-white border-slate-300 py-2.5 px-5 rounded-xl hover:bg-slate-50">
+                        Cancel
+                      </button>
+                      <button type="submit" id="save-profile-btn"
+                        class="btn btn-primary text-xs sm:text-sm font-bold py-2.5 px-6 rounded-xl shadow-soft flex items-center gap-2">
+                        <i class="ph ph-floppy-disk text-base"></i> Save Changes
+                      </button>
+                    </div>
+
+                  </form>
+
+                  <!-- 3. STANDALONE SECURITY & CHANGE PASSWORD CARD -->
+                  <form id="passwordForm" action="/admin/settings" method="POST"
+                    class="card p-5 sm:p-6 bg-white border border-slate-200 shadow-soft rounded-2xl space-y-4">
+                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+                    <div class="pb-3 border-b border-slate-100">
+                      <h3 class="font-bold text-blue-950 text-base sm:text-lg flex items-center gap-2.5">
+                        <i class="ph ph-shield-lock text-xl text-amber-500"></i> Security & Change Password
+                      </h3>
+                      <p class="text-xs text-slate-500 mt-0.5">Keep your administrative account safe by updating your
+                        password regularly.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Current Password</label>
+                        <input type="password" name="current_password" required
+                          class="form-control w-full text-xs sm:text-sm font-medium" placeholder="••••••••" />
+                      </div>
+
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">New Password</label>
+                        <input type="password" id="admin_new_password" name="new_password" required minlength="8"
+                          class="form-control w-full text-xs sm:text-sm font-medium"
+                          placeholder="Min. 8 chars (letters & numbers)" />
+                      </div>
+
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Confirm Password</label>
+                        <input type="password" id="admin_confirm_password" name="confirm_password" required
+                          minlength="8" class="form-control w-full text-xs sm:text-sm font-medium"
+                          placeholder="Repeat new password" />
+                      </div>
+                    </div>
+
+                    <div class="flex justify-end pt-2">
+                      <button type="submit"
+                        class="btn bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold py-2.5 px-6 rounded-xl shadow-xs flex items-center gap-2">
+                        <i class="ph ph-key text-base"></i> Update Password
+                      </button>
+                    </div>
+                  </form>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+      </main>
+  </div>
+
+  <script>
+    let isEditing = false;
+
+    function toggleEditMode(enable) {
+      isEditing = (typeof enable === 'boolean') ? enable : !isEditing;
+
+      const viewFields = document.querySelectorAll('.profile-view-field');
+      const editFields = document.querySelectorAll('.profile-edit-field');
+      const editBtn = document.getElementById('edit-profile-btn');
+      const actionBtns = document.getElementById('profile-actions');
+      const indicator = document.getElementById('editing-indicator');
+
+      if (isEditing) {
+        viewFields.forEach(el => el.classList.add('hidden'));
+        editFields.forEach(el => el.classList.remove('hidden'));
+        if (editBtn) editBtn.classList.add('hidden');
+        if (actionBtns) actionBtns.classList.remove('hidden');
+        if (indicator) indicator.classList.remove('hidden');
+
+        const firstInput = document.querySelector('input.profile-edit-field');
+        if (firstInput) firstInput.focus();
+      } else {
+        viewFields.forEach(el => el.classList.remove('hidden'));
+        editFields.forEach(el => el.classList.add('hidden'));
+        if (editBtn) editBtn.classList.remove('hidden');
+        if (actionBtns) actionBtns.classList.add('hidden');
+        if (indicator) indicator.classList.add('hidden');
+      }
+    }
+
+    function previewProfilePhoto(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+          alert('Please select a valid image file.');
+          input.value = '';
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          alert('Image file size must be less than 10MB.');
+          input.value = '';
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const imgEl = document.getElementById('profile-avatar-img');
+          const placeholder = document.getElementById('profile-avatar-placeholder');
+          if (imgEl) {
+            imgEl.src = e.target.result;
+            imgEl.classList.remove('hidden');
+          }
+          if (placeholder) placeholder.classList.add('hidden');
+
+          const avatarActions = document.getElementById('avatar-actions-bar');
+          if (avatarActions) avatarActions.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function resetProfilePhoto() {
+      const input = document.getElementById('photo-upload-input');
+      if (input) input.value = '';
+
+      const avatarActions = document.getElementById('avatar-actions-bar');
+      if (avatarActions) avatarActions.classList.add('hidden');
+
+      const origSrc = "<%= settingsPhotoSrc || '' %>";
+      const imgEl = document.getElementById('profile-avatar-img');
+      const placeholder = document.getElementById('profile-avatar-placeholder');
+      if (origSrc && imgEl) {
+        imgEl.src = origSrc;
+        imgEl.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+      } else {
+        if (imgEl) {
+          imgEl.src = '';
+          imgEl.classList.add('hidden');
+        }
+        if (placeholder) placeholder.classList.remove('hidden');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Profile details validation
+      const profileForm = document.getElementById('profileDetailsForm');
+      if (profileForm) {
+        profileForm.addEventListener('submit', function (e) {
+          const phoneInput = document.getElementById('admin_contact_number');
+          const phone = (phoneInput?.value || '').trim();
+          if (phone && !/^09\d{9}$/.test(phone)) {
+            e.preventDefault();
+            alert('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789).');
+            phoneInput?.focus();
+            return false;
+          }
+          const submitBtns = profileForm.querySelectorAll('button[type="submit"]');
+          submitBtns.forEach(btn => {
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> Saving...';
+          });
+        });
+      }
+
+      // Password form validation
+      const passwordForm = document.getElementById('passwordForm');
+      if (passwordForm) {
+        passwordForm.addEventListener('submit', function (e) {
+          const newPass = (document.getElementById('admin_new_password')?.value || '').trim();
+          const confPass = (document.getElementById('admin_confirm_password')?.value || '').trim();
+
+          if (newPass.length < 8 || !/[a-zA-Z]/.test(newPass) || !/[0-9]/.test(newPass)) {
+            e.preventDefault();
+            alert('Password must be at least 8 characters long and contain both letters and numbers.');
+            document.getElementById('admin_new_password')?.focus();
+            return false;
+          }
+
+          if (newPass !== confPass) {
+            e.preventDefault();
+            alert('New password and confirmation password do not match.');
+            document.getElementById('admin_confirm_password')?.focus();
+            return false;
+          }
+
+          const submitBtns = passwordForm.querySelectorAll('button[type="submit"]');
+          submitBtns.forEach(btn => {
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> Updating...';
+          });
+        });
+      }
+
+      const avatarForm = document.getElementById('avatarUploadForm');
+      if (avatarForm) {
+        avatarForm.addEventListener('submit', function () {
+          const submitBtns = avatarForm.querySelectorAll('button[type="submit"]');
+          submitBtns.forEach(btn => {
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> Saving...';
+          });
+        });
+      }
+    });
+  </script>
+
+  <%- include('../partials/footer') %>

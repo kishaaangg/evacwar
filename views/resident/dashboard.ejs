@@ -1,0 +1,751 @@
+<%- include('../partials/header') %>
+
+  <style>
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0px);
+      }
+
+      50% {
+        transform: translateY(-4px);
+      }
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+    }
+
+    .animate-float {
+      animation: float 4s ease-in-out infinite;
+    }
+
+    .animate-pulse-ring {
+      animation: pulse-ring 2.5s ease-in-out infinite;
+    }
+  </style>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-40 lg:pb-12 overflow-x-hidden z-0">
+        <!-- Decorative Ambient Gradients -->
+        <div
+          class="absolute top-0 left-0 w-full h-80 bg-gradient-to-b from-blue-100/60 via-indigo-50/30 to-transparent pointer-events-none -z-10">
+        </div>
+        <div class="absolute top-12 right-6 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+        </div>
+        <div class="absolute top-48 left-6 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+        </div>
+
+        <div class="max-w-7xl mx-auto space-y-4 flex-1 w-full px-4 sm:px-6 py-4">
+
+          <% let rawPhoto=(typeof profilePhoto !=='undefined' && profilePhoto) ? profilePhoto : (locals.resident &&
+            locals.resident.profile_photo) ? locals.resident.profile_photo : (locals.user && locals.user.profile_photo)
+            ? locals.user.profile_photo : null; let userPhoto=null; if (rawPhoto) {
+            userPhoto=(rawPhoto.startsWith('http') || rawPhoto.startsWith('/')) ? rawPhoto :
+            `/uploads/profiles/${rawPhoto}`; } const fullName=(locals.user && locals.user.name) ? locals.user.name :
+            ((locals.resident && (locals.resident.first_name || locals.resident.last_name)) ?
+            `${locals.resident.first_name || '' } ${locals.resident.last_name || '' }`.trim() : 'Resident' ); const
+            userFirstName=fullName.split(' ')[0] || ' Resident'; const
+            userInitial=userFirstName.charAt(0).toUpperCase(); function resolveWeatherIcon(iconStr, statusStr) { const
+            icon=String(iconStr || '' ).toLowerCase(); const status=String(statusStr || '' ).toLowerCase(); if
+            (icon.startsWith('ph-')) return icon; if (icon.includes('storm') || icon.includes('lightning') ||
+            status.includes('thunder') || status.includes('storm')) { return 'ph-cloud-lightning' ; } if
+            (icon.includes('rain') || icon.includes('drizzle') || icon.includes('shower') || status.includes('rain') ||
+            status.includes('drizzle') || status.includes('shower')) { return 'ph-cloud-rain' ; } if
+            (icon.includes('snow') || status.includes('snow')) return 'ph-snowflake' ; if (icon.includes('fog') ||
+            status.includes('fog')) return 'ph-cloud-fog' ; if (icon.includes('cloud') || status.includes('cloud') ||
+            status.includes('overcast')) { if (icon.includes('moon') || status.includes('night')) return 'ph-cloud-moon'
+            ; return 'ph-cloud-sun' ; } if (icon.includes('moon') || status.includes('night')) return 'ph-moon' ; if
+            (icon.includes('sun') || status.includes('clear')) return 'ph-sun' ; return 'ph-cloud-sun' ; } const
+            currentDashWeatherIcon=resolveWeatherIcon(locals.weather && locals.weather.icon, locals.weather &&
+            locals.weather.weather_status); %>
+
+            <!-- TOP WELCOME BANNER (PROFESSIONAL EXECUTIVE MODERN HERO) -->
+            <div
+              class="rounded-3xl bg-gradient-to-br from-[#1e40af] via-[#2563eb] to-[#1d4ed8] text-white p-5 sm:p-7 md:p-8 shadow-xl shadow-blue-950/20 relative overflow-hidden flex flex-col justify-between min-h-[175px] sm:min-h-[195px] md:min-h-[210px] border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]">
+              <!-- Subtle atmospheric ambient glow accents -->
+              <div class="absolute -top-16 -left-16 w-64 h-64 bg-sky-300/20 rounded-full blur-3xl pointer-events-none">
+              </div>
+              <div
+                class="absolute -bottom-10 right-1/4 w-72 h-72 bg-indigo-400/20 rounded-full blur-3xl pointer-events-none">
+              </div>
+
+              <!-- Top Header: Resident Avatar & Official Portal Glass Badge -->
+              <div class="flex items-center gap-2.5 sm:gap-3 z-20">
+                <!-- Profile Avatar with Double Glass Ring & Online Dot -->
+                <div class="relative shrink-0">
+                  <div
+                    class="w-10 h-10 sm:w-11 sm:h-11 aspect-square rounded-full ring-2 ring-white/80 ring-offset-2 ring-offset-[#1e40af] shadow-md overflow-hidden bg-white/20 shrink-0 flex items-center justify-center backdrop-blur-xs">
+                    <% if (userPhoto) { %>
+                      <img loading="lazy" src="<%= userPhoto %>" decoding="async" alt="<%= fullName %>" class="w-full h-full object-cover"
+                        onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                      <span style="display:none;"
+                        class="w-full h-full flex items-center justify-center font-black text-sm text-white">
+                        <%= userInitial %>
+                      </span>
+                      <% } else { %>
+                        <span id="residentUserAvatarInitial" class="resident-avatar-initial w-full h-full flex items-center justify-center font-black text-sm text-white">
+                          <%= userInitial %>
+                        </span>
+                        <% } %>
+                  </div>
+                  <!-- Online Status Dot on Avatar -->
+                  <span
+                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-[#1e40af] shadow-xs"></span>
+                </div>
+
+                <!-- Refined Status Capsule Badge with Frosted Glass -->
+                <div
+                  class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/12 backdrop-blur-md border border-white/20 text-[10px] sm:text-xs font-bold text-white shadow-xs">
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]"></span>
+                  <span class="uppercase tracking-widest text-[9px] sm:text-[10px] font-black text-white">Resident
+                    Portal</span>
+                  <span class="text-white/35">•</span>
+                  <span class="text-blue-100 font-medium text-[10px] sm:text-xs">Barangay San Rafael</span>
+                </div>
+              </div>
+
+              <!-- Greeting Headline & Subtitle (Bounded to left column to balance with mascot) -->
+              <div class="mt-3.5 sm:mt-4 z-20 max-w-[55%] xs:max-w-[58%] sm:max-w-[62%] md:max-w-[66%]">
+                <h1
+                  class="text-lg xs:text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-xs">
+                  Welcome back, <span id="residentUserGreetingName" class="resident-first-name-display"><%= userFirstName %></span>! <span
+                      class="inline-block text-lg xs:text-xl sm:text-2xl">👋</span>
+                </h1>
+                <p
+                  class="text-[11px] sm:text-xs md:text-sm text-blue-100/90 font-normal mt-1 sm:mt-1.5 leading-relaxed max-w-sm sm:max-w-md">
+                  Stay safe, alert, and prepared. Your household evacuation pass and emergency services are up to date
+                  and ready.
+                </p>
+              </div>
+
+              <!-- Right: 3D Mascot Character (Bigger & prominent on mobile 360px+, flush to bottom edge) -->
+              <div
+                class="absolute right-0 bottom-0 pointer-events-none select-none z-10 w-[48%] xs:w-[45%] sm:w-[40%] md:w-[34%] max-w-[220px] h-full flex items-end justify-end overflow-hidden">
+                <div class="absolute right-1 bottom-0 w-40 h-40 bg-amber-400/25 rounded-full blur-2xl"></div>
+                <img loading="lazy" src="/images/hi_bust.png" alt="Evacwar Resident Guide"
+                  class="relative z-10 w-full h-full max-h-[205px] xs:max-h-[220px] sm:max-h-[235px] md:max-h-[250px] object-contain object-bottom drop-shadow-2xl translate-y-[2px]" / decoding="async">
+              </div>
+            </div>
+
+            <!-- SYSTEM ALERT BANNER -->
+            <% const currentAlert=typeof activeAlert !=='undefined' ? activeAlert : null; let
+              gradient="from-slate-800 to-slate-900 border-slate-700/50 text-white shadow-slate-900/10" ; let
+              alertTitle="No Active Emergency Warnings" ; let
+              alertMessage="There are currently no active disaster or evacuation alerts broadcasted for Barangay San Rafael."
+              ; let alertTime=new Date().toLocaleTimeString('en-US', { hour: 'numeric' , minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }); let
+              alertIcon="ph-shield-check" ; if (currentAlert) { alertTitle=currentAlert.title;
+              alertMessage=currentAlert.message; const rawAlertTime=currentAlert.sent_at || currentAlert.created_at; if
+              (rawAlertTime) { try { const d=new Date(rawAlertTime); if (!isNaN(d.getTime())) {
+              alertTime=d.toLocaleDateString('en-PH', { month: 'short' , day: 'numeric' , year: 'numeric', timeZone: 'Asia/Manila' }) + ' • ' +
+              d.toLocaleTimeString('en-US', { hour: 'numeric' , minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }); } else {
+              alertTime=String(rawAlertTime); } } catch(e) { alertTime=String(rawAlertTime); } } else {
+              alertTime="Just now" ; } const upperSev=(currentAlert.severity || currentAlert.level || 'BLUE'
+              ).toUpperCase(); if (upperSev==="RED" || upperSev==="CRITICAL" || upperSev==="DANGER" ) {
+              gradient="from-red-600 via-rose-600 to-red-700 text-white shadow-red-500/20" ; alertIcon="ph-siren" ; }
+              else if (upperSev==="ORANGE" || upperSev==="WARNING" ) {
+              gradient="from-orange-500 via-amber-600 to-orange-600 text-white shadow-orange-500/20" ;
+              alertIcon="ph-warning-circle" ; } else if (upperSev==="YELLOW" ) {
+              gradient="from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-amber-500/20" ;
+              alertIcon="ph-warning" ; } else if (upperSev==="GREEN" ) {
+              gradient="from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-500/20" ;
+              alertIcon="ph-check-circle" ; } else {
+              gradient="from-blue-600 via-indigo-600 to-blue-700 text-white shadow-blue-500/20" ; alertIcon="ph-info" ;
+              } } %>
+              <div id="residentSystemAlertBanner"
+                class="rounded-3xl bg-gradient-to-br <%= gradient %> p-5 sm:p-6 shadow-md relative overflow-hidden border transition-all duration-300">
+                <div class="absolute inset-0 bg-white/5 backdrop-blur-xs pointer-events-none"></div>
+                <div class="absolute -right-6 -bottom-6 opacity-15 transform rotate-12 pointer-events-none">
+                  <i id="residentAlertBgIcon" class="ph <%= alertIcon %> text-9xl"></i>
+                </div>
+
+                <div class="relative z-10 space-y-3">
+                  <div
+                    class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-black/20 border border-white/10 text-white">
+                    <span id="residentAlertPingDot"
+                      class="w-2 h-2 rounded-full <%= currentAlert ? 'bg-amber-400 animate-ping' : 'bg-emerald-400' %>"></span>
+                    <span id="residentAlertStatusLabel">
+                      <%= currentAlert ? 'Official Emergency Alert' : 'System Advisory Status' %>
+                    </span>
+                  </div>
+                  <h2 id="residentAlertTitle"
+                    class="text-xl sm:text-2xl font-black leading-tight tracking-tight text-white">
+                    <%= alertTitle %>
+                  </h2>
+                  <p id="residentAlertMessage"
+                    class="text-xs sm:text-sm font-medium opacity-90 leading-relaxed text-white">
+                    <%= alertMessage %>
+                  </p>
+
+                  <div id="residentAlertTimeWrapper" class="<%= currentAlert ? '' : 'hidden' %> pt-1">
+                    <div
+                      class="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 text-xs font-semibold text-white shadow-xs">
+                      <i class="ph ph-clock text-base"></i>
+                      <span id="residentAlertTimeText">
+                        <%= alertTime %>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- QUICK DISASTER ACTIONS GRID (2x2 Clean Solid Illustrated Style) -->
+              <div class="grid grid-cols-2 gap-2.5 sm:gap-5">
+
+                <!-- 1. SOS Distress Button -->
+                <a href="/resident/sos"
+                  class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-red-50 border-2 border-red-300 hover:border-red-600 shadow-sm hover:shadow-lg hover:shadow-red-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+                  <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
+                    <h3
+                      class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-red-600 transition-colors">
+                      SOS HELP
+                    </h3>
+                    <p
+                      class="text-[10px] sm:text-sm md:text-base text-slate-600 font-bold mt-0.5 sm:mt-1 leading-tight">
+                      Emergency Rescue
+                    </p>
+                  </div>
+                  <div
+                    class="w-16 h-16 sm:w-28 sm:h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center relative z-10">
+                    <img loading="lazy" src="/illustrations/sos.png" alt="SOS Emergency Vector"
+                      class="w-full h-full object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-300" / decoding="async">
+                  </div>
+                </a>
+
+                <!-- 2. Household QR Evacuation Pass -->
+                <a href="/resident/qr"
+                  class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-blue-50 border-2 border-blue-300 hover:border-blue-600 shadow-sm hover:shadow-lg hover:shadow-blue-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+                  <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
+                    <h3
+                      class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-blue-600 transition-colors">
+                      EVAC PASS
+                    </h3>
+                    <p
+                      class="text-[10px] sm:text-sm md:text-base text-slate-600 font-bold mt-0.5 sm:mt-1 leading-tight">
+                      QR Check-in
+                    </p>
+                  </div>
+                  <div
+                    class="w-16 h-16 sm:w-28 sm:h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center relative z-10">
+                    <img loading="lazy" src="/illustrations/QR Code-pana.svg" alt="Evacuation QR Pass Vector"
+                      class="w-full h-full object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-300" / decoding="async">
+                  </div>
+                </a>
+
+                <!-- 3. Evacuation Centers Map -->
+                <a href="/resident/evacuation" onclick="if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound(); if (window.AndroidBleBridge && typeof window.AndroidBleBridge.stopNativeEmergencyAlarm === 'function') { try { window.AndroidBleBridge.stopNativeEmergencyAlarm(); } catch(_) {} }"
+                  class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-emerald-50 border-2 border-emerald-300 hover:border-emerald-600 shadow-sm hover:shadow-lg hover:shadow-emerald-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+                  <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
+                    <h3
+                      class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-emerald-600 transition-colors">
+                      EVAC MAP
+                    </h3>
+                    <p
+                      class="text-[10px] sm:text-sm md:text-base text-slate-600 font-bold mt-0.5 sm:mt-1 leading-tight">
+                      Nearest Shelter
+                    </p>
+                  </div>
+                  <div
+                    class="w-16 h-16 sm:w-28 sm:h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center relative z-10">
+                    <img loading="lazy" src="/illustrations/map.svg" alt="Evacuation Map Vector"
+                      class="w-full h-full object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-300" / decoding="async">
+                  </div>
+                </a>
+
+                <!-- 4. Typhoon Live Tracker -->
+                <a href="/resident/typhoon"
+                  class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-purple-50 border-2 border-purple-300 hover:border-purple-600 shadow-sm hover:shadow-lg hover:shadow-purple-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+                  <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
+                    <h3
+                      class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-purple-600 transition-colors">
+                      TYPHOON
+                    </h3>
+                    <p
+                      class="text-[10px] sm:text-sm md:text-base text-slate-600 font-bold mt-0.5 sm:mt-1 leading-tight">
+                      Live Monitoring
+                    </p>
+                  </div>
+                  <div
+                    class="w-16 h-16 sm:w-28 sm:h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center relative z-10">
+                    <img loading="lazy" src="/illustrations/storm.svg" alt="Typhoon Weather Vector"
+                      class="w-full h-full object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-300" / decoding="async">
+                  </div>
+                </a>
+
+              </div>
+
+
+              <!-- 1. LIVE WEATHER CARD (OPEN-METEO) -->
+              <div class="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100 relative overflow-hidden">
+                <!-- Source Identification Header -->
+                <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-3">
+                  <span
+                    class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-wider border border-blue-200/60">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span> LIVE LOCAL WEATHER
+
+                  </span>
+
+                </div>
+
+                <!-- Main Weather Header Row: Temp, Icon, Location, Time, Sync in a clean 1-row layout -->
+                <div class="flex items-start justify-between gap-3">
+                  <!-- Left: Icon & Temperature & Status -->
+                  <div class="flex items-center gap-3 min-w-0 flex-1">
+                    <div
+                      class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center text-2xl sm:text-4xl shadow-inner shrink-0">
+                      <i id="dashWeatherIcon" class="ph <%= currentDashWeatherIcon %>"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
+                        <span id="dashTemp"
+                          class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+                          <%= (locals.weather && locals.weather.temperature !=null) ? locals.weather.temperature : 25.1
+                            %>°C
+                        </span>
+                        <span id="dashStatus" class="text-xs sm:text-base font-bold text-blue-600 truncate">
+                          <%= (locals.weather && locals.weather.weather_status) ? locals.weather.weather_status
+                            : 'Fair Weather' %>
+                        </span>
+                      </div>
+                      <div
+                        class="flex items-center gap-1 text-[10px] sm:text-xs text-slate-500 font-semibold mt-1 truncate">
+                        <i class="ph ph-map-pin text-blue-500 shrink-0"></i>
+                        <span id="residentWeatherLocLabel" class="truncate">
+                          <%= (locals.weather && locals.weather.location_name) ? locals.weather.location_name
+                            : 'Baao, Camarines Sur' %>
+                        </span>
+                        <span class="text-slate-300 shrink-0">•</span>
+                        <span id="weatherLastUpdatedText" class="text-slate-400 shrink-0 truncate">
+                          <%= (locals.weather && locals.weather.formatted_time) ? 'Updated ' +
+                            locals.weather.formatted_time : 'Live' %>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Right: Location & Sync Buttons -->
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button id="btnMyLocationResident" type="button" onclick="useMyLocationResident(this)"
+                      class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center transition-all active:scale-95 border border-slate-200/60 shrink-0 cursor-pointer"
+                      title="Use device GPS location">
+                      <i id="residentLocIcon" class="ph ph-crosshair text-base text-slate-700"></i>
+                    </button>
+                    <button id="btnSyncWeatherDashboard" type="button"
+                      class="p-2.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border border-slate-200/60 shrink-0 cursor-pointer"
+                      title="Refresh Live Weather">
+                      <i id="syncWeatherIcon" class="ph ph-arrows-clockwise text-base text-blue-600"></i>
+                      <span class="hidden sm:inline">Refresh</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Quick Metrics Row: Rain, Wind, Humidity, Pressure -->
+                <div
+                  class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 mt-3.5 pt-3.5 sm:mt-5 sm:pt-4 border-t border-slate-100">
+                  <!-- Rainfall -->
+                  <div
+                    class="p-2.5 sm:p-3 rounded-2xl bg-slate-50/90 border border-slate-100 flex items-center gap-2.5 sm:gap-3">
+                    <div
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-base sm:text-lg shrink-0">
+                      <i class="ph ph-drop"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rainfall
+                      </div>
+                      <div id="dashRain" class="text-xs sm:text-sm font-black text-slate-800 truncate">
+                        <%= (locals.weather && locals.weather.rainfall !=null) ? locals.weather.rainfall : 0.1 %> <span
+                            class="text-[9px] sm:text-[10px] font-normal text-slate-500">mm</span>
+                      </div>
+                      <div id="dashRainAlert" class="hidden"></div>
+                    </div>
+                  </div>
+
+                  <!-- Wind -->
+                  <div
+                    class="p-2.5 sm:p-3 rounded-2xl bg-slate-50/90 border border-slate-100 flex items-center gap-2.5 sm:gap-3">
+                    <div
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-base sm:text-lg shrink-0">
+                      <i class="ph ph-wind"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wind
+                        Speed</div>
+                      <div id="dashWind" class="text-xs sm:text-sm font-black text-slate-800 truncate">
+                        <%= (locals.weather && locals.weather.wind_speed !=null) ? locals.weather.wind_speed : 11.5 %>
+                          <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">km/h</span>
+                      </div>
+                      <div id="dashGusts" class="hidden"></div>
+                    </div>
+                  </div>
+
+                  <!-- Humidity -->
+                  <div
+                    class="p-2.5 sm:p-3 rounded-2xl bg-slate-50/90 border border-slate-100 flex items-center gap-2.5 sm:gap-3">
+                    <div
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-base sm:text-lg shrink-0">
+                      <i class="ph ph-cloud-fog"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Humidity
+                      </div>
+                      <div id="dashHumidity" class="text-xs sm:text-sm font-black text-slate-800 truncate">
+                        <%= (locals.weather && locals.weather.humidity !=null) ? locals.weather.humidity : 95 %>%
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Barometric Pressure -->
+                  <div
+                    class="p-2.5 sm:p-3 rounded-2xl bg-slate-50/90 border border-slate-100 flex items-center gap-2.5 sm:gap-3">
+                    <div
+                      class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-base sm:text-lg shrink-0">
+                      <i class="ph ph-gauge"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pressure
+                      </div>
+                      <div id="dashPressure" class="text-xs sm:text-sm font-black text-slate-800 truncate">
+                        <%= (locals.weather && locals.weather.pressure !=null) ? locals.weather.pressure : 998.1 %>
+                          <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">hPa</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. PAGASA NEWS & ADVISORIES SECTION -->
+              <div class="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+                <!-- Section Header -->
+                <div
+                  class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div class="flex items-center gap-2.5">
+                    <div
+                      class="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg shrink-0 shadow-2xs">
+                      <i class="ph ph-youtube-logo"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                          Official DOST-PAGASA Weather Forecast
+                        </h3>
+                        <div id="residentPagasaLiveBadge" class="flex items-center">
+                          <% if (locals.weather && locals.weather.pagasa && locals.weather.pagasa.youtube &&
+                            locals.weather.pagasa.youtube.isLive) { %>
+                            <span
+                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs animate-pulse">
+                              <span class="w-1.5 h-1.5 rounded-full bg-white"></span> 🔴 LIVE
+                            </span>
+                            <% } %>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                  <a href="https://www.youtube.com/@dost_pagasa/videos" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors w-max shrink-0">
+                    <i class="ph ph-youtube-logo text-sm"></i>
+                    <span>PAGASA YouTube</span>
+                    <i class="ph ph-arrow-up-right text-[10px]"></i>
+                  </a>
+                </div>
+
+                <!-- YouTube Video Metadata & Player Embed -->
+                <% const resPagasa=(locals.weather && locals.weather.pagasa) ? locals.weather.pagasa : null; const
+                  resYt=(resPagasa && resPagasa.youtube) ? resPagasa.youtube : null; const hasValidVideo=Boolean(resYt
+                  && resYt.hasVideo && resYt.videoId && resYt.embedUrl); const pagasaYtEmbed=(hasValidVideo && resYt.embedUrl) ?
+                  resYt.embedUrl : 'https://www.youtube-nocookie.com/embed/AgcXtAFRGkw?rel=0&autoplay=0&enablejsapi=1' ; const pagasaYtTitle=(resYt && resYt.title) ? resYt.title
+                  : 'Official DOST-PAGASA Weather Forecast' ; const pagasaYtPublished=(resYt &&
+                  (resYt.formattedPublished || resYt.published)) ? (resYt.formattedPublished || resYt.published)
+                  : 'Daily Forecast Broadcast' ; const pagasaYtIsLive=Boolean(resYt && resYt.isLive); %>
+
+                  <!-- Video Title & Published Timestamp -->
+                  <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 px-0.5">
+                    <span id="residentPagasaVideoTitle"
+                      class="truncate font-semibold text-slate-700 max-w-[240px] sm:max-w-md"
+                      title="<%= pagasaYtTitle %>">
+                      <%= pagasaYtTitle %>
+                    </span>
+                    <span id="residentPagasaVideoPublished" class="text-[10px] font-medium text-slate-500 shrink-0">
+                      Issued: <%= pagasaYtPublished %>
+                    </span>
+                  </div>
+
+                  <div class="relative w-full">
+                    <!-- Active YouTube Player Frame (Always Visible) -->
+                    <div id="residentPagasaPlayerContainer"
+                      class="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-inner">
+                      <iframe id="residentPagasaVideoIframe" src="<%= pagasaYtEmbed %>" title="<%= pagasaYtTitle %>"
+                        class="absolute inset-0 w-full h-full border-0"
+                        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen></iframe>
+                    </div>
+
+                    <!-- Graceful Fallback Card (Hidden by default) -->
+                    <div id="residentPagasaVideoFallback"
+                      class="relative w-full aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 border border-slate-700/60 flex flex-col items-center justify-center p-5 text-center shadow-inner hidden">
+                      <div
+                        class="w-10 h-10 rounded-2xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-500 mb-2 shadow-sm">
+                        <i class="ph ph-television text-xl"></i>
+                      </div>
+                      <h4 class="text-xs sm:text-sm font-bold text-white mb-1 uppercase tracking-wider">
+                        DOST-PAGASA Weather Broadcast
+                      </h4>
+                      <p class="text-[11px] text-slate-300 max-w-xs mb-3.5 leading-relaxed">
+                        Official weather broadcasts and live advisories can also be viewed directly on DOST-PAGASA's official channels.
+                      </p>
+                      <a href="<%= (resYt && resYt.channelUrl) ? resYt.channelUrl : 'https://www.youtube.com/@dost_pagasa/videos' %>"
+                        target="_blank" rel="noopener noreferrer"
+                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95">
+                        <i class="ph ph-youtube-logo text-base"></i>
+                        <span>Watch on Official PAGASA YouTube</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons Row -->
+                  <div
+                    class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                    <p class="text-xs text-slate-500 font-medium text-center sm:text-left">
+                      Stay updated with official bulletins issued by DOST-PAGASA.
+                    </p>
+                    <div class="flex flex-col sm:flex-row items-center gap-2 shrink-0">
+                      <a href="https://www.facebook.com/PAGASA.DOST.GOV.PH/" target="_blank" rel="noopener noreferrer"
+                        class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95">
+                        <i class="ph ph-facebook-logo text-base"></i>
+                        <span>PAGASA Facebook</span>
+                        <i class="ph ph-arrow-up-right text-xs opacity-80"></i>
+                      </a>
+
+                      <a href="https://bagong.pagasa.dost.gov.ph/" target="_blank" rel="noopener noreferrer"
+                        class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-500/20 flex items-center justify-center gap-2 transition-all active:scale-95">
+                        <i class="ph ph-globe text-base"></i>
+                        <span>Check PAGASA Website</span>
+                        <i class="ph ph-arrow-up-right text-xs opacity-80"></i>
+                      </a>
+                    </div>
+                  </div>
+              </div>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+      </main>
+  </div>
+
+  <script>
+    function resolveClientWeatherIcon(iconStr, statusStr) {
+      const icon = String(iconStr || '').toLowerCase();
+      const status = String(statusStr || '').toLowerCase();
+      if (icon.startsWith('ph-')) return icon;
+      if (icon.includes('storm') || icon.includes('lightning') || status.includes('thunder') || status.includes('storm')) {
+        return 'ph-cloud-lightning';
+      }
+      if (icon.includes('rain') || icon.includes('drizzle') || icon.includes('shower') || status.includes('rain') || status.includes('drizzle') || status.includes('shower')) {
+        return 'ph-cloud-rain';
+      }
+      if (icon.includes('snow') || status.includes('snow')) return 'ph-snowflake';
+      if (icon.includes('fog') || status.includes('fog')) return 'ph-cloud-fog';
+      if (icon.includes('cloud') || status.includes('cloud') || status.includes('overcast')) {
+        if (icon.includes('moon') || status.includes('night')) return 'ph-cloud-moon';
+        return 'ph-cloud-sun';
+      }
+      if (icon.includes('moon') || status.includes('night')) return 'ph-moon';
+      if (icon.includes('sun') || status.includes('clear')) return 'ph-sun';
+      return 'ph-cloud-sun';
+    }
+
+    function updateResidentWeatherUI(w) {
+      if (!w) return;
+      const dashTemp = document.getElementById('dashTemp');
+      const dashStatus = document.getElementById('dashStatus');
+      const dashWind = document.getElementById('dashWind');
+      const dashGusts = document.getElementById('dashGusts');
+      const dashRain = document.getElementById('dashRain');
+      const dashRainAlert = document.getElementById('dashRainAlert');
+      const dashPressure = document.getElementById('dashPressure');
+      const dashHumidity = document.getElementById('dashHumidity');
+      const dashWeatherIcon = document.getElementById('dashWeatherIcon');
+      const updatedText = document.getElementById('weatherLastUpdatedText');
+      const locLabel = document.getElementById('residentWeatherLocLabel');
+
+      const safeIcon = resolveClientWeatherIcon(w.icon, w.weather_status);
+
+      if (locLabel && w.location_name) locLabel.textContent = w.location_name;
+      if (dashTemp) dashTemp.innerHTML = `${w.temperature != null ? w.temperature : 25.1}°C`;
+      if (dashStatus) dashStatus.textContent = w.weather_status || 'Fair Weather';
+      if (dashWind) dashWind.innerHTML = `${w.wind_speed != null ? w.wind_speed : 11.5} <span class="text-xs font-normal text-slate-500">km/h</span>`;
+      if (dashGusts) dashGusts.textContent = `Gusts: ${w.wind_gusts != null ? w.wind_gusts : 25.6} km/h`;
+      if (dashRain) dashRain.innerHTML = `${w.rainfall != null ? w.rainfall : 0.1} <span class="text-xs font-normal text-slate-500">mm</span>`;
+      if (dashRainAlert) {
+        dashRainAlert.textContent = (w.rainfall > 15) ? 'Heavy / Flood Risk' : ((w.rainfall > 2.5) ? 'Moderate Rain' : 'Normal / Low');
+      }
+      if (dashPressure) dashPressure.innerHTML = `${w.pressure != null ? w.pressure : 998.1} <span class="text-xs font-normal text-slate-500">hPa</span>`;
+      if (dashHumidity) dashHumidity.textContent = `Humidity: ${w.humidity != null ? w.humidity : 95}%`;
+      if (dashWeatherIcon) {
+        dashWeatherIcon.className = `ph ${safeIcon}`;
+      }
+      if (updatedText) {
+        updatedText.textContent = 'Updated just now';
+      }
+    }
+
+    async function useMyLocationResident(btn) {
+      const icon = document.getElementById('residentLocIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.disabled = true;
+
+      try {
+        if (!window.EvacwarWeatherLocation) {
+          throw new Error('Location manager is still loading. Please try again in a moment.');
+        }
+        const coords = await window.EvacwarWeatherLocation.getCurrentPosition();
+        const weather = await window.EvacwarWeatherLocation.fetchWeather(coords);
+        updateResidentWeatherUI(weather);
+        window.EvacwarWeatherLocation.showToast('Updated weather for your device location!');
+      } catch (err) {
+        console.warn('GPS location retrieval error:', err.message);
+        if (window.EvacwarWeatherLocation) {
+          window.EvacwarWeatherLocation.showToast(err.message, true);
+        } else {
+          alert(err.message);
+        }
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // Dynamic DOST-PAGASA Video Sync (Reusing /api/weather/pagasa)
+    let currentResidentPagasaVideoId = '<%= (hasValidVideo && resYt && resYt.videoId) ? resYt.videoId : "AgcXtAFRGkw" %>';
+    let currentResidentPagasaIsLive = ('<%= pagasaYtIsLive ? "true" : "false" %>' === 'true');
+
+    async function checkResidentPagasaVideoUpdate() {
+      try {
+        const res = await fetch('/api/weather/pagasa', { cache: 'no-store' });
+        const data = await res.json();
+        if (!data || !data.success || !data.pagasa || !data.pagasa.youtube) return;
+
+        const yt = data.pagasa.youtube;
+        const badgeContainer = document.getElementById('residentPagasaLiveBadge');
+        const titleEl = document.getElementById('residentPagasaVideoTitle');
+        const publishedEl = document.getElementById('residentPagasaVideoPublished');
+        const iframe = document.getElementById('residentPagasaVideoIframe');
+
+        if (titleEl && yt.title) {
+          titleEl.textContent = yt.title;
+          titleEl.setAttribute('title', yt.title);
+        }
+
+        if (publishedEl && yt.formattedPublished) {
+          publishedEl.textContent = 'Issued: ' + yt.formattedPublished;
+        }
+
+        if (badgeContainer) {
+          if (yt.isLive) {
+            badgeContainer.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs animate-pulse">
+                <span class="w-1.5 h-1.5 rounded-full bg-white"></span> 🔴 LIVE
+              </span>
+            `;
+          } else {
+            badgeContainer.innerHTML = '';
+          }
+        }
+
+        // Seamlessly update video player when PAGASA starts a live broadcast or posts a new forecast
+        if (yt.videoId && yt.embedUrl && (yt.videoId !== currentResidentPagasaVideoId || yt.isLive !== currentResidentPagasaIsLive)) {
+          currentResidentPagasaVideoId = yt.videoId;
+          currentResidentPagasaIsLive = Boolean(yt.isLive);
+          if (iframe) iframe.src = yt.embedUrl;
+        }
+      } catch (err) {
+        // Silent background check
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check PAGASA video update on load and periodically every 3 minutes
+      checkResidentPagasaVideoUpdate();
+      setInterval(checkResidentPagasaVideoUpdate, 180000);
+
+      const syncBtn = document.getElementById('btnSyncWeatherDashboard');
+      const syncIcon = document.getElementById('syncWeatherIcon');
+
+      if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+          if (syncIcon) syncIcon.classList.add('animate-spin');
+          syncBtn.disabled = true;
+
+          try {
+            const saved = (window.EvacwarWeatherLocation) ? window.EvacwarWeatherLocation.getSavedLocation() : null;
+            const [res] = await Promise.all([
+              fetch('/api/weather/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(saved || {}),
+                cache: 'no-store'
+              }),
+              checkResidentPagasaVideoUpdate()
+            ]);
+            const data = await res.json();
+
+            if (data && data.success && data.weather) {
+              updateResidentWeatherUI(data.weather);
+            }
+          } catch (err) {
+            console.error('Failed to sync weather API:', err);
+          } finally {
+            if (syncIcon) syncIcon.classList.remove('animate-spin');
+            syncBtn.disabled = false;
+          }
+        });
+      }
+    });
+  </script>
+
+  <%- include('../partials/footer') %>
+
+<!-- EVAKWAR REAL-TIME DASHBOARD ADVISORY STATUS SYNC SCRIPT -->
+<script>
+  (function () {
+    function syncDashboardAlert() {
+      try {
+        const saved = localStorage.getItem('evw_active_alert') || localStorage.getItem('evw_last_lora_alert');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof window.updateSystemAlertBanner === 'function') {
+            window.updateSystemAlertBanner(parsed);
+          }
+        }
+      } catch (_) {}
+    }
+
+    window.addEventListener('evw:alert-updated', (e) => {
+      if (e.detail && typeof window.updateSystemAlertBanner === 'function') {
+        window.updateSystemAlertBanner(e.detail);
+      }
+    });
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncDashboardAlert);
+    } else {
+      syncDashboardAlert();
+    }
+  })();
+</script>

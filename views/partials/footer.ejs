@@ -1,0 +1,17 @@
+<%- include('../partials/bottom-nav') %>
+
+  <div id="toast"
+    class="fixed bottom-20 lg:bottom-4 left-1/2 z-50 hidden -translate-x-1/2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-soft">
+    <span id="toastMsg">UI-only action.</span>
+  </div>
+
+  <script id="pageData" type="application/json"><%- JSON.stringify(typeof sim !== 'undefined' ? sim : {}) %></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/weatherLocation.js" defer></script>
+  <script src="/js/offline-queue.js" defer></script>
+  <script src="/js/pwa.js?v=100" defer></script>
+
+  </div>
+  </body>
+
+  </html>

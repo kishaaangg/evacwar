@@ -1,0 +1,1040 @@
+<style>
+  body.chat-keyboard-active #residentBottomNav,
+  body.chat-keyboard-active #staffBottomNav,
+  body.chat-keyboard-active nav.fixed.bottom-0 {
+    display: none !important;
+  }
+</style>
+<%
+  const rawRole = (typeof chatRole !== 'undefined' && chatRole)
+    ? chatRole
+    : ((user && user.staff_type === 'RESCUER') ? 'Rescuer'
+      : ((user && (user.role === 'admin' || user.role === 'ADMIN')) ? 'Admin'
+        : ((user && (user.role === 'staff' || user.role === 'barangay_council')) ? 'Staff' : 'Resident')));
+
+  let resolvedName = (user && (user.full_name || user.name)) ? String(user.full_name || user.name).trim() : '';
+  if (rawRole === 'Admin') {
+    if (!resolvedName || resolvedName === 'Admin' || resolvedName === 'Administrator' || resolvedName === 'Super Admin' || resolvedName === 'Super Administrator') {
+      resolvedName = 'Monette Bisenio';
+    }
+  } else if (!resolvedName) {
+    resolvedName = rawRole;
+  }
+%>
+
+<div id="loraChatContainer" class="max-w-4xl mx-auto w-full px-2 sm:px-3 pt-1 sm:pt-1.5 pb-0.5 sm:pb-1 flex flex-col flex-1" style="height: calc(100dvh - 118px); max-height: calc(100dvh - 118px); box-sizing: border-box;">
+
+  <!-- Compact LoRa Mesh & Identity Header -->
+  <div class="rounded-xl bg-slate-900 text-white px-3 py-2 border border-slate-800 shadow-sm mb-1.5 shrink-0">
+    <div class="flex items-center justify-between gap-2">
+      <!-- Title & Role Badge -->
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
+          <i class="ph ph-chats-circle text-lg"></i>
+        </div>
+        <div class="min-w-0 leading-tight">
+          <div class="flex items-center gap-1.5 truncate">
+            <h1 class="font-heading text-xs sm:text-sm font-extrabold text-white truncate">LoRa Group Chat</h1>
+            <span class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 shrink-0">433.875 MHz</span>
+          </div>
+          <div class="text-[10px] text-slate-300 truncate mt-0.5">
+            <span class="text-slate-400">Sender:</span>
+            <span id="chatIdentityBadgeText" class="font-bold text-emerald-300">
+              <%= rawRole %> | <%= resolvedName %>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Transport Status Pill & Optional LoRa Connect button -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span id="chatTransportStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="chatTransportStatusText">Online (Data / Wi-Fi)</span>
+        </span>
+        <% if (rawRole !== 'Admin') { %>
+          <button type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
+            class="p-1 sm:px-2 sm:py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white border border-white/15 text-[10px] font-bold flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+            title="LoRa Hardware Options">
+            <i class="ph ph-broadcast text-xs text-blue-300"></i>
+            <span class="hidden sm:inline">LoRa</span>
+          </button>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Chat Card -->
+  <div class="flex-1 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden min-h-0">
+
+    <!-- Subheader with Sync -->
+    <div class="px-3 py-1.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between text-[10.5px] text-slate-600 shrink-0">
+      <div class="flex items-center gap-1.5 truncate">
+        <i class="ph ph-broadcast text-blue-600 text-xs"></i>
+        <span class="font-semibold text-slate-700 truncate">Off-Grid LoRa Mesh &amp; Wi-Fi Channel</span>
+      </div>
+      <button type="button" id="btnRefreshLoraChat" class="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer shrink-0">
+        <i class="ph ph-arrows-clockwise text-xs"></i>
+        <span>Sync</span>
+      </button>
+    </div>
+
+    <!-- Scrollable Message Bubble List -->
+    <div id="loraChatMessagesList" class="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/60" style="-webkit-overflow-scrolling: touch;">
+      <!-- Dynamic messages populated here -->
+    </div>
+
+    <!-- Quick Message Presets Strip -->
+    <div class="px-2.5 py-1.5 bg-slate-50 border-t border-slate-200/70 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+      <button type="button" data-quick-msg="📍 Safe at Evacuation Center"
+        class="lora-quick-chip shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer shadow-2xs">
+        📍 Safe at Evac Center
+      </button>
+      <button type="button" data-quick-msg="🌊 Floodwater rising in our zone"
+        class="lora-quick-chip shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer shadow-2xs">
+        🌊 Floodwater rising
+      </button>
+      <button type="button" data-quick-msg="🚑 Need rescue assistance"
+        class="lora-quick-chip shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer shadow-2xs">
+        🚑 Need rescue assistance
+      </button>
+      <button type="button" data-quick-msg="📡 Radio check - copy 433.875 MHz"
+        class="lora-quick-chip shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer shadow-2xs">
+        📡 Radio check
+      </button>
+    </div>
+
+    <!-- Message Composer Bar (Optimized for Mobile Typing & Large Touch Targets) -->
+    <div id="loraChatForm" data-offline-enabled="true" data-lora-chat="true" class="p-2 sm:p-2.5 bg-white border-t border-slate-200/90 flex items-center gap-2 shrink-0 shadow-xs">
+      <input
+        type="text"
+        id="loraChatInput" data-offline-enabled="true" data-lora-chat="true"
+        maxlength="140"
+        autocomplete="off"
+        placeholder="Type a message (Wi-Fi / LoRa)..."
+        class="flex-1 rounded-2xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 sm:py-3 text-[15px] sm:text-base text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all leading-normal min-h-[46px] sm:min-h-[50px]"
+      />
+      <button
+        type="button"
+        id="loraChatSendBtn"
+        data-offline-enabled="true"
+        data-lora-chat="true"
+        class="rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold px-4 sm:px-5 py-2.5 sm:py-3 text-sm sm:text-base flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0 min-h-[46px] sm:min-h-[50px]">
+        <i class="ph ph-paper-plane-right text-base sm:text-lg pointer-events-none"></i>
+        <span class="pointer-events-none font-bold">Send</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const SERVER_ROLE = <%- JSON.stringify(rawRole) %>;
+    const SERVER_NAME = <%- JSON.stringify(resolvedName) %>;
+
+    const messagesListEl = document.getElementById('loraChatMessagesList');
+    const chatFormEl = document.getElementById('loraChatForm');
+    const chatInputEl = document.getElementById('loraChatInput');
+    const identityBadgeEl = document.getElementById('chatIdentityBadgeText');
+    const transportBadgeEl = document.getElementById('chatTransportStatusBadge');
+    const transportTextEl = document.getElementById('chatTransportStatusText');
+    const refreshBtn = document.getElementById('btnRefreshLoraChat');
+    const chatContainerEl = document.getElementById('loraChatContainer');
+
+    let currentRole = SERVER_ROLE;
+    let currentName = SERVER_NAME;
+
+    // Keyboard and bottom navbar visibility handler
+    function hideBottomNav() {
+      document.body.classList.add('chat-keyboard-active');
+      const navs = document.querySelectorAll('#residentBottomNav, #staffBottomNav, nav.fixed.bottom-0');
+      navs.forEach(n => { n.style.setProperty('display', 'none', 'important'); });
+      adjustHeightForViewport();
+    }
+
+    function showBottomNav() {
+      document.body.classList.remove('chat-keyboard-active');
+      const navs = document.querySelectorAll('#residentBottomNav, #staffBottomNav, nav.fixed.bottom-0');
+      navs.forEach(n => { n.style.removeProperty('display'); });
+      adjustHeightForViewport();
+    }
+
+    function checkKeyboardState() {
+      const isInputFocused = (document.activeElement === chatInputEl);
+      const isVisualShrunk = (window.visualViewport && (window.visualViewport.height < window.innerHeight - 130));
+      if (isInputFocused || isVisualShrunk) {
+        hideBottomNav();
+      } else {
+        showBottomNav();
+      }
+    }
+
+    function adjustHeightForViewport() {
+      const isKeyboard = document.body.classList.contains('chat-keyboard-active') || 
+                         (document.activeElement === chatInputEl) ||
+                         (window.visualViewport && (window.visualViewport.height < window.innerHeight - 130));
+      const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const navEl = isKeyboard ? null : document.querySelector('nav.fixed.bottom-0, #residentBottomNav, #staffBottomNav');
+      const navHeight = (navEl && navEl.offsetHeight && navEl.style.display !== 'none') ? navEl.offsetHeight : 0;
+      const headerEl = document.querySelector('header.app-header');
+      const headerHeight = (headerEl && headerEl.offsetHeight) ? headerEl.offsetHeight : 52;
+      
+      // Keep chat snug down right above the bottom nav without giant empty void
+      const bottomGap = isKeyboard ? 4 : (navHeight > 0 ? (navHeight + 6) : 8);
+      const available = vh - headerHeight - bottomGap;
+      if (chatContainerEl && available > 200) {
+        chatContainerEl.style.height = `${available}px`;
+        chatContainerEl.style.maxHeight = `${available}px`;
+      }
+      if (messagesListEl) {
+        messagesListEl.scrollTop = messagesListEl.scrollHeight;
+      }
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', checkKeyboardState);
+      window.visualViewport.addEventListener('scroll', checkKeyboardState);
+    }
+    window.addEventListener('resize', checkKeyboardState);
+    adjustHeightForViewport();
+    setTimeout(adjustHeightForViewport, 50);
+    setTimeout(adjustHeightForViewport, 180);
+
+    if (chatInputEl) {
+      chatInputEl.addEventListener('focus', () => {
+        hideBottomNav();
+        setTimeout(() => {
+          adjustHeightForViewport();
+          chatInputEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 150);
+      });
+
+      chatInputEl.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (document.activeElement !== chatInputEl) {
+            checkKeyboardState();
+          }
+        }, 120);
+      });
+
+      chatInputEl.addEventListener('input', () => {
+        hideBottomNav();
+      });
+    }
+
+    function resolveActiveIdentity() {
+      try {
+        const storedRole = localStorage.getItem('evw_user_role');
+        if (SERVER_ROLE === 'Admin') {
+          currentRole = 'Admin';
+          if (!currentName || currentName === 'Admin' || currentName === 'Administrator' || currentName === 'Super Admin') {
+            currentName = 'Monette Bisenio';
+          }
+        } else {
+          if (storedRole === 'rescuer' || SERVER_ROLE === 'Rescuer') {
+            currentRole = 'Rescuer';
+          } else if (storedRole === 'staff' || SERVER_ROLE === 'Staff') {
+            currentRole = 'Staff';
+          } else {
+            currentRole = 'Resident';
+          }
+
+          if (currentRole === 'Rescuer' || currentRole === 'Staff') {
+            const cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+            if (cachedStaff) {
+              const fn = cachedStaff.full_name || cachedStaff.name || `${cachedStaff.first_name || ''} ${cachedStaff.last_name || ''}`.trim();
+              if (fn) currentName = fn;
+            }
+          } else {
+            const cachedRes = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
+            if (cachedRes) {
+              const fn = cachedRes.full_name || cachedRes.name || `${cachedRes.first_name || ''} ${cachedRes.last_name || ''}`.trim();
+              if (fn) currentName = fn;
+            }
+          }
+        }
+      } catch (_e) {}
+
+      // Notify Android bridge so native background service suppresses self-notifications
+      if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setActiveUser === 'function') {
+        try { window.AndroidBleBridge.setActiveUser(currentName, currentRole); } catch (_) {}
+      }
+
+      if (identityBadgeEl) {
+        identityBadgeEl.textContent = `${currentRole} | ${currentName}`;
+      }
+    }
+
+    function updateTransportUi() {
+      resolveActiveIdentity();
+      const lora = window.evakwarLoraClient;
+      const isNativeBle = Boolean(typeof window !== 'undefined' && window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
+      const isBleOrUsb = isNativeBle || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
+      const isOnline = Boolean(navigator.onLine);
+
+      if (SERVER_ROLE === 'Admin') {
+        const isGwConnected = Boolean(window._adminGatewayConnected);
+        if (transportTextEl) {
+          if (isOnline && isGwConnected) {
+            transportTextEl.textContent = 'Wi-Fi + LoRa Gateway';
+          } else if (isOnline) {
+            transportTextEl.textContent = 'Online (Wi-Fi)';
+          } else if (isGwConnected) {
+            transportTextEl.textContent = 'LoRa Gateway (COM3)';
+          } else {
+            transportTextEl.textContent = 'Offline (No Link)';
+          }
+        }
+        if (transportBadgeEl) {
+          if (isOnline || isGwConnected) {
+            transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1';
+          } else {
+            transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1';
+          }
+        }
+        return;
+      }
+
+      if (isBleOrUsb && isOnline) {
+        if (transportTextEl) transportTextEl.textContent = 'Online + LoRa BLE';
+        if (transportBadgeEl) {
+          transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1';
+        }
+      } else if (isBleOrUsb) {
+        if (transportTextEl) transportTextEl.textContent = 'LoRa Mesh (BLE)';
+        if (transportBadgeEl) {
+          transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/40 flex items-center gap-1';
+        }
+      } else if (isOnline) {
+        if (transportTextEl) transportTextEl.textContent = 'Online (Data / Wi-Fi)';
+        if (transportBadgeEl) {
+          transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1';
+        }
+      } else {
+        if (transportTextEl) transportTextEl.textContent = 'Offline (No Link)';
+        if (transportBadgeEl) {
+          transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1';
+        }
+      }
+    }
+
+    const renderedMsgIds = new Set();
+    let allMessages = [];
+
+    function getLocalCachedMessages() {
+      try {
+        const raw = localStorage.getItem('evw_lora_chat_messages');
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_e) {
+        return [];
+      }
+    }
+
+    function saveLocalCachedMessages(list) {
+      try {
+        localStorage.setItem('evw_lora_chat_messages', JSON.stringify(list.slice(-100)));
+      } catch (_e) {}
+    }
+
+    function getRoleBadgeStyle(roleStr) {
+      const r = String(roleStr || '').toLowerCase();
+      if (r.includes('admin')) {
+        return 'bg-purple-100 text-purple-800 border-purple-300';
+      }
+      if (r.includes('rescuer')) {
+        return 'bg-rose-100 text-rose-800 border-rose-300';
+      }
+      if (r.includes('staff')) {
+        return 'bg-amber-100 text-amber-800 border-amber-300';
+      }
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    }
+
+    function getNormalizedTimestampMs(msg) {
+      if (!msg) return Date.now();
+      if (msg.timestamp) {
+        const num = Number(msg.timestamp);
+        if (!isNaN(num) && num > 0) {
+          if (num < 10000000000) return num * 1000;
+          if (num < 10000000000000) return num;
+          return Math.floor(num / 1000);
+        }
+      }
+      const iso = msg.created_at || msg.sent_at;
+      if (iso) {
+        const ms = new Date(iso).getTime();
+        if (!isNaN(ms) && ms > 0) return ms;
+      }
+      return Date.now();
+    }
+
+    function formatTimeLabel(msg) {
+      const ms = getNormalizedTimestampMs(msg);
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      return 'Just now';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getHallServerUrl() {
+      if (window.location.protocol.startsWith('http') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform())) {
+        return window.location.origin;
+      }
+      try {
+        const saved = localStorage.getItem('evw_server_url');
+        if (saved && saved.startsWith('http') && !saved.includes('http://localhost/') && saved !== 'http://localhost') {
+          return saved.replace(/\/$/, '');
+        }
+      } catch (_) {}
+      if (window.location.port === '8080') return window.location.origin;
+      return 'https://evacwar-koyeb.onrender.com';
+    }
+
+    function getMessageUniqueKey(m) {
+      if (!m) return '';
+      if (m.msgId) return String(m.msgId);
+      if (m.id) return String(m.id);
+      return `${m.senderName || ''}_${getNormalizedTimestampMs(m)}_${m.text || ''}`;
+    }
+
+    function renderMessageBubble(msg, autoScroll = true) {
+      if (!msg || !msg.text) return;
+      const msgKey = getMessageUniqueKey(msg);
+      
+      const existingEl = document.getElementById(`chat_msg_${msgKey}`);
+      if (existingEl) {
+        updateMessageStatusInDom(existingEl, msg);
+        return;
+      }
+      renderedMsgIds.add(msgKey);
+
+      const sRole = msg.senderRole || 'Resident';
+      let sName = msg.senderName || 'Resident';
+      if (sName.includes(' | !')) {
+        sName = sName.split(' | !')[0].trim();
+      }
+      const badgeText = `${sRole} | ${sName}`;
+
+      const isMine = (
+        String(sName).trim().toLowerCase() === String(currentName).trim().toLowerCase() &&
+        String(sRole).trim().toLowerCase() === String(currentRole).trim().toLowerCase()
+      );
+
+      const pillClass = getRoleBadgeStyle(sRole);
+      const timeStr = formatTimeLabel(msg);
+
+      // Determine transport badge: Sent via Wi-Fi vs Sent via LoRa
+      const isLora = Boolean(msg.transport === 'LORA_433MHZ' || msg.via === 'LORA' || msg.viaLoRa);
+      const transportLabel = isLora ? '433.875 MHz LoRa' : 'Wi-Fi / Internet';
+      const transportIcon = isLora ? 'ph-broadcast' : 'ph-wifi-high';
+
+      // Status indicator: sent / pending / failed
+      let statusHtml = '';
+      if (isMine) {
+        if (msg.status === 'failed') {
+          statusHtml = `<span class="text-rose-300 font-extrabold flex items-center gap-0.5"><i class="ph ph-warning-circle"></i> Not Sent (Tap to retry)</span>`;
+        } else if (msg.status === 'pending') {
+          statusHtml = `<span class="text-amber-200 font-semibold flex items-center gap-0.5"><i class="ph ph-clock"></i> Sending...</span>`;
+        } else {
+          statusHtml = `<span class="flex items-center gap-0.5"><i class="ph ${transportIcon}"></i> ${transportLabel}</span>`;
+        }
+      } else {
+        statusHtml = `<span class="flex items-center gap-0.5"><i class="ph ${transportIcon}"></i> ${transportLabel}</span>`;
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.id = `chat_msg_${msgKey}`;
+      wrapper.setAttribute('data-msg-key', msgKey);
+      wrapper.className = `chat-bubble-wrapper flex flex-col ${isMine ? 'items-end' : 'items-start'} animate-fade-in`;
+
+      wrapper.innerHTML = `
+        <div class="flex items-center gap-1.5 mb-1 px-1 max-w-[92%]">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-bold border ${pillClass} truncate shadow-2xs">
+            <span>${escapeHtml(badgeText)}</span>
+          </span>
+          <span class="text-[10px] sm:text-[11px] text-slate-400 font-medium shrink-0">${escapeHtml(timeStr)}</span>
+        </div>
+        <div class="max-w-[90%] sm:max-w-[80%] rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 text-[14.5px] sm:text-[15.5px] leading-relaxed shadow-xs ${
+          isMine
+            ? (msg.status === 'failed' ? 'bg-red-700 text-white rounded-tr-xs' : 'bg-blue-600 text-white rounded-tr-xs')
+            : 'bg-white text-slate-800 border border-slate-200/90 rounded-tl-xs'
+        }">
+          <div class="break-words font-normal tracking-normal">${escapeHtml(msg.text)}</div>
+          <div class="msg-status-bar mt-1.5 flex items-center justify-end gap-1 text-[10px] sm:text-[11px] ${isMine ? 'text-blue-200' : 'text-slate-400'}">
+            ${statusHtml}
+          </div>
+        </div>
+      `;
+
+      if (isMine && msg.status === 'failed') {
+        wrapper.style.cursor = 'pointer';
+        wrapper.title = 'Tap to retry sending';
+        wrapper.onclick = () => retryMessage(msg);
+      }
+
+      messagesListEl.appendChild(wrapper);
+      if (autoScroll) {
+        messagesListEl.scrollTop = messagesListEl.scrollHeight;
+      }
+    }
+
+    function updateMessageStatusInDom(el, msg) {
+      const statusBar = el.querySelector('.msg-status-bar');
+      if (!statusBar) return;
+      const isLora = Boolean(msg.transport === 'LORA_433MHZ' || msg.via === 'LORA' || msg.viaLoRa);
+      const transportLabel = isLora ? '433.875 MHz LoRa' : 'Wi-Fi / Internet';
+      const transportIcon = isLora ? 'ph-broadcast' : 'ph-wifi-high';
+
+      // Update bubble color if mine
+      const bubbleCard = el.querySelector('.max-w-\\[88\\%\\]') || el.children[1];
+      if (bubbleCard) {
+        if (msg.status === 'failed') {
+          bubbleCard.classList.remove('bg-blue-600');
+          bubbleCard.classList.add('bg-red-700');
+        } else {
+          bubbleCard.classList.remove('bg-red-700');
+          bubbleCard.classList.add('bg-blue-600');
+        }
+      }
+
+      if (msg.status === 'failed') {
+        statusBar.innerHTML = `<span class="text-rose-300 font-extrabold flex items-center gap-0.5 cursor-pointer"><i class="ph ph-warning-circle"></i> Not Sent (Tap to retry)</span>`;
+        el.style.cursor = 'pointer';
+        el.title = 'Tap to retry sending';
+        el.onclick = () => retryMessage(msg);
+      } else if (msg.status === 'pending') {
+        statusBar.innerHTML = `<span class="text-amber-200 font-semibold flex items-center gap-0.5"><i class="ph ph-clock"></i> Sending...</span>`;
+        el.style.cursor = '';
+        el.title = '';
+        el.onclick = null;
+      } else {
+        statusBar.innerHTML = `<span class="flex items-center gap-0.5"><i class="ph ${transportIcon}"></i> ${transportLabel}</span>`;
+        el.style.cursor = '';
+        el.title = '';
+        el.onclick = null;
+      }
+    }
+
+    function mergeAndRenderMessages(serverMessages, forceScrollToBottom = false) {
+      const isFromServer = Array.isArray(serverMessages) && serverMessages.length > 0;
+      const localMsgs = getLocalCachedMessages();
+      const mapById = new Map();
+
+      // 1. Process server messages first (Server is authoritative source of truth!)
+      const srvList = isFromServer ? serverMessages : [];
+      for (const sm of srvList) {
+        if (!sm || !sm.text) continue;
+        const key = getMessageUniqueKey(sm);
+        mapById.set(key, Object.assign({}, sm, { status: 'sent' }));
+      }
+
+      // 2. Merge local cached messages
+      // When server messages exist, DO NOT keep old stale unsequenced phantoms - ONLY keep actively pending messages!
+      const nowMs = Date.now();
+      for (const lm of localMsgs) {
+        if (!lm || !lm.text) continue;
+        const key = getMessageUniqueKey(lm);
+        if (mapById.has(key)) {
+          const srv = mapById.get(key);
+          mapById.set(key, Object.assign({}, lm, srv, { status: 'sent' }));
+        } else {
+          if (isFromServer) {
+            // When server responded, strictly keep ONLY pending messages that haven't been confirmed yet
+            if (lm.status === 'pending') {
+              mapById.set(key, lm);
+            }
+          } else {
+            // Offline mode (no server connection): preserve cached local messages
+            const age = nowMs - getNormalizedTimestampMs(lm);
+            if (age < 86400000 || lm.status === 'pending') {
+              mapById.set(key, lm);
+            }
+          }
+        }
+      }
+
+      // Build conversation insertion / arrival order map
+      const orderMap = new Map();
+      let orderCounter = 0;
+      for (const lm of localMsgs) {
+        if (!lm || !lm.text) continue;
+        const k = getMessageUniqueKey(lm);
+        if (!orderMap.has(k)) orderMap.set(k, orderCounter++);
+      }
+      for (const sm of srvList) {
+        if (!sm || !sm.text) continue;
+        const k = getMessageUniqueKey(sm);
+        if (!orderMap.has(k)) orderMap.set(k, orderCounter++);
+      }
+
+      allMessages = Array.from(mapById.values()).sort((a, b) => {
+        const keyA = getMessageUniqueKey(a);
+        const keyB = getMessageUniqueKey(b);
+        const hasSeqA = (typeof a.seq === 'number' && a.seq > 0);
+        const hasSeqB = (typeof b.seq === 'number' && b.seq > 0);
+
+        // Rule 1: If both messages have monotonic server sequence numbers, sort by sequence
+        if (hasSeqA && hasSeqB) {
+          return a.seq - b.seq;
+        }
+
+        // Rule 2: Strictly preserve conversation arrival / insertion order!
+        // Never sort by device clock timestamps (PC clock vs Mobile clock differences cause jumping).
+        // Never place seq before non-seq (offline LoRa messages do not have sequence numbers yet).
+        const ordA = orderMap.has(keyA) ? orderMap.get(keyA) : 999999;
+        const ordB = orderMap.has(keyB) ? orderMap.get(keyB) : 999999;
+        return ordA - ordB;
+      });
+
+      if (allMessages.length === 0) {
+        const initIso = new Date().toISOString();
+        allMessages = [{
+          id: 'INIT01',
+          msgId: 'INIT01',
+          seq: 1,
+          senderRole: 'Admin',
+          senderName: 'Monette Bisenio',
+          text: 'San Rafael 433.875 MHz LoRa Mesh Group Chat is online. Residents, Staff, and Rescuers can communicate here even without internet.',
+          timestamp: Date.now() - 60000,
+          created_at: initIso,
+          sent_at: initIso,
+          transport: 'LORA_433MHZ',
+          status: 'sent'
+        }];
+      }
+
+      saveLocalCachedMessages(allMessages);
+
+      // Check if message count or keys/order changed before resetting DOM
+      const currentKeys = allMessages.map(m => getMessageUniqueKey(m));
+      const renderedElements = Array.from(messagesListEl.querySelectorAll('.chat-bubble-wrapper'));
+      const renderedKeys = renderedElements.map(el => el.getAttribute('data-msg-key'));
+
+      let needsReorder = (currentKeys.length !== renderedKeys.length);
+      if (!needsReorder) {
+        for (let i = 0; i < currentKeys.length; i++) {
+          if (currentKeys[i] !== renderedKeys[i]) {
+            needsReorder = true;
+            break;
+          }
+        }
+      }
+
+      if (needsReorder) {
+        const wasAtBottom = (messagesListEl.scrollHeight - messagesListEl.scrollTop - messagesListEl.clientHeight) < 120;
+        messagesListEl.innerHTML = '';
+        renderedMsgIds.clear();
+        allMessages.forEach(m => renderMessageBubble(m, false));
+        if (forceScrollToBottom || wasAtBottom || renderedKeys.length === 0) {
+          messagesListEl.scrollTop = messagesListEl.scrollHeight;
+        }
+      } else {
+        allMessages.forEach(m => {
+          const k = getMessageUniqueKey(m);
+          const el = document.getElementById(`chat_msg_${k}`);
+          if (el) updateMessageStatusInDom(el, m);
+        });
+        if (forceScrollToBottom) {
+          messagesListEl.scrollTop = messagesListEl.scrollHeight;
+        }
+      }
+    }
+
+    async function fetchChatHistory() {
+      updateTransportUi();
+      const hallBase = getHallServerUrl();
+      const endpoints = ['/api/lora/chat'];
+      if (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase) {
+        endpoints.unshift(`${hallBase}/api/lora/chat`);
+      }
+
+      for (const ep of endpoints) {
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 6000);
+          const res = await fetch(ep, { signal: ctrl.signal });
+          clearTimeout(tid);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+              mergeAndRenderMessages(data.messages, (renderedMsgIds.size === 0));
+              return;
+            }
+          }
+        } catch (_e) {}
+      }
+      mergeAndRenderMessages(null, false);
+    }
+
+    function handleSendMessage(rawText, existingMsgId = null) {
+      const cleanText = String(rawText || '').trim();
+      if (!cleanText) return;
+
+      resolveActiveIdentity();
+      const lora = window.evakwarLoraClient;
+      const isNativeBle = Boolean(typeof window !== 'undefined' && window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
+      const isLoraConnected = isNativeBle || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
+      const isOnline = Boolean(navigator.onLine);
+      const isLocalhost = Boolean(
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '0.0.0.0'
+      );
+      const isAdminRole = Boolean(SERVER_ROLE === 'Admin');
+      const isGatewayActive = Boolean(window._adminGatewayConnected);
+      const canLoRa = isLoraConnected || (isAdminRole && (isGatewayActive || isLocalhost));
+
+      // 1. Strict User Requirement:
+      // - Online on Wi-Fi -> Transport is WIFI ("Wi-Fi / Internet")
+      // - Offline with LoRa -> Transport is LORA_433MHZ ("433.875 MHz LoRa")
+      // - Offline without LoRa -> Message is NOT SENT (Red "Not Sent", failed status)
+      let initialTransport = 'WIFI';
+      let willSendOverLoRa = false;
+      let willSendOverWifi = false;
+
+      if (isOnline) {
+        initialTransport = 'WIFI';
+        willSendOverWifi = true;
+      } else if (canLoRa) {
+        initialTransport = 'LORA_433MHZ';
+        willSendOverLoRa = true;
+      } else {
+        initialTransport = 'OFFLINE';
+      }
+
+      const msgId = existingMsgId || (String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 90 + 10)));
+      const nowMs = Date.now();
+      const nowIso = new Date(nowMs).toISOString();
+
+      const newMsg = {
+        id: msgId,
+        msgId: msgId,
+        seq: null,
+        senderRole: currentRole,
+        senderName: currentName,
+        text: cleanText,
+        message: cleanText,
+        timestamp: nowMs,
+        sent_at: nowIso,
+        created_at: nowIso,
+        transport: initialTransport,
+        status: (initialTransport === 'OFFLINE') ? 'failed' : 'pending'
+      };
+
+      // Instant optimistic rendering in 0ms
+      renderMessageBubble(newMsg, true);
+      if (messagesListEl) messagesListEl.scrollTop = messagesListEl.scrollHeight;
+      const cached = getLocalCachedMessages();
+      const existingIdx = cached.findIndex(m => getMessageUniqueKey(m) === msgId);
+      if (existingIdx >= 0) cached[existingIdx] = newMsg;
+      else cached.push(newMsg);
+      saveLocalCachedMessages(cached);
+
+      // Register self-sent ID immediately so sender is never self-notified
+      if (window.AndroidBleBridge && typeof window.AndroidBleBridge.markMessageSentBySelf === 'function') {
+        try { window.AndroidBleBridge.markMessageSentBySelf(msgId); } catch (_) {}
+      }
+
+      // Offline without LoRa -> Fail immediately with red status and toast
+      if (initialTransport === 'OFFLINE') {
+        newMsg.status = 'failed';
+        newMsg.transport = 'OFFLINE';
+        const el = document.getElementById(`chat_msg_${msgId}`);
+        if (el) updateMessageStatusInDom(el, newMsg);
+        saveLocalCachedMessages(cached);
+        if (typeof window.EvacWarToast === 'function') {
+          window.EvacWarToast('Message not sent. You are offline without LoRa connection.', 'warning');
+        }
+        return;
+      }
+
+      const tasks = [];
+
+      // A. 433.875 MHz RF LoRa Transmission (Direct radio mesh)
+      // Broadcast over radio whenever LoRa is connected (as primary offline OR mesh redundancy)
+      if (willSendOverLoRa || (isLoraConnected && !isAdminRole)) {
+        if (lora && typeof lora.sendChatMessage === 'function') {
+          tasks.push(
+            lora.sendChatMessage({
+              msgId: msgId,
+              senderRole: currentRole,
+              senderName: currentName,
+              text: cleanText
+            }).then(() => {
+              if (willSendOverLoRa) {
+                newMsg.transport = 'LORA_433MHZ';
+                newMsg.status = 'sent';
+              }
+            }).catch(rfErr => {
+              console.warn('[LoRaChat] RF transmit note:', rfErr.message);
+            })
+          );
+        } else if (isNativeBle && typeof window.AndroidBleBridge.writeHex === 'function') {
+          try {
+            const senderNodeId = (window.loraMesh && typeof window.loraMesh.getResolvedNodeId === 'function')
+              ? window.loraMesh.getResolvedNodeId(currentRole)
+              : ((currentRole.toLowerCase().includes('admin')) ? '!d88b1a58' : '');
+            const rawPacket = `EVW|MSG|${msgId}|${currentRole}|${currentName}|${senderNodeId}|${Math.floor(Date.now() / 1000)}|${cleanText}`;
+            if (typeof encodeMeshtasticTextToRadio === 'function') {
+              const protoBytes = encodeMeshtasticTextToRadio(rawPacket);
+              window.AndroidBleBridge.writeHex(bytesToHex(protoBytes));
+            }
+            if (willSendOverLoRa) {
+              newMsg.transport = 'LORA_433MHZ';
+              newMsg.status = 'sent';
+            }
+          } catch (_e) {}
+        }
+      }
+
+      // If we are strictly in offline LoRa mode, mark sent immediately
+      if (willSendOverLoRa) {
+        newMsg.transport = 'LORA_433MHZ';
+        newMsg.status = 'sent';
+      }
+
+      // B. Wi-Fi / Local Server POST (Works over Wi-Fi network OR on localhost Admin Gateway)
+      if (willSendOverWifi || (isAdminRole && isLocalhost)) {
+        const hallBase = getHallServerUrl();
+        const primaryUrl = (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase)
+          ? `${hallBase}/api/lora/chat`
+          : '/api/lora/chat';
+
+        const isOfflineLoraAdmin = Boolean(isAdminRole && !isOnline);
+        const doSend = (url) => {
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              msgId: msgId,
+              senderRole: currentRole,
+              senderName: currentName,
+              text: cleanText,
+              viaLoRa: Boolean(willSendOverLoRa || isOfflineLoraAdmin),
+              isOfflineLora: Boolean(willSendOverLoRa || isOfflineLoraAdmin)
+            })
+          });
+        };
+
+        tasks.push(
+          doSend(primaryUrl)
+            .catch(err => {
+              if (isAdminRole || isLocalhost) {
+                return doSend('http://127.0.0.1:8080/api/lora/chat');
+              }
+              throw err;
+            })
+            .then(async res => {
+              if (res.ok) {
+                const resData = await res.json().catch(() => null);
+                if (resData && resData.chatMessage) {
+                  const srv = resData.chatMessage;
+                  newMsg.seq = srv.seq || newMsg.seq;
+                  newMsg.timestamp = srv.timestamp || newMsg.timestamp;
+                  newMsg.created_at = srv.created_at || newMsg.created_at;
+                  newMsg.sent_at = srv.sent_at || newMsg.sent_at;
+                  newMsg.transport = (srv.transport === 'LORA_433MHZ' || willSendOverLoRa || isOfflineLoraAdmin) ? 'LORA_433MHZ' : 'WIFI';
+                  newMsg.status = 'sent';
+                } else {
+                  newMsg.transport = (willSendOverLoRa || isOfflineLoraAdmin) ? 'LORA_433MHZ' : 'WIFI';
+                  newMsg.status = 'sent';
+                }
+              } else {
+                throw new Error('Server returned HTTP ' + res.status);
+              }
+            })
+            .catch(postErr => {
+              console.warn('[LoRaChat] Wi-Fi server unreachable:', postErr.message);
+              // AUTOMATIC HYBRID LORA FALLBACK:
+              // If Wi-Fi server could not be reached, but LoRa hardware is connected:
+              if (isLoraConnected) {
+                // Ensure message is transmitted over LoRa radio RF
+                if (!willSendOverLoRa && isNativeBle && typeof window.AndroidBleBridge.writeHex === 'function') {
+                  try {
+                    const senderNodeId = (window.loraMesh && typeof window.loraMesh.getResolvedNodeId === 'function')
+                      ? window.loraMesh.getResolvedNodeId(currentRole)
+                      : ((currentRole.toLowerCase().includes('admin')) ? '!d88b1a58' : '');
+                    const rawPacket = `EVW|MSG|${msgId}|${currentRole}|${currentName}|${senderNodeId}|${Math.floor(Date.now() / 1000)}|${cleanText}`;
+                    if (typeof encodeMeshtasticTextToRadio === 'function') {
+                      const protoBytes = encodeMeshtasticTextToRadio(rawPacket);
+                      window.AndroidBleBridge.writeHex(bytesToHex(protoBytes));
+                    }
+                  } catch (_e) {}
+                }
+                newMsg.transport = 'LORA_433MHZ';
+                newMsg.status = 'sent';
+                if (typeof window.EvacWarToast === 'function') {
+                  window.EvacWarToast('Wi-Fi gateway unreachable. Sent over 433.875 MHz LoRa Mesh.', 'info');
+                }
+              } else if (!willSendOverLoRa) {
+                newMsg.transport = 'OFFLINE';
+                newMsg.status = 'failed';
+                if (typeof window.EvacWarToast === 'function') {
+                  window.EvacWarToast('Could not reach EvakWar Gateway. Connect to LoRa or check Wi-Fi.', 'warning');
+                }
+              }
+            })
+        );
+
+        // Direct Socket emit for real-time LAN speed
+        try {
+          const socket = window.__appSocket || window.evakwarAlertSocket || (typeof io !== 'undefined' ? io() : null);
+          if (socket && socket.connected) {
+            socket.emit('lora:chat:outbound', newMsg);
+          }
+        } catch (_) {}
+      }
+
+      Promise.allSettled(tasks).then(() => {
+        const el = document.getElementById(`chat_msg_${msgId}`);
+        if (el) updateMessageStatusInDom(el, newMsg);
+        const idx = cached.findIndex(m => getMessageUniqueKey(m) === msgId);
+        if (idx >= 0) cached[idx] = newMsg;
+        saveLocalCachedMessages(cached);
+      });
+    }
+
+    function retryMessage(msg) {
+      if (!msg) return;
+      msg.status = 'pending';
+      renderMessageBubble(msg, false);
+      handleSendMessage(msg.text, msg.msgId || msg.id);
+    }
+
+    function submitCurrentMessage() {
+      if (!chatInputEl) return;
+      const val = chatInputEl.value;
+      if (!val || !val.trim()) return;
+      chatInputEl.value = '';
+      handleSendMessage(val);
+    }
+
+    if (chatFormEl) {
+      chatFormEl.addEventListener('submit', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        submitCurrentMessage();
+      });
+    }
+
+    const sendBtnEl = document.getElementById('loraChatSendBtn');
+    if (sendBtnEl) {
+      sendBtnEl.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        submitCurrentMessage();
+      });
+      sendBtnEl.addEventListener('touchend', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        submitCurrentMessage();
+      });
+    }
+
+    if (chatInputEl) {
+      chatInputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          submitCurrentMessage();
+        }
+      });
+    }
+
+    document.querySelectorAll('.lora-quick-chip').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const preset = this.getAttribute('data-quick-msg');
+        if (preset) {
+          handleSendMessage(preset);
+        }
+      });
+    });
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function () {
+        fetchChatHistory();
+      });
+    }
+
+    // Listen for inbound 433.875 MHz LoRa chat packets
+    window.addEventListener('evakwar:lora-chat', function (ev) {
+      if (ev && ev.detail) {
+        const loraMsg = ev.detail;
+        const cached = getLocalCachedMessages();
+        const key = getMessageUniqueKey(loraMsg);
+        const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
+        if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], loraMsg, { status: 'sent' });
+        else cached.push(Object.assign({}, loraMsg, { status: 'sent' }));
+        saveLocalCachedMessages(cached);
+        mergeAndRenderMessages(null, false);
+      }
+    });
+
+    // Listen for Socket.IO real-time chat broadcasts
+    function bindChatSocket() {
+      const socket = window.__appSocket || window.evakwarAlertSocket || (typeof io !== 'undefined' ? io() : null);
+      if (socket) {
+        socket.on('lora:chat', function (msg) {
+          if (msg) {
+            const cached = getLocalCachedMessages();
+            const key = getMessageUniqueKey(msg);
+            const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
+            if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], msg, { status: 'sent' });
+            else cached.push(Object.assign({}, msg, { status: 'sent' }));
+            saveLocalCachedMessages(cached);
+            mergeAndRenderMessages(null, false);
+          }
+        });
+      }
+    }
+        // Clear unread red dot on bottom nav when entering chat
+    try {
+      localStorage.removeItem('evw_chat_has_unread');
+      if (window.AndroidBleBridge && typeof window.AndroidBleBridge.clearUnreadChat === 'function') {
+        try { window.AndroidBleBridge.clearUnreadChat(); } catch (_) {}
+      }
+      document.querySelectorAll('.chat-nav-red-dot').forEach(d => d.classList.add('hidden'));
+    } catch (_) {}
+
+    // Tell Android BLE bridge chat is open in foreground (suppresses noisy notification banners)
+    if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setChatOpen === 'function') {
+      try { window.AndroidBleBridge.setChatOpen(true); } catch (_) {}
+    }
+    window.addEventListener('beforeunload', function () {
+      if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setChatOpen === 'function') {
+        try { window.AndroidBleBridge.setChatOpen(false); } catch (_) {}
+      }
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setChatOpen === 'function') {
+        try { window.AndroidBleBridge.setChatOpen(document.visibilityState === 'visible'); } catch (_) {}
+      }
+    });
+bindChatSocket();
+    setTimeout(bindChatSocket, 600);
+
+    // Update status when LoRa hardware connects/disconnects
+    if (window.evakwarLoraClient && typeof window.evakwarLoraClient.on === 'function') {
+      window.evakwarLoraClient.on('status', updateTransportUi);
+    }
+    window.addEventListener('online', updateTransportUi);
+    window.addEventListener('offline', updateTransportUi);
+
+    fetchChatHistory();
+    // Poll chat history every 4 seconds when online
+    setInterval(() => {
+      if (navigator.onLine) fetchChatHistory();
+    }, 4000);
+  })();
+</script>

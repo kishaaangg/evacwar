@@ -1,0 +1,449 @@
+<%#
+  DOST-PAGASA Facebook Component
+  Dual-Mode Architecture:
+    1. [Tab 1] Official Live Facebook Feed (Real-Time Meta Page Plugin iframe - 100% genuine posts from facebook.com/PAGASA.DOST.GOV.PH)
+    2. [Tab 2] 1-Click LoRa Mesh Emergency Alerts (Tactical bulletins with 433 MHz LoRa mesh broadcast dispatcher)
+  Props:
+    - feed: locals.pagasaFeed || null
+    - showLoRaBroadcast: boolean (default: false for residents, true for admin/staff)
+    - maxPosts: number (default: 10)
+    - compactMode: boolean (default: false)
+%>
+
+<%
+  const pFeed = locals.pagasaFeed || { posts: [], activeStorm: null, source: 'OFFLINE_CACHE' };
+  const posts = (pFeed && Array.isArray(pFeed.posts)) ? pFeed.posts : [];
+  const activeStorm = pFeed.activeStorm || null;
+  const isStaffOrAdmin = (typeof showLoRaBroadcast !== 'undefined') ? showLoRaBroadcast : (locals.user && (locals.user.role === 'admin' || locals.user.role === 'staff'));
+  const isCompact = (typeof compactMode !== 'undefined') ? compactMode : false;
+  const sourceLabel = pFeed.source === 'META_GRAPH_API' ? 'Live Meta Graph API' : (pFeed.source === 'PAGASA_OFFICIAL_WEB' ? 'DOST-PAGASA Official' : 'Verified Advisory Cache');
+  const sourceColor = pFeed.source === 'META_GRAPH_API' ? 'emerald' : 'blue';
+%>
+
+<div class="pagasa-fb-container bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden" id="pagasaFeedComponent">
+  
+  <!-- 1. COMPONENT HEADER: DOST-PAGASA IDENTITY & ACTIONS -->
+  <div class="p-3.5 sm:p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-950"
+       style="background: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e1b4b 100%) !important; color: #ffffff !important;">
+    <div class="flex items-center gap-3">
+      <!-- Official Facebook Page Avatar -->
+      <div class="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white p-1 shadow-md shrink-0 flex items-center justify-center overflow-hidden border-2 border-blue-400/50">
+        <img src="/icons/pagasa-logo.svg" onerror="this.src='/icons/pagasa-logo.png'" alt="DOST-PAGASA Logo" class="w-full h-full object-contain" />
+        <span class="absolute -bottom-1 -right-1 w-4 h-4 bg-[#1877F2] rounded-full border-2 border-white flex items-center justify-center text-[9px] text-white shadow-xs" title="Official Facebook Page">
+          <i class="ph ph-facebook-logo"></i>
+        </span>
+      </div>
+
+      <!-- Page Name, Verified Badge & Handle -->
+      <div class="min-w-0">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <h3 class="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-1">
+            DOST-PAGASA
+            <svg class="w-4 h-4 text-blue-400 fill-current inline-block" viewBox="0 0 24 24" title="Verified Government Organization">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+          </h3>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-200 border border-blue-400/30">
+            @PAGASA.DOST.GOV.PH
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-300 flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="font-semibold text-slate-200">Official Facebook Stream</span>
+          <span class="text-slate-400">•</span>
+          <span class="text-slate-300 text-[10px]">Republic of the Philippines</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Header Actions: Refresh & Facebook Link -->
+    <div class="flex items-center gap-2 self-start sm:self-auto shrink-0">
+      <button type="button" onclick="reloadFacebookEmbed()" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs font-bold transition-all border border-white/15 flex items-center gap-1.5 cursor-pointer" title="Reload Facebook timeline embed">
+        <i class="ph ph-arrows-clockwise text-sm" id="pagasaSyncIcon"></i>
+        <span class="hidden sm:inline">Reload Feed</span>
+      </button>
+
+      <a href="https://www.facebook.com/PAGASA.DOST.GOV.PH" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-95 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+        <i class="ph ph-facebook-logo text-sm"></i>
+        <span>Open on Facebook</span>
+        <i class="ph ph-arrow-up-right text-[10px] opacity-75"></i>
+      </a>
+    </div>
+  </div>
+
+  <!-- 2. MODE SELECTOR TABS: LIVE FACEBOOK EMBED vs 1-CLICK LORA DISPATCHER -->
+  <div class="px-3 sm:px-5 py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+    <div class="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl" role="tablist">
+      <button type="button" onclick="switchPagasaTab('live-feed')" id="tabBtn-live" class="pagasa-view-tab px-3.5 py-1.5 rounded-lg text-xs font-black transition-all bg-white text-blue-900 shadow-xs flex items-center gap-1.5 cursor-pointer">
+        <i class="ph ph-facebook-logo text-blue-600"></i>
+        <span>🌐 Official Live Facebook Feed</span>
+      </button>
+
+      <button type="button" onclick="switchPagasaTab('lora-dispatch')" id="tabBtn-dispatch" class="pagasa-view-tab px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer">
+        <i class="ph ph-broadcast text-orange-600"></i>
+        <span>📡 1-Click LoRa Mesh Emergency Alerts (<%= posts.length %>)</span>
+      </button>
+    </div>
+
+    <div class="text-[11px] text-slate-500 font-medium hidden md:flex items-center gap-1">
+      <i class="ph ph-shield-check text-emerald-600"></i>
+      <span>Official Atmospheric & Disaster Telemetry</span>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB VIEW 1: OFFICIAL LIVE FACEBOOK PAGE TIMELINE EMBED (DEFAULT)          -->
+  <!-- ========================================================================= -->
+  <div id="pagasaView-live" class="pagasa-view-section block">
+    <div class="p-3 sm:p-4 bg-blue-50/70 border-b border-blue-100 text-xs text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
+        <span class="font-bold">Real-time Timeline:</span>
+        <span class="text-slate-700">Displaying live public announcements, radar imagery, and warnings straight from DOST-PAGASA.</span>
+      </div>
+      <a href="https://www.facebook.com/PAGASA.DOST.GOV.PH" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-black inline-flex items-center gap-1 shrink-0">
+        <span>facebook.com/PAGASA.DOST.GOV.PH</span>
+        <i class="ph ph-arrow-up-right"></i>
+      </a>
+    </div>
+
+    <!-- Official Meta Page Plugin Container -->
+    <div class="p-3 sm:p-6 bg-slate-50/60 flex flex-col items-center justify-center min-h-[500px]">
+      <div class="w-full max-w-[540px] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col items-center p-1 sm:p-2">
+        <iframe 
+          id="pagasaFbPagePlugin"
+          src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2FPAGASA.DOST.GOV.PH&tabs=timeline&width=500&height=800&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=false&appId=1895847158064201" 
+          width="500" 
+          height="800" 
+          style="border:none;overflow:hidden;max-width:100%;min-height:760px;border-radius:12px;" 
+          scrolling="yes" 
+          frameborder="0" 
+          allowfullscreen="true" 
+          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share">
+        </iframe>
+      </div>
+
+      <div class="mt-4 max-w-lg text-center text-slate-500 text-xs space-y-1">
+        <p class="font-semibold text-slate-600">
+          <i class="ph ph-info text-blue-600 inline mr-1"></i>
+          Timeline rendered live directly by Meta / Facebook servers for <strong>@PAGASA.DOST.GOV.PH</strong>
+        </p>
+        <p class="text-[11px] text-slate-400">
+          Includes all genuine high-res weather maps, satellite tracks, press briefings, and live comments.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB VIEW 2: 1-CLICK LORA MESH EMERGENCY ALERTS DISPATCHER                 -->
+  <!-- ========================================================================= -->
+  <div id="pagasaView-dispatch" class="pagasa-view-section hidden">
+    
+    <!-- Active Tropical Cyclone Highlight Banner -->
+    <% if (activeStorm && activeStorm.name) { %>
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-rose-50 via-red-50 to-orange-50 border-b border-rose-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center text-xl shrink-0 shadow-sm animate-pulse">
+            <i class="ph ph-spiral"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider">
+                <%= activeStorm.type || 'TYPHOON' %> #<%= activeStorm.name %>
+              </span>
+              <% if (activeStorm.signal) { %>
+                <span class="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-black">
+                  TCWS NO. <%= activeStorm.signal %>
+                </span>
+              <% } %>
+              <% if (activeStorm.localSignal) { %>
+                <span class="px-2.5 py-0.5 rounded-md bg-red-700 text-white text-[10px] font-black tracking-wide border border-red-800 shadow-2xs">
+                  ⚠️ BAAO / CAMARINES SUR: SIGNAL #<%= activeStorm.localSignal %>
+                </span>
+              <% } %>
+            </div>
+            <p class="text-xs text-rose-950 font-bold mt-1 line-clamp-1 sm:line-clamp-none">
+              <%= activeStorm.headline || 'Severe weather bulletin in effect. Residents in low-lying zones must be on alert.' %>
+            </p>
+          </div>
+        </div>
+
+        <% if (isStaffOrAdmin) { %>
+          <!-- 1-Click LoRa Broadcast Quick Trigger for Active Cyclone -->
+          <button type="button" onclick="broadcastStormToLora('<%= activeStorm.name %>', '<%= activeStorm.signal || activeStorm.localSignal || 2 %>', '<%= activeStorm.severity || 'RED' %>')" class="px-3.5 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-black shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-1.5 shrink-0 cursor-pointer">
+            <i class="ph ph-broadcast text-base"></i>
+            <span>1-Click 433 MHz LoRa Broadcast</span>
+          </button>
+        <% } %>
+      </div>
+    <% } %>
+
+    <!-- Filter Pills for Bulletins -->
+    <div class="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto text-xs font-bold text-slate-600">
+      <button type="button" onclick="filterPagasaCards('all', this)" class="pagasa-filter-btn px-3 py-1.5 rounded-lg bg-blue-900 text-white shadow-xs">
+        All Advisories (<span id="countAll"><%= posts.length %></span>)
+      </button>
+      <button type="button" onclick="filterPagasaCards('TROPICAL_CYCLONE', this)" class="pagasa-filter-btn px-3 py-1.5 rounded-lg bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors">
+        🌀 Tropical Cyclones
+      </button>
+      <button type="button" onclick="filterPagasaCards('HEAVY_RAINFALL', this)" class="pagasa-filter-btn px-3 py-1.5 rounded-lg bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors">
+        🌧️ Rainfall Warnings
+      </button>
+      <button type="button" onclick="filterPagasaCards('LOCAL_IMPACT', this)" class="pagasa-filter-btn px-3 py-1.5 rounded-lg bg-white hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors">
+        📍 Baao / CamSur Only
+      </button>
+    </div>
+
+    <!-- Structured Tactical Bulletin Cards -->
+    <div class="divide-y divide-slate-100 max-h-[700px] overflow-y-auto" id="pagasaPostsList">
+      <% if (posts && posts.length > 0) { %>
+        <% posts.forEach((p, idx) => { %>
+          <%
+            const isHighSeverity = (p.severity === 'RED' || p.severity === 'ORANGE');
+            const borderClass = p.severity === 'RED' ? 'border-l-4 border-l-rose-500' : (p.severity === 'ORANGE' ? 'border-l-4 border-l-orange-500' : (p.severity === 'YELLOW' ? 'border-l-4 border-l-amber-400' : ''));
+          %>
+          <article class="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors pagasa-card <%= borderClass %>" data-type="<%= p.bulletin_type %>" data-local="<%= p.is_local_impact ? 'true' : 'false' %>">
+            
+            <!-- Author & Category Badges -->
+            <div class="flex items-start justify-between gap-3 mb-2.5">
+              <div class="flex items-center gap-2.5">
+                <img src="/icons/pagasa-logo.svg" onerror="this.src='/icons/pagasa-logo.png'" alt="DOST-PAGASA" class="w-8 h-8 rounded-full border border-slate-200 p-0.5 object-contain shrink-0 bg-white" />
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs sm:text-sm font-black text-slate-900 leading-tight">DOST-PAGASA</span>
+                    <i class="ph ph-seal-check text-blue-600 text-sm"></i>
+                    <span class="text-[10px] text-slate-500 font-medium">Disaster Bulletin</span>
+                  </div>
+                  <div class="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                    <i class="ph ph-clock text-slate-400"></i>
+                    <time datetime="<%= p.created_time %>"><%= p.formatted_time || p.time_ago %></time>
+                    <span class="text-slate-300">•</span>
+                    <i class="ph ph-broadcast text-slate-400" title="LoRa Ready"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Severity & Category Badges -->
+              <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                <% if (p.tcws_level > 0) { %>
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black <%= p.tcws_level >= 3 ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-900 border border-amber-300' %>">
+                    TCWS #<%= p.tcws_level %>
+                  </span>
+                <% } %>
+                <% if (p.is_local_impact) { %>
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                    📍 Camarines Sur Impact
+                  </span>
+                <% } %>
+              </div>
+            </div>
+
+            <!-- Local Baao Impact Callout Box -->
+            <% if (p.local_summary) { %>
+              <div class="mb-3 p-3 rounded-xl bg-amber-50/90 border border-amber-200/80 text-xs text-amber-950 font-medium flex items-start gap-2.5 shadow-2xs">
+                <i class="ph ph-warning text-amber-600 text-lg shrink-0 mt-0.5"></i>
+                <div class="min-w-0">
+                  <span class="text-[11px] font-black uppercase text-amber-900 tracking-wider block mb-0.5">
+                    Local Baao & Lake Bato Basin Notice:
+                  </span>
+                  <p class="leading-relaxed"><%= p.local_summary %></p>
+                </div>
+              </div>
+            <% } %>
+
+            <!-- Post Content Text (with Read More expander) -->
+            <div class="text-xs sm:text-sm text-slate-800 font-normal leading-relaxed whitespace-pre-line mb-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+              <div class="pagasa-text-truncated" id="postText_<%= idx %>">
+                <%= p.message %>
+              </div>
+              <% if (p.message && p.message.length > 280) { %>
+                <button type="button" onclick="togglePostText('<%= idx %>')" id="btnPostText_<%= idx %>" class="text-xs font-bold text-blue-600 hover:text-blue-800 mt-2 inline-flex items-center gap-1 cursor-pointer">
+                  <span>See more</span>
+                  <i class="ph ph-caret-down"></i>
+                </button>
+              <% } %>
+            </div>
+
+            <!-- Footer Actions Row: Facebook Link & 1-Click LoRa Dispatch -->
+            <div class="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <div class="text-slate-500 font-semibold text-[11px] flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono text-[10px]">
+                  ID: <%= p.id.slice(-8) %>
+                </span>
+                <span>Type: <%= p.bulletin_type %></span>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex items-center gap-2 flex-wrap">
+                <% if (isStaffOrAdmin) { %>
+                  <!-- 1-CLICK DISPATCH TO 433 MHz LORA MESH -->
+                  <button type="button" onclick="dispatchPostToLoraMesh('<%= p.id %>', '<%= p.severity %>', '<%= (p.local_summary || p.message.slice(0, 95)).replace(/'/g, "\\'") %>')" class="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 active:scale-95 text-white text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer" title="Transmit this official advisory via 433.875 MHz LoRa Mesh">
+                    <i class="ph ph-broadcast text-sm"></i>
+                    <span>Broadcast via LoRa</span>
+                  </button>
+                <% } %>
+
+                <!-- Original Facebook Link -->
+                <a href="<%= p.permalink_url || 'https://www.facebook.com/PAGASA.DOST.GOV.PH' %>" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors">
+                  <i class="ph ph-facebook-logo text-blue-600"></i>
+                  <span>View on Facebook</span>
+                  <i class="ph ph-arrow-up-right text-[10px]"></i>
+                </a>
+              </div>
+            </div>
+
+          </article>
+        <% }) %>
+      <% } else { %>
+        <div class="p-8 text-center text-slate-500 space-y-2">
+          <i class="ph ph-cloud-rain text-4xl text-slate-400"></i>
+          <h4 class="font-bold text-sm text-slate-700">No active severe storm bulletins</h4>
+          <p class="text-xs text-slate-500 max-w-sm mx-auto">DOST-PAGASA has not hoisted any severe storm warnings for the region at this time.</p>
+        </div>
+      <% } %>
+    </div>
+
+  </div>
+
+</div>
+
+<style>
+  .pagasa-text-truncated {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pagasa-text-expanded {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+  }
+</style>
+
+<script>
+  // Tab Switcher between Live Facebook Embed and LoRa Mesh Dispatcher
+  function switchPagasaTab(tabKey) {
+    const liveSection = document.getElementById('pagasaView-live');
+    const dispatchSection = document.getElementById('pagasaView-dispatch');
+    const liveBtn = document.getElementById('tabBtn-live');
+    const dispatchBtn = document.getElementById('tabBtn-dispatch');
+
+    if (tabKey === 'live-feed') {
+      if (liveSection) liveSection.classList.remove('hidden');
+      if (dispatchSection) dispatchSection.classList.add('hidden');
+
+      if (liveBtn) {
+        liveBtn.classList.remove('text-slate-600', 'hover:text-slate-900');
+        liveBtn.classList.add('bg-white', 'text-blue-900', 'shadow-xs', 'font-black');
+      }
+      if (dispatchBtn) {
+        dispatchBtn.classList.remove('bg-white', 'text-blue-900', 'shadow-xs', 'font-black');
+        dispatchBtn.classList.add('text-slate-600', 'hover:text-slate-900', 'font-bold');
+      }
+    } else {
+      if (liveSection) liveSection.classList.add('hidden');
+      if (dispatchSection) dispatchSection.classList.remove('hidden');
+
+      if (dispatchBtn) {
+        dispatchBtn.classList.remove('text-slate-600', 'hover:text-slate-900');
+        dispatchBtn.classList.add('bg-white', 'text-blue-900', 'shadow-xs', 'font-black');
+      }
+      if (liveBtn) {
+        liveBtn.classList.remove('bg-white', 'text-blue-900', 'shadow-xs', 'font-black');
+        liveBtn.classList.add('text-slate-600', 'hover:text-slate-900', 'font-bold');
+      }
+    }
+  }
+
+  // Reload the Facebook iframe embed
+  function reloadFacebookEmbed() {
+    const icon = document.getElementById('pagasaSyncIcon');
+    if (icon) icon.classList.add('animate-spin');
+
+    const iframe = document.getElementById('pagasaFbPagePlugin');
+    if (iframe) {
+      const currentSrc = iframe.src;
+      iframe.src = '';
+      setTimeout(() => {
+        iframe.src = currentSrc;
+        if (icon) icon.classList.remove('animate-spin');
+      }, 300);
+    } else {
+      if (icon) icon.classList.remove('animate-spin');
+    }
+  }
+
+  // Filter cards by category
+  function filterPagasaCards(category, btn) {
+    document.querySelectorAll('.pagasa-filter-btn').forEach(b => {
+      b.classList.remove('bg-blue-900', 'text-white', 'shadow-xs');
+      b.classList.add('bg-white', 'text-slate-700', 'border', 'border-slate-200');
+    });
+    btn.classList.remove('bg-white', 'text-slate-700', 'border', 'border-slate-200');
+    btn.classList.add('bg-blue-900', 'text-white', 'shadow-xs');
+
+    const cards = document.querySelectorAll('.pagasa-card');
+    cards.forEach(card => {
+      const type = card.dataset.type;
+      const isLocal = card.dataset.local === 'true';
+      if (category === 'all') {
+        card.style.display = 'block';
+      } else if (category === 'LOCAL_IMPACT') {
+        card.style.display = isLocal ? 'block' : 'none';
+      } else {
+        card.style.display = (type === category) ? 'block' : 'none';
+      }
+    });
+  }
+
+  // Toggle see more / see less
+  function togglePostText(idx) {
+    const el = document.getElementById('postText_' + idx);
+    const btn = document.getElementById('btnPostText_' + idx);
+    if (!el || !btn) return;
+    if (el.classList.contains('pagasa-text-truncated')) {
+      el.classList.remove('pagasa-text-truncated');
+      el.classList.add('pagasa-text-expanded');
+      btn.innerHTML = '<span>See less</span> <i class="ph ph-caret-up"></i>';
+    } else {
+      el.classList.remove('pagasa-text-expanded');
+      el.classList.add('pagasa-text-truncated');
+      btn.innerHTML = '<span>See more</span> <i class="ph ph-caret-down"></i>';
+    }
+  }
+
+  // 1-Click LoRa Mesh Broadcast from any Post
+  async function dispatchPostToLoraMesh(postId, severity, summaryText) {
+    const confirmMsg = `Dispatched Official DOST-PAGASA Bulletin to 433.875 MHz LoRa Mesh?\n\nAlert Level: ${severity || 'ORANGE'}\nTarget: ALL RESIDENTS & HARDWARE MESH NODES\n\nThis will trigger sirens and mobile off-grid push alerts.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch('/api/pagasa/broadcast-lora', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postId: postId,
+          severity: severity || 'ORANGE',
+          barangay: 'ALL',
+          customMessage: summaryText
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ [433.875 MHz LoRa Mesh Dispatched!]\n\nPacket: ${data.loraPacket}\nAlert ID: ${data.alertId}\nStatus: Transmitted via LoRa Gateway to All Mesh Nodes!`);
+      } else {
+        alert('Failed to dispatch LoRa alert: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Network or gateway error: ' + err.message);
+    }
+  }
+
+  // Quick Storm Broadcast Trigger
+  function broadcastStormToLora(stormName, signal, severity) {
+    const summary = `TYPHOON ${stormName} (TCWS #${signal}) approaching. Mandatory safety & evacuation precautions in effect for Baao.`;
+    dispatchPostToLoraMesh('active_storm', severity || 'RED', summary);
+  }
+</script>

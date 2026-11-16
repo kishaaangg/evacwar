@@ -1,0 +1,11 @@
+<%- include('../partials/header') %>
+
+<div class="app-main-layout">
+  <%- include('../partials/sidebar') %>
+  <main class="app-content flex flex-col !px-0 !pt-0 pb-28 lg:pb-12 relative overflow-x-hidden bg-slate-50 min-h-screen">
+    <%- body %>
+    <%- include('../partials/footer-visible') %>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

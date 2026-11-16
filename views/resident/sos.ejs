@@ -1,0 +1,1130 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-40 lg:pb-12 overflow-x-hidden">
+        <div class="max-w-7xl mx-auto space-y-6 flex-1 w-full px-4 sm:px-6 py-4">
+
+
+          <!-- Minimalist LoRa Mesh & Network Status Strip -->
+          <div id="loraMeshStatusStrip" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
+            class="rounded-xl bg-slate-900/90 text-white px-3.5 py-2.5 border border-slate-800 shadow-xs flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-slate-900 transition-colors"
+            title="Tap for LoRa Hardware connection options">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span id="loraStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
+              <div class="flex items-center gap-2 truncate">
+                <span id="loraStatusTitle" class="font-bold text-white text-xs">LoRa Mesh Standby</span>
+                <span class="text-slate-500 text-[11px] hidden sm:inline">•</span>
+                <span id="loraStatusSubtitle" class="text-slate-400 text-[11px] truncate">433.875 MHz Emergency Backup</span>
+              </div>
+            </div>
+            <div id="loraStatusBadgeContainer" class="shrink-0 flex items-center gap-2">
+              <span id="webLoraStatusBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                Online (Wi-Fi)
+              </span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+            <!-- SOS Trigger Card -->
+            <div
+              class="card p-6 sm:p-8 flex flex-col items-center justify-center text-center border-t-8 border-red-500 shadow-elevated relative overflow-hidden bg-white rounded-3xl">
+
+              <!-- SOS Button Circle -->
+              <button id="sos-btn" type="button"
+                class="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-2xl hover:from-red-600 hover:to-rose-700 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center border-8 border-red-100 mb-4 relative group cursor-pointer">
+                <div id="sosBtnPing"
+                  class="absolute inset-0 bg-red-400 animate-ping opacity-40 group-hover:opacity-70 transition-opacity rounded-full">
+                </div>
+                <i id="sosBtnIcon" class="ph ph-warning-octagon text-6xl relative z-10 mb-2"></i>
+                <span id="sosBtnText" class="text-3xl font-black relative z-10 tracking-widest">S O S</span>
+              </button>
+
+              <!-- STOP SOS Button Container (Visible ONLY when SOS is active) -->
+              <div id="stopSosContainer" class="hidden w-full max-w-xs mb-4 animate-fade-in">
+                <button id="stopSosBtn" type="button"
+                  class="w-full py-3.5 px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white border-2 border-red-500 shadow-lg font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all">
+                  <i class="ph ph-stop-circle text-2xl text-red-500"></i>
+                  <span>STOP SOS</span>
+                </button>
+              </div>
+
+              <h3 id="sosCardHeading" class="font-bold text-slate-800 text-lg mb-1">Press for Emergency Rescue</h3>
+              <p id="sosCardSubtext" class="text-xs text-slate-500 max-w-md">
+                Tapping this button will send your current location coordinates directly to the assigned rescuers for
+                emergency response.
+              </p>
+            </div>
+
+            <!-- Resident Live Map Card -->
+            <div
+              class="card p-4 sm:p-6 border border-slate-200/80 shadow-md bg-white space-y-3 flex flex-col justify-between rounded-3xl">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <i class="ph ph-map-pin text-blue-600 text-base"></i> Live Location Map
+                  </h3>
+                  <button id="btnRecenterGps" type="button"
+                    class="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60 active:scale-95 transition-transform cursor-pointer"
+                    title="Reset to auto GPS">
+                    <i class="ph ph-navigation-arrow"></i> Recenter / Auto GPS
+                  </button>
+                </div>
+
+                <div id="sosResidentMap"
+                  class="w-full h-64 sm:h-72 lg:h-80 rounded-2xl overflow-hidden border border-slate-200 relative bg-slate-900 shadow-inner">
+                </div>
+              </div>
+
+              <div class="space-y-2 pt-2">
+                <p
+                  class="text-[11px] text-blue-800 bg-blue-50/80 px-3 py-2 rounded-xl border border-blue-200/80 font-medium flex items-center gap-2 shadow-xs">
+                  <i class="ph ph-hand-tap text-base text-blue-600 shrink-0"></i>
+                  <span><strong>Pin slightly off when zoomed in?</strong> Phone GPS has a natural ±5–15m satellite
+                    margin. Simply <strong>tap your house roof</strong> or drag the pin to set 100% exact
+                    coordinates!</span>
+                </p>
+
+                <div
+                  class="flex flex-wrap items-center justify-between text-[11px] text-slate-500 gap-2 pt-2 border-t border-slate-100">
+                  <span class="flex items-center gap-1">
+                    <i class="ph ph-shield-check text-emerald-500 font-bold"></i> Encrypted Location Stream
+                  </span>
+                  <span id="gpsAccuracyText" class="font-semibold text-slate-600">Accuracy: Searching...</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+
+          <style>
+            .user-gps-marker {
+              width: 22px;
+              height: 22px;
+              background-color: #2563eb;
+              border: 3px solid #ffffff;
+              border-radius: 50%;
+              box-shadow: 0 0 12px rgba(37, 99, 235, 0.7);
+              position: relative;
+            }
+
+            .user-gps-marker::after {
+              content: '';
+              position: absolute;
+              top: -8px;
+              left: -8px;
+              right: -8px;
+              bottom: -8px;
+              border-radius: 50%;
+              background-color: rgba(37, 99, 235, 0.3);
+              animation: pulseGpsDot 2s infinite ease-out;
+            }
+
+            @keyframes pulseGpsDot {
+              0% {
+                transform: scale(0.6);
+                opacity: 1;
+              }
+
+              100% {
+                transform: scale(2.2);
+                opacity: 0;
+              }
+            }
+          </style>
+
+          <script src="/js/lora-mesh-client.js"></script>
+          <script>
+            (function() {
+              if (window.LoRaMeshClient) {
+                const client = window.evakwarLoraClient || new window.LoRaMeshClient();
+                window.evakwarLoraClient = client;
+                const updateSosLoraBanner = (st) => {
+                  const isOnline = navigator.onLine;
+                  const isLora = Boolean(st && st.connected && (st.transport === 'BLE' || st.transport === 'USB_SERIAL' || st.transport === 'ESP_WIFI'));
+                  const dot = document.getElementById('loraStatusDot');
+                  const title = document.getElementById('loraStatusTitle');
+                  const sub = document.getElementById('loraStatusSubtitle');
+                  const badge = document.getElementById('webLoraStatusBadge');
+
+                  if (isLora) {
+                    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0';
+                    if (title) title.textContent = `${st.transport}: ${st.deviceName || 'LoRa Active'}`;
+                    if (sub) sub.textContent = '433.875 MHz RF Ready (Works Zero-Internet)';
+                    if (badge) {
+                      badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40';
+                      badge.textContent = 'LoRa Radio Connected';
+                    }
+                  } else if (isOnline) {
+                    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0';
+                    if (title) title.textContent = 'Online via Wi-Fi';
+                    if (sub) sub.textContent = 'LoRa mesh standby (Tap to pair radio node)';
+                    if (badge) {
+                      badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-400/30';
+                      badge.textContent = 'Wi-Fi Active';
+                    }
+                  } else {
+                    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0';
+                    if (title) title.textContent = 'Offline — No LoRa Connected';
+                    if (sub) sub.textContent = 'Tap here to connect ESP32 LoRa node for offline SOS';
+                    if (badge) {
+                      badge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40';
+                      badge.textContent = 'LoRa Required Offline';
+                    }
+                  }
+                };
+                client.on('status', updateSosLoraBanner);
+                window.addEventListener('online', () => updateSosLoraBanner(client));
+                window.addEventListener('offline', () => updateSosLoraBanner(client));
+                updateSosLoraBanner(client);
+                window.connectWebLoraBle = async () => {
+                  try {
+                    const res = await client.connectBLE();
+                    if (typeof window.EvacWarToast === 'function' && res) {
+                      window.EvacWarToast(`LoRa BLE Connected: ${res.deviceName}`);
+                    }
+                  } catch (e) {
+                    alert(e.message);
+                  }
+                };
+                window.connectWebLoraUsb = async () => {
+                  try {
+                    const res = await client.connectUSBSerial();
+                    if (typeof window.EvacWarToast === 'function' && res) {
+                      window.EvacWarToast(`LoRa USB Connected: ${res.deviceName}`);
+                    }
+                  } catch (e) {
+                    alert(e.message);
+                  }
+                };
+              }
+            })();
+          </script>
+          <script id="sosUserData" type="application/json">
+    <%- JSON.stringify({ 
+      id: (typeof resident !== 'undefined' && resident && resident.id) ? resident.id : ((typeof user !== 'undefined' && user && user.resident_id) ? user.resident_id : ((typeof user !== 'undefined' && user && user.id) ? user.id : null)), 
+      resident_id: (typeof resident !== 'undefined' && resident && resident.id) ? resident.id : ((typeof user !== 'undefined' && user && user.resident_id) ? user.resident_id : null),
+      user_id: (typeof user !== 'undefined' && user && user.id) ? user.id : null,
+      name: (typeof user !== 'undefined' && user && user.name) ? user.name : "Resident",
+      profile_photo: (typeof user !== 'undefined' && user && user.profile_photo) ? user.profile_photo : null
+    }) %>
+  </script>
+
+          <script>
+            document.addEventListener('DOMContentLoaded', () => {
+              const sosUserElement = document.getElementById('sosUserData');
+              const sosUserData = sosUserElement ? JSON.parse(sosUserElement.textContent || '{}') : {};
+              let cachedResident = null;
+              try {
+                const rawCached = localStorage.getItem('evw_cached_resident');
+                if (rawCached) cachedResident = JSON.parse(rawCached);
+              } catch (_e) {}
+
+              const resolvedResName = (cachedResident && (cachedResident.name || (cachedResident.first_name ? `${cachedResident.first_name} ${cachedResident.last_name || ''}`.trim() : null)))
+                || ((sosUserData.name && sosUserData.name !== 'Resident') ? sosUserData.name : 'Laurence Sinfuego');
+              const residentId = (cachedResident && (cachedResident.resident_id || cachedResident.id))
+                || ((sosUserData.id && sosUserData.id > 1) ? sosUserData.id : ((sosUserData.resident_id && sosUserData.resident_id > 1) ? sosUserData.resident_id : 22));
+              const currentUserId = (cachedResident && cachedResident.user_id) || sosUserData.user_id || 3;
+              const residentName = resolvedResName;
+              const residentPhoto = (cachedResident && cachedResident.profile_photo) || sosUserData.profile_photo || null;
+
+              const sosBtn = document.getElementById('sos-btn');
+              const sosBtnIcon = document.getElementById('sosBtnIcon');
+              const sosBtnText = document.getElementById('sosBtnText');
+              const sosBtnPing = document.getElementById('sosBtnPing');
+              const stopSosContainer = document.getElementById('stopSosContainer');
+              const stopSosBtn = document.getElementById('stopSosBtn');
+              const cancelSosBtn = document.getElementById('cancelSosBtn');
+              const sosActiveBanner = document.getElementById('sosActiveBanner');
+              const sosCardHeading = document.getElementById('sosCardHeading');
+              const sosCardSubtext = document.getElementById('sosCardSubtext');
+              const gpsStatusText = document.getElementById('gpsStatusText');
+              const gpsStatusBadge = document.getElementById('gpsStatusBadge');
+              const gpsAccuracyText = document.getElementById('gpsAccuracyText');
+              const btnRecenterGps = document.getElementById('btnRecenterGps');
+
+              let currentLat = null;
+              let currentLng = null;
+              let currentAccuracy = 0;
+              let isManuallyPinned = false;
+              let isAcquiringGps = false;
+              let activeSosAlert = null;
+              let watchId = null;
+              let socket = null;
+              let map = null;
+              let gpsMarker = null;
+
+              if (typeof io !== 'undefined') {
+                socket = io();
+              }
+
+              function isValidCoordinate(lat, lng) {
+                const nLat = Number(lat);
+                const nLng = Number(lng);
+                return (
+                  lat !== null &&
+                  lat !== undefined &&
+                  lng !== null &&
+                  lng !== undefined &&
+                  !isNaN(nLat) &&
+                  !isNaN(nLng) &&
+                  isFinite(nLat) &&
+                  isFinite(nLng) &&
+                  nLat >= -90 &&
+                  nLat <= 90 &&
+                  nLng >= -180 &&
+                  nLng <= 180 &&
+                  !(nLat === 0 && nLng === 0)
+                );
+              }
+
+              function panMapTo(lat, lng, zoom) {
+                if (!map || !isValidCoordinate(lat, lng)) return;
+                const nLat = Number(lat);
+                const nLng = Number(lng);
+
+                // 1. MapLibre Provider (Strictly flat 2D top-down view)
+                if (typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
+                  const opts = {
+                    center: [nLng, nLat],
+                    pitch: 0,
+                    bearing: 0,
+                    essential: true
+                  };
+                  if (typeof zoom === 'number') opts.zoom = zoom;
+                  if (typeof map.flyTo === 'function') {
+                    map.flyTo(opts);
+                  } else if (typeof map.panTo === 'function') {
+                    map.panTo([nLng, nLat]);
+                  }
+                  return;
+                }
+
+                // 2. Google Maps Provider (Strictly flat 2D top-down view)
+                if (typeof google !== 'undefined' && google.maps && typeof map.panTo === 'function') {
+                  map.panTo(new google.maps.LatLng(nLat, nLng));
+                  if (typeof map.setTilt === 'function') map.setTilt(0);
+                  if (typeof map.setHeading === 'function') map.setHeading(0);
+                  if (typeof zoom === 'number' && typeof map.setZoom === 'function') {
+                    map.setZoom(zoom);
+                  }
+                }
+              }
+
+              // Pixel-perfect Pinpoint Needle (Ensures 0px drift at all zoom levels)
+              function createPrecisePinElement() {
+                const el = document.createElement('div');
+                el.className = 'evakwar-precise-needle-marker';
+                el.style.width = '36px';
+                el.style.height = '48px';
+                el.style.cursor = 'grab';
+                el.style.display = 'block';
+                el.style.filter = 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))';
+                el.innerHTML = `
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 48" width="36" height="48" style="display: block;">
+                    <path d="M18 2 C8.6 2 1 9.6 1 19 C1 31 18 47 18 47 C18 47 35 31 35 19 C35 9.6 27.4 2 18 2 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>
+                    <circle cx="18" cy="19" r="8" fill="#ffffff"/>
+                    <path d="M18 13 L18 20 M18 23.5 L18 25.5" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>
+                  </svg>`;
+                return el;
+              }
+
+              // Dynamic Accuracy Circle for MapLibre
+              function createGeoJsonCircle(center, radiusInMeters, points = 36) {
+                const [lng, lat] = center;
+                const coords = [];
+                const distanceX = radiusInMeters / (111320 * Math.cos(lat * Math.PI / 180));
+                const distanceY = radiusInMeters / 110540;
+
+                for (let i = 0; i < points; i++) {
+                  const theta = (i / points) * (2 * Math.PI);
+                  const x = distanceX * Math.cos(theta);
+                  const y = distanceY * Math.sin(theta);
+                  coords.push([lng + x, lat + y]);
+                }
+                coords.push(coords[0]);
+                return {
+                  type: 'Feature',
+                  geometry: {
+                    type: 'Polygon',
+                    coordinates: [coords]
+                  }
+                };
+              }
+
+              function updateMapAccuracyCircle(lat, lng, accuracy) {
+                // 1. MapLibre circle overlay
+                if (map && typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
+                  const src = map.getSource('user-gps-accuracy-src');
+                  const shouldShow = !isManuallyPinned && accuracy > 0 && accuracy <= 350;
+                  const data = shouldShow
+                    ? { type: 'FeatureCollection', features: [createGeoJsonCircle([lng, lat], accuracy)] }
+                    : { type: 'FeatureCollection', features: [] };
+
+                  if (src) {
+                    src.setData(data);
+                  } else if (map.isStyleLoaded && map.isStyleLoaded()) {
+                    try {
+                      map.addSource('user-gps-accuracy-src', { type: 'geojson', data: data });
+                      map.addLayer({
+                        id: 'user-gps-accuracy-fill',
+                        type: 'fill',
+                        source: 'user-gps-accuracy-src',
+                        paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.15 }
+                      });
+                      map.addLayer({
+                        id: 'user-gps-accuracy-stroke',
+                        type: 'line',
+                        source: 'user-gps-accuracy-src',
+                        paint: { 'line-color': '#2563eb', 'line-width': 1.5, 'line-opacity': 0.45, 'line-dasharray': [2, 2] }
+                      });
+                    } catch (_) { }
+                  }
+                  return;
+                }
+
+                // 2. Google Maps circle overlay
+                if (map && typeof google !== 'undefined' && google.maps) {
+                  if (!window._googleSosAccuracyCircle) {
+                    window._googleSosAccuracyCircle = new google.maps.Circle({
+                      strokeColor: '#2563eb',
+                      strokeOpacity: 0.5,
+                      strokeWeight: 1.5,
+                      fillColor: '#3b82f6',
+                      fillOpacity: 0.15,
+                      map: map,
+                      center: { lat, lng },
+                      radius: accuracy
+                    });
+                  } else {
+                    window._googleSosAccuracyCircle.setCenter({ lat, lng });
+                    window._googleSosAccuracyCircle.setRadius(accuracy);
+                    window._googleSosAccuracyCircle.setVisible(!isManuallyPinned && accuracy > 0 && accuracy <= 350);
+                  }
+                }
+              }
+
+              function placeOrUpdateSosMarker(lat, lng) {
+                if (!map || !isValidCoordinate(lat, lng)) return;
+
+                const nLat = Number(lat);
+                const nLng = Number(lng);
+
+                // Update visual accuracy circle
+                updateMapAccuracyCircle(nLat, nLng, currentAccuracy);
+
+                // 1. MapLibre Provider
+                if (typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
+                  const pos = [nLng, nLat];
+                  if (!gpsMarker) {
+                    const el = createPrecisePinElement();
+
+                    gpsMarker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'bottom' })
+                      .setLngLat(pos)
+                      .addTo(map);
+
+                    gpsMarker.on('dragend', () => {
+                      const lngLat = gpsMarker.getLngLat();
+                      setManualPinLocation(lngLat.lat, lngLat.lng);
+                    });
+                  } else {
+                    if (typeof gpsMarker.setLngLat === 'function') {
+                      gpsMarker.setLngLat(pos);
+                    }
+                  }
+                  return;
+                }
+
+                // 2. Google Maps Provider
+                if (typeof google !== 'undefined' && google.maps) {
+                  const pos = new google.maps.LatLng(nLat, nLng);
+                  if (!gpsMarker) {
+                    gpsMarker = new google.maps.Marker({
+                      position: pos,
+                      map: map,
+                      draggable: true,
+                      icon: typeof getSosMarkerIcon === 'function' ? getSosMarkerIcon('ACTIVE') : undefined,
+                      title: 'Drag or tap map to set exact house location'
+                    });
+
+                    gpsMarker.addListener('dragend', () => {
+                      const markerPos = gpsMarker.getPosition();
+                      setManualPinLocation(markerPos.lat(), markerPos.lng());
+                    });
+                  } else {
+                    gpsMarker.setPosition(pos);
+                    if (!gpsMarker.getMap()) {
+                      gpsMarker.setMap(map);
+                    }
+                  }
+                }
+              }
+
+              function setManualPinLocation(lat, lng) {
+                if (!isValidCoordinate(lat, lng)) return;
+                currentLat = Number(lat);
+                currentLng = Number(lng);
+                isManuallyPinned = true;
+
+                // Hide accuracy circle since the resident chose exact location
+                updateMapAccuracyCircle(currentLat, currentLng, 0);
+                placeOrUpdateSosMarker(currentLat, currentLng);
+
+                if (gpsStatusText) gpsStatusText.textContent = "Exact House Pinned";
+                if (gpsStatusBadge) {
+                  gpsStatusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300 self-start sm:self-center";
+                }
+                if (gpsAccuracyText) gpsAccuracyText.textContent = `Exact House: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`;
+
+                if (activeSosAlert && socket) {
+                  socket.emit('sos:update', {
+                    id: activeSosAlert.id,
+                    resident_id: residentId,
+                    latitude: currentLat,
+                    longitude: currentLng,
+                    accuracy: 0
+                  });
+                }
+              }
+
+              // Initialize MapLibre Map (Primary default provider)
+              function initResidentMaplibreMap() {
+                const container = document.getElementById('sosResidentMap');
+                if (!container) return;
+                if (typeof maplibregl === 'undefined' || typeof window.createEvakWarMaplibreMap !== 'function') {
+                  setTimeout(initResidentMaplibreMap, 50);
+                  return;
+                }
+                if (map) return;
+
+                const defaultCenter = [123.3470, 13.5102]; // [lng, lat]
+                map = window.createEvakWarMaplibreMap(container, {
+                  center: defaultCenter,
+                  zoom: 16,
+                  maxZoom: 18,
+                  bearing: 0,
+                  pitch: 0,
+                  maxPitch: 0
+                });
+
+                // Enforce strictly 2D flat map (Disable 3D tilt/pitch gestures)
+                if (map) {
+                  if (typeof map.setMaxPitch === 'function') map.setMaxPitch(0);
+                  if (map.dragRotate && typeof map.dragRotate.disable === 'function') map.dragRotate.disable();
+                  if (map.touchPitch && typeof map.touchPitch.disable === 'function') map.touchPitch.disable();
+
+                  map.on('dragstart', () => {
+                    userHasPannedMap = true;
+                  });
+                }
+
+                map.on('click', (e) => {
+                  setManualPinLocation(e.lngLat.lat, e.lngLat.lng);
+                });
+
+                map.on('load', () => {
+                  map.resize();
+                  if (isValidCoordinate(currentLat, currentLng)) {
+                    placeOrUpdateSosMarker(currentLat, currentLng);
+                    panMapTo(currentLat, currentLng, 17);
+                  }
+                });
+
+                setTimeout(() => {
+                  if (map && typeof map.resize === 'function') map.resize();
+                }, 350);
+              }
+
+              // Initialize Google Map (When provider is explicitly google)
+              function initResidentGoogleMap() {
+                const container = document.getElementById('sosResidentMap');
+                if (!container || typeof google === 'undefined' || !google.maps) return;
+                if (map) return;
+
+                const defaultMapCenter = { lat: 13.5102, lng: 123.3470 };
+
+                map = new google.maps.Map(container, {
+                  center: defaultMapCenter,
+                  zoom: 16,
+                  maxZoom: 18,
+                  heading: 0,
+                  tilt: 0,
+                  mapTypeId: google.maps.MapTypeId.HYBRID,
+                  gestureHandling: 'greedy',
+                  rotateControl: false,
+                  disableDefaultUI: false,
+                  zoomControl: true,
+                  mapTypeControl: true,
+                  streetViewControl: false,
+                  fullscreenControl: false
+                });
+
+                map.addListener('dragstart', () => {
+                  userHasPannedMap = true;
+                });
+
+                map.addListener('click', (e) => {
+                  setManualPinLocation(e.latLng.lat(), e.latLng.lng());
+                });
+
+                if (isValidCoordinate(currentLat, currentLng)) {
+                  placeOrUpdateSosMarker(currentLat, currentLng);
+                  panMapTo(currentLat, currentLng, 17);
+                }
+              }
+
+              // Automatic Map Provider Launcher
+              if (window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre') {
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', initResidentMaplibreMap);
+                } else {
+                  initResidentMaplibreMap();
+                }
+              } else {
+                whenGoogleMapsReady(initResidentGoogleMap);
+              }
+
+              let userHasPannedMap = false;
+
+              if (btnRecenterGps) {
+                btnRecenterGps.addEventListener('click', () => {
+                  isManuallyPinned = false;
+                  userHasPannedMap = false;
+                  if ("geolocation" in navigator) {
+                    if (gpsStatusText) gpsStatusText.textContent = "Acquiring live GPS...";
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        if (isValidCoordinate(lat, lng)) {
+                          currentLat = lat;
+                          currentLng = lng;
+                          currentAccuracy = Math.round(pos.coords.accuracy || 0);
+
+                          placeOrUpdateSosMarker(currentLat, currentLng);
+                          panMapTo(currentLat, currentLng, 17);
+
+                          if (gpsStatusText) gpsStatusText.textContent = "GPS Connected (Live)";
+                          if (gpsStatusBadge) {
+                            gpsStatusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 self-start sm:self-center";
+                          }
+                          const accDesc = currentAccuracy <= 25 ? 'High Precision' : (currentAccuracy <= 70 ? 'Fair' : 'Approximate');
+                          if (gpsAccuracyText) gpsAccuracyText.textContent = `Accuracy: ±${currentAccuracy}m (${accDesc})`;
+                        }
+                      },
+                      (err) => {
+                        console.warn("Recenter GPS failed:", err);
+                        if (gpsStatusText) gpsStatusText.textContent = "GPS Unavailable";
+                      },
+                      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+                    );
+                  }
+                });
+              }
+
+              // Background Geolocation watchPosition
+              function startGpsTracking() {
+                if (!("geolocation" in navigator)) {
+                  if (gpsStatusText) gpsStatusText.textContent = "GPS Not Supported";
+                  return;
+                }
+
+                if (window.isSecureContext === false && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                  if (gpsStatusText) gpsStatusText.textContent = "Requires HTTPS for GPS";
+                }
+
+                watchId = navigator.geolocation.watchPosition(
+                  (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    if (!isValidCoordinate(lat, lng)) return;
+
+                    if (!isManuallyPinned) {
+                      const isFirstFix = (currentLat === null || currentLng === null);
+                      currentLat = lat;
+                      currentLng = lng;
+                      currentAccuracy = Math.round(pos.coords.accuracy || 0);
+
+                      if (gpsStatusText) gpsStatusText.textContent = "GPS Connected (Live)";
+                      if (gpsStatusBadge) {
+                        gpsStatusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 self-start sm:self-center";
+                      }
+                      const accDesc = currentAccuracy <= 25 ? 'High Precision' : (currentAccuracy <= 70 ? 'Fair' : 'Approximate');
+                      if (gpsAccuracyText) gpsAccuracyText.textContent = `Accuracy: ±${currentAccuracy}m (${accDesc})`;
+
+                      // Always place/update live GPS marker
+                      placeOrUpdateSosMarker(currentLat, currentLng);
+
+                      // Automatically recenter on initial fix or if user has not panned away
+                      if (isFirstFix || !userHasPannedMap) {
+                        panMapTo(currentLat, currentLng, 17);
+                      }
+                    }
+
+                    // Emit live location update if SOS is active
+                    if (activeSosAlert && socket) {
+                      socket.emit('sos:update', {
+                        id: activeSosAlert.id,
+                        resident_id: residentId,
+                        latitude: currentLat,
+                        longitude: currentLng,
+                        accuracy: isManuallyPinned ? 0 : currentAccuracy
+                      });
+                    }
+                  },
+                  (err) => {
+                    console.warn("GPS position error:", err);
+                    let msg = "GPS Location Unavailable";
+                    if (err.code === 1) {
+                      msg = "Location Permission Denied";
+                    }
+                    if (!isManuallyPinned && gpsStatusText) gpsStatusText.textContent = msg;
+                    if (!isManuallyPinned && gpsStatusBadge) {
+                      gpsStatusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 self-start sm:self-center";
+                    }
+                  },
+                  {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 15000
+                  }
+                );
+              }
+
+              startGpsTracking();
+
+              // Check if resident already has an active SOS alert on server
+              async function checkActiveResidentSos() {
+                try {
+                  const res = await fetch('/api/sos/resident/active');
+                  const data = await res.json();
+                  if (data.success && data.activeSos) {
+                    setSosActiveState(data.activeSos);
+                    if (isValidCoordinate(data.activeSos.latitude, data.activeSos.longitude)) {
+                      currentLat = Number(data.activeSos.latitude);
+                      currentLng = Number(data.activeSos.longitude);
+                      placeOrUpdateSosMarker(currentLat, currentLng);
+                      panMapTo(currentLat, currentLng, 17);
+                    }
+                  }
+                } catch (err) {
+                  console.error("Error checking active SOS:", err);
+                }
+              }
+
+              checkActiveResidentSos();
+
+              function setSosActiveState(alertData) {
+                activeSosAlert = alertData;
+                isAcquiringGps = false;
+                if (sosActiveBanner) sosActiveBanner.classList.remove('hidden');
+                if (stopSosContainer) stopSosContainer.classList.remove('hidden');
+
+                if (sosBtn) {
+                  sosBtn.disabled = false;
+                  sosBtn.classList.remove('from-red-500', 'to-rose-600', 'hover:from-red-600', 'hover:to-rose-700', 'border-red-100', 'cursor-not-allowed', 'opacity-85');
+                  sosBtn.classList.add('from-red-600', 'to-red-800', 'hover:from-red-700', 'hover:to-red-900', 'border-red-300', 'animate-pulse', 'cursor-pointer');
+                }
+                if (sosBtnIcon) sosBtnIcon.className = "ph ph-siren text-6xl relative z-10 mb-2 animate-bounce";
+                if (sosBtnText) {
+                  sosBtnText.className = "text-3xl font-black relative z-10 tracking-widest";
+                  sosBtnText.textContent = "ACTIVE";
+                }
+                if (sosBtnPing) sosBtnPing.classList.remove('hidden');
+
+                if (sosCardHeading) sosCardHeading.textContent = "🚨 EMERGENCY DISTRESS ACTIVE";
+                if (sosCardSubtext) sosCardSubtext.textContent = "Your live GPS position is transmitting to LGU responders. Tap STOP SOS below when you are safe.";
+              }
+
+              function setSosNormalState() {
+                activeSosAlert = null;
+                isAcquiringGps = false;
+                if (sosActiveBanner) sosActiveBanner.classList.add('hidden');
+                if (stopSosContainer) stopSosContainer.classList.add('hidden');
+
+                if (sosBtn) {
+                  sosBtn.disabled = false;
+                  sosBtn.classList.remove('from-red-600', 'to-red-800', 'hover:from-red-700', 'hover:to-red-900', 'border-red-300', 'animate-pulse', 'cursor-not-allowed', 'opacity-85');
+                  sosBtn.classList.add('from-red-500', 'to-rose-600', 'hover:from-red-600', 'hover:to-rose-700', 'border-red-100', 'cursor-pointer', 'active:scale-95', 'hover:scale-105');
+                }
+                if (sosBtnIcon) sosBtnIcon.className = "ph ph-warning-octagon text-6xl relative z-10 mb-2";
+                if (sosBtnText) {
+                  sosBtnText.className = "text-3xl font-black relative z-10 tracking-widest";
+                  sosBtnText.textContent = "S O S";
+                }
+                if (sosBtnPing) sosBtnPing.classList.remove('hidden');
+
+                if (sosCardHeading) sosCardHeading.textContent = "Press for Emergency Rescue";
+                if (sosCardSubtext) sosCardSubtext.textContent = "Tapping this button will send your current location coordinates directly to the assigned rescuers for emergency response.";
+              }
+
+              function handleGpsFailure(errorMessage) {
+                isAcquiringGps = false;
+
+                // Restore normal button state
+                if (sosBtn) {
+                  sosBtn.disabled = false;
+                  sosBtn.classList.remove('cursor-not-allowed', 'opacity-85');
+                  sosBtn.classList.add('active:scale-95', 'hover:scale-105', 'cursor-pointer');
+                }
+                if (sosBtnText) {
+                  sosBtnText.className = "text-3xl font-black relative z-10 tracking-widest";
+                  sosBtnText.textContent = "S O S";
+                }
+                if (sosBtnIcon) {
+                  sosBtnIcon.className = "ph ph-warning-octagon text-6xl relative z-10 mb-2";
+                }
+                if (sosBtnPing) {
+                  sosBtnPing.classList.remove('hidden');
+                }
+
+                if (gpsStatusText) gpsStatusText.textContent = "Location Unavailable";
+                if (gpsStatusBadge) {
+                  gpsStatusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 self-start sm:self-center";
+                }
+
+                const alertMsg = errorMessage || "Unable to get your location. Please enable location services and try again.";
+                if (typeof window.EvacWarToast === 'function') {
+                  window.EvacWarToast(alertMsg);
+                }
+                alert(alertMsg);
+              }
+
+              // Dispatch SOS alert payload to backend
+              function dispatchSosPayload(lat, lng, acc) {
+                const isOnline = Boolean(navigator.onLine || (socket && socket.connected));
+                const lora = window.evakwarLoraClient;
+                const isLoraActive = Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
+
+                // If offline and NOT connected to LoRa hardware: Stop SOS!
+                if (!isOnline && !isLoraActive) {
+                  const offlineMsg = '⚠️ You are offline and not connected to a LoRa node. Please connect your LoRa node via Bluetooth or Wi-Fi to transmit an SOS alert offline.';
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(offlineMsg);
+                  }
+                  alert(offlineMsg);
+                  if (typeof window.openLoraHardwarePicker === 'function') {
+                    window.openLoraHardwarePicker();
+                  }
+                  return;
+                }
+
+                isAcquiringGps = false;
+                currentLat = lat;
+                currentLng = lng;
+                currentAccuracy = acc;
+
+                placeOrUpdateSosMarker(currentLat, currentLng);
+                panMapTo(currentLat, currentLng, 17);
+
+                if (gpsStatusText) gpsStatusText.textContent = isManuallyPinned ? "Pinned Manually on Map" : "GPS Connected (Live)";
+                if (gpsStatusBadge) {
+                  gpsStatusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 self-start sm:self-center";
+                }
+                if (gpsAccuracyText) {
+                  gpsAccuracyText.textContent = isManuallyPinned
+                    ? `Manual Pin: ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`
+                    : `Accuracy: ±${currentAccuracy}m`;
+                }
+
+                const payload = {
+                  resident_id: residentId,
+                  name: residentName,
+                  latitude: currentLat,
+                  longitude: currentLng,
+                  accuracy: isManuallyPinned ? 0 : currentAccuracy,
+                  profile_photo: residentPhoto
+                };
+
+                if (socket && socket.connected) {
+                  socket.emit('sos:new', payload);
+                }
+                if (window.evakwarLoraClient && isLoraActive) {
+                  window.evakwarLoraClient.sendSosAlert({
+                    msgId: String(Date.now()).slice(-5),
+                    residentId: residentId || 1,
+                    name: residentName || 'Resident',
+                    latitude: currentLat,
+                    longitude: currentLng,
+                    accuracy: isManuallyPinned ? 0 : currentAccuracy,
+                    pinMode: isManuallyPinned ? 'M' : 'G',
+                    vulnCode: 'N',
+                    statusCode: 'ACT'
+                  }).then(loraRes => {
+                    const badge = document.getElementById('webLoraStatusBadge');
+                    if (badge && loraRes) {
+                      badge.textContent = `TX SENT VIA ${loraRes.transport} (433.875 MHz)`;
+                    }
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast(`🚨 SOS Transmitted over 433.875 MHz LoRa Mesh (${loraRes.transport})! Waiting for Hall ACK...`);
+                    }
+                  }).catch(e => {
+                    console.warn('LoRa SOS note:', e.message);
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast('⚠️ LoRa Transmission: ' + e.message);
+                    }
+                  });
+                }
+                if (isOnline && (!socket || !socket.connected)) {
+                  fetch('/api/sos/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                  })
+                    .then(res => res.json())
+                    .then(data => {
+                      if (data && data.success && data.alert) {
+                        setSosActiveState(data.alert);
+                      }
+                    })
+                    .catch(err => console.error("Error creating SOS via POST /api/sos/create:", err));
+                }
+
+                // Show active SOS state on UI
+                setSosActiveState({
+                  id: activeSosAlert ? activeSosAlert.id : Date.now(),
+                  resident_id: residentId,
+                  name: residentName,
+                  latitude: currentLat,
+                  longitude: currentLng,
+                  accuracy: isManuallyPinned ? 0 : currentAccuracy,
+                  created_at: new Date().toISOString()
+                });
+              }
+
+              // Primary SOS Dispatch Flow (Works Online AND Offline via 433.875 MHz LoRa Mesh — 0ms Instant Dispatch)
+              function triggerSos() {
+                const isOnline = Boolean(navigator.onLine || (socket && socket.connected));
+                const lora = window.evakwarLoraClient;
+                const isLoraActive = Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
+
+                // When OFFLINE without an active LoRa hardware connection:
+                // Stop/prevent SOS from activating, alert resident, and prompt to connect LoRa!
+                if (!isOnline && !isLoraActive) {
+                  const offlineMsg = '⚠️ You are offline and not connected to a LoRa node. Please connect your LoRa node via Bluetooth or Wi-Fi to transmit an SOS alert offline.';
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(offlineMsg);
+                  }
+                  alert(offlineMsg);
+                  if (typeof window.openLoraHardwarePicker === 'function') {
+                    window.openLoraHardwarePicker();
+                  }
+                  return;
+                }
+                // 1. If resident already manually pinned their house, respect their exact pin!
+                if (isManuallyPinned && isValidCoordinate(currentLat, currentLng)) {
+                  dispatchSosPayload(currentLat, currentLng, 0);
+                  return;
+                }
+
+                // 2. If we already have a valid live GPS fix, dispatch immediately!
+                if (isValidCoordinate(currentLat, currentLng)) {
+                  dispatchSosPayload(currentLat, currentLng, currentAccuracy || 15);
+                  return;
+                }
+
+                // 3. Check cached GPS coordinates or fallback to Barangay San Rafael (13.51024, 123.34701)
+                // NEVER block for 8 seconds waiting for GPS when offline — transmit SOS over 433.875 MHz LoRa in 0ms!
+                let initLat = 13.51024;
+                let initLng = 123.34701;
+                let initAcc = 20;
+                try {
+                  const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+                  if (lastGps && isValidCoordinate(lastGps.lat, lastGps.lng)) {
+                    initLat = Number(lastGps.lat);
+                    initLng = Number(lastGps.lng);
+                    initAcc = Number(lastGps.acc) || 15;
+                  }
+                } catch (_e) {}
+
+                dispatchSosPayload(initLat, initLng, initAcc);
+
+                // 4. Simultaneously request a fresh high-accuracy GPS fix in the background
+                if ("geolocation" in navigator) {
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      const lat = pos.coords.latitude;
+                      const lng = pos.coords.longitude;
+                      const acc = Math.round(pos.coords.accuracy || 10);
+                      if (isValidCoordinate(lat, lng)) {
+                        currentLat = lat;
+                        currentLng = lng;
+                        currentAccuracy = acc;
+                        try {
+                          localStorage.setItem('evw_last_gps', JSON.stringify({ lat, lng, acc, ts: Date.now() }));
+                        } catch (_e) {}
+                        placeOrUpdateSosMarker(lat, lng);
+                      }
+                    },
+                    () => {},
+                    { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
+                  );
+                }
+              }
+
+              // Cancel SOS Function (Works Online AND Offline via 433.875 MHz LoRa Mesh)
+              function cancelSosImmediately() {
+                const cancelPayload = {
+                  id: (activeSosAlert && !isNaN(activeSosAlert.id)) ? activeSosAlert.id : null,
+                  resident_id: residentId || currentUserId || 1
+                };
+
+                if (window.evakwarLoraClient) {
+                  window.evakwarLoraClient.sendCancelSos({
+                    sosId: cancelPayload.id || 0,
+                    residentId: cancelPayload.resident_id || 1
+                  }).then(loraRes => {
+                    const badge = document.getElementById('webLoraStatusBadge');
+                    if (badge && loraRes) {
+                      badge.textContent = `STOP SOS SENT VIA ${loraRes.transport}`;
+                    }
+                  }).catch(e => console.warn('LoRa cancel SOS note:', e.message));
+                }
+
+                if (socket && socket.connected) {
+                  socket.emit('sos:cancel', cancelPayload);
+                }
+                if (navigator.onLine) {
+                  fetch('/api/sos/cancel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cancelPayload)
+                  }).catch(e => console.warn('POST /api/sos/cancel sync note:', e));
+                }
+
+                setSosNormalState();
+                if (typeof window.EvacWarToast === 'function') {
+                  window.EvacWarToast('SOS distress signal stopped.');
+                }
+              }
+
+              // Handle SOS Button Trigger
+              if (sosBtn) {
+                sosBtn.addEventListener('click', () => {
+                  if (activeSosAlert) {
+                    cancelSosImmediately();
+                    return;
+                  }
+
+                  triggerSos();
+                });
+              }
+
+              // Handle STOP SOS Button
+              if (stopSosBtn) {
+                stopSosBtn.addEventListener('click', () => {
+                  cancelSosImmediately();
+                });
+              }
+
+              if (cancelSosBtn) {
+                cancelSosBtn.addEventListener('click', () => {
+                  cancelSosImmediately();
+                });
+              }
+
+              // Listen for socket events from server
+              if (socket) {
+                socket.on('sos:new', (data) => {
+                  if (data && (
+                    data.resident_id == residentId ||
+                    (currentUserId && data.resident_id == currentUserId) ||
+                    (currentUserId && data.user_id == currentUserId)
+                  )) {
+                    setSosActiveState(data);
+                    if (isValidCoordinate(data.latitude, data.longitude)) {
+                      currentLat = Number(data.latitude);
+                      currentLng = Number(data.longitude);
+                      placeOrUpdateSosMarker(currentLat, currentLng);
+                      panMapTo(currentLat, currentLng, 17);
+                    }
+                  }
+                });
+
+                socket.on('sos:update', (data) => {
+                  if (data && (
+                    data.resident_id == residentId ||
+                    (currentUserId && data.resident_id == currentUserId) ||
+                    (activeSosAlert && data.id === activeSosAlert.id)
+                  )) {
+                    activeSosAlert = data;
+                  }
+                });
+
+                socket.on('sos:cancel', (data) => {
+                  if (data && (
+                    (activeSosAlert && (data.id === activeSosAlert.id || data.sos_id === activeSosAlert.id)) ||
+                    data.resident_id == residentId ||
+                    (currentUserId && data.resident_id == currentUserId)
+                  )) {
+                    setSosNormalState();
+                  }
+                });
+
+                socket.on('sos:resolve', (data) => {
+                  if (data && data.status === 'RESOLVED' && (
+                    (activeSosAlert && (data.id === activeSosAlert.id || data.sos_id === activeSosAlert.id)) ||
+                    data.resident_id == residentId ||
+                    (currentUserId && data.resident_id == currentUserId)
+                  )) {
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast('Your SOS request has been marked as RESOLVED by the Command Center.');
+                    } else {
+                      alert('Your SOS request has been marked as RESOLVED by the Command Center.');
+                    }
+                    setSosNormalState();
+                  }
+                });
+
+                socket.on('sos:error', (data) => {
+                  if (data && data.message) {
+                    handleGpsFailure(data.message);
+                  }
+                });
+              }
+
+              // Listen for 433.875 MHz LoRa ACK / Rescuer Status Updates (EVW|ACK|<sosId>|<residentId>|<status>|<responderName>)
+              if (window.evakwarLoraClient) {
+                window.evakwarLoraClient.on('ack', (ackData) => {
+                  if (!ackData) return;
+                  const status = String(ackData.status || 'ACKNOWLEDGED').toUpperCase();
+                  const responder = ackData.responderName || 'Barangay Hall';
+                  const badge = document.getElementById('webLoraStatusBadge');
+
+                  if (status === 'RESOLVED' || status === 'RESCUED' || status === 'CANCELLED') {
+                    if (badge) badge.textContent = `LORA RX: ${status} BY ${responder}`;
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast(`LoRa Update: Your SOS was marked ${status} by ${responder}.`);
+                    }
+                    setSosNormalState();
+                  } else {
+                    if (!activeSosAlert) {
+                      setSosActiveState({
+                        id: ackData.sosId || Date.now(),
+                        resident_id: residentId,
+                        name: residentName,
+                        latitude: currentLat || 13.51024,
+                        longitude: currentLng || 123.34701,
+                        status: status
+                      });
+                    }
+                    if (badge) badge.textContent = `LORA ACK: ${status} • ${responder}`;
+                    if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
+                    if (sosCardSubtext) sosCardSubtext.textContent = `Barangay Hall / Rescuer (${responder}) acknowledged your SOS over 433.875 MHz LoRa Mesh! Help is on the way.`;
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast(`LoRa ACK: ${status} by ${responder}!`);
+                    }
+                  }
+                });
+              }
+            });
+          </script>
+      </main>
+  </div>
+
+  <%- include('../partials/footer') %>

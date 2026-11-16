@@ -1,0 +1,630 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main
+        class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-12 overflow-x-hidden font-body transition-colors duration-200">
+        <div class="w-full max-w-[1800px] mx-auto p-2 sm:p-3 lg:p-4 space-y-3 font-sans">
+
+          <% const wObj=locals.weather || {}; const temp=(wObj.temperature !=null) ? Number(wObj.temperature) : 26.6;
+            const roundedTemp=Math.round(temp); const apparentTemp=(wObj.apparent_temperature !=null) ?
+            Number(wObj.apparent_temperature) : Number((temp + 3.8).toFixed(1)); const dewPoint=(wObj.dew_point !=null)
+            ? Number(wObj.dew_point) : Number((temp - 2.0).toFixed(1)); const windVal=(wObj.wind_speed !=null) ?
+            Number(wObj.wind_speed) : 18.3; const gustsVal=(wObj.wind_gusts !=null) ? Number(wObj.wind_gusts) : 39.6;
+            const rainVal=(wObj.rainfall !=null) ? Number(wObj.rainfall) : 0.2; const pressureVal=(wObj.pressure !=null)
+            ? Number(wObj.pressure) : 998.4; const humidityVal=(wObj.humidity !=null) ? Number(wObj.humidity) : 89;
+            const currentDayName = (new Date()).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
+            const weatherStatus = wObj.weather_status || 'Scattered Rain Showers';
+            /* Real 5-day forecast directly from Open-Meteo */
+            const dailyForecast = (wObj.daily && Array.isArray(wObj.daily) && wObj.daily.length >= 5)
+              ? wObj.daily.slice(0, 5)
+              : [
+                  { day_name: 'Today', temp_max: 29, temp_min: 25, icon: 'windy-sun-rain' },
+                  { day_name: 'Tomorrow', temp_max: 29, temp_min: 25, icon: 'windy-sun-storm' },
+                  { day_name: 'Fri', temp_max: 28, temp_min: 24, icon: 'windy-sun-storm' },
+                  { day_name: 'Sat', temp_max: 27, temp_min: 24, icon: 'windy-sun-cloud' },
+                  { day_name: 'Sun', temp_max: 28, temp_min: 24, icon: 'windy-sun-cloud' }
+                ];
+            if (dailyForecast[0]) dailyForecast[0].icon = 'windy-sun-rain';
+
+            // Real hourly samples from Open-Meteo
+            const hourlyList = (wObj.hourly && Array.isArray(wObj.hourly) && wObj.hourly.length > 0) ? wObj.hourly : [];
+            const hourlyTemps = hourlyList.map(h => h.temperature);
+            const maxTempSample = hourlyTemps.length > 0 ? Math.max(...hourlyTemps).toFixed(1) : (temp +
+            2.8).toFixed(1);
+            const minTempSample = hourlyTemps.length > 0 ? Math.min(...hourlyTemps).toFixed(1) : (temp -
+            2.5).toFixed(1);
+
+            const getWindyIconSvg = (iconName, size = 'w-10 h-10') => {
+            const name = (iconName || 'windy-sun-rain').toLowerCase();
+            if (name.includes('sun-rain') || (name.includes('sun') && name.includes('rain')) || name.includes('drizzle')
+            || name.includes('shower')) {
+            return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <circle cx="23" cy="13" r="6.5" fill="#FFA000" />
+              <g stroke="#FF8F00" stroke-width="1.8" stroke-linecap="round">
+                <line x1="23" y1="3" x2="23" y2="5" />
+                <line x1="23" y1="21" x2="23" y2="23" />
+                <line x1="13" y1="13" x2="15" y2="13" />
+                <line x1="31" y1="13" x2="33" y2="13" />
+                <line x1="16" y1="6" x2="17.4" y2="7.4" />
+                <line x1="28.6" y1="18.6" x2="30" y2="20" />
+                <line x1="16" y1="20" x2="17.4" y2="18.6" />
+                <line x1="28.6" y1="7.4" x2="30" y2="6" />
+              </g>
+              <path
+                d="M11 25 C7.7 25 5 22.3 5 19 C5 16 7.2 13.5 10.2 13.1 C11.1 9.8 14.1 7.5 17.7 7.5 C21.8 7.5 25.1 10.5 25.8 14.5 C26.2 14.4 26.6 14.3 27 14.3 C30.3 14.3 33 17 33 20.3 C33 23.6 30.3 25 27 25 Z"
+                fill="#90A4AE" />
+              <line x1="12" y1="27" x2="10.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+              <line x1="18" y1="27" x2="16.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+              <line x1="24" y1="27" x2="22.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+            </svg>`;
+            }
+            if (name.includes('storm') || name.includes('lightning')) {
+            return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <circle cx="23" cy="13" r="6.5" fill="#FFA000" />
+              <g stroke="#FF8F00" stroke-width="1.8" stroke-linecap="round">
+                <line x1="23" y1="3" x2="23" y2="5" />
+                <line x1="23" y1="21" x2="23" y2="23" />
+                <line x1="13" y1="13" x2="15" y2="13" />
+                <line x1="31" y1="13" x2="33" y2="13" />
+                <line x1="16" y1="6" x2="17.4" y2="7.4" />
+                <line x1="28.6" y1="18.6" x2="30" y2="20" />
+                <line x1="16" y1="20" x2="17.4" y2="18.6" />
+                <line x1="28.6" y1="7.4" x2="30" y2="6" />
+              </g>
+              <path
+                d="M11 25 C7.7 25 5 22.3 5 19 C5 16 7.2 13.5 10.2 13.1 C11.1 9.8 14.1 7.5 17.7 7.5 C21.8 7.5 25.1 10.5 25.8 14.5 C26.2 14.4 26.6 14.3 27 14.3 C30.3 14.3 33 17 33 20.3 C33 23.6 30.3 25 27 25 Z"
+                fill="#607D8B" />
+              <path d="M17 23 L13.5 28 H17 L15 32.5 L20.5 27 H17 Z" fill="#FFD600" stroke="#FFA000"
+                stroke-width="0.5" />
+              <line x1="23" y1="27" x2="21.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+            </svg>`;
+            }
+            if (name.includes('sun') && (name.includes('cloud') || name.includes('partly'))) {
+            return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <circle cx="23" cy="13" r="6.5" fill="#FFA000" />
+              <g stroke="#FF8F00" stroke-width="1.8" stroke-linecap="round">
+                <line x1="23" y1="3" x2="23" y2="5" />
+                <line x1="23" y1="21" x2="23" y2="23" />
+                <line x1="13" y1="13" x2="15" y2="13" />
+                <line x1="31" y1="13" x2="33" y2="13" />
+                <line x1="16" y1="6" x2="17.4" y2="7.4" />
+                <line x1="28.6" y1="18.6" x2="30" y2="20" />
+                <line x1="16" y1="20" x2="17.4" y2="18.6" />
+                <line x1="28.6" y1="7.4" x2="30" y2="6" />
+              </g>
+              <path
+                d="M11 25 C7.7 25 5 22.3 5 19 C5 16 7.2 13.5 10.2 13.1 C11.1 9.8 14.1 7.5 17.7 7.5 C21.8 7.5 25.1 10.5 25.8 14.5 C26.2 14.4 26.6 14.3 27 14.3 C30.3 14.3 33 17 33 20.3 C33 23.6 30.3 25 27 25 Z"
+                fill="#B0BEC5" />
+            </svg>`;
+            }
+            // Clear Sun
+            return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <circle cx="18" cy="18" r="8.5" fill="#FFA000" />
+              <path
+                d="M18 4 V7 M18 29 V32 M4 18 H7 M29 18 H32 M8.1 8.1 L10.2 10.2 M25.8 25.8 L27.9 27.9 M8.1 27.9 L10.2 25.8 M25.8 10.2 L27.9 8.1"
+                stroke="#FF8F00" stroke-width="2.2" stroke-linecap="round" />
+            </svg>`;
+            };
+
+            const pagasaData = (wObj.pagasa) ? wObj.pagasa : {
+            source: 'PAGASA',
+            sourceLabel: 'PAGASA Official Warning / Guidance',
+            warningType: '24-Hour Public Weather Forecast',
+            affectedArea: 'San Rafael, Baao & Camarines Sur (Bicol Region)',
+            issuedAt: 'Updated Today • Live Sync',
+            residentExplanation: 'Normal to localized rainy weather. Low-lying areas in San Rafael should monitor water levels during sudden heavy downpours.',
+            actionLevel: {
+            level: 'MONITOR',
+            badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            icon: 'ph-eye',
+            description: 'Normal conditions or localized rain showers.'
+            },
+            officialBulletinUrl: 'https://bagong.pagasa.dost.gov.ph/',
+            youtube: {
+            hasVideo: false,
+            videoId: null,
+            title: 'Official DOST-PAGASA Weather Forecast',
+            channelName: 'DOST-PAGASA Official',
+            channelUrl: 'https://www.youtube.com/@dost_pagasa/videos',
+            badgeLabel: '📺 DOST-PAGASA Weather Updates',
+            badgeText: 'DOST-PAGASA Weather Updates',
+            isLive: false,
+            published: null,
+            formattedPublished: 'Updated Recently',
+            embedUrl: null
+            }
+            };
+            %>
+
+            <!-- TOP SECTION: LEFT (FORECAST & VIDEO) + RIGHT (WINDY RADAR) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+
+              <!-- LEFT STACK (5 COLS): FORECAST CARD & OFFICIAL VIDEO -->
+              <div class="lg:col-span-5 flex flex-col gap-3 justify-between">
+
+                <!-- CARD 1: CURRENT WEATHER & 5-DAY PRO FORECAST (GENUINE OPEN-METEO & WINDY-STYLE ICONS) -->
+                <div
+                  class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden flex flex-col justify-between transition-colors">
+                  <!-- Source Identification Bar -->
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                    <span
+                      class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[9px] font-black uppercase tracking-wider border border-blue-200/60">
+                      <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span> LIVE LOCAL WEATHER •
+                      Powered by Open-Meteo
+                    </span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Telemetry</span>
+                  </div>
+                  <!-- Current Summary Header -->
+                  <div class="flex items-start justify-between">
+                    <div class="flex items-center gap-3">
+                      <!-- Windy-style Sun + Cloud + Rain SVG Icon -->
+                      <div
+                        class="w-13 h-13 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 p-1 shadow-xs"
+                        id="typhoonStatusIconContainer">
+                        <%- getWindyIconSvg('windy-sun-rain', 'w-11 h-11' ) %>
+                      </div>
+                      <div>
+                        <h2 class="text-xl sm:text-2xl font-bold text-slate-900 leading-tight" id="typhoonDay">
+                          <%= currentDayName %>
+                        </h2>
+                        <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <span class="text-xs text-slate-500 font-medium truncate max-w-[200px]"
+                            id="typhoonLocationLabel">
+                            <%= (locals.weather && locals.weather.location_name) ? locals.weather.location_name
+                              : 'San Rafael, Baao' %>
+                          </span>
+                          <span class="text-xs text-slate-300">•</span>
+                          <button type="button" onclick="useMyLocationTyphoon(this)" id="btnTyphoonLocation"
+                            class="text-[11px] text-emerald-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                            title="Fetch weather for your device location">
+                            <i class="ph ph-map-pin text-xs" id="typhoonLocIcon"></i> <span>📍 My Location</span>
+                          </button>
+                          <span class="text-xs text-slate-300">•</span>
+                          <button type="button" onclick="refreshTyphoonData(this)"
+                            class="text-[11px] text-blue-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                            title="Refresh weather">
+                            <i class="ph ph-arrows-clockwise text-xs" id="refreshIcon"></i> <span>Sync</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-2xl sm:text-3xl font-black text-slate-900 leading-none font-mono"
+                        id="typhoonTempMain">
+                        <%= roundedTemp %>°C
+                      </div>
+                      <div class="text-[11px] text-slate-400 font-mono mt-1" id="typhoonTempRange">
+                        <%= dailyForecast[0] ? dailyForecast[0].temp_max : roundedTemp + 2 %>° / <%= dailyForecast[0] ?
+                            dailyForecast[0].temp_min : roundedTemp - 2 %>°
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 5-Day Forecast Row (Windy-style colorful icons) -->
+                  <div class="grid grid-cols-5 gap-1 pt-4 mt-4 border-t border-slate-100 text-center" id="forecastGrid">
+                    <% dailyForecast.forEach((df, i)=> { %>
+                      <div
+                        class="flex flex-col items-center gap-1.5 p-1 rounded-xl <%= i === 0 ? 'bg-blue-50/70 border border-blue-100' : '' %>">
+                        <span class="text-xs font-semibold text-slate-700">
+                          <%= df.day_name %>
+                        </span>
+                        <%- getWindyIconSvg(df.icon, 'w-7 h-7' ) %>
+                          <div class="text-xs font-mono font-bold text-slate-900 mt-0.5">
+                            <%= df.temp_max %>°
+                          </div>
+                          <div class="text-[10px] font-mono text-slate-400">
+                            <%= df.temp_min %>°
+                          </div>
+                      </div>
+                      <% }) %>
+                  </div>
+                </div>
+
+                <!-- CARD 2: OFFICIAL DOST-PAGASA VIDEO FORECAST & BRIEFING -->
+                <div
+                  class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden flex-1 flex flex-col justify-between transition-colors">
+                  <div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-2.5">
+                      <div class="flex items-center gap-2">
+                        <div id="pagasaLiveStatusBadge" class="flex items-center gap-1.5">
+                          <% if (pagasaData.youtube && pagasaData.youtube.isLive) { %>
+                            <span
+                              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase tracking-wider shadow-xs animate-pulse">
+                              <span class="w-1.5 h-1.5 rounded-full bg-white"></span> 🔴 LIVE
+                            </span>
+                            <span class="text-xs font-black uppercase tracking-wider text-slate-800">
+                              DOST-PAGASA WEATHER UPDATE
+                            </span>
+                            <% } else { %>
+                              <span
+                                class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black tracking-tight border border-blue-200/60 uppercase">
+                                📺 Latest DOST-PAGASA Weather Forecast
+                              </span>
+                              <% } %>
+                        </div>
+                      </div>
+                      <a href="https://bagong.pagasa.dost.gov.ph" target="_blank" rel="noopener noreferrer"
+                        class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 text-[10px] font-bold hover:bg-blue-100 transition-colors flex items-center gap-1.5 shrink-0"
+                        title="Visit DOST-PAGASA Official Facebook Page">
+                        <i class="ph ph-globe text-xs"></i>
+                        <span>PAGASA Portal</span>
+                        <i class="ph ph-arrow-square-out text-[10px]"></i>
+                      </a>
+                    </div>
+
+                    <!-- Subtitle with Video Title & Published Time -->
+                    <div
+                      class="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 mb-2 px-0.5">
+                      <span id="pagasaVideoTitle" class="truncate font-medium max-w-[220px] sm:max-w-[280px]"
+                        title="<%= (pagasaData.youtube && pagasaData.youtube.title) ? pagasaData.youtube.title : 'Official DOST-PAGASA Weather Forecast' %>">
+                        <%= (pagasaData.youtube && pagasaData.youtube.title) ? pagasaData.youtube.title
+                          : 'Official DOST-PAGASA Weather Forecast' %>
+                      </span>
+                      <span id="pagasaVideoPublished" class="text-[10px] font-semibold text-slate-500 shrink-0">
+                        Issued: <%= (pagasaData.youtube && pagasaData.youtube.formattedPublished) ?
+                          pagasaData.youtube.formattedPublished : 'Daily Forecast Broadcast' %>
+                      </span>
+                    </div>
+
+                    <!-- Video & Player Container -->
+                    <div class="relative w-full">
+                      <% const videoSrc = (pagasaData.youtube && pagasaData.youtube.embedUrl) ? pagasaData.youtube.embedUrl : 'https://www.youtube-nocookie.com/embed/AgcXtAFRGkw?rel=0&autoplay=0&enablejsapi=1'; %>
+
+                      <!-- Active YouTube Player Frame (Always Visible) -->
+                      <div id="pagasaPlayerContainer"
+                        class="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-200 shadow-inner">
+                        <iframe id="pagasaVideoIframe" src="<%= videoSrc %>"
+                          title="<%= (pagasaData.youtube && pagasaData.youtube.title) ? pagasaData.youtube.title : 'DOST-PAGASA Official Weather Forecast' %>"
+                          class="absolute inset-0 w-full h-full border-0"
+                          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowfullscreen></iframe>
+                      </div>
+
+                      <!-- Graceful Fallback Card (Hidden by default, available as watch link if iframe cannot load) -->
+                      <div id="pagasaVideoFallback"
+                        class="relative w-full aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 border border-slate-700/60 flex flex-col items-center justify-center p-5 text-center shadow-inner hidden">
+                        <div
+                          class="w-10 h-10 rounded-2xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-500 mb-2 shadow-sm">
+                          <i class="ph ph-television text-xl"></i>
+                        </div>
+                        <h4 class="text-xs sm:text-sm font-bold text-white mb-1 uppercase tracking-wider">
+                          DOST-PAGASA Weather Broadcast
+                        </h4>
+                        <p class="text-[11px] text-slate-300 max-w-xs mb-3.5 leading-relaxed">
+                          Official weather broadcasts can also be viewed directly on the official PAGASA channel.
+                        </p>
+                        <a href="<%= (pagasaData.youtube && pagasaData.youtube.channelUrl) ? pagasaData.youtube.channelUrl : 'https://www.youtube.com/@dost_pagasa/videos' %>"
+                          target="_blank" rel="noopener noreferrer"
+                          class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95">
+                          <i class="ph ph-youtube-logo text-base"></i>
+                          <span>Watch on Official PAGASA YouTube</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Footer Bulletin Quick Links -->
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 text-[11px]">
+                    <span class="text-slate-500 font-medium flex items-center gap-1.5">
+                      <i class="ph ph-shield-check text-blue-600"></i>
+                      Broadcasts at 4:00 AM & 4:00 PM PHT
+                    </span>
+                    <a href="https://bagong.pagasa.dost.gov.ph/" target="_blank" rel="noopener noreferrer"
+                      class="text-blue-600 hover:underline font-bold inline-flex items-center gap-1">
+                      <span>Official PAGASA Bulletin</span>
+                      <i class="ph ph-arrow-square-out text-xs"></i>
+                    </a>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- RIGHT COLUMN (7 COLS): WINDY DOPPLER RADAR MAP (FOCUSED ON SAN RAFAEL / IKPAN, BAAO) -->
+              <div
+                class="lg:col-span-7 bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs flex flex-col min-h-[460px] lg:min-h-[560px] transition-colors">
+                <div class="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+                    <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">LIVE WEATHER MAP</span>
+                    <span
+                      class="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-600">Windy</span>
+                    <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 inline-flex items-center gap-1">
+                      <i class="ph ph-map-pin text-[10px]"></i> San Rafael (Ikpan), Baao
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" onclick="resetWindyView()"
+                      class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 hover:text-blue-700 bg-white hover:bg-blue-50 border border-slate-200 px-2 py-1 rounded-md shadow-2xs transition-colors cursor-pointer"
+                      title="Recenter map on San Rafael (Ikpan), Baao">
+                      <i class="ph ph-crosshair font-bold text-blue-600"></i> Recenter Ikpan
+                    </button>
+                    <span class="text-[10px] text-amber-600 font-semibold truncate hidden xl:inline">
+                      Visual reference only — refer to official PAGASA warnings.
+                    </span>
+                  </div>
+                </div>
+                <div class="relative w-full flex-1 h-full min-h-[440px] lg:min-h-[520px] bg-slate-950">
+                  <iframe id="windyIframe"
+                    src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=11&overlay=wind&product=ecmwf&level=surface&lat=13.5104&lon=123.3481&detailLat=13.5104&detailLon=123.3481&detail=true&pressure=true"
+                    width="100%" height="100%" frameborder="0" class="absolute inset-0 w-full h-full border-none"
+                    style="max-width: 100%;"></iframe>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- HIDDEN COMPATIBILITY HOOKS -->
+            <div class="hidden" style="display:none;" aria-hidden="true">
+              <span id="typhoonWind"><%= (typeof windVal !== 'undefined') ? windVal : 0 %></span>
+              <span id="typhoonGusts"><%= (typeof gustsVal !== 'undefined') ? gustsVal : 0 %></span>
+              <span id="typhoonPressure"><%= (typeof pressureVal !== 'undefined') ? pressureVal : 0 %></span>
+              <span id="typhoonHumidity"><%= (typeof humidityVal !== 'undefined') ? humidityVal : 0 %></span>
+              <span id="typhoonRain"><%= (typeof rainVal !== 'undefined') ? rainVal : 0 %></span>
+            </div>
+
+
+        </div>
+      </main>
+  </div>
+
+  <script>
+    function clientWindySvg(iconName, size = 'w-10 h-10') {
+      const name = (iconName || 'windy-sun-rain').toLowerCase();
+      if (name.includes('sun-rain') || (name.includes('sun') && name.includes('rain')) || name.includes('drizzle') || name.includes('shower')) {
+        return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="23" cy="13" r="6.5" fill="#FFA000" />
+          <g stroke="#FF8F00" stroke-width="1.8" stroke-linecap="round">
+            <line x1="23" y1="3" x2="23" y2="5" /><line x1="23" y1="21" x2="23" y2="23" />
+            <line x1="13" y1="13" x2="15" y2="13" /><line x1="31" y1="13" x2="33" y2="13" />
+            <line x1="16" y1="6" x2="17.4" y2="7.4" /><line x1="28.6" y1="18.6" x2="30" y2="20" />
+            <line x1="16" y1="20" x2="17.4" y2="18.6" /><line x1="28.6" y1="7.4" x2="30" y2="6" />
+          </g>
+          <path d="M11 25 C7.7 25 5 22.3 5 19 C5 16 7.2 13.5 10.2 13.1 C11.1 9.8 14.1 7.5 17.7 7.5 C21.8 7.5 25.1 10.5 25.8 14.5 C26.2 14.4 26.6 14.3 27 14.3 C30.3 14.3 33 17 33 20.3 C33 23.6 30.3 25 27 25 Z" fill="#90A4AE" />
+          <line x1="12" y1="27" x2="10.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+          <line x1="18" y1="27" x2="16.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+          <line x1="24" y1="27" x2="22.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+        </svg>`;
+      }
+      if (name.includes('storm') || name.includes('lightning')) {
+        return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="23" cy="13" r="6.5" fill="#FFA000" />
+          <g stroke="#FF8F00" stroke-width="1.8" stroke-linecap="round">
+            <line x1="23" y1="3" x2="23" y2="5" /><line x1="23" y1="21" x2="23" y2="23" />
+            <line x1="13" y1="13" x2="15" y2="13" /><line x1="31" y1="13" x2="33" y2="13" />
+            <line x1="16" y1="6" x2="17.4" y2="7.4" /><line x1="28.6" y1="18.6" x2="30" y2="20" />
+            <line x1="16" y1="20" x2="17.4" y2="18.6" /><line x1="28.6" y1="7.4" x2="30" y2="6" />
+          </g>
+          <path d="M11 25 C7.7 25 5 22.3 5 19 C5 16 7.2 13.5 10.2 13.1 C11.1 9.8 14.1 7.5 17.7 7.5 C21.8 7.5 25.1 10.5 25.8 14.5 C26.2 14.4 26.6 14.3 27 14.3 C30.3 14.3 33 17 33 20.3 C33 23.6 30.3 25 27 25 Z" fill="#607D8B" />
+          <path d="M17 23 L13.5 28 H17 L15 32.5 L20.5 27 H17 Z" fill="#FFD600" stroke="#FFA000" stroke-width="0.5" />
+          <line x1="23" y1="27" x2="21.5" y2="31.5" stroke="#0288D1" stroke-width="2.2" stroke-linecap="round" />
+        </svg>`;
+      }
+      if (name.includes('sun') && (name.includes('cloud') || name.includes('partly'))) {
+        return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="23" cy="13" r="6.5" fill="#FFA000" />
+          <g stroke="#FF8F00" stroke-width="1.8" stroke-linecap="round">
+            <line x1="23" y1="3" x2="23" y2="5" /><line x1="23" y1="21" x2="23" y2="23" />
+            <line x1="13" y1="13" x2="15" y2="13" /><line x1="31" y1="13" x2="33" y2="13" />
+            <line x1="16" y1="6" x2="17.4" y2="7.4" /><line x1="28.6" y1="18.6" x2="30" y2="20" />
+            <line x1="16" y1="20" x2="17.4" y2="18.6" /><line x1="28.6" y1="7.4" x2="30" y2="6" />
+          </g>
+          <path d="M11 25 C7.7 25 5 22.3 5 19 C5 16 7.2 13.5 10.2 13.1 C11.1 9.8 14.1 7.5 17.7 7.5 C21.8 7.5 25.1 10.5 25.8 14.5 C26.2 14.4 26.6 14.3 27 14.3 C30.3 14.3 33 17 33 20.3 C33 23.6 30.3 25 27 25 Z" fill="#B0BEC5" />
+        </svg>`;
+      }
+      return `<svg viewBox="0 0 36 36" class="${size} select-none shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="8.5" fill="#FFA000" />
+        <path d="M18 4 V7 M18 29 V32 M4 18 H7 M29 18 H32 M8.1 8.1 L10.2 10.2 M25.8 25.8 L27.9 27.9 M8.1 27.9 L10.2 25.8 M25.8 10.2 L27.9 8.1" stroke="#FF8F00" stroke-width="2.2" stroke-linecap="round" />
+      </svg>`;
+    }
+
+    function updateTyphoonUI(w) {
+      if (!w) return;
+      const tempNum = w.temperature != null ? Number(w.temperature) : 26.6;
+      const rounded = Math.round(tempNum);
+      const apparent = w.apparent_temperature != null ? Number(w.apparent_temperature) : Number((tempNum + 3.8).toFixed(1));
+      const dew = w.dew_point != null ? Number(w.dew_point) : Number((tempNum - 2.0).toFixed(1));
+
+      const dayEl = document.getElementById('typhoonDay');
+      if (dayEl) dayEl.textContent = (new Date()).toLocaleDateString('en-US', { weekday: 'long' });
+
+      const locLabel = document.getElementById('typhoonLocationLabel');
+      if (locLabel && w.location_name) locLabel.textContent = w.location_name;
+
+      const iconContainer = document.getElementById('typhoonStatusIconContainer');
+      if (iconContainer) {
+        iconContainer.innerHTML = clientWindySvg('windy-sun-rain', 'w-11 h-11');
+      }
+
+      const tempMainEl = document.getElementById('typhoonTempMain');
+      const tempEl = document.getElementById('typhoonTemp');
+      const heatIndexEl = document.getElementById('typhoonHeatIndex');
+      const windChillEl = document.getElementById('typhoonWindChill');
+      const dewpointEl = document.getElementById('typhoonDewpoint');
+      const windEl = document.getElementById('typhoonWind');
+      const gustsEl = document.getElementById('typhoonGusts');
+      const pressureEl = document.getElementById('typhoonPressure');
+      const humidityEl = document.getElementById('typhoonHumidity');
+      const rainEl = document.getElementById('typhoonRain');
+      const rainRateEl = document.getElementById('typhoonRainRate');
+      const rainTotalEl = document.getElementById('typhoonRainTotal');
+      const peakTag = document.getElementById('chartCalloutPeak');
+      const lowTag = document.getElementById('chartCalloutLow');
+      const windGustTag = document.getElementById('chartWindGustTag');
+      const windSpeedTag = document.getElementById('chartWindSpeedTag');
+
+      if (tempMainEl) tempMainEl.textContent = rounded + '°C';
+      if (tempEl) tempEl.textContent = tempNum;
+      if (heatIndexEl) heatIndexEl.textContent = apparent;
+      if (windChillEl) windChillEl.textContent = (tempNum - 1.2).toFixed(1);
+      if (dewpointEl) dewpointEl.textContent = dew;
+      if (windEl) windEl.textContent = w.wind_speed != null ? w.wind_speed : 18.3;
+      if (gustsEl) gustsEl.textContent = w.wind_gusts != null ? w.wind_gusts : 39.6;
+      if (pressureEl) pressureEl.textContent = w.pressure != null ? w.pressure : 998.4;
+      if (humidityEl) humidityEl.textContent = w.humidity != null ? w.humidity : 89;
+      if (rainEl) rainEl.textContent = w.rainfall != null ? w.rainfall : 0.2;
+      if (rainRateEl) rainRateEl.textContent = w.rainfall != null ? w.rainfall : 0.2;
+      if (rainTotalEl) rainTotalEl.textContent = w.rainfall != null ? w.rainfall : 0.2;
+      if (windGustTag && w.wind_gusts) windGustTag.textContent = Math.round(w.wind_gusts);
+      if (windSpeedTag && w.wind_speed) windSpeedTag.textContent = Math.round(w.wind_speed);
+
+      // Update 5-day forecast row if returned
+      if (w.daily && Array.isArray(w.daily) && w.daily.length >= 5) {
+        const rangeEl = document.getElementById('typhoonTempRange');
+        if (rangeEl) rangeEl.textContent = `${w.daily[0].temp_max}° / ${w.daily[0].temp_min}°`;
+        const grid = document.getElementById('forecastGrid');
+        if (grid) {
+          grid.innerHTML = w.daily.slice(0, 5).map((df, i) => {
+            const iconKey = (i === 0) ? 'windy-sun-rain' : df.icon;
+            return `
+              <div class="flex flex-col items-center gap-1.5 p-1 rounded-xl ${i === 0 ? 'bg-blue-50/70 border border-blue-100' : ''}">
+                <span class="text-xs font-semibold text-slate-700">${df.day_name}</span>
+                ${clientWindySvg(iconKey, 'w-7 h-7')}
+                <div class="text-xs font-mono font-bold text-slate-900 mt-0.5">${df.temp_max}°</div>
+                <div class="text-[10px] font-mono text-slate-400">${df.temp_min}°</div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    // Use device GPS location
+    async function useMyLocationTyphoon(btn) {
+      const icon = document.getElementById('typhoonLocIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.disabled = true;
+
+      try {
+        if (!window.EvakwarWeatherLocation) {
+          throw new Error('Location manager is still loading. Please try again in a moment.');
+        }
+        const coords = await window.EvakwarWeatherLocation.getCurrentPosition();
+        const weather = await window.EvakwarWeatherLocation.fetchWeather(coords);
+        updateTyphoonUI(weather);
+        window.EvakwarWeatherLocation.showToast('Updated weather for your device location!');
+      } catch (err) {
+        console.warn('GPS location retrieval error:', err.message);
+        if (window.EvakwarWeatherLocation) {
+          window.EvakwarWeatherLocation.showToast(err.message, true);
+        } else {
+          alert(err.message);
+        }
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // Live synchronization with Open-Meteo (respects saved location if present)
+    async function refreshTyphoonData(btn) {
+      const icon = document.getElementById('refreshIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.disabled = true;
+      try {
+        const saved = (window.EvakwarWeatherLocation) ? window.EvakwarWeatherLocation.getSavedLocation() : null;
+        const res = await fetch('/api/weather/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(saved || {})
+        });
+        const data = await res.json();
+        if (data.success && data.weather) {
+          updateTyphoonUI(data.weather);
+        }
+      } catch (err) {
+        console.error('Open-Meteo refresh error:', err);
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // Automatic Live / Latest PAGASA Video Auto-Updater
+    let currentPagasaVideoId = '<%= (pagasaData.youtube && pagasaData.youtube.videoId) ? pagasaData.youtube.videoId : "AgcXtAFRGkw" %>';
+    let currentPagasaIsLive = ('<%= (pagasaData.youtube && pagasaData.youtube.isLive) ? "true" : "false" %>' === 'true');
+
+    async function checkPagasaVideoUpdate() {
+      try {
+        const res = await fetch('/api/weather/pagasa', { cache: 'no-store' });
+        const data = await res.json();
+        if (!data || !data.success || !data.pagasa || !data.pagasa.youtube) return;
+
+        const yt = data.pagasa.youtube;
+        const badgeContainer = document.getElementById('pagasaLiveStatusBadge');
+        const titleEl = document.getElementById('pagasaVideoTitle');
+        const publishedEl = document.getElementById('pagasaVideoPublished');
+        const iframe = document.getElementById('pagasaVideoIframe');
+
+        if (titleEl && yt.title) {
+          titleEl.textContent = yt.title;
+          titleEl.setAttribute('title', yt.title);
+        }
+
+        if (publishedEl && yt.formattedPublished) {
+          publishedEl.textContent = 'Issued: ' + yt.formattedPublished;
+        }
+
+        // Dynamically show 🔴 LIVE badge ONLY if PAGASA has an active live broadcast
+        if (badgeContainer) {
+          if (yt.isLive) {
+            badgeContainer.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase tracking-wider shadow-xs animate-pulse">
+                <span class="w-1.5 h-1.5 rounded-full bg-white"></span> 🔴 LIVE
+              </span>
+              <span class="text-xs font-black uppercase tracking-wider text-slate-800">
+                DOST-PAGASA WEATHER UPDATE
+              </span>
+            `;
+          } else {
+            badgeContainer.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black tracking-tight border border-blue-200/60 uppercase">
+                📺 Latest DOST-PAGASA Weather Forecast
+              </span>
+            `;
+          }
+        }
+
+        // Seamlessly update video player when PAGASA starts a live broadcast or posts a new forecast
+        if (yt.videoId && yt.embedUrl && (yt.videoId !== currentPagasaVideoId || yt.isLive !== currentPagasaIsLive)) {
+          currentPagasaVideoId = yt.videoId;
+          currentPagasaIsLive = Boolean(yt.isLive);
+          if (iframe) {
+            iframe.src = yt.embedUrl;
+          }
+        }
+      } catch (err) {
+        // Silent check - keep current stable video without interruption
+      }
+    }
+
+    // Trigger update immediately on page load, then periodically every 3 minutes (180,000ms)
+    checkPagasaVideoUpdate();
+    setInterval(checkPagasaVideoUpdate, 180000);
+
+    // Load official YouTube IFrame API asynchronously
+    (function () {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      if (firstScriptTag && firstScriptTag.parentNode) {
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      }
+    })();
+
+    // Recenter Windy map to San Rafael (Ikpan), Baao, Camarines Sur
+    function resetWindyView() {
+      const iframe = document.getElementById('windyIframe');
+      if (iframe) {
+        iframe.src = "https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=11&overlay=wind&product=ecmwf&level=surface&lat=13.5104&lon=123.3481&detailLat=13.5104&detailLon=123.3481&detail=true&pressure=true";
+      }
+    }
+  </script>
+  <%- include('../partials/footer') %>

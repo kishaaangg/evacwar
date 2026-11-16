@@ -1,0 +1,1161 @@
+<%- include('../partials/header') %>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 20px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #94a3b8;
+            border-radius: 20px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #64748b;
+        }
+
+        .modal-scroll-body {
+            -webkit-overflow-scrolling: touch !important;
+            overscroll-behavior: contain !important;
+            touch-action: pan-y !important;
+        }
+    </style>
+
+    <div class="app-main-layout">
+        <%- include('../partials/sidebar') %>
+
+            <main
+                class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-40 lg:pb-12 overflow-x-hidden z-0">
+                <!-- Ambient Decorative Background -->
+                <div
+                    class="absolute top-0 left-0 w-full h-80 bg-gradient-to-b from-blue-100/60 via-indigo-50/30 to-transparent pointer-events-none -z-10">
+                </div>
+                <div
+                    class="absolute top-10 right-6 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+                </div>
+                <div
+                    class="absolute top-44 left-6 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+                </div>
+
+                <div class="max-w-2xl mx-auto w-full px-3.5 sm:px-6 py-3.5 sm:py-5 flex flex-col space-y-4 sm:space-y-6 relative z-10">
+
+                    <!-- Flash Feedback Banners -->
+                    <% if (locals.errorMessage) { %>
+                        <div id="flashErrorBanner" class="p-3.5 sm:p-4 rounded-2xl bg-rose-50/95 backdrop-blur-md border border-rose-200/90 text-rose-800 text-xs sm:text-sm font-semibold flex items-start gap-3 shadow-md shadow-rose-900/5 transition-all">
+                            <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                                <i class="ph ph-warning-circle text-xl"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h4 class="font-black text-rose-900 text-xs sm:text-sm mb-0.5">Registration / Action Blocked</h4>
+                                <p class="text-rose-700 leading-relaxed font-normal text-xs sm:text-sm break-words"><%= locals.errorMessage %></p>
+                            </div>
+                            <button type="button" onclick="this.closest('#flashErrorBanner').remove()" class="text-rose-400 hover:text-rose-700 p-1 rounded-lg transition-colors">
+                                <i class="ph ph-x text-lg"></i>
+                            </button>
+                        </div>
+                    <% } %>
+
+                    <% if (locals.successMessage) { %>
+                        <div id="flashSuccessBanner" class="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/95 backdrop-blur-md border border-emerald-200/90 text-emerald-800 text-xs sm:text-sm font-semibold flex items-start gap-3 shadow-md shadow-emerald-900/5 transition-all">
+                            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                <i class="ph ph-check-circle text-xl"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h4 class="font-black text-emerald-900 text-xs sm:text-sm mb-0.5">Success</h4>
+                                <p class="text-emerald-700 leading-relaxed font-normal text-xs sm:text-sm break-words"><%= locals.successMessage %></p>
+                            </div>
+                            <button type="button" onclick="this.closest('#flashSuccessBanner').remove()" class="text-emerald-400 hover:text-emerald-700 p-1 rounded-lg transition-colors">
+                                <i class="ph ph-x text-lg"></i>
+                            </button>
+                        </div>
+                    <% } %>
+
+                    <!-- 2. QR CODE DISPLAY SECTION -->
+                    <div
+                        class="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-xl shadow-blue-900/5 p-4 sm:p-7 border border-slate-100/90 flex flex-col items-center text-center transition-all hover:shadow-2xl hover:shadow-blue-900/10">
+                        <% 
+                          const isApproved = resident && (
+                            resident.approval_status === 'APPROVED' || 
+                            resident.approval_status === 'Approved' || 
+                            !resident.approval_status
+                          );
+                        %>
+                        <% if (resident && resident.qr_code_uuid && isApproved) { %>
+                        <div class="w-[170px] h-[170px] sm:w-[240px] sm:h-[240px] bg-gradient-to-br from-slate-100 to-slate-200/80 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-inner mb-3 sm:mb-4 relative group cursor-pointer border border-slate-200/60"
+                            onclick="openQrModal()" title="Tap to enlarge QR code">
+                            <img loading="lazy" src="<%= locals.qrDataUrl || ('https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + resident.qr_code_uuid + '&color=1e3a8a') %>" decoding="async"
+                                alt="Household QR Code"
+                                class="w-full h-full object-cover rounded-xl sm:rounded-2xl bg-white p-2 group-hover:opacity-90 transition-opacity shadow-xs" />
+                            <div
+                                class="absolute inset-0 bg-blue-900/40 rounded-2xl sm:rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                                <i class="ph ph-arrows-out text-white text-3xl sm:text-4xl drop-shadow-md"></i>
+                            </div>
+                        </div>
+                        <% } else { %>
+                        <div class="w-[170px] h-[170px] sm:w-[240px] sm:h-[240px] bg-amber-50/70 border-2 border-dashed border-amber-300 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center p-4 mb-3 sm:mb-4 text-center shadow-inner">
+                            <div class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-2 shadow-xs">
+                                <i class="ph ph-lock-key text-2xl font-bold"></i>
+                            </div>
+                            <span class="text-xs sm:text-sm font-bold text-amber-900 leading-tight">QR Evacuation Pass Locked</span>
+                            <span class="text-[10px] sm:text-xs text-amber-700 mt-1">Issued only upon barangay staff approval</span>
+                        </div>
+                        <% } %>
+
+                        <h2 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mb-1">
+                            <%= resident ? resident.last_name + ' Family' : 'Family Pass' %>
+                        </h2>
+
+                        <div class="flex items-center justify-center gap-1.5 sm:gap-2 mb-3.5 sm:mb-5 flex-wrap">
+                            <span
+                                class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] sm:text-xs font-bold border border-blue-200/60">
+                                <i class="ph ph-users text-sm sm:text-base text-blue-600"></i>
+                                <%= resident ? resident.family_size : 0 %> Members Registered
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full <%= (locals.evacuatedCount && locals.evacuatedCount > 0) ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-200' %> text-[11px] sm:text-xs font-bold border">
+                                <i
+                                    class="ph <%= (locals.evacuatedCount && locals.evacuatedCount > 0) ? 'ph-check-circle text-emerald-600' : 'ph-clock text-amber-600' %> text-sm"></i>
+                                Evacuated: <%= locals.evacuatedCount || 0 %> / <%= locals.totalHouseholdCount || 1 %> members
+                            </span>
+                            <% if (resident && resident.barangay) { %>
+                                <span
+                                    class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] sm:text-xs font-bold border border-slate-200">
+                                    <i class="ph ph-map-pin text-red-500 text-sm"></i>
+                                    <%= resident.barangay %>
+                                </span>
+                            <% } %>
+                        </div>
+
+                        <button onclick="openQrModal()" type="button"
+                            class="w-full sm:w-auto px-5 py-2.5 sm:px-7 sm:py-3 rounded-xl sm:rounded-2xl font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 active:scale-95 transition-all text-xs sm:text-sm">
+                            <i class="ph ph-arrows-out text-sm sm:text-base"></i> TAP TO ENLARGE QR PASS
+                        </button>
+                    </div>
+
+                    <!-- 3. HOUSEHOLD MEMBERS SECTION -->
+                    <div class="space-y-3 sm:space-y-4">
+                        <div class="flex items-center justify-between gap-2.5">
+                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div
+                                    class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-blue-100/90 text-blue-700 flex items-center justify-center shrink-0 shadow-xs border border-blue-200/60">
+                                    <i class="ph ph-users-three text-xl sm:text-2xl"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Family Members</h3>
+                                        <span
+                                            class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                                            <%= (locals.members ? locals.members.length : 0) + (locals.resident ? 1 : 0) %> Total
+                                        </span>
+                                    </div>
+                                    <p class="text-[10px] sm:text-xs text-slate-500 font-medium truncate">Evacuation & relief tracking</p>
+                                </div>
+                            </div>
+
+                            <button onclick="openMemberModal('add')" type="button"
+                                class="text-xs font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all flex items-center gap-1.5 active:scale-95 shadow-sm shadow-blue-500/20 shrink-0">
+                                <i class="ph ph-user-plus text-sm sm:text-base font-bold"></i> <span>ADD MEMBER</span>
+                            </button>
+                        </div>
+
+                        <div class="grid gap-2.5 sm:gap-3" id="membersList">
+                            <!-- Household Head Row -->
+                            <% if (locals.resident) { %>
+                                <div
+                                    class="bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 rounded-2xl p-3 sm:p-4 shadow-xs border border-blue-200/90 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md hover:border-blue-400 transition-all">
+                                    <div
+                                        class="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-bl-full pointer-events-none">
+                                    </div>
+                                    
+                                    <!-- Top Row: Avatar + Name + Household Head Badge -->
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <div
+                                            class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-inner border border-blue-200 overflow-hidden relative">
+                                            <% if (resident.profile_photo) { %>
+                                                <img loading="lazy" src="<%= (resident.profile_photo.startsWith('http') || resident.profile_photo.startsWith('/')) ? resident.profile_photo : ('/uploads/profiles/' + resident.profile_photo) %>" decoding="async"
+                                                    alt="<%= resident.first_name %>" class="w-full h-full object-cover"
+                                                    onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                                <span class="hidden text-xl">
+                                                    <%= (resident.sex==='Female' ) ? '👩' : '👨' %>
+                                                </span>
+                                            <% } else { %>
+                                                <span class="text-xl">
+                                                    <%= (resident.sex==='Female' ) ? '👩' : '👨' %>
+                                                </span>
+                                            <% } %>
+                                        </div>
+
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <h4 class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">
+                                                    <%= resident.first_name %>
+                                                    <%= resident.middle_name ? resident.middle_name + ' ' : '' %>
+                                                    <%= resident.last_name %>
+                                                </h4>
+                                                <span
+                                                    class="text-[9px] sm:text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-2xs inline-flex items-center gap-1 shrink-0">
+                                                    <i class="ph ph-crown-simple text-xs"></i> Household Head
+                                                </span>
+                                            </div>
+                                            <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">
+                                                <%= resident.sex || 'Male' %><%= resident.age ? (' • ' + resident.age + ' yrs') : '' %>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Status Badges Row -->
+                                    <div class="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-blue-100/60 text-[10px] sm:text-xs">
+                                        <% if (resident.evacuation_status==='CHECKED_IN' ) { %>
+                                            <span
+                                                class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                                                <i class="ph ph-check-circle text-xs"></i> CHECKED IN <%=
+                                                    resident.checked_in_center ? ('(' +
+                                                    resident.checked_in_center + ')' ) : '' %>
+                                            </span>
+                                        <% } else { %>
+                                            <span
+                                                class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                                <i class="ph ph-clock text-xs"></i> NOT EVACUATED
+                                            </span>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            <% } %>
+
+                            <!-- Added Family Members List -->
+                            <% if (locals.members && locals.members.length> 0) { %>
+                                <% locals.members.forEach(member=> { %>
+                                    <div
+                                        class="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-slate-200/80 flex flex-col gap-2 group hover:shadow-md hover:border-blue-300 transition-all">
+                                        <!-- Top Row: Avatar + Name + Relation + Actions -->
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                                <div
+                                                    class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-inner border border-slate-200/80 overflow-hidden relative">
+                                                    <% if (member.profile_photo) { %>
+                                                        <img loading="lazy" src="<%= (member.profile_photo.startsWith('http') || member.profile_photo.startsWith('/')) ? member.profile_photo : ('/uploads/profiles/' + member.profile_photo) %>" decoding="async"
+                                                            alt="<%= member.first_name %>"
+                                                            class="w-full h-full object-cover"
+                                                            onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                                                        <span class="hidden text-xl">
+                                                            <%= (member.sex==='Female' ) ? '👩' : '👨' %>
+                                                        </span>
+                                                    <% } else { %>
+                                                        <span class="text-xl">
+                                                            <%= (member.sex==='Female' ) ? '👩' : '👨' %>
+                                                        </span>
+                                                    <% } %>
+                                                </div>
+
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                                        <h4 class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">
+                                                            <%= member.first_name %>
+                                                            <%= member.middle_name ? member.middle_name + ' ' : '' %>
+                                                            <%= member.last_name %>
+                                                        </h4>
+                                                        <span
+                                                            class="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/90 tracking-wide uppercase inline-flex items-center gap-1 shadow-2xs shrink-0">
+                                                            <i class="ph ph-tag text-[10px] text-blue-500"></i>
+                                                            <%= member.relation || 'Family' %>
+                                                        </span>
+                                                    </div>
+                                                    <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">
+                                                        <%= member.sex || 'Male' %><% if (member.age || member.age === 0) { %> • <%= member.age %> yrs<% } %>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Action Buttons (Edit & Delete) -->
+                                            <div class="flex items-center gap-1 shrink-0">
+                                                <button type="button"
+                                                    class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 flex items-center justify-center transition-all border border-slate-200/80 hover:border-blue-300 shadow-2xs active:scale-95"
+                                                    data-id="<%= member.id %>"
+                                                    data-first-name="<%= member.first_name || '' %>"
+                                                    data-middle-name="<%= member.middle_name || '' %>"
+                                                    data-last-name="<%= member.last_name || '' %>"
+                                                    data-relation="<%= member.relation || 'Family Member' %>"
+                                                    data-photo="<%= member.profile_photo || '' %>"
+                                                    data-sex="<%= member.sex || 'Male' %>"
+                                                    data-birthdate="<%= member.birthdate ? new Date(member.birthdate).toISOString().split('T')[0] : '' %>"
+                                                    data-age="<%= member.age !== null && member.age !== undefined ? member.age : '' %>"
+                                                    data-status="<%= member.status || '' %>"
+                                                    data-is-pregnant="<%= member.is_pregnant ? 'true' : 'false' %>"
+                                                    data-is-lactating="<%= member.is_lactating ? 'true' : 'false' %>"
+                                                    data-is-pwd="<%= member.is_pwd || (member.status && member.status.includes('pwd')) ? 'true' : 'false' %>"
+                                                    data-is-senior="<%= (member.age !== null && member.age !== undefined && member.age >= 60) || (member.status && (member.status.includes('elderly') || member.status.includes('senior'))) ? 'true' : 'false' %>"
+                                                    data-is-bedridden="<%= (member.status && member.status.includes('bedridden')) ? 'true' : 'false' %>"
+                                                    data-is-solo-parent="<%= (member.status && (member.status.includes('solo_parent') || member.status.includes('single_head'))) ? 'true' : 'false' %>"
+                                                    data-is-student="<%= (member.status && member.status.includes('student')) ? 'true' : 'false' %>"
+                                                    data-is-infant="<%= ((member.age !== null && member.age !== undefined && member.age <= 4) || (member.status && (member.status.includes('infant') || member.status.includes('toddler')))) ? 'true' : 'false' %>"
+                                                    data-has-serious-illness="<%= (member.has_serious_illness || (member.status && member.status.includes('illness'))) ? 'true' : 'false' %>"
+                                                    data-serious-illness-details="<%= member.serious_illness_details || '' %>"
+                                                    onclick="openEditMemberModalFromBtn(this)"
+                                                    title="Edit family member">
+                                                    <i class="ph ph-pencil-simple text-sm"></i>
+                                                </button>
+                                                <form action="/resident/qr/members/delete/<%= member.id %>"
+                                                    method="POST" class="inline">
+                                                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+                                                    <button type="submit"
+                                                        class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 flex items-center justify-center transition-all border border-slate-200/80 hover:border-rose-300 shadow-2xs active:scale-95"
+                                                        onclick="return confirm('Are you sure you want to remove this family member?');"
+                                                        title="Remove family member">
+                                                        <i class="ph ph-trash text-sm"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+
+                                        <!-- Status and Condition Badges Row -->
+                                        <div class="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-slate-100 text-[10px] sm:text-xs">
+                                            <% if (member.evacuation_status==='CHECKED_IN' ) { %>
+                                                <span
+                                                    class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                                                    <i class="ph ph-check-circle text-xs"></i> CHECKED IN <%=
+                                                        member.checked_in_center ? ('(' +
+                                                        member.checked_in_center + ')' ) : '' %>
+                                                </span>
+                                            <% } else { %>
+                                                <span
+                                                    class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-clock text-xs"></i> NOT EVACUATED
+                                                </span>
+                                            <% } %>
+
+                                            <% const mStatus = String(member.status || '').toLowerCase(); %>
+
+                                            <% if ((member.age !== null && member.age !== undefined && member.age >= 60) || mStatus.includes('elderly') || mStatus.includes('senior')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-user text-[11px]"></i> Senior Citizen
+                                                </span>
+                                            <% } %>
+
+                                            <% if (member.is_pwd || mStatus.includes('pwd')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-wheelchair text-[11px]"></i> PWD
+                                                </span>
+                                            <% } %>
+
+                                            <% if (member.is_pregnant || mStatus.includes('pregnant')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-baby text-[11px]"></i> Pregnant
+                                                </span>
+                                            <% } %>
+
+                                            <% if (member.is_lactating || mStatus.includes('lactating')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-pink-100 text-pink-800 border border-pink-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-drop text-[11px]"></i> Lactating
+                                                </span>
+                                            <% } %>
+
+                                            <% if (mStatus.includes('bedridden')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-bed text-[11px]"></i> Bedridden
+                                                </span>
+                                            <% } %>
+
+                                            <% if (mStatus.includes('solo_parent') || mStatus.includes('single_head')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-user-focus text-[11px]"></i> Solo Parent
+                                                </span>
+                                            <% } %>
+
+                                            <% if (member.has_serious_illness || mStatus.includes('illness')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-200 inline-flex items-center gap-1"
+                                                    title="<%= member.serious_illness_details || '' %>">
+                                                    <i class="ph ph-first-aid text-[11px]"></i> Illness
+                                                </span>
+                                            <% } %>
+
+                                            <% if (mStatus.includes('student')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-teal-100 text-teal-800 border border-teal-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-student text-[11px]"></i> Student
+                                                </span>
+                                            <% } %>
+
+                                            <% if ((member.age !== null && member.age !== undefined && member.age <= 4) || mStatus.includes('infant') || mStatus.includes('toddler')) { %>
+                                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-orange-100 text-orange-800 border border-orange-200 inline-flex items-center gap-1">
+                                                    <i class="ph ph-baby text-[11px]"></i> Infant/Toddler
+                                                </span>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <div
+                                    class="bg-gradient-to-b from-slate-50/70 to-white border-2 border-dashed border-slate-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center">
+                                    <div
+                                        class="w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 rounded-2xl flex items-center justify-center shadow-xs mb-3 border border-blue-100 text-blue-600">
+                                        <i class="ph ph-users-three text-2xl sm:text-3xl"></i>
+                                    </div>
+                                    <h4 class="text-slate-800 font-black text-sm sm:text-base mb-1">No family members added yet</h4>
+                                    <p class="text-xs text-slate-500 max-w-[280px] mb-3 sm:mb-4">Add your spouse, children, or household members so they can be identified and scanned with your QR code.</p>
+                                    <button onclick="openMemberModal('add')" type="button"
+                                        class="text-xs font-extrabold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100/80 px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 border border-blue-200/80 active:scale-95 shadow-2xs">
+                                        <i class="ph ph-plus-circle text-base"></i> Add First Family Member
+                                    </button>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- 4. HELPER INFO CARD -->
+                    <div
+                        class="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-blue-50 border border-blue-100 rounded-2xl p-3.5 sm:p-5 flex items-start gap-2.5 sm:gap-3 shadow-xs">
+                        <div
+                            class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                            <i class="ph ph-info text-lg sm:text-xl"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs sm:text-sm text-blue-950 font-bold leading-snug">Present this QR code to
+                                evacuation staff at the center. One scan checks in your entire household.</p>
+                            <p class="text-[10px] sm:text-xs text-blue-700 font-semibold">Keep your family member list
+                                updated for accurate relief assistance during emergencies.</p>
+                        </div>
+                    </div>
+
+                    <!-- Bottom spacer to ensure full clearance above bottom navigation -->
+                    <div class="h-6 sm:h-4"></div>
+
+                </div>
+
+                <%- include('../partials/footer-visible') %>
+
+            </main>
+    </div>
+
+    <!-- ADD/EDIT MEMBER POPUP MODAL (OUTSIDE MAIN LAYOUT & ULTRA HIGH Z-INDEX) -->
+    <div id="memberModal"
+        class="hidden fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto opacity-0 transition-opacity duration-200"
+        style="z-index: 99999;" onclick="handleMemberModalBackdropClick(event)">
+        <div class="bg-white rounded-3xl w-full max-w-lg shadow-2xl transform scale-95 transition-transform duration-200 overflow-hidden max-h-[85vh] sm:max-h-[88vh] flex flex-col my-auto border border-slate-100"
+            id="memberModalContent" onclick="event.stopPropagation()">
+
+            <!-- Modal Header -->
+            <div
+                class="px-5 py-4 sm:px-6 sm:py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/90 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-9 h-9 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shadow-xs">
+                        <i class="ph ph-user-plus text-xl" id="modalIcon"></i>
+                    </div>
+                    <div>
+                        <h3 id="modalTitle" class="text-base sm:text-lg font-black text-slate-900 leading-tight">Add
+                            Family Member</h3>
+                        <p class="text-[11px] text-slate-500 font-medium">Keep your household records accurate for
+                            evacuation support</p>
+                    </div>
+                </div>
+                <button onclick="closeMemberModal()" type="button"
+                    class="w-8 h-8 rounded-full bg-white hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors shadow-xs border border-slate-200 active:scale-95">
+                    <i class="ph ph-x text-lg"></i>
+                </button>
+            </div>
+
+            <form id="memberForm" action="/resident/qr/members" method="POST" enctype="multipart/form-data"
+                class="flex flex-col flex-1 overflow-hidden min-h-0">
+                <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+                <!-- Scrollable Modal Body -->
+                <div
+                    class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar modal-scroll-body text-xs sm:text-sm">
+
+                    <!-- Profile Photo Upload -->
+                    <div class="flex flex-col items-center justify-center pb-3 pt-1 border-b border-slate-100">
+                        <div class="relative group cursor-pointer"
+                            onclick="document.getElementById('memberPhotoInput').click()"
+                            title="Click to upload profile photo">
+                            <div
+                                class="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 flex items-center justify-center overflow-hidden shadow-inner group-hover:border-blue-500 group-hover:shadow-md transition-all">
+                                <img loading="lazy" id="memberPhotoPreview" src="" alt="Preview"
+                                    class="hidden w-full h-full object-cover" / decoding="async">
+                                <div id="memberPhotoPlaceholder"
+                                    class="flex flex-col items-center text-blue-500 group-hover:text-blue-600 transition-colors">
+                                    <i class="ph ph-user-circle text-4xl sm:text-5xl"></i>
+                                </div>
+                            </div>
+                            <!-- Camera Badge overlay -->
+                            <div
+                                class="absolute -bottom-1 -right-1 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-600 text-white shadow-md flex items-center justify-center border-2 border-white group-hover:bg-blue-700 group-hover:scale-105 transition-all">
+                                <i class="ph ph-camera text-sm sm:text-base"></i>
+                            </div>
+                        </div>
+
+                        <input type="file" name="profile_photo" id="memberPhotoInput" accept="image/*" class="hidden"
+                            onchange="previewMemberPhoto(this)">
+
+                        <div class="flex items-center gap-2 mt-2.5">
+                            <button type="button" onclick="document.getElementById('memberPhotoInput').click()"
+                                class="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100/90 px-3 py-1.5 rounded-xl transition-all border border-blue-200/70 shadow-2xs flex items-center gap-1.5">
+                                <i class="ph ph-upload-simple text-sm"></i>
+                                <span id="photoBtnText">Choose Photo</span>
+                            </button>
+                            <button type="button" id="removePhotoBtn" onclick="clearMemberPhoto()"
+                                class="hidden text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100/90 px-2.5 py-1.5 rounded-xl transition-all border border-rose-200/70 shadow-2xs flex items-center gap-1">
+                                <i class="ph ph-trash text-sm"></i> Remove
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 font-medium mt-1.5 text-center">Optional facial photo •
+                            JPG, PNG or WEBP (Max 5MB)</p>
+                    </div>
+
+                    <!-- Relationship to Household Head (Categorized) -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                            <span class="flex items-center gap-1">
+                                <i class="ph ph-users text-blue-600"></i> Relationship to Household Head <span
+                                    class="text-rose-500">*</span>
+                            </span>
+                            <span
+                                class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Auto-sets
+                                Sex</span>
+                        </label>
+                        <div class="relative">
+                            <select name="relation" id="memberRelationInput" required
+                                onchange="handleRelationChange(this.value)"
+                                class="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-semibold text-slate-800 text-xs sm:text-sm cursor-pointer appearance-none">
+                                <option value="" disabled selected>Select relationship category...</option>
+                                <optgroup label="Immediate Family">
+                                    <option value="Husband">Husband</option>
+                                    <option value="Wife">Wife</option>
+                                    <option value="Son">Son</option>
+                                    <option value="Daughter">Daughter</option>
+                                    <option value="Child">Child (Son / Daughter)</option>
+                                    <option value="Spouse / Partner">Spouse / Partner</option>
+                                </optgroup>
+                                <optgroup label="Parents & Grandparents">
+                                    <option value="Father">Father</option>
+                                    <option value="Mother">Mother</option>
+                                    <option value="Grandfather">Grandfather (Lolo)</option>
+                                    <option value="Grandmother">Grandmother (Lola)</option>
+                                </optgroup>
+                                <optgroup label="Siblings">
+                                    <option value="Brother">Brother</option>
+                                    <option value="Sister">Sister</option>
+                                </optgroup>
+                                <optgroup label="Extended Family & In-Laws">
+                                    <option value="Grandchild">Grandchild (Apo)</option>
+                                    <option value="Uncle">Uncle (Tito)</option>
+                                    <option value="Aunt">Aunt (Tita)</option>
+                                    <option value="Nephew">Nephew</option>
+                                    <option value="Niece">Niece</option>
+                                    <option value="Cousin">Cousin</option>
+                                    <option value="In-Law">In-Law (Biyanan / Manugang / Bayaw)</option>
+                                    <option value="Other Relative">Other Relative</option>
+                                </optgroup>
+                                <optgroup label="Other Dependents">
+                                    <option value="Guardian / Dependent">Guardian / Dependent</option>
+                                    <option value="Housemate / Non-Relative">Housemate / Non-Relative</option>
+                                </optgroup>
+                            </select>
+                            <div
+                                class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                                <i class="ph ph-caret-down text-base"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Name Inputs -->
+                    <div>
+                        <label
+                            class="block text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Personal
+                            Name</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">First Name
+                                    <span class="text-rose-500">*</span></label>
+                                <input type="text" name="first_name" id="memberFirstNameInput" required
+                                    class="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-semibold text-slate-800 placeholder-slate-400 text-xs sm:text-sm"
+                                    placeholder="Juan">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Middle
+                                    Name</label>
+                                <input type="text" name="middle_name" id="memberMiddleNameInput"
+                                    class="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-semibold text-slate-800 placeholder-slate-400 text-xs sm:text-sm"
+                                    placeholder="Optional">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Last Name
+                                    <span class="text-rose-500">*</span></label>
+                                <input type="text" name="last_name" id="memberLastNameInput" required
+                                    class="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-semibold text-slate-800 placeholder-slate-400 text-xs sm:text-sm"
+                                    placeholder="Dela Cruz">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sex & Birthdate -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Sex <span
+                                    class="text-rose-500">*</span></label>
+                            <select name="sex" id="memberSexInput" required
+                                class="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-semibold text-slate-800 text-xs sm:text-sm cursor-pointer">
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Birthdate
+                                <span class="text-rose-500">*</span></label>
+                            <input type="date" name="birthdate" id="memberBirthdateInput" required
+                                onchange="updateAgeFromBirthdate()" oninput="updateAgeFromBirthdate()"
+                                class="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-semibold text-slate-800 text-xs sm:text-sm">
+                            <input type="hidden" name="age" id="memberAgeHiddenInput">
+                            <div id="calculatedAgeBadge"
+                                class="mt-1.5 hidden text-xs font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+                                <i class="ph ph-calendar text-sm text-blue-500"></i> Age: <span
+                                    id="calculatedAgeText">0</span> years old
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vulnerabilities & Special Conditions -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <i class="ph ph-wheelchair text-purple-600 text-sm"></i> Vulnerabilities & Special Conditions
+                            </label>
+                            <span class="text-[10px] text-slate-400 font-medium">Medical & demographic needs</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs">
+                            <!-- Senior Citizen -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-blue-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="elderly" id="statusElderly"
+                                    class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Senior Citizen</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Age 60 years or older</span>
+                                </div>
+                            </label>
+
+                            <!-- Person with Disability (PWD) -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-purple-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="pwd" id="statusPwd"
+                                    class="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Person with Disability</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Special mobility needs</span>
+                                </div>
+                            </label>
+
+                            <!-- Pregnant -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-rose-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="pregnant" id="statusPregnant"
+                                    class="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Pregnant</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Prenatal care priority</span>
+                                </div>
+                            </label>
+
+                            <!-- Lactating Mother -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-pink-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="lactating" id="statusLactating"
+                                    class="w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Lactating Mother</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Infant nutrition support</span>
+                                </div>
+                            </label>
+
+                            <!-- Bedridden -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-amber-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="bedridden" id="statusBedridden"
+                                    class="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Bedridden</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Immobility / direct care</span>
+                                </div>
+                            </label>
+
+                            <!-- Solo Parent -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-indigo-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="solo_parent" id="statusSoloParent"
+                                    class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Solo Parent</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Single parent dependent</span>
+                                </div>
+                            </label>
+
+                            <!-- Serious Illness -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-red-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="illness" id="statusIllness"
+                                    class="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500 transition-colors shrink-0"
+                                    onchange="toggleMemberIllnessDetails(); uncheckNone();">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Serious Illness</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">Chronic medical condition</span>
+                                </div>
+                            </label>
+
+                            <!-- Student / Minor -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-teal-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="student" id="statusStudent"
+                                    class="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Student / Minor</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">School-age child / youth</span>
+                                </div>
+                            </label>
+
+                            <!-- Infant / Toddler -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-orange-300 hover:shadow-2xs transition-all">
+                                <input type="checkbox" name="status" value="infant" id="statusInfant"
+                                    class="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 transition-colors shrink-0"
+                                    onchange="uncheckNone()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-800 block text-xs">Infant / Toddler</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">0–4 years old</span>
+                                </div>
+                            </label>
+
+                            <!-- None of the above -->
+                            <label class="flex items-center gap-2.5 cursor-pointer p-2 bg-white rounded-xl border border-slate-200/80 hover:border-slate-400 hover:shadow-2xs transition-all">
+                                <input type="checkbox" id="statusNone"
+                                    class="w-4 h-4 rounded border-slate-300 text-slate-500 focus:ring-slate-500 transition-colors shrink-0"
+                                    onchange="handleNoneCheckbox()">
+                                <div class="min-w-0">
+                                    <span class="font-bold text-slate-600 block text-xs">None of the Above</span>
+                                    <span class="text-[10px] text-slate-400 font-normal block truncate">No special conditions</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- Serious Illness Details -->
+                        <div id="memberIllnessDetailsContainer" class="mt-2.5 hidden">
+                            <label class="block text-xs font-semibold text-red-700 mb-1 flex items-center gap-1">
+                                <i class="ph ph-first-aid text-sm"></i> Medical Condition Details
+                            </label>
+                            <input type="text" name="serious_illness_details" id="memberIllnessDetailsInput"
+                                class="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none font-semibold text-red-900 placeholder-red-400 text-xs"
+                                placeholder="e.g. Asthma, Hypertension, Heart Condition, Diabetes">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="p-3.5 sm:p-5 border-t border-slate-100 flex gap-2.5 sm:gap-3 bg-slate-50 shrink-0">
+                    <button type="button" onclick="closeMemberModal()"
+                        class="flex-1 py-3 px-4 rounded-xl sm:rounded-2xl font-black text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-all active:scale-95 text-xs sm:text-sm shadow-2xs">
+                        CANCEL
+                    </button>
+                    <button type="submit" id="saveMemberSubmitBtn"
+                        class="flex-1 py-3 px-4 rounded-xl sm:rounded-2xl font-black text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all active:scale-95 text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                        <i class="ph ph-check text-base"></i>
+                        <span id="saveMemberBtnText">SAVE MEMBER</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- QR ENLARGE MODAL (ULTRA HIGH Z-INDEX) -->
+    <div id="qrModal"
+        class="hidden fixed inset-0 z-[100000] flex items-center justify-center bg-slate-900/90 backdrop-blur-md px-4 opacity-0 transition-opacity duration-300"
+        style="z-index: 100000;" onclick="closeQrModal(event)">
+        <div class="relative flex flex-col items-center transform scale-95 transition-transform duration-300"
+            id="qrModalContent">
+            <div class="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl mb-6 relative group">
+                <div
+                    class="absolute inset-0 bg-blue-500 rounded-3xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-500 -z-10">
+                </div>
+                <% 
+                  const isModalApproved = resident && (
+                    resident.approval_status === 'APPROVED' || 
+                    resident.approval_status === 'Approved' || 
+                    !resident.approval_status
+                  );
+                %>
+                <% if (resident && resident.qr_code_uuid && isModalApproved) { %>
+                <img loading="lazy" src="<%= locals.qrDataUrl || ('https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + resident.qr_code_uuid + '&color=1e3a8a') %>" decoding="async"
+                    alt="Enlarged QR Code"
+                    class="w-[250px] h-[250px] sm:w-[360px] sm:h-[360px] max-w-[75vw] max-h-[75vw] object-cover rounded-2xl" />
+                <% } else { %>
+                <div class="w-[250px] h-[250px] sm:w-[360px] sm:h-[360px] flex flex-col items-center justify-center p-6 text-center text-slate-700">
+                    <i class="ph ph-lock-key text-5xl text-amber-500 mb-3"></i>
+                    <p class="font-bold text-lg">QR Pass Locked</p>
+                    <p class="text-xs text-slate-500 mt-1">Pending approval from Barangay Staff</p>
+                </div>
+                <% } %>
+            </div>
+            <button onclick="closeQrModalManual()" type="button"
+                class="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all backdrop-blur-md border border-white/20 hover:scale-110 active:scale-95 shadow-xl">
+                <i class="ph ph-x text-xl"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function updateAgeFromBirthdate() {
+            const birthdateVal = document.getElementById('memberBirthdateInput').value;
+            const ageBadge = document.getElementById('calculatedAgeBadge');
+            const ageText = document.getElementById('calculatedAgeText');
+            const hiddenAgeInput = document.getElementById('memberAgeHiddenInput');
+            const seniorCheckbox = document.getElementById('statusElderly');
+            const infantCheckbox = document.getElementById('statusInfant');
+            const studentCheckbox = document.getElementById('statusStudent');
+
+            if (birthdateVal) {
+                const today = new Date();
+                const birthDate = new Date(birthdateVal);
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                if (age < 0) age = 0;
+                ageText.textContent = age;
+                hiddenAgeInput.value = age;
+                ageBadge.classList.remove('hidden');
+
+                // Auto check demographic brackets based on age
+                if (age >= 60 && seniorCheckbox) {
+                    seniorCheckbox.checked = true;
+                    uncheckNone();
+                } else if (age <= 4 && infantCheckbox) {
+                    infantCheckbox.checked = true;
+                    uncheckNone();
+                } else if (age >= 5 && age <= 18 && studentCheckbox) {
+                    studentCheckbox.checked = true;
+                    uncheckNone();
+                }
+            } else {
+                ageText.textContent = '0';
+                hiddenAgeInput.value = '';
+                ageBadge.classList.add('hidden');
+            }
+        }
+
+        // Auto-select sex based on relationship to household head
+        function handleRelationChange(relationVal) {
+            const sexSelect = document.getElementById('memberSexInput');
+            if (!sexSelect || !relationVal) return;
+
+            const maleRelations = ['Husband', 'Father', 'Son', 'Brother', 'Grandfather'];
+            const femaleRelations = ['Wife', 'Mother', 'Daughter', 'Sister', 'Grandmother'];
+
+            if (maleRelations.includes(relationVal)) {
+                sexSelect.value = 'Male';
+            } else if (femaleRelations.includes(relationVal)) {
+                sexSelect.value = 'Female';
+            }
+        }
+
+        // Member profile photo preview
+        function previewMemberPhoto(input) {
+            const preview = document.getElementById('memberPhotoPreview');
+            const placeholder = document.getElementById('memberPhotoPlaceholder');
+            const removeBtn = document.getElementById('removePhotoBtn');
+            const photoBtnText = document.getElementById('photoBtnText');
+
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('Image size exceeds 5MB. Please choose a smaller photo.');
+                    input.value = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    removeBtn.classList.remove('hidden');
+                    if (photoBtnText) photoBtnText.textContent = 'Change Photo';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearMemberPhoto() {
+            const input = document.getElementById('memberPhotoInput');
+            const preview = document.getElementById('memberPhotoPreview');
+            const placeholder = document.getElementById('memberPhotoPlaceholder');
+            const removeBtn = document.getElementById('removePhotoBtn');
+            const photoBtnText = document.getElementById('photoBtnText');
+
+            if (input) input.value = '';
+            if (preview) {
+                preview.src = '';
+                preview.classList.add('hidden');
+            }
+            if (placeholder) placeholder.classList.remove('hidden');
+            if (removeBtn) removeBtn.classList.add('hidden');
+            if (photoBtnText) photoBtnText.textContent = 'Choose Photo';
+        }
+
+        function openEditMemberModalFromBtn(btn) {
+            const ds = btn.dataset;
+            const data = {
+                id: ds.id,
+                first_name: ds.firstName,
+                middle_name: ds.middleName,
+                last_name: ds.lastName,
+                relation: ds.relation,
+                photo: ds.photo,
+                sex: ds.sex,
+                birthdate: ds.birthdate,
+                age: ds.age,
+                status: ds.status,
+                is_pregnant: ds.isPregnant === 'true',
+                is_lactating: ds.isLactating === 'true',
+                is_pwd: ds.isPwd === 'true',
+                is_senior: ds.isSenior === 'true',
+                is_bedridden: ds.isBedridden === 'true',
+                is_solo_parent: ds.isSoloParent === 'true',
+                is_student: ds.isStudent === 'true',
+                is_infant: ds.isInfant === 'true',
+                is_serious_illness: ds.hasSeriousIllness === 'true',
+                serious_illness_details: ds.seriousIllnessDetails
+            };
+            openMemberModal('edit', data);
+        }
+
+        function openMemberModal(mode, data = null) {
+            const modal = document.getElementById('memberModal');
+            const modalContent = document.getElementById('memberModalContent');
+            const title = document.getElementById('modalTitle');
+            const icon = document.getElementById('modalIcon');
+            const form = document.getElementById('memberForm');
+            const saveBtnText = document.getElementById('saveMemberBtnText');
+            const preview = document.getElementById('memberPhotoPreview');
+            const placeholder = document.getElementById('memberPhotoPlaceholder');
+            const removeBtn = document.getElementById('removePhotoBtn');
+            const photoBtnText = document.getElementById('photoBtnText');
+            const relationSelect = document.getElementById('memberRelationInput');
+
+            // Teleport to body if not already there to guarantee top layer
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+
+            document.body.classList.add('overflow-hidden');
+
+            // Reset photo preview by default
+            clearMemberPhoto();
+
+            if (mode === 'edit' && data) {
+                title.textContent = 'Edit Family Member';
+                if (icon) icon.className = 'ph ph-pencil-simple text-xl text-blue-600';
+                if (saveBtnText) saveBtnText.textContent = 'UPDATE MEMBER';
+                form.action = '/resident/qr/members/' + data.id + '/edit';
+
+                document.getElementById('memberFirstNameInput').value = data.first_name || '';
+                document.getElementById('memberMiddleNameInput').value = data.middle_name || '';
+                document.getElementById('memberLastNameInput').value = data.last_name || '';
+
+                if (relationSelect) {
+                    relationSelect.value = data.relation || '';
+                }
+
+                document.getElementById('memberSexInput').value = data.sex || 'Male';
+
+                if (data.birthdate) {
+                    const d = new Date(data.birthdate);
+                    document.getElementById('memberBirthdateInput').value = d.toISOString().split('T')[0];
+                } else {
+                    document.getElementById('memberBirthdateInput').value = '';
+                }
+
+                // Show existing member photo if present
+                if (data.photo) {
+                    const photoUrl = (data.photo.startsWith('http') || data.photo.startsWith('/')) ? data.photo : ('/uploads/profiles/' + data.photo);
+                    if (preview) {
+                        preview.src = photoUrl;
+                        preview.classList.remove('hidden');
+                    }
+                    if (placeholder) placeholder.classList.add('hidden');
+                    if (removeBtn) removeBtn.classList.remove('hidden');
+                    if (photoBtnText) photoBtnText.textContent = 'Change Photo';
+                }
+
+                document.getElementById('statusPwd').checked = !!data.is_pwd;
+                document.getElementById('statusElderly').checked = !!data.is_senior;
+                document.getElementById('statusPregnant').checked = !!data.is_pregnant;
+                document.getElementById('statusLactating').checked = !!data.is_lactating;
+                document.getElementById('statusBedridden').checked = !!data.is_bedridden;
+                document.getElementById('statusSoloParent').checked = !!data.is_solo_parent;
+                document.getElementById('statusStudent').checked = !!data.is_student;
+                document.getElementById('statusInfant').checked = !!data.is_infant;
+                document.getElementById('statusIllness').checked = !!data.is_serious_illness;
+                document.getElementById('memberIllnessDetailsInput').value = data.serious_illness_details || '';
+
+                const hasAny = data.is_pwd || data.is_senior || data.is_pregnant || data.is_lactating || data.is_bedridden || data.is_solo_parent || data.is_student || data.is_infant || data.is_serious_illness;
+                document.getElementById('statusNone').checked = !hasAny;
+            } else {
+                title.textContent = 'Add Family Member';
+                if (icon) icon.className = 'ph ph-user-plus text-xl text-blue-600';
+                if (saveBtnText) saveBtnText.textContent = 'SAVE MEMBER';
+                form.action = '/resident/qr/members';
+                form.reset();
+                if (relationSelect) relationSelect.value = '';
+                document.getElementById('statusPwd').checked = false;
+                document.getElementById('statusElderly').checked = false;
+                document.getElementById('statusPregnant').checked = false;
+                document.getElementById('statusLactating').checked = false;
+                document.getElementById('statusBedridden').checked = false;
+                document.getElementById('statusSoloParent').checked = false;
+                document.getElementById('statusStudent').checked = false;
+                document.getElementById('statusInfant').checked = false;
+                document.getElementById('statusIllness').checked = false;
+                document.getElementById('statusNone').checked = true;
+                document.getElementById('memberIllnessDetailsInput').value = '';
+                document.getElementById('calculatedAgeBadge').classList.add('hidden');
+            }
+
+            updateAgeFromBirthdate();
+            toggleMemberIllnessDetails();
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            modal.classList.add('opacity-100');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+        }
+
+        function closeMemberModal() {
+            const modal = document.getElementById('memberModal');
+            const modalContent = document.getElementById('memberModalContent');
+
+            document.body.classList.remove('overflow-hidden');
+
+            modal.classList.remove('opacity-100');
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function handleMemberModalBackdropClick(e) {
+            if (e.target === document.getElementById('memberModal')) {
+                closeMemberModal();
+            }
+        }
+
+        function toggleMemberIllnessDetails() {
+            const statusIllness = document.getElementById('statusIllness');
+            const container = document.getElementById('memberIllnessDetailsContainer');
+            if (statusIllness && container) {
+                if (statusIllness.checked) {
+                    container.classList.remove('hidden');
+                } else {
+                    container.classList.add('hidden');
+                }
+            }
+        }
+
+        function handleNoneCheckbox() {
+            const statusNone = document.getElementById('statusNone');
+            if (statusNone && statusNone.checked) {
+                ['statusPwd', 'statusElderly', 'statusPregnant', 'statusLactating', 'statusBedridden', 'statusSoloParent', 'statusStudent', 'statusInfant', 'statusIllness'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.checked = false;
+                });
+                toggleMemberIllnessDetails();
+            }
+        }
+
+        function uncheckNone() {
+            const statusNone = document.getElementById('statusNone');
+            if (statusNone) statusNone.checked = false;
+        }
+
+        ['statusPwd', 'statusElderly', 'statusPregnant', 'statusLactating', 'statusBedridden', 'statusSoloParent', 'statusStudent', 'statusInfant', 'statusIllness'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', uncheckNone);
+        });
+
+        const qrModal = document.getElementById('qrModal');
+        const qrModalContent = document.getElementById('qrModalContent');
+
+        function openQrModal() {
+            if (qrModal.parentElement !== document.body) {
+                document.body.appendChild(qrModal);
+            }
+            document.body.classList.add('overflow-hidden');
+            qrModal.classList.remove('hidden');
+            void qrModal.offsetWidth;
+            qrModal.classList.remove('opacity-0');
+            qrModal.classList.add('opacity-100');
+            qrModalContent.classList.remove('scale-95');
+            qrModalContent.classList.add('scale-100');
+        }
+
+        function closeQrModal(e) {
+            if (e.target === qrModal) {
+                hideQrModal();
+            }
+        }
+
+        function closeQrModalManual() {
+            hideQrModal();
+        }
+
+        function hideQrModal() {
+            document.body.classList.remove('overflow-hidden');
+            qrModal.classList.remove('opacity-100');
+            qrModal.classList.add('opacity-0');
+            qrModalContent.classList.remove('scale-100');
+            qrModalContent.classList.add('scale-95');
+            setTimeout(() => {
+                qrModal.classList.add('hidden');
+            }, 300);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Teleport modals to root body immediately on page load
+            const memberModal = document.getElementById('memberModal');
+            const qrModal = document.getElementById('qrModal');
+            if (memberModal && memberModal.parentElement !== document.body) {
+                document.body.appendChild(memberModal);
+            }
+            if (qrModal && qrModal.parentElement !== document.body) {
+                document.body.appendChild(qrModal);
+            }
+
+            const memberForm = document.getElementById('memberForm');
+            if (memberForm) {
+                memberForm.addEventListener('submit', (e) => {
+                    const firstName = (document.getElementById('memberFirstNameInput')?.value || '').trim();
+                    const lastName = (document.getElementById('memberLastNameInput')?.value || '').trim();
+                    if (!firstName || !lastName) {
+                        e.preventDefault();
+                        alert('Please enter both First Name and Last Name for the family member.');
+                        return false;
+                    }
+                    const btn = document.getElementById('saveMemberSubmitBtn');
+                    if (btn) {
+                        btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i><span>SAVING...</span>';
+                    }
+                });
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if ((urlParams.has('error') || urlParams.has('success')) && window.history && window.history.replaceState) {
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        });
+    </script>
+
+    <%- include('../partials/footer') %>

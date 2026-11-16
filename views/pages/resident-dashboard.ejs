@@ -1,0 +1,362 @@
+<%- include('../partials/header') %>
+
+  <style>
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0px);
+      }
+
+      50% {
+        transform: translateY(-4px);
+      }
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+    }
+
+    .animate-float {
+      animation: float 4s ease-in-out infinite;
+    }
+
+    .animate-pulse-ring {
+      animation: pulse-ring 2.5s ease-in-out infinite;
+    }
+  </style>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-24 overflow-x-hidden z-0">
+        <!-- Decorative Ambient Gradients -->
+        <div
+          class="absolute top-0 left-0 w-full h-80 bg-gradient-to-b from-blue-100/60 via-indigo-50/30 to-transparent pointer-events-none -z-10">
+        </div>
+        <div class="absolute top-12 right-6 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+        </div>
+        <div class="absolute top-48 left-6 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -z-10">
+        </div>
+
+        <div class="max-w-7xl mx-auto space-y-4 flex-1 w-full px-3 sm:px-6 py-4">
+
+          <% 
+            let rawPhoto = (typeof profilePhoto !== 'undefined' && profilePhoto) 
+              ? profilePhoto 
+              : (locals.resident && locals.resident.profile_photo) 
+                ? locals.resident.profile_photo 
+                : (locals.user && locals.user.profile_photo) 
+                  ? locals.user.profile_photo 
+                  : null;
+            let userPhoto = null;
+            if (rawPhoto) {
+              userPhoto = (rawPhoto.startsWith('http') || rawPhoto.startsWith('/')) ? rawPhoto : `/uploads/profiles/${rawPhoto}`;
+            }
+            const fullName = (locals.user && locals.user.name) ? locals.user.name : 'Resident';
+            const userFirstName = fullName.split(' ')[0];
+            const userInitial = userFirstName.charAt(0).toUpperCase();
+          %>
+
+          <!-- TOP WELCOME & WEATHER BAR -->
+          <div class="bg-white/95 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+            <div class="flex items-center gap-3.5">
+              <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-md shadow-blue-500/20 shrink-0 overflow-hidden relative">
+                <% if (userPhoto) { %>
+                  <img src="<%= userPhoto %>" alt="Profile" class="w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+                  <span class="hidden"><%= userInitial %></span>
+                <% } else { %>
+                  <span><%= userInitial %></span>
+                <% } %>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>RESIDENT PORTAL</span> • <span>BARANGAY SAN RAFAEL</span>
+                </div>
+                <h1 class="text-2xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                  Welcome back, <%= userFirstName %>! 👋
+                </h1>
+              </div>
+            </div>
+
+            <!-- Live Weather Pill -->
+            <div class="flex items-center gap-3 bg-slate-50/90 px-3.5 py-2.5 rounded-2xl border border-slate-200/60 w-full">
+              <div class="w-10 h-10 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center text-xl shrink-0">
+                <i class="ph <%= (locals.weather && locals.weather.icon) ? locals.weather.icon : ' ph-cloud-sun' %>
+            "></i>
+        </div>
+        <div class="text-xs min-w-0">
+          <div class="font-extrabold text-slate-800 leading-tight">
+            <%= (locals.weather && locals.weather.temperature !=null) ? locals.weather.temperature : 25.1 %>°C • <%=
+                (locals.weather && locals.weather.weather_status) ? locals.weather.weather_status : 'Fair Weather' %>
+          </div>
+          <div class="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+            Wind: <%= (locals.weather && locals.weather.wind_speed !=null) ? locals.weather.wind_speed : 11.5 %> km/h •
+              Rain: <%= (locals.weather && locals.weather.rainfall !=null) ? locals.weather.rainfall : 0.1 %> mm
+          </div>
+        </div>
+  </div>
+  </div>
+
+
+  <!-- SYSTEM ALERT BANNER -->
+  <% const currentAlert=typeof activeAlert !=='undefined' ? activeAlert : null; let
+    gradient="from-slate-800 to-slate-900 border-slate-700/50 text-white shadow-slate-900/10" ; let
+    badgeBg="bg-slate-700/60 text-slate-200 border-slate-600" ; let alertTitle="No Active Emergency Warnings" ; let
+    alertMessage="There are currently no active disaster or evacuation alerts broadcasted for Barangay San Rafael." ;
+    let alertTime=new Date().toLocaleTimeString([], { hour: '2-digit' , minute: '2-digit' }); let
+    alertIcon="ph-shield-check" ; if (currentAlert) { alertTitle=currentAlert.title; alertMessage=currentAlert.message;
+    alertTime=currentAlert.sent_at || currentAlert.created_at || "Just now" ; const upperSev=(currentAlert.severity ||
+    currentAlert.level || 'BLUE' ).toUpperCase(); if (upperSev==="RED" || upperSev==="CRITICAL" || upperSev==="DANGER" )
+    { gradient="from-red-600 via-rose-600 to-red-700 text-white shadow-red-500/20" ;
+    badgeBg="bg-red-950/40 text-red-100 border-red-400/40" ; alertIcon="ph-siren" ; } else if (upperSev==="ORANGE" ||
+    upperSev==="WARNING" ) { gradient="from-orange-500 via-amber-600 to-orange-600 text-white shadow-orange-500/20" ;
+    badgeBg="bg-orange-950/40 text-orange-100 border-orange-400/40" ; alertIcon="ph-warning-circle" ; } else if
+    (upperSev==="YELLOW" ) { gradient="from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-amber-500/20" ;
+    badgeBg="bg-amber-950/20 text-slate-950 border-amber-600/40" ; alertIcon="ph-warning" ; } else if
+    (upperSev==="GREEN" ) { gradient="from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-500/20" ;
+    badgeBg="bg-emerald-950/40 text-emerald-100 border-emerald-400/40" ; alertIcon="ph-check-circle" ; } else {
+    gradient="from-blue-600 via-indigo-600 to-blue-700 text-white shadow-blue-500/20" ;
+    badgeBg="bg-blue-950/40 text-blue-100 border-blue-400/40" ; alertIcon="ph-info" ; } } %>
+    <div id="residentSystemAlertBanner"
+      class="rounded-3xl bg-gradient-to-br <%= gradient %> p-5 sm:p-6 shadow-md relative overflow-hidden border transition-all duration-300">
+      <div class="absolute inset-0 bg-white/5 backdrop-blur-xs pointer-events-none"></div>
+      <div class="absolute -right-6 -bottom-6 opacity-15 transform rotate-12 pointer-events-none">
+        <i id="residentAlertBgIcon" class="ph <%= alertIcon %> text-9xl"></i>
+      </div>
+
+      <div class="relative z-10 space-y-3">
+        <div
+          class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-black/20 border border-white/10 text-white">
+          <span id="residentAlertPingDot"
+            class="w-2 h-2 rounded-full <%= currentAlert ? 'bg-amber-400 animate-ping' : 'bg-emerald-400' %>"></span>
+          <span id="residentAlertStatusLabel"><%= currentAlert ? 'Official Emergency Alert' : 'System Advisory Status' %></span>
+        </div>
+        <h2 id="residentAlertTitle" class="text-xl sm:text-2xl font-black leading-tight tracking-tight text-white">
+          <%= alertTitle %>
+        </h2>
+        <p id="residentAlertMessage" class="text-xs sm:text-sm font-medium opacity-90 leading-relaxed text-white">
+          <%= alertMessage %>
+        </p>
+
+        <div id="residentAlertTimeWrapper" class="<%= currentAlert ? '' : 'hidden' %> pt-1">
+          <div
+            class="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 text-xs font-semibold text-white shadow-xs">
+            <i class="ph ph-clock text-base"></i>
+            <span id="residentAlertTimeText"><%= alertTime %></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- QUICK DISASTER ACTIONS GRID (2x2) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+
+      <!-- 1. SOS Distress Button -->
+      <a href="/resident/sos"
+        class="group relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-rose-500 via-red-600 to-rose-700 text-white shadow-md shadow-red-500/20 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors pointer-events-none">
+        </div>
+        <div class="flex items-center justify-between relative z-10">
+          <div
+            class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 group-hover:scale-110 transition-transform shadow-inner">
+            <i class="ph ph-warning-octagon text-2xl text-white"></i>
+          </div>
+          <span
+            class="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase border border-white/30">Live
+            GPS</span>
+        </div>
+        <div class="mt-4 relative z-10">
+          <span class="font-black text-lg tracking-wider uppercase drop-shadow-xs block">SOS HELP</span>
+          <span class="text-[11px] font-medium text-rose-100 opacity-90">Request Emergency Rescue</span>
+        </div>
+      </a>
+
+      <!-- 2. Household QR Evacuation Pass -->
+      <a href="/resident/qr"
+        class="group relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors pointer-events-none">
+        </div>
+        <div class="flex items-center justify-between relative z-10">
+          <div
+            class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 group-hover:scale-110 transition-transform shadow-inner">
+            <i class="ph ph-qr-code text-2xl text-white"></i>
+          </div>
+          <span
+            class="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase border border-white/30">QR
+            Code</span>
+        </div>
+        <div class="mt-4 relative z-10">
+          <span class="font-black text-lg tracking-wider uppercase drop-shadow-xs block">EVAC PASS</span>
+          <span class="text-[11px] font-medium text-blue-100 opacity-90">Fast Center Check-in</span>
+        </div>
+      </a>
+
+      <!-- 3. Evacuation Centers Map -->
+      <a href="/resident/evacuation"
+        class="group relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors pointer-events-none">
+        </div>
+        <div class="flex items-center justify-between relative z-10">
+          <div
+            class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 group-hover:scale-110 transition-transform shadow-inner">
+            <i class="ph ph-map-pin-line text-2xl text-white"></i>
+          </div>
+          <span
+            class="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase border border-white/30">Map</span>
+        </div>
+        <div class="mt-4 relative z-10">
+          <span class="font-black text-lg tracking-wider uppercase drop-shadow-xs block">EVAC MAP</span>
+          <span class="text-[11px] font-medium text-emerald-100 opacity-90">Find Nearest Shelter</span>
+        </div>
+      </a>
+
+      <!-- 4. Typhoon Live Tracker -->
+      <a href="/resident/typhoon"
+        class="group relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-700 text-white shadow-md shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors pointer-events-none">
+        </div>
+        <div class="flex items-center justify-between relative z-10">
+          <div
+            class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 group-hover:scale-110 transition-transform shadow-inner">
+            <i class="ph ph-hurricane text-2xl text-white"></i>
+          </div>
+          <span
+            class="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase border border-white/30">Radar</span>
+        </div>
+        <div class="mt-4 relative z-10">
+          <span class="font-black text-lg tracking-wider uppercase drop-shadow-xs block">TYPHOON</span>
+          <span class="text-[11px] font-medium text-purple-100 opacity-90">Live Weather Tracker</span>
+        </div>
+      </a>
+
+    </div>
+
+
+    <!-- RESIDENT SAFETY & HOTLINES SECTION -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <!-- Safety Status Card (2 Cols) -->
+      <div
+        class="lg:col-span-2 bg-white rounded-2xl p-5 sm:p-6 shadow-md shadow-slate-200/50 border border-slate-200/80 relative overflow-hidden flex flex-col justify-between space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-extrabold uppercase tracking-widest border border-emerald-200 mb-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Status: Account Verified & Active
+            </div>
+            <h3 class="font-black text-slate-800 text-xl tracking-tight">Your Household Safety Status</h3>
+            <p class="text-xs text-slate-500 font-medium leading-relaxed max-w-lg mt-1">
+              Always ensure your family details and emergency contact numbers are updated before disaster events
+              occur.
+            </p>
+          </div>
+
+          <a href="/resident/sos"
+            class="btn bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-md shadow-rose-500/20 shrink-0 flex items-center gap-1.5">
+            <i class="ph ph-siren"></i> Request SOS
+          </a>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-lg">
+              <i class="ph ph-house-line"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Registered Address
+              </div>
+              <div class="text-xs font-bold text-slate-800 truncate">
+                <%= (locals.resident && locals.resident.home_address) ? locals.resident.home_address
+                  : 'Zone 5, San Rafael, Baao' %>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center gap-3">
+            <div
+              class="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-lg">
+              <i class="ph ph-phone-call"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Emergency Contact</div>
+              <div class="text-xs font-bold text-slate-800 truncate">
+                <%= (locals.resident && locals.resident.emergency_contact_phone) ?
+                  locals.resident.emergency_contact_phone : '0917-888-9999' %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emergency Hotlines Card (1 Col) -->
+      <div
+        class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-md border border-slate-700/60 flex flex-col justify-between space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-extrabold text-white text-base flex items-center gap-2">
+              <i class="ph ph-phone-call text-red-400"></i> Emergency Hotlines
+            </h3>
+            <span
+              class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30">Baao
+              MDRRMO</span>
+          </div>
+
+          <div class="space-y-2.5">
+            <a href="tel:09171234567"
+              class="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-colors">
+              <div class="flex items-center gap-2">
+                <i class="ph ph-shield-warning text-amber-400 text-base"></i>
+                <span class="text-xs font-bold">MDRRMO Command</span>
+              </div>
+              <span class="text-xs font-black text-blue-300">0917-123-4567</span>
+            </a>
+
+            <a href="tel:911"
+              class="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-colors">
+              <div class="flex items-center gap-2">
+                <i class="ph ph-first-aid text-rose-400 text-base"></i>
+                <span class="text-xs font-bold">National Emergency</span>
+              </div>
+              <span class="text-xs font-black text-rose-300">911</span>
+            </a>
+
+            <a href="tel:117"
+              class="flex items-center justify-between p-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-colors">
+              <div class="flex items-center gap-2">
+                <i class="ph ph-police-car text-blue-400 text-base"></i>
+                <span class="text-xs font-bold">Local PNP Station</span>
+              </div>
+              <span class="text-xs font-black text-blue-300">(054) 266-1234</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-400 font-medium text-center pt-2 border-t border-white/10">
+          Operated 24/7 by LGU Baao Disaster Response
+        </div>
+      </div>
+
+    </div>
+
+    </div>
+    <%- include('../partials/footer-visible') %>
+      </main>
+      </div>
+
+      <%- include('../partials/footer') %>

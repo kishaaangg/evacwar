@@ -1,0 +1,2435 @@
+<%- include('../partials/header') %>
+
+  <% const staffMember=locals.staff || locals.user || {}; const isRescuer=true; const currentUserId=Number((locals.rescuer && locals.rescuer.userId) || (locals.staff && locals.staff.userId) || (locals.user && locals.user.id) || 0); const currentUserRole=String((locals.user && locals.user.role) || (locals.staff && locals.staff.role) || 'rescuer').toLowerCase(); %>
+
+    <div class="app-main-layout">
+      <%- include('../partials/sidebar') %>
+
+        <main
+          class="app-content h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] overflow-hidden relative !p-0 !m-0 flex-1">
+
+          <!-- Full Width Fixed Edge-to-Edge Map -->
+          <div class="absolute inset-0 w-full h-full z-0">
+            <div id="evacuationMap" class="w-full h-full"></div>
+
+            <!-- Floating Overlay Top Toolbar -->
+            <div
+              class="absolute top-2 sm:top-4 inset-x-2 sm:inset-x-4 z-10 flex items-center gap-1.5 sm:gap-2 pointer-events-none min-w-0 max-w-full">
+
+              <!-- Left: Live Map & Staff Command Indicator Badge -->
+              <div
+                class="bg-white/95 backdrop-blur-md shadow-md px-2.5 sm:px-3.5 py-1.5 rounded-full border border-white/60 flex items-center gap-1.5 shrink-0 pointer-events-auto">
+                <span class="relative flex h-2.5 w-2.5">
+                  <span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full <%= isRescuer ? 'bg-red-400' : 'bg-blue-400' %> opacity-75"></span>
+                  <span
+                    class="relative inline-flex rounded-full h-2.5 w-2.5 <%= isRescuer ? 'bg-red-600' : 'bg-blue-600' %>"></span>
+                </span>
+                <span class="font-extrabold text-slate-800 text-[11px] sm:text-xs tracking-wide">
+                  <span class="hidden xl:inline">
+                    <%= isRescuer ? 'Rescuer SOS Map & Radar' : 'Evacuation Sites & Shelter Map' %>
+                  </span>
+                  <span class="xl:hidden hidden sm:inline">
+                    <%= isRescuer ? 'Rescuer Radar' : 'Evacuation Map' %>
+                  </span>
+                  <span class="sm:hidden">
+                    <%= isRescuer ? 'SOS Map' : 'Evac Map' %>
+                  </span>
+                </span>
+              </div>
+
+              <!-- Right: Map Controls Group (Hybrid/Sat/Road Toggle + 3D + Rotate + My Location) -->
+              <div
+                class="flex-1 min-w-0 flex items-center overflow-x-auto no-scrollbar py-0.5 pointer-events-auto overscroll-contain">
+                <div class="flex items-center gap-1 sm:gap-1.5 ml-auto shrink-0">
+                  <!-- Basemap Mode Switcher (Selectable Hybrid, No Labels & Roads) -->
+                  <div
+                    class="bg-white/95 backdrop-blur-md shadow-md rounded-full p-1 border border-slate-200/80 flex items-center gap-0.5 shrink-0">
+                    <button id="btnMapHybrid" type="button" onclick="setMapStyleMode('hybrid')"
+                      class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-blue-600 text-white shadow-xs flex items-center gap-1"
+                      title="Hybrid Satellite & Labels">
+                      <i class="ph ph-planet text-sm"></i> <span class="hidden sm:inline">Hybrid</span>
+                    </button>
+                    <button id="btnMapSatellite" type="button" onclick="setMapStyleMode('satellite')"
+                      class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                      title="Pure Satellite Imagery (No Labels)">
+                      <i class="ph ph-globe text-sm"></i> <span class="hidden sm:inline">No Labels</span>
+                    </button>
+                    <button id="btnMapRoad" type="button" onclick="setMapStyleMode('roads')"
+                      class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                      title="Roads Basemap">
+                      <i class="ph ph-map-trifold text-sm"></i> <span class="hidden sm:inline">Roads</span>
+                    </button>
+                  </div>
+
+                  <!-- 3D View Toggle -->
+                  <button id="btnStaff3D" type="button" onclick="toggleStaff3DPitch()"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-emerald-50 text-slate-700 border border-slate-200/80 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Toggle 3D Perspective">
+                    <i class="ph ph-cube text-sm text-emerald-600"></i>
+                    <span>3D</span>
+                  </button>
+
+                  <!-- Rotate 45° -->
+                  <button id="btnStaffRotate" type="button" onclick="rotateStaffMap(45)"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-amber-50 text-amber-700 border border-slate-200/80 rounded-full p-1.5 sm:px-2.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Rotate Map 45°">
+                    <i class="ph ph-arrows-clockwise text-sm text-amber-600"></i>
+                  </button>
+
+                  <!-- GPS My Location Button -->
+                  <button id="btnMyLocation" type="button" onclick="locateStaffUser(mapInstance, true)"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-blue-50 text-blue-900 border border-slate-200/80 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="My Location">
+                    <i class="ph ph-navigation-arrow text-sm text-blue-600"></i>
+                    <span class="hidden xl:inline">My Location</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Floating Map Legend (Right Side - Collapsible) -->
+          <div id="mapLegendContainer"
+            class="absolute top-16 sm:top-20 right-2 sm:right-4 z-20 pointer-events-none flex flex-col items-end">
+            <!-- Toggle Button (Icon only) -->
+            <button id="btnToggleLegend" type="button" onclick="toggleMapLegend()"
+              class="bg-white/95 backdrop-blur-md shadow-md hover:bg-blue-50 text-blue-600 border border-slate-200/90 rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-all active:scale-95 cursor-pointer pointer-events-auto shrink-0 mb-1.5"
+              title="Toggle Map Legend">
+              <i class="ph ph-map-trifold text-base sm:text-lg font-bold"></i>
+            </button>
+
+            <!-- Legend Card Panel (Hidden initially on rescuer view) -->
+            <div id="mapLegendCard"
+              class="hidden pointer-events-auto bg-white/95 backdrop-blur-md shadow-xl border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 w-60 sm:w-64 transition-all duration-200 origin-top-right">
+
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                <div class="flex items-center gap-1.5">
+                  <div class="w-5 h-5 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center text-xs">
+                    <i class="ph ph-map-trifold font-bold"></i>
+                  </div>
+                  <span class="text-xs font-black text-slate-900 tracking-wide uppercase">Map Legend</span>
+                </div>
+                <button type="button" onclick="toggleMapLegend(false)"
+                  class="text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Close Legend">
+                  <i class="ph ph-x font-bold text-xs"></i>
+                </button>
+              </div>
+
+              <div class="space-y-2 text-[11px] sm:text-xs">
+                <!-- 1. Evacuation Route (Orange line) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-1.5 rounded-full bg-orange-500 shadow-xs shrink-0"></div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Evacuation Route</span>
+                    <span class="text-[10px] text-slate-500">Orange designated safety path</span>
+                  </div>
+                </div>
+
+                <!-- 2. Barangay Boundary (--- dashed line) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 border-t-2 border-dashed border-red-400 shrink-0"></div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Boundary (<span
+                        class="font-mono text-red-500 font-extrabold">- - -</span>)</span>
+                    <span class="text-[10px] text-slate-500">San Rafael (Ikpan) perimeter</span>
+                  </div>
+                </div>
+
+                <!-- 3. Flood / Hazard Area Polygon -->
+                <div class="flex items-center gap-2.5">
+                  <div
+                    class="w-6 h-5 rounded border border-red-500 bg-red-500/25 flex items-center justify-center shrink-0">
+                    <i class="ph ph-warning text-xs text-red-600"></i>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Hazard Danger Zone</span>
+                    <span class="text-[10px] text-slate-500">Flood / hazard risk area</span>
+                  </div>
+                </div>
+
+                <div class="pt-1 border-t border-slate-100/80"></div>
+
+                <!-- 4. Evacuation Sites (Green = Available, Red = Full) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 36 46" class="w-4 h-5 drop-shadow-xs">
+                      <path d="M18 1 C8.6 1 1 8.6 1 18 C1 29 18 45 18 45 C18 45 35 29 35 18 C35 8.6 27.4 1 18 1 Z"
+                        fill="#10b981" stroke="#FFFFFF" stroke-width="2.5" />
+                      <path d="M11 19 L18 12 L25 19 L23 19 L23 24 L13 24 L13 19 Z" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Available Evac Site</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">Green marker (Space available)</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 36 46" class="w-4 h-5 drop-shadow-xs">
+                      <path d="M18 1 C8.6 1 1 8.6 1 18 C1 29 18 45 18 45 C18 45 35 29 35 18 C35 8.6 27.4 1 18 1 Z"
+                        fill="#ef4444" stroke="#FFFFFF" stroke-width="2.5" />
+                      <path d="M11 19 L18 12 L25 19 L23 19 L23 24 L13 24 L13 19 Z" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Full Evac Site</span>
+                    <span class="text-[10px] text-red-600 font-semibold">Red marker (100% full)</span>
+                  </div>
+                </div>
+
+                <!-- 5. Ikpan Elementary School special pin -->
+                <!-- 5. Ikpan Elementary School special pin -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
+                    <svg viewBox="0 0 38 48" class="w-5 h-6 drop-shadow-xs">
+                      <path d="M19 1 C9.1 1 1 9.1 1 19 C1 31 19 47 19 47 C19 47 37 31 37 19 C37 9.1 28.9 1 19 1 Z"
+                        fill="#10b981" stroke="#FFFFFF" stroke-width="2.5" />
+                      <circle cx="19" cy="18" r="9" fill="#FFFFFF" />
+                      <polygon points="19,11 12,15.5 19,19 26,15.5" fill="#10b981" />
+                      <path d="M15,17 L15,20.5 C15,20.5 17,22 19,22 C21,22 23,20.5 23,20.5 L23,17" fill="none"
+                        stroke="#10b981" stroke-width="1.3" />
+                    </svg>
+
+                    <span
+                      class="absolute -top-1 -right-1 bg-amber-500 text-white text-[7.5px] font-black rounded-full px-1 border border-white leading-tight">
+                      ES
+                    </span>
+                  </div>
+
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">
+                      Ikpan Elementary School
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-semibold">
+                      Special School Icon
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 6. SOS Distress Alert -->
+                <div class="flex items-center gap-2.5 pt-0.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
+                    <span
+                      class="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-red-400 opacity-75"></span>
+                    <span
+                      class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 border border-white shadow-xs"></span>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">SOS Distress Alert</span>
+                    <span class="text-[10px] text-slate-500">Live emergency distress signal</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+
+          <!-- True Fixed Google Maps-style Mobile Bottom Sheet -->
+          <div id="staffBottomSheet"
+            class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-4xl mx-auto bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.22)] border-t border-slate-200/90 flex flex-col max-h-[80dvh] will-change-transform transition-transform duration-300 ease-out"
+            style="transform: translateY(calc(100% - 48px));">
+
+            <!-- Drag Handle Area -->
+            <div id="staffSheetHandle"
+              class="w-full pt-3.5 pb-2.5 flex flex-col items-center justify-center cursor-pointer select-none touch-none rounded-t-3xl bg-white shrink-0 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              title="Drag or tap to expand/collapse">
+              <div class="w-14 h-1.5 bg-slate-300 rounded-full"></div>
+            </div>
+
+            <!-- Scrollable Sheet Content -->
+            <div id="staffSheetScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-1 overscroll-contain">
+              <div id="centersSheetContent" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <% if (isRescuer) { %>
+                  <!-- Live SOS Emergency Incident Feed (Full Width Dedicated Radar - ONLY FOR RESCUER) -->
+                  <div class="lg:col-span-12 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div class="flex items-center gap-2.5">
+                        <div
+                          class="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-red-500/30 animate-pulse">
+                          <i class="ph ph-warning-octagon text-xl"></i>
+                        </div>
+                        <div>
+                          <h3 class="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                            Active SOS Distress Alerts & Location Radar
+                          </h3>
+                          <p class="text-xs text-slate-500 font-medium">Real-time distress signals from residents
+                            needing
+                            immediate rescue & assistance.</p>
+                        </div>
+                      </div>
+                      <span
+                        class="text-xs font-black text-white bg-red-600 px-3 py-1.5 rounded-full border border-red-400 shrink-0"
+                        id="activeSosBadgeCount">
+                        <%= locals.activeSosAlerts ? locals.activeSosAlerts.length : 0 %> Active Signals
+                      </span>
+                    </div>
+
+                    <div
+                      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[420px] overflow-y-auto pr-1"
+                      id="sosFeedList">
+                      <% if (locals.activeSosAlerts && locals.activeSosAlerts.length> 0) { %>
+                        <% locals.activeSosAlerts.forEach(alert=> {
+                          const alertLng = parseFloat(alert.longitude || alert.lng || 123.3470);
+                          const alertLat = parseFloat(alert.latitude || alert.lat || 13.5102);
+                          const cardRawPhoto = alert.resident_profile_photo || alert.profile_photo ||
+                          alert.user_profile_photo || null;
+                          let cardPhotoUrl = null;
+                          if (cardRawPhoto) {
+                          cardPhotoUrl = (cardRawPhoto.startsWith('http') || cardRawPhoto.startsWith('/')) ?
+                          cardRawPhoto
+                          : `/uploads/profiles/${cardRawPhoto}`;
+                          }
+                          const cardName = alert.name || (alert.first_name ? alert.first_name + ' ' + (alert.last_name
+                          ||
+                          '') : 'Resident');
+                          const cardInitial = cardName.charAt(0).toUpperCase();
+                          %>
+                          <div
+                            class="p-4 rounded-2xl border <%= alert.status === 'RESPONDING' ? 'bg-indigo-50/80 border-indigo-200' : (alert.status === 'ACKNOWLEDGED' ? 'bg-amber-50/80 border-amber-200' : 'bg-red-50/80 border-red-200') %> space-y-3 shadow-xs hover:shadow-md transition-all"
+                            id="sos_card_<%= alert.id %>" data-resident-id="<%= alert.resident_id || '' %>">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="flex items-center gap-3">
+                                <div
+                                  class="w-11 h-11 rounded-full border-2 border-red-500 overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center text-white font-black text-xs shadow-sm">
+                                  <% if (cardPhotoUrl) { %>
+                                    <img loading="lazy" src="<%= cardPhotoUrl %>" decoding="async"
+                                      class="w-full h-full object-cover rounded-full"
+                                      onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
+                                    <span class="hidden font-black text-white text-xs">
+                                      <%= cardInitial %>
+                                    </span>
+                                    <% } else { %>
+                                      <span class="font-black text-white text-xs">
+                                        <%= cardInitial %>
+                                      </span>
+                                      <% } %>
+                                </div>
+                                <div>
+                                  <div class="font-black text-slate-950 text-base">
+                                    <%= cardName %>
+                                  </div>
+                                  <div
+                                    class="text-xs text-slate-600 font-bold flex flex-wrap items-center gap-2 mt-0.5">
+                                    <% if (alert.contact_number) { %>
+                                      <a href="tel:<%= alert.contact_number %>"
+                                        class="text-blue-700 font-bold hover:underline flex items-center gap-1 bg-blue-100/70 px-2 py-0.5 rounded-lg">
+                                        <i class="ph ph-phone"></i>
+                                        <%= alert.contact_number %>
+                                      </a>
+                                      <% } %>
+                                  </div>
+                                </div>
+                              </div>
+                              <span
+                                class="text-[11px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 <%= alert.status === 'RESPONDING' ? 'bg-indigo-600 text-white' : (alert.status === 'ACKNOWLEDGED' ? 'bg-amber-500 text-white' : 'bg-red-600 text-white animate-pulse') %>">
+                                <%= alert.status %>
+                              </span>
+                            </div>
+
+                            <!-- Situation & Assigned Responder Info -->
+                            <% 
+                              const alertHandlerId = alert.handled_by ? Number(alert.handled_by) : null;
+                              const isAssigned = alertHandlerId && alertHandlerId > 0;
+                              const isMine = isAssigned && (alertHandlerId === currentUserId);
+                              const isOther = isAssigned && !isMine && (currentUserRole !== 'admin');
+                            %>
+                            <% if (alert.handler_name) { %>
+                              <div
+                                class="bg-white/90 rounded-xl p-2 border <%= isOther ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200' %> text-xs flex items-center justify-between gap-2 shadow-2xs">
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                  <i class="ph <%= isOther ? 'ph-user-circle text-amber-600' : 'ph-user-check text-emerald-600' %> font-bold shrink-0"></i>
+                                  <span class="text-slate-600 truncate">Assigned: <strong class="text-slate-900">
+                                      <%= alert.handler_name %><%= isMine ? ' (You)' : '' %>
+                                    </strong></span>
+                                </div>
+                                <% if (alert.handler_contact) { %>
+                                  <a href="tel:<%= alert.handler_contact %>"
+                                    class="text-blue-600 hover:underline font-mono font-bold shrink-0 flex items-center gap-0.5">
+                                    <i class="ph ph-phone text-[10px]"></i>
+                                    <%= alert.handler_contact %>
+                                  </a>
+                                  <% } %>
+                              </div>
+                              <% } else if (alert.status==='ACTIVE' ) { %>
+                                <div
+                                  class="bg-white/90 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
+                                  <i class="ph ph-clock text-red-500 shrink-0"></i>
+                                  <span>Situation: <strong>Awaiting Staff Acknowledgment</strong></span>
+                                </div>
+                                <% } %>
+
+                                  <div
+                                    class="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/60">
+                                    <span><i class="ph ph-clock text-slate-400"></i>
+                                      <%= (locals.formatManilaTime ? locals.formatManilaTime(alert.created_at)
+                                        : 'Just now' ) %>
+                                    </span>
+                                    <button type="button" data-lng="<%= alertLng %>" data-lat="<%= alertLat %>"
+                                      data-sos-id="<%= alert.id %>" onclick="flyToSosAndFocus(this)"
+                                      class="text-xs font-extrabold text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                      <i class="ph ph-navigation-arrow"></i> Focus Map Pin
+                                    </button>
+                                  </div>
+
+                                  <!-- Status Lifecycle Workflow Buttons -->
+                                  <div class="flex items-center gap-1.5 pt-1">
+                                    <% if (isOther) { %>
+                                      <div class="w-full py-2 px-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-slate-200 shadow-2xs">
+                                        <i class="ph ph-lock-key text-slate-400 text-sm"></i>
+                                        <span>Assigned to <strong class="text-slate-800"><%= alert.handler_name || 'Another Rescuer' %></strong></span>
+                                      </div>
+                                    <% } else { %>
+                                      <% if (alert.status==='ACTIVE' ) { %>
+                                        <button type="button" data-sos-id="<%= alert.id %>"
+                                          data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)"
+                                          class="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
+                                          <i class="ph ph-check-circle"></i> Acknowledge
+                                        </button>
+                                        <% } else if (alert.status==='ACKNOWLEDGED' ) { %>
+                                          <button type="button" data-sos-id="<%= alert.id %>"
+                                            data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)"
+                                            class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
+                                            <i class="ph ph-navigation-arrow"></i> Dispatch Rescuer
+                                          </button>
+                                          <% } else if (alert.status==='RESPONDING' ) { %>
+                                            <button type="button" data-sos-id="<%= alert.id %>" data-next-status="RESCUED"
+                                              onclick="handleSosLifecycleBtn(this)"
+                                              class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
+                                              <i class="ph ph-shield-check"></i> Mark Rescued
+                                            </button>
+                                            <% } %>
+
+                                        <button type="button" data-sos-id="<%= alert.id %>"
+                                          data-next-status="RESOLVED" onclick="handleSosLifecycleBtn(this)"
+                                          class="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
+                                          <i class="ph ph-check-square"></i> Resolve
+                                        </button>
+                                    <% } %>
+                                  </div>
+                          </div>
+                          <% }) %>
+                            <% } else { %>
+                              <div class="col-span-full text-center py-12 text-slate-400 space-y-2">
+                                <i class="ph ph-shield-check text-4xl text-emerald-500"></i>
+                                <p class="text-sm font-extrabold text-slate-700">No active SOS distress signals.</p>
+                                <p class="text-xs text-slate-400">All emergency calls in the area are clear.</p>
+                              </div>
+                              <% } %>
+                    </div>
+                    <% } else { %>
+                      <!-- Evacuation Centers Directory (FOR EVACUATION SITE STAFF) -->
+                      <div class="lg:col-span-12 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div class="flex items-center gap-2.5">
+                            <div
+                              class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-blue-500/30">
+                              <i class="ph ph-buildings text-xl"></i>
+                            </div>
+                            <div>
+                              <h3 class="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                                Evacuation Centers & Shelter Directory
+                              </h3>
+                              <p class="text-xs text-slate-500 font-medium">Shelter capacity, current occupancy, and
+                                check-in desks.</p>
+                            </div>
+                          </div>
+                          <span
+                            class="text-xs font-black text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full shrink-0">
+                            <%= (locals.centers || []).length %> Evacuation Centers
+                          </span>
+                        </div>
+
+                        <div
+                          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[420px] overflow-y-auto pr-1">
+                          <% (locals.centers || []).forEach(center=> {
+                            const cap = center.max_capacity || center.capacity || 25;
+                            const occ = center.current_occupancy || 0;
+                            const occPct = Math.min(100, Math.round((occ / cap) * 100));
+                            let occColor = 'bg-blue-600';
+                            if (occPct >= 90) occColor = 'bg-red-500';
+                            else if (occPct >= 75) occColor = 'bg-amber-500';
+                            const isFull = occ >= cap;
+                            %>
+                            <div
+                              class="p-4 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 shadow-xs hover:shadow-md transition-all space-y-3">
+                              <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                  <div class="font-black text-slate-950 text-base truncate flex items-center gap-1.5">
+                                    <i class="ph ph-buildings text-blue-600"></i>
+                                    <%= center.name %>
+                                  </div>
+                                  <div class="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                    <i class="ph ph-map-pin text-rose-500"></i>
+                                    <span class="truncate">
+                                      <%= center.address || center.barangay || 'San Rafael' %>
+                                    </span>
+                                  </div>
+                                </div>
+                                <span
+                                  class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 <%= isFull ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700' %>">
+                                  <%= isFull ? 'FULL' : 'OPEN' %>
+                                </span>
+                              </div>
+
+                              <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                  <span class="font-bold text-slate-600">Occupancy:</span>
+                                  <span class="font-black text-slate-900">
+                                    <%= occ %> / <%= cap %> <span class="text-slate-400 font-semibold">(<%= occPct %>
+                                            %)</span>
+                                  </span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                  <div class="<%= occColor %> h-full rounded-full transition-all duration-300" <%-
+                                    `style="width: ${occPct}%;" ` %>></div>
+                                </div>
+                              </div>
+
+                              <div class="grid grid-cols-2 gap-2 text-center text-xs py-1">
+                                <div class="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                                  <div class="font-black text-emerald-600 text-sm">
+                                    <%= Math.max(0, cap - occ) %>
+                                  </div>
+                                  <div class="text-[9px] font-extrabold uppercase text-slate-400">Available</div>
+                                </div>
+                                <div class="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                                  <div class="font-black text-blue-600 text-sm">
+                                    <%= occ %>
+                                  </div>
+                                  <div class="text-[9px] font-extrabold uppercase text-slate-400">Sheltered</div>
+                                </div>
+                              </div>
+
+                              <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                <button type="button" data-lng="<%= center.longitude %>"
+                                  data-lat="<%= center.latitude %>" data-id="<%= center.id %>"
+                                  onclick="flyToCenter(this.dataset.lng, this.dataset.lat, this.dataset.id)"
+                                  class="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors">
+                                  <i class="ph ph-crosshair"></i> Focus Map
+                                </button>
+                                <a href="/staff/qr?center_id=<%= center.id %>"
+                                  class="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs transition-colors">
+                                  <i class="ph ph-qr-code"></i> Intake Pass
+                                </a>
+                              </div>
+                            </div>
+                            <% }) %>
+                        </div>
+                      </div>
+                      <% } %>
+
+                  </div>
+              </div>
+            </div>
+        </main>
+    </div>
+
+    <script id="map-features-data" type="application/json">
+    <%- mapFeatures || '{"type":"FeatureCollection","features":[]}' %>
+  </script>
+    <script id="centers-data" type="application/json">
+    <%- locals.centers ? JSON.stringify(locals.centers) : '[]' %>
+  </script>
+    <script id="active-sos-data" type="application/json">
+    <%- locals.activeSosAlerts ? JSON.stringify(locals.activeSosAlerts) : '[]' %>
+  </script>
+
+    <script>
+      let mapInstance = null;
+      let userGpsMarker = null;
+      let userGpsCircle = null;
+      let rescuerGpsWatchId = null;
+      let lastKnownRescuerCoords = null;
+      let centerMarkersMap = {};
+      let sosMarkersMap = {};
+      let staffDrawnShapes = [];
+      let staffInfoWindow = null;
+
+      function getStaffInfoWindow() {
+        if (!staffInfoWindow && typeof google !== 'undefined' && google.maps) {
+          staffInfoWindow = new google.maps.InfoWindow();
+        }
+        return staffInfoWindow;
+      }
+
+      function updateStaffLiveLocation(coords, autoFly = false, targetMap = null) {
+        if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
+        const { latitude, longitude, accuracy } = coords;
+        lastKnownRescuerCoords = coords;
+        window._lastKnownUserGps = { lat: latitude, lng: longitude, isFallback: false };
+
+        const activeMap = targetMap || mapInstance;
+
+        // MapLibre handler
+        if (activeMap && typeof activeMap.getLayer === 'function') {
+          if (autoFly && typeof activeMap.flyTo === 'function') {
+            activeMap.flyTo({
+              center: [longitude, latitude],
+              zoom: 16,
+              pitch: typeof activeMap.getPitch === 'function' ? activeMap.getPitch() : 55,
+              bearing: typeof activeMap.getBearing === 'function' ? activeMap.getBearing() : -20,
+              essential: true
+            });
+          }
+          const popupHtml = `
+            <div style="font-family: system-ui; padding: 6px; text-align: center;">
+              <div style="font-weight: 800; color: #1e293b; font-size: 13px;">Rescuer Location</div>
+              <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 2px;">Accuracy: ±${Math.round(accuracy || 0)}m</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">${latitude.toFixed(5)}, ${longitude.toFixed(5)}</div>
+            </div>
+          `;
+          if (userGpsMarker && typeof userGpsMarker.setLngLat === 'function') {
+            userGpsMarker.setLngLat([longitude, latitude]);
+            if (userGpsMarker.getPopup && userGpsMarker.getPopup()) {
+              userGpsMarker.getPopup().setHTML(popupHtml);
+            }
+          } else if (typeof maplibregl !== 'undefined') {
+            const el = typeof window.createMaplibreGpsMarkerEl === 'function' ? window.createMaplibreGpsMarkerEl() : document.createElement('div');
+            userGpsMarker = new maplibregl.Marker({ element: el })
+              .setLngLat([longitude, latitude])
+              .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(popupHtml))
+              .addTo(activeMap);
+          }
+          return;
+        }
+
+        // Google Maps handler (intact)
+        if (typeof google !== 'undefined' && google.maps && activeMap) {
+          const userPos = new google.maps.LatLng(latitude, longitude);
+
+          if (autoFly) {
+            activeMap.panTo(userPos);
+            activeMap.setZoom(16);
+          }
+
+          if (userGpsCircle && typeof userGpsCircle.setCenter === 'function') {
+            userGpsCircle.setCenter(userPos);
+            userGpsCircle.setRadius(accuracy || 40);
+          } else {
+            userGpsCircle = new google.maps.Circle({
+              map: activeMap,
+              center: userPos,
+              radius: accuracy || 40,
+              fillColor: '#3b82f6',
+              fillOpacity: 0.15,
+              strokeColor: '#2563eb',
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
+              clickable: false
+            });
+          }
+
+          if (userGpsMarker && typeof userGpsMarker.setPosition === 'function') {
+            userGpsMarker.setPosition(userPos);
+          } else {
+            userGpsMarker = new google.maps.Marker({
+              position: userPos,
+              map: activeMap,
+              icon: typeof getGpsUserMarkerIcon === 'function' ? getGpsUserMarkerIcon() : undefined,
+              title: "Rescuer Current Location",
+              zIndex: 100
+            });
+
+            userGpsMarker.addListener('click', () => {
+              const infowindow = getStaffInfoWindow();
+              if (infowindow) {
+                infowindow.setContent(`
+                  <div style="font-family: system-ui; padding: 4px; text-align: center;">
+                    <div style="font-weight: 800; color: #1e293b; font-size: 13px;">Rescuer Location</div>
+                    <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 2px;">Accuracy: ±${Math.round(accuracy || 0)}m</div>
+                    <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">${latitude.toFixed(5)}, ${longitude.toFixed(5)}</div>
+                  </div>
+                `);
+                infowindow.setPosition(userPos);
+                infowindow.open(activeMap, userGpsMarker);
+              }
+            });
+          }
+        }
+      }
+
+      function locateStaffUser(mapObj, autoFly = true) {
+        const targetMap = mapObj || mapInstance;
+        const btn = document.getElementById('btnMyLocation');
+        if (btn) btn.classList.add('opacity-50');
+
+        if (!("geolocation" in navigator)) {
+          alert("Geolocation is not supported by your browser.");
+          if (btn) btn.classList.remove('opacity-50');
+          return;
+        }
+
+        if (window.isSecureContext === false && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+          console.warn("Geolocation blocked on insecure origin:", location.origin);
+          alert("GPS Location notice: Mobile and modern desktop browsers require an HTTPS connection (or localhost) to access device GPS.\n\nIf testing over local LAN IP, you can also enable 'Insecure origins treated as secure' in chrome://flags.");
+        }
+
+        if (autoFly && lastKnownRescuerCoords) {
+          updateStaffLiveLocation(lastKnownRescuerCoords, true, targetMap);
+        }
+
+        const geoOptions = { enableHighAccuracy: true, timeout: 15000, maximumAge: 1000 };
+        let flyOnNextFix = autoFly;
+
+        const onPositionSuccess = (pos) => {
+          if (btn) {
+            btn.classList.remove('opacity-50');
+            btn.classList.add('bg-blue-600', 'text-white', 'ring-2', 'ring-blue-400', 'shadow-md');
+            btn.classList.remove('bg-white/95', 'text-blue-900', 'hover:bg-blue-50');
+            const icon = btn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('text-blue-600');
+              icon.classList.add('text-white');
+            }
+          }
+          updateStaffLiveLocation(pos.coords, flyOnNextFix, targetMap);
+          flyOnNextFix = false;
+        };
+
+        const onPositionError = (err) => {
+          if (btn) btn.classList.remove('opacity-50');
+          console.warn("Rescuer GPS notice:", err.message);
+          if (err.code === 1) {
+            alert("Location permission denied. If testing on LAN HTTP, please use HTTPS or localhost.");
+          } else if (err.code === 2 && !lastKnownRescuerCoords) {
+            alert("Location unavailable from device GPS.");
+          }
+        };
+
+        navigator.geolocation.getCurrentPosition(onPositionSuccess, onPositionError, geoOptions);
+
+        if (rescuerGpsWatchId === null) {
+          try {
+            rescuerGpsWatchId = navigator.geolocation.watchPosition(
+              (pos) => onPositionSuccess(pos),
+              (err) => {
+                console.warn("Rescuer live GPS error:", err.message);
+                if (err.code === 1 && rescuerGpsWatchId !== null) {
+                  navigator.geolocation.clearWatch(rescuerGpsWatchId);
+                  rescuerGpsWatchId = null;
+                }
+              },
+              geoOptions
+            );
+          } catch (e) {
+            console.warn("Failed to watchPosition for rescuer:", e);
+          }
+        }
+      }
+      window.locateStaffUser = locateStaffUser;
+
+      window.addEventListener('beforeunload', () => {
+        if (rescuerGpsWatchId !== null && navigator.geolocation && navigator.geolocation.clearWatch) {
+          navigator.geolocation.clearWatch(rescuerGpsWatchId);
+          rescuerGpsWatchId = null;
+        }
+      });
+
+      function flyToSosLocation(lng, lat) {
+        if (!mapInstance || !lng || !lat) return;
+        const pLng = parseFloat(lng);
+        const pLat = parseFloat(lat);
+        if (isNaN(pLng) || isNaN(pLat)) return;
+
+        const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(mapInstance, 16) : 16;
+        const currentPitch = typeof mapInstance.getPitch === 'function' ? mapInstance.getPitch() : 0;
+        const currentBearing = typeof mapInstance.getBearing === 'function' ? mapInstance.getBearing() : 0;
+
+        if (typeof mapInstance.flyTo === 'function') {
+          mapInstance.flyTo({
+            center: [pLng, pLat],
+            zoom: targetZoom,
+            offset: [0, 130],
+            pitch: currentPitch,
+            bearing: currentBearing,
+            essential: true
+          });
+          const markerObj = sosMarkersMap[`sos_${pLng}_${pLat}`] || Object.values(sosMarkersMap).find(m => Math.abs(m.lat - pLat) < 0.0001 && Math.abs(m.lng - pLng) < 0.0001);
+          if (markerObj && markerObj.popup) {
+            if (!markerObj.popup.isOpen()) {
+              markerObj.popup.addTo(mapInstance);
+            }
+            if (typeof window.bringMaplibrePopupToFront === 'function') {
+              window.bringMaplibrePopupToFront(markerObj.popup);
+            }
+          }
+        } else if (typeof google !== 'undefined' && google.maps && typeof mapInstance.panTo === 'function') {
+          const pos = new google.maps.LatLng(pLat, pLng);
+          mapInstance.panTo(pos);
+          mapInstance.setZoom(16);
+        }
+      }
+      window.flyToSosLocation = flyToSosLocation;
+
+      function flyToCenter(lng, lat, centerId) {
+        if (!mapInstance || !lng || !lat) return;
+        const pLng = parseFloat(lng);
+        const pLat = parseFloat(lat);
+        if (isNaN(pLng) || isNaN(pLat)) return;
+
+        let item = null;
+        if (centerId && centerMarkersMap[String(centerId)]) {
+          item = centerMarkersMap[String(centerId)];
+        } else if (centerId && centerMarkersMap[centerId]) {
+          item = centerMarkersMap[centerId];
+        } else {
+          item = Object.values(centerMarkersMap).find(m => Math.abs((m.lat || 0) - pLat) < 0.0001 && Math.abs((m.lng || 0) - pLng) < 0.0001);
+        }
+
+        if (typeof mapInstance.flyTo === 'function') {
+          if (typeof window.focusMaplibreSiteCentered === 'function') {
+            window.focusMaplibreSiteCentered(mapInstance, pLng, pLat, item ? item.popup : null, centerMarkersMap, 16.8);
+          }
+        } else if (typeof google !== 'undefined' && google.maps && typeof mapInstance.panTo === 'function') {
+          const pos = new google.maps.LatLng(pLat, pLng);
+          mapInstance.panTo(pos);
+          mapInstance.setZoom(17);
+          if (item && item.triggerClick) {
+            item.triggerClick();
+          }
+          if (typeof mapInstance.panBy === 'function') {
+            mapInstance.panBy(0, -130);
+          }
+        }
+      }
+      window.flyToCenter = flyToCenter;
+
+      window.setMapStyleMode = function (mode) {
+        const btnHybrid = document.getElementById('btnMapHybrid');
+        const btnSatellite = document.getElementById('btnMapSatellite');
+        const btnRoad = document.getElementById('btnMapRoad');
+        const buttons = {
+          hybrid: btnHybrid,
+          satellite: btnSatellite,
+          roads: btnRoad,
+          roadmap: btnRoad
+        };
+
+        if (mapInstance && typeof mapInstance.getLayer === 'function' && typeof window.setEvakWarMaplibreStyle === 'function') {
+          window.setEvakWarMaplibreStyle(mapInstance, mode, buttons);
+        } else if (typeof window.setEvakWarMapType === 'function') {
+          window.setEvakWarMapType(mapInstance, mode, buttons);
+        }
+      };
+
+      window.toggleStaff3DPitch = function () {
+        const btn = document.getElementById('btnStaff3D');
+        if (mapInstance && typeof mapInstance.getPitch === 'function' && typeof window.toggleEvakWarMaplibre3D === 'function') {
+          window.toggleEvakWarMaplibre3D(mapInstance, btn);
+        } else if (typeof window.toggleEvacwar3D === 'function') {
+          window.toggleEvacwar3D(mapInstance, btn);
+        }
+      };
+
+      window.rotateStaffMap = function (degrees = 45) {
+        if (mapInstance && typeof mapInstance.getBearing === 'function' && typeof window.rotateEvakWarMaplibreCamera === 'function') {
+          window.rotateEvakWarMaplibreCamera(mapInstance, degrees);
+        } else if (typeof window.rotateEvacwarCamera === 'function') {
+          window.rotateEvacwarCamera(mapInstance, degrees);
+        }
+      };
+
+      function renderStaffDrawnFeatures(geoJson, map) {
+        if (!geoJson || !geoJson.features || !map) return;
+
+        // MapLibre GeoJSON Layer
+        if (typeof map.getSource === 'function') {
+          const src = map.getSource('staff-features');
+          if (src) {
+            src.setData(geoJson);
+          } else {
+            map.addSource('staff-features', { type: 'geojson', data: geoJson });
+            map.addLayer({
+              id: 'staff-hazards-fill',
+              type: 'fill',
+              source: 'staff-features',
+              filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary']],
+              paint: { 'fill-color': '#ef4444', 'fill-opacity': 0.35 }
+            });
+            map.addLayer({
+              id: 'staff-hazards-line',
+              type: 'line',
+              source: 'staff-features',
+              filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary']],
+              paint: { 'line-color': '#dc2626', 'line-width': 2.5 }
+            });
+            map.addLayer({
+              id: 'staff-boundary-dashed-line',
+              type: 'line',
+              source: 'staff-features',
+              filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'boundary']],
+              paint: {
+                'line-color': '#f87171',
+                'line-width': 1.5,
+                'line-dasharray': [3, 2],
+                'line-opacity': 0.6
+              }
+            });
+            map.addLayer({
+              id: 'staff-routes',
+              type: 'line',
+              source: 'staff-features',
+              filter: ['==', '$type', 'LineString'],
+              paint: { 'line-color': '#f97316', 'line-width': 4.5, 'line-opacity': 0.95 }
+            });
+          }
+          return;
+        }
+
+        // Google Maps Polyline/Polygon (Intact)
+        if (typeof google !== 'undefined' && google.maps) {
+          geoJson.features.forEach(feature => {
+            if (!feature.geometry) return;
+            if (feature.geometry.type === 'LineString') {
+              const coords = feature.geometry.coordinates.map(pt => ({ lat: pt[1], lng: pt[0] }));
+              const polyline = new google.maps.Polyline({
+                path: coords,
+                strokeColor: '#f97316',
+                strokeWeight: 4,
+                strokeOpacity: 0.9,
+                map: map
+              });
+              staffDrawnShapes.push(polyline);
+            } else if (feature.geometry.type === 'Polygon') {
+              const isBoundary = feature.properties && feature.properties.type === 'boundary';
+              const coords = feature.geometry.coordinates[0].map(pt => ({ lat: pt[1], lng: pt[0] }));
+              const polygon = new google.maps.Polygon({
+                paths: coords,
+                fillColor: isBoundary ? 'transparent' : (feature.properties?.fillColor || '#ef4444'),
+                fillOpacity: isBoundary ? 0 : 0.35,
+                strokeColor: isBoundary ? '#f87171' : (feature.properties?.strokeColor || '#dc2626'),
+                strokeWeight: isBoundary ? 1.5 : 2.5,
+                strokeOpacity: isBoundary ? 0.6 : 0.95,
+                map: map
+              });
+              staffDrawnShapes.push(polygon);
+            }
+          });
+        }
+      }
+
+      function renderStaffCenters(centersList, map) {
+        if (!map) return;
+        const currentIds = new Set();
+
+        // MapLibre Centers Rendering
+        if (typeof map.getLayer === 'function') {
+          (centersList || []).forEach(center => {
+            if (!center || !center.id) return;
+            const cId = String(center.id);
+            currentIds.add(cId);
+
+            const lat = parseFloat(center.latitude) || 13.5102;
+            const lng = parseFloat(center.longitude) || 123.3470;
+            const percent = Math.round(((center.current_occupancy || 0) / (center.max_capacity || 25)) * 100);
+            let markerColor = '#10b981';
+            if (percent >= 100) markerColor = '#ef4444';
+            else if (percent >= 80) markerColor = '#f97316';
+
+            const popupContent = window.buildCenterPopupHtml(center, 'staff');
+
+            // Instantly update live open popup DOM if currently displayed on the map
+            const activePopupEl = document.getElementById('popup-center-' + center.id);
+            if (activePopupEl) {
+              activePopupEl.outerHTML = popupContent;
+            }
+
+            if (centerMarkersMap[cId] && centerMarkersMap[cId].marker) {
+              const existing = centerMarkersMap[cId];
+              if (typeof existing.marker.setLngLat === 'function') {
+                existing.marker.setLngLat([lng, lat]);
+              }
+              if (existing.popup) existing.popup.setHTML(popupContent);
+              existing.triggerClick = () => flyToCenter(lng, lat, cId);
+              const markerEl = (existing.marker.getElement && typeof existing.marker.getElement === 'function') ? existing.marker.getElement() : null;
+              if (markerEl) {
+                const path = markerEl.querySelector('path');
+                if (path) path.setAttribute('fill', markerColor);
+                const rect = markerEl.querySelector('rect');
+                if (rect) rect.setAttribute('fill', markerColor);
+              }
+            } else if (typeof maplibregl !== 'undefined') {
+              const el = window.createMaplibreCenterMarkerEl(markerColor, center);
+              const popup = new maplibregl.Popup({
+                anchor: 'bottom',
+                offset: [0, -44],
+                maxWidth: '360px',
+                closeButton: true,
+                closeOnClick: false
+              }).setHTML(popupContent);
+
+              if (typeof window.bringMaplibrePopupToFront === 'function') {
+                popup.on('open', () => window.bringMaplibrePopupToFront(popup));
+              }
+
+              const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+                .setLngLat([lng, lat])
+                .addTo(map);
+
+              el.style.cursor = 'pointer';
+              el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                flyToCenter(lng, lat, cId);
+              });
+
+              const triggerClick = () => {
+                flyToCenter(lng, lat, cId);
+              };
+              centerMarkersMap[cId] = { marker, popup, triggerClick, lat, lng };
+              if (center.id) centerMarkersMap[center.id] = centerMarkersMap[cId];
+            }
+          });
+
+          // Cleanup deleted centers
+          Object.keys(centerMarkersMap).forEach(cId => {
+            if (!currentIds.has(cId)) {
+              if (centerMarkersMap[cId] && centerMarkersMap[cId].marker && centerMarkersMap[cId].marker.remove) {
+                centerMarkersMap[cId].marker.remove();
+              }
+              delete centerMarkersMap[cId];
+            }
+          });
+          updateStaffCentersDirectory(centersList);
+          return;
+        }
+
+        // Google Maps Centers Rendering (Intact)
+        if (typeof google === 'undefined' || !google.maps) return;
+        (centersList || []).forEach(center => {
+          if (!center || !center.id) return;
+          const cId = String(center.id);
+          currentIds.add(cId);
+
+          const lat = parseFloat(center.latitude) || 13.5102;
+          const lng = parseFloat(center.longitude) || 123.3470;
+          const pos = new google.maps.LatLng(lat, lng);
+
+          const percent = Math.round(((center.current_occupancy || 0) / (center.max_capacity || 25)) * 100);
+          let markerColor = '#10b981';
+          if (percent >= 100) markerColor = '#ef4444';
+          else if (percent >= 80) markerColor = '#f97316';
+
+          const popupContent = window.buildCenterPopupHtml(center, 'staff');
+
+          const openPopup = (marker) => {
+            const infowindow = getStaffInfoWindow();
+            if (infowindow) {
+              infowindow.setContent(popupContent);
+              infowindow.setPosition(pos);
+              infowindow.open(map, marker);
+
+              if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition((geoPos) => {
+                  const R = 6371;
+                  const dLat = (lat - geoPos.coords.latitude) * Math.PI / 180;
+                  const dLon = (lng - geoPos.coords.longitude) * Math.PI / 180;
+                  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(geoPos.coords.latitude * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                  const d = R * c;
+                  const distEl = document.getElementById(`distance-${center.id}`);
+                  if (distEl) distEl.innerText = d.toFixed(1) + ' km';
+                }, () => {
+                  const distEl = document.getElementById(`distance-${center.id}`);
+                  if (distEl) distEl.innerText = 'Location access denied';
+                });
+              }
+            }
+          };
+
+          if (centerMarkersMap[cId]) {
+            const existing = centerMarkersMap[cId];
+            existing.marker.setPosition(pos);
+            if (typeof getCenterMarkerIcon === 'function') {
+              existing.marker.setIcon(getCenterMarkerIcon(markerColor, center));
+            }
+            existing.marker.setTitle(center.name);
+            existing.triggerClick = () => openPopup(existing.marker);
+          } else {
+            const centerMarker = new google.maps.Marker({
+              position: pos,
+              map: map,
+              icon: typeof getCenterMarkerIcon === 'function' ? getCenterMarkerIcon(markerColor, center) : undefined,
+              title: center.name,
+              zIndex: 60
+            });
+
+            const triggerClick = () => openPopup(centerMarker);
+            centerMarker.addListener('click', triggerClick);
+            centerMarkersMap[cId] = { marker: centerMarker, triggerClick };
+          }
+        });
+
+        // Remove markers for deleted centers
+        Object.keys(centerMarkersMap).forEach(cId => {
+          if (!currentIds.has(cId)) {
+            if (centerMarkersMap[cId] && centerMarkersMap[cId].marker) {
+              centerMarkersMap[cId].marker.setMap(null);
+            }
+            delete centerMarkersMap[cId];
+          }
+        });
+        updateStaffCentersDirectory(centersList);
+      }
+
+      function updateStaffCentersDirectory(centersList) {
+        if (!Array.isArray(centersList)) return;
+        const countBadge = document.getElementById('staffCentersCountBadge');
+        if (countBadge) {
+          countBadge.innerText = `${centersList.length} Evacuation Centers`;
+        }
+        centersList.forEach(center => {
+          if (!center || !center.id) return;
+          const cap = center.max_capacity || center.capacity || 25;
+          const occ = parseInt(center.current_occupancy, 10) || 0;
+          const occPct = Math.min(100, Math.round((occ / cap) * 100));
+          const isFull = occ >= cap;
+
+          const occTextEl = document.getElementById('center-occ-text-' + center.id);
+          if (occTextEl) {
+            occTextEl.innerHTML = `${occ} / ${cap} <span class="text-slate-400 font-semibold">(${occPct}%)</span>`;
+          }
+
+          const progEl = document.getElementById('center-progress-' + center.id);
+          if (progEl) {
+            progEl.style.width = occPct + '%';
+            progEl.className = `${occPct >= 90 ? 'bg-red-500' : occPct >= 75 ? 'bg-amber-500' : 'bg-blue-600'} h-full rounded-full transition-all duration-300`;
+          }
+
+          const availEl = document.getElementById('center-avail-' + center.id);
+          if (availEl) {
+            availEl.innerText = Math.max(0, cap - occ);
+          }
+
+          const shelteredEl = document.getElementById('center-sheltered-' + center.id);
+          if (shelteredEl) {
+            shelteredEl.innerText = occ;
+          }
+
+          const badgeEl = document.getElementById('center-badge-' + center.id);
+          if (badgeEl) {
+            badgeEl.innerText = isFull ? 'FULL' : 'OPEN';
+            badgeEl.className = `text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${isFull ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+          }
+
+          // If popup is currently open in DOM, also update its live elements
+          const popOcc = document.getElementById('occupancy-' + center.id);
+          if (popOcc) popOcc.innerText = occ;
+          const popProg = document.getElementById('progress-' + center.id);
+          if (popProg) {
+            popProg.style.width = Math.min(occPct, 100) + '%';
+            popProg.className = `${occPct >= 100 ? 'bg-red-500' : occPct >= 80 ? 'bg-orange-500' : 'bg-emerald-500'} h-full rounded-full transition-all duration-500`;
+          }
+        });
+      }
+
+      function initStaffCommandMap() {
+        if (typeof google === 'undefined' || !google.maps) return;
+        if (mapInstance) return mapInstance;
+
+        const defaultCenter = { lat: 13.5135, lng: 123.3485 };
+        const map = window.createEvakWarMap(document.getElementById('evacuationMap'), {
+          center: defaultCenter,
+          zoom: 16
+        });
+
+        mapInstance = map;
+
+        // Admin Drawn Routes & Hazards from DB
+        let initialFeatures = { type: 'FeatureCollection', features: [] };
+        try {
+          const raw = document.getElementById('map-features-data').textContent;
+          initialFeatures = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (e) { }
+        renderStaffDrawnFeatures(initialFeatures, map);
+
+        // Render Evacuation Centers
+        let centersData = [];
+        try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+        renderStaffCenters(centersData, map);
+
+        const isRescuer = true;
+
+        // Render Active SOS Distress Markers from embedded data (STRICTLY FOR RESCUERS)
+        if (isRescuer) {
+          let activeSos = [];
+          try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
+          if (Array.isArray(activeSos)) {
+            activeSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+          }
+
+          // Process any queued SOS alerts that arrived while mapInstance was loading
+          if (window.__pendingSosAlerts && window.__pendingSosAlerts.length > 0) {
+            window.__pendingSosAlerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+            window.__pendingSosAlerts = [];
+          }
+
+          fetch('/api/sos/active')
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && Array.isArray(data.alerts)) {
+                data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+                checkUrlForSosFocus();
+              }
+            })
+            .catch(err => {
+              console.error("Error fetching active SOS on staff map:", err);
+              checkUrlForSosFocus();
+            });
+
+          setTimeout(checkUrlForSosFocus, 500);
+        }
+
+        // Unified Real-time Socket.io Sync
+        initStaffSocketSync();
+      }
+
+      // Audio Chime generator using Web Audio API
+      function playEmergencyChime() {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          const ctx = new AudioContext();
+          const now = ctx.currentTime;
+
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.type = 'sawtooth';
+          osc1.frequency.setValueAtTime(880, now);
+          osc1.frequency.exponentialRampToValueAtTime(440, now + 0.35);
+          gain1.gain.setValueAtTime(0.3, now);
+          gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.35);
+
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(1200, now + 0.2);
+          osc2.frequency.exponentialRampToValueAtTime(600, now + 0.55);
+          gain2.gain.setValueAtTime(0.3, now + 0.2);
+          gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now + 0.2);
+          osc2.stop(now + 0.55);
+        } catch (e) {
+          console.warn('Audio alert skipped:', e);
+        }
+      }
+
+      // Modern Compact Floating Toast Notification
+      function showSosToast(msg, type = 'info') {
+        let toastContainer = document.getElementById('sosToastContainer');
+        if (!toastContainer) {
+          toastContainer = document.createElement('div');
+          toastContainer.id = 'sosToastContainer';
+          toastContainer.className = 'fixed top-14 sm:top-16 right-3 sm:right-4 z-50 flex flex-col gap-1.5 pointer-events-none items-end max-w-[calc(100vw-24px)] sm:max-w-xs';
+          document.body.appendChild(toastContainer);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `pointer-events-auto inline-flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl shadow-lg border text-xs font-semibold backdrop-blur-md transition-all duration-200 transform translate-y-1 opacity-0 leading-snug max-w-full sm:max-w-xs ${type === 'error' ? 'bg-red-600/95 text-white border-red-500/80 shadow-red-950/20' :
+          type === 'success' ? 'bg-emerald-600/95 text-white border-emerald-500/80 shadow-emerald-950/20' :
+            'bg-slate-900/95 text-white border-slate-700/80 shadow-slate-950/20'
+          }`;
+        toast.innerHTML = `
+        <div class="flex items-center gap-1.5 min-w-0">
+          <i class="ph ${type === 'error' ? 'ph-siren animate-pulse text-sm' : type === 'success' ? 'ph-check-circle text-sm' : 'ph-info text-sm'} shrink-0"></i>
+          <span class="truncate sm:break-words">${msg}</span>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-white/70 hover:text-white p-0.5 ml-1 shrink-0 rounded transition-opacity" title="Dismiss">
+          <i class="ph ph-x text-xs"></i>
+        </button>
+      `;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+          toast.classList.remove('translate-y-1', 'opacity-0');
+        }, 20);
+
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-1');
+          setTimeout(() => toast.remove(), 250);
+        }, 3200);
+      }
+      window.showToast = showSosToast;
+
+      function checkUrlForSosFocus() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetSosId = urlParams.get('sos_id') || urlParams.get('id');
+        const targetLat = parseFloat(urlParams.get('lat'));
+        const targetLng = parseFloat(urlParams.get('lng'));
+
+        if (targetSosId) {
+          let markerObj = sosMarkersMap[`sos_${targetSosId}`] || sosMarkersMap[`res_${targetSosId}`];
+          if (!markerObj) {
+            for (const k in sosMarkersMap) {
+              const m = sosMarkersMap[k];
+              if (m && (m.id == targetSosId || m.resident_id == targetSosId)) {
+                markerObj = m;
+                break;
+              }
+            }
+          }
+          if (markerObj && mapInstance) {
+            const mLat = markerObj.lat || (!isNaN(targetLat) ? targetLat : null);
+            const mLng = markerObj.lng || (!isNaN(targetLng) ? targetLng : null);
+            if (typeof mapInstance.flyTo === 'function' && mLng !== null && mLat !== null) {
+              const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(mapInstance, 16) : 16;
+              const currentPitch = typeof mapInstance.getPitch === 'function' ? mapInstance.getPitch() : 0;
+              const currentBearing = typeof mapInstance.getBearing === 'function' ? mapInstance.getBearing() : 0;
+              mapInstance.flyTo({
+                center: [mLng, mLat],
+                zoom: targetZoom,
+                offset: [0, 130],
+                pitch: currentPitch,
+                bearing: currentBearing,
+                essential: true
+              });
+              if (markerObj.marker && typeof markerObj.marker.togglePopup === 'function') {
+                const popup = markerObj.marker.getPopup();
+                if (popup && !popup.isOpen()) markerObj.marker.togglePopup();
+                if (popup && typeof window.bringMaplibrePopupToFront === 'function') {
+                  window.bringMaplibrePopupToFront(popup);
+                }
+              }
+            } else if (markerObj.pos && typeof mapInstance.panTo === 'function') {
+              mapInstance.panTo(markerObj.pos);
+              mapInstance.setZoom(16);
+              const infowindow = getStaffInfoWindow();
+              if (infowindow) {
+                infowindow.setContent(markerObj.popupHtml);
+                infowindow.setPosition(markerObj.pos);
+                infowindow.open(mapInstance, markerObj.marker);
+              }
+            }
+            highlightSosCard(targetSosId);
+            if (urlParams.get('navigate') === '1' && !window.__autoNavTriggered && mLat !== null && mLng !== null && typeof window.showEvakWarDirections === 'function') {
+              window.__autoNavTriggered = true;
+              window.showEvakWarDirections(mLat, mLng, 'SOS Emergency Location');
+            }
+            return;
+          }
+        }
+
+        if (!isNaN(targetLat) && !isNaN(targetLng) && mapInstance) {
+          if (urlParams.get('navigate') === '1' && !window.__autoNavTriggered && typeof window.showEvakWarDirections === 'function') {
+            window.__autoNavTriggered = true;
+            window.showEvakWarDirections(targetLat, targetLng, 'SOS Emergency Location');
+            return;
+          }
+          if (typeof mapInstance.flyTo === 'function') {
+            const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(mapInstance, 16) : 16;
+            const currentPitch = typeof mapInstance.getPitch === 'function' ? mapInstance.getPitch() : 0;
+            const currentBearing = typeof mapInstance.getBearing === 'function' ? mapInstance.getBearing() : 0;
+            mapInstance.flyTo({
+              center: [targetLng, targetLat],
+              zoom: targetZoom,
+              offset: [0, 130],
+              pitch: currentPitch,
+              bearing: currentBearing,
+              essential: true
+            });
+          } else if (typeof google !== 'undefined' && google.maps && typeof mapInstance.panTo === 'function') {
+            mapInstance.panTo(new google.maps.LatLng(targetLat, targetLng));
+            mapInstance.setZoom(16);
+          }
+        }
+      }
+
+      function highlightSosCard(sosId) {
+        const card = document.getElementById('sos_card_' + sosId);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          card.classList.add('ring-4', 'ring-red-500', 'ring-offset-2');
+          setTimeout(() => card.classList.remove('ring-4', 'ring-red-500', 'ring-offset-2'), 4000);
+        }
+      }
+
+      function addOrUpdateSosMarker(sosAlert, autoFly = false, openPopup = false) {
+        if (!sosAlert) return;
+        if (!mapInstance) {
+          window.__pendingSosAlerts = window.__pendingSosAlerts || [];
+          window.__pendingSosAlerts.push(sosAlert);
+          return;
+        }
+        const lng = parseFloat(sosAlert.longitude || sosAlert.lng);
+        const lat = parseFloat(sosAlert.latitude || sosAlert.lat);
+        if (isNaN(lng) || isNaN(lat)) return;
+
+        const sosId = (sosAlert.id !== undefined && sosAlert.id !== null) ? sosAlert.id : (sosAlert.sos_id !== undefined && sosAlert.sos_id !== null ? sosAlert.sos_id : null);
+        const resId = (sosAlert.resident_id !== undefined && sosAlert.resident_id !== null) ? sosAlert.resident_id : (sosAlert.residentId || null);
+        const status = (sosAlert.status || 'ACTIVE').toUpperCase();
+
+        if (status === 'RESOLVED' || status === 'CANCELLED') {
+          removeSosMarker(sosId, resId);
+          return;
+        }
+
+        const resName = (sosAlert.first_name ? `${sosAlert.first_name} ${sosAlert.last_name || ''}`.trim() : (sosAlert.name || 'Resident in Distress'));
+        const timeStr = sosAlert.created_at ? (window.formatManilaTime ? window.formatManilaTime(sosAlert.created_at) : 'Just now') : (window.formatManilaTime ? window.formatManilaTime(new Date()) : 'Just now');
+
+        // Find existing marker entry in sosMarkersMap by sosId OR resId
+        let existingKey = null;
+        if (sosId && sosMarkersMap[`sos_${sosId}`]) {
+          existingKey = `sos_${sosId}`;
+        } else if (resId && sosMarkersMap[`res_${resId}`]) {
+          existingKey = `res_${resId}`;
+        } else {
+          for (const k in sosMarkersMap) {
+            const m = sosMarkersMap[k];
+            if (m && ((sosId && m.id == sosId) || (resId && m.resident_id == resId))) {
+              existingKey = k;
+              break;
+            }
+          }
+        }
+
+        // ==========================================
+        // 1. MAPLIBRE SOS MARKER HANDLER
+        // ==========================================
+        if (mapInstance && typeof mapInstance.getLayer === 'function') {
+          const popupHtml = window.buildSosPopupHtml(sosAlert, 'rescuer');
+
+          if (existingKey && sosMarkersMap[existingKey] && sosMarkersMap[existingKey].marker) {
+            const item = sosMarkersMap[existingKey];
+            // Update existing marker in-place: coordinate, popup, properties
+            if (typeof item.marker.setLngLat === 'function') {
+              item.marker.setLngLat([lng, lat]);
+            }
+            if (item.popup && typeof item.popup.setHTML === 'function') {
+              item.popup.setHTML(popupHtml);
+            }
+            item.lat = lat;
+            item.lng = lng;
+            item.popupHtml = popupHtml;
+            item.id = sosId || item.id;
+            item.resident_id = resId || item.resident_id;
+
+            // If status changed, update marker element styling
+            if (item.status !== status && typeof window.createMaplibreSosMarkerEl === 'function') {
+              item.status = status;
+              const markerEl = item.marker.getElement();
+              if (markerEl) {
+                markerEl.innerHTML = window.createMaplibreSosMarkerEl(status).innerHTML;
+              }
+            }
+
+            // Re-key under canonical `sos_${sosId}` if sosId is known
+            if (sosId && existingKey !== `sos_${sosId}`) {
+              sosMarkersMap[`sos_${sosId}`] = item;
+              delete sosMarkersMap[existingKey];
+            }
+            if (openPopup && item.marker && typeof item.marker.togglePopup === 'function') {
+              const p = item.marker.getPopup();
+              if (p && !p.isOpen()) item.marker.togglePopup();
+              if (p && typeof window.bringMaplibrePopupToFront === 'function') {
+                window.bringMaplibrePopupToFront(p);
+              }
+            }
+          } else if (typeof maplibregl !== 'undefined') {
+            // Create NEW MapLibre marker
+            const el = window.createMaplibreSosMarkerEl(status);
+            const popup = new maplibregl.Popup({
+              anchor: 'bottom',
+              offset: [0, -22],
+              maxWidth: '280px',
+              closeButton: true,
+              closeOnClick: false
+            }).setHTML(popupHtml);
+
+            if (typeof window.bringMaplibrePopupToFront === 'function') {
+              popup.on('open', () => window.bringMaplibrePopupToFront(popup));
+            }
+
+            const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+              .setLngLat([lng, lat])
+              .setPopup(popup)
+              .addTo(mapInstance);
+
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (typeof flyToSosLocation === 'function') {
+                flyToSosLocation(lng, lat);
+              } else {
+                marker.togglePopup();
+              }
+              setTimeout(() => {
+                if (typeof window.bringMaplibrePopupToFront === 'function') {
+                  window.bringMaplibrePopupToFront(popup);
+                }
+              }, 50);
+            });
+
+            const canonicalKey = sosId ? `sos_${sosId}` : `res_${resId}`;
+            sosMarkersMap[canonicalKey] = {
+              marker,
+              popup,
+              lat,
+              lng,
+              id: sosId,
+              resident_id: resId,
+              popupHtml,
+              status
+            };
+            if (openPopup) {
+              marker.togglePopup();
+              if (typeof window.bringMaplibrePopupToFront === 'function') {
+                window.bringMaplibrePopupToFront(popup);
+              }
+            }
+          }
+
+          if (autoFly && typeof mapInstance.flyTo === 'function') {
+            const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(mapInstance, 16) : 16;
+            const currentPitch = typeof mapInstance.getPitch === 'function' ? mapInstance.getPitch() : 0;
+            const currentBearing = typeof mapInstance.getBearing === 'function' ? mapInstance.getBearing() : 0;
+            mapInstance.flyTo({
+              center: [lng, lat],
+              zoom: targetZoom,
+              offset: [0, 130],
+              pitch: currentPitch,
+              bearing: currentBearing,
+              essential: true
+            });
+          }
+          updateSosFeedCard(sosAlert);
+          return;
+        }
+
+        // ==========================================
+        // 2. GOOGLE MAPS SOS MARKER HANDLER (INTACT)
+        // ==========================================
+        if (typeof google === 'undefined' || !google.maps) {
+          updateSosFeedCard(sosAlert);
+          return;
+        }
+
+        const pos = new google.maps.LatLng(lat, lng);
+        const popupHtml = window.buildSosPopupHtml(sosAlert, 'rescuer');
+
+        if (existingKey && sosMarkersMap[existingKey]) {
+          sosMarkersMap[existingKey].marker.setPosition(pos);
+          if (typeof getSosMarkerIcon === 'function') {
+            sosMarkersMap[existingKey].marker.setIcon(getSosMarkerIcon(status));
+          }
+          sosMarkersMap[existingKey].popupHtml = popupHtml;
+          sosMarkersMap[existingKey].pos = pos;
+          sosMarkersMap[existingKey].lat = lat;
+          sosMarkersMap[existingKey].lng = lng;
+          sosMarkersMap[existingKey].id = sosId || sosMarkersMap[existingKey].id;
+          sosMarkersMap[existingKey].resident_id = resId || sosMarkersMap[existingKey].resident_id;
+
+          if (sosId && existingKey !== `sos_${sosId}`) {
+            sosMarkersMap[`sos_${sosId}`] = sosMarkersMap[existingKey];
+            delete sosMarkersMap[existingKey];
+          }
+        } else if (mapInstance) {
+          const marker = new google.maps.Marker({
+            position: pos,
+            map: mapInstance,
+            icon: typeof getSosMarkerIcon === 'function' ? getSosMarkerIcon(status) : undefined,
+            title: `SOS: ${resName} (${status})`,
+            zIndex: 90
+          });
+
+          marker.addListener('click', () => {
+            const infowindow = getStaffInfoWindow();
+            if (infowindow && mapInstance) {
+              infowindow.setContent(popupHtml);
+              infowindow.setPosition(pos);
+              infowindow.open(mapInstance, marker);
+            }
+          });
+
+          const canonicalKey = sosId ? `sos_${sosId}` : `res_${resId}`;
+          sosMarkersMap[canonicalKey] = {
+            marker,
+            popupHtml,
+            pos,
+            lat,
+            lng,
+            id: sosId,
+            resident_id: resId,
+            status
+          };
+        }
+
+        if (autoFly && mapInstance && typeof mapInstance.panTo === 'function') {
+          mapInstance.panTo(pos);
+          mapInstance.setZoom(17.5);
+        }
+
+        if (openPopup && mapInstance && typeof mapInstance.panTo === 'function') {
+          const infowindow = getStaffInfoWindow();
+          if (infowindow) {
+            infowindow.setContent(popupHtml);
+            infowindow.setPosition(pos);
+            const currentKey = sosId ? `sos_${sosId}` : `res_${resId}`;
+            const currentMarker = sosMarkersMap[currentKey] ? sosMarkersMap[currentKey].marker : null;
+            infowindow.open(mapInstance, currentMarker);
+          }
+        }
+
+        updateSosFeedCard(sosAlert);
+      }
+
+      function removeSosMarker(sosId, residentId) {
+        const keysToDelete = new Set();
+        if (sosId && sosMarkersMap[`sos_${sosId}`]) keysToDelete.add(`sos_${sosId}`);
+        if (residentId && sosMarkersMap[`res_${residentId}`]) keysToDelete.add(`res_${residentId}`);
+        for (const k in sosMarkersMap) {
+          const m = sosMarkersMap[k];
+          if (m && ((sosId && m.id == sosId) || (residentId && m.resident_id == residentId))) {
+            keysToDelete.add(k);
+          }
+        }
+        keysToDelete.forEach(k => {
+          const item = sosMarkersMap[k];
+          if (item && item.marker) {
+            if (typeof item.marker.remove === 'function') item.marker.remove();
+            if (typeof item.marker.setMap === 'function') item.marker.setMap(null);
+          }
+          delete sosMarkersMap[k];
+        });
+
+        if (sosId) {
+          const card = document.getElementById('sos_card_' + sosId);
+          if (card) card.remove();
+        }
+        if (residentId) {
+          const card = document.querySelector(`[data-resident-id="${residentId}"]`);
+          if (card) card.remove();
+        }
+        if (typeof window.dismissGlobalDistressBanner === 'function') {
+          window.dismissGlobalDistressBanner(sosId, residentId);
+        }
+        updateActiveCountBadge();
+      }
+
+      function updateActiveCountBadge() {
+        const feedList = document.getElementById('sosFeedList');
+        const countBadge = document.getElementById('activeSosBadgeCount');
+        if (feedList && countBadge) {
+          const activeCards = feedList.querySelectorAll('[id^="sos_card_"]');
+          countBadge.textContent = `${activeCards.length} Active Signals`;
+        }
+      }
+
+      function updateSosFeedCard(alert) {
+        const feedList = document.getElementById('sosFeedList');
+        if (!feedList || !alert) return;
+
+        const sosId = alert.id || alert.sos_id;
+        const resId = alert.resident_id || alert.residentId;
+        const status = (alert.status || 'ACTIVE').toUpperCase();
+
+        if (status === 'RESOLVED' || status === 'CANCELLED') {
+          if (sosId) {
+            const existing = document.getElementById('sos_card_' + sosId);
+            if (existing) existing.remove();
+          }
+          if (resId) {
+            const existingRes = document.querySelector(`[data-resident-id="${resId}"]`);
+            if (existingRes) existingRes.remove();
+          }
+          updateActiveCountBadge();
+          return;
+        }
+
+        const alertLng = parseFloat(alert.longitude || alert.lng || 123.3470);
+        const alertLat = parseFloat(alert.latitude || alert.lat || 13.5102);
+        const cardName = (alert.first_name ? (`${alert.first_name} ${alert.last_name || ''}`).trim() : (alert.name || 'Resident in Distress'));
+
+        const myUserId = Number(window.currentUserId || 0);
+        const myRole = String(window.userRole || '').toLowerCase();
+        const alertHandledBy = (alert.handled_by !== null && alert.handled_by !== undefined && alert.handled_by !== '') ? Number(alert.handled_by) : null;
+        const isAssigned = alertHandledBy && alertHandledBy > 0;
+        const isMine = isAssigned && (alertHandledBy === myUserId);
+        const isOther = isAssigned && !isMine && (myRole !== 'admin');
+
+        let statusClass = 'bg-red-50/80 border-red-200';
+        let statusBadgeClass = 'bg-red-600 text-white animate-pulse';
+        let actionButtonsSectionHtml = '';
+
+        if (status === 'ACKNOWLEDGED') {
+          statusClass = 'bg-amber-50/80 border-amber-200';
+          statusBadgeClass = 'bg-amber-500 text-white';
+        } else if (status === 'RESPONDING') {
+          statusClass = 'bg-indigo-50/80 border-indigo-200';
+          statusBadgeClass = 'bg-indigo-600 text-white';
+        } else if (status === 'RESCUED') {
+          statusClass = 'bg-emerald-50/80 border-emerald-200';
+          statusBadgeClass = 'bg-emerald-600 text-white';
+        }
+
+        const handlerName = alert.handler_name || (alert.handler ? alert.handler.name : null);
+        const handlerContact = alert.handler_contact || (alert.handler ? alert.handler.contact : null);
+        let handlerBoxHtml = '';
+        if (handlerName) {
+          handlerBoxHtml = `
+            <div class="bg-white/90 rounded-xl p-2 border ${isOther ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200'} text-xs flex items-center justify-between gap-2 shadow-2xs">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <i class="ph ${isOther ? 'ph-user-circle text-amber-600' : 'ph-user-check text-emerald-600'} font-bold shrink-0"></i>
+                <span class="text-slate-600 truncate">Assigned: <strong class="text-slate-900">${handlerName}${isMine ? ' (You)' : ''}</strong></span>
+              </div>
+              ${handlerContact ? `
+                <a href="tel:${handlerContact}" class="text-blue-600 hover:underline font-mono font-bold shrink-0 flex items-center gap-0.5">
+                  <i class="ph ph-phone text-[10px]"></i> ${handlerContact}
+                </a>
+              ` : ''}
+            </div>
+          `;
+        } else if (status === 'ACTIVE') {
+          handlerBoxHtml = `
+            <div class="bg-white/90 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
+              <i class="ph ph-clock text-red-500 shrink-0"></i>
+              <span>Situation: <strong>Awaiting Staff Acknowledgment</strong></span>
+            </div>
+          `;
+        }
+
+        if (isOther) {
+          actionButtonsSectionHtml = `
+            <div class="w-full py-2 px-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-slate-200 shadow-2xs">
+              <i class="ph ph-lock-key text-slate-400 text-sm"></i>
+              <span>Assigned to <strong class="text-slate-800">${handlerName || 'Another Rescuer'}</strong></span>
+            </div>
+          `;
+        } else {
+          let primaryBtnHtml = '';
+          if (status === 'ACTIVE') {
+            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-check-circle"></i> Acknowledge</button>`;
+          } else if (status === 'ACKNOWLEDGED') {
+            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-navigation-arrow"></i> Dispatch Rescuer</button>`;
+          } else if (status === 'RESPONDING') {
+            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESCUED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-shield-check"></i> Mark Rescued</button>`;
+          }
+          actionButtonsSectionHtml = `
+            ${primaryBtnHtml}
+            <button type="button" data-sos-id="${sosId || ''}" data-next-status="RESOLVED" onclick="handleSosLifecycleBtn(this)" class="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-check-square"></i> Resolve</button>
+          `;
+        }
+
+        const cardHtml = `
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+              SOS
+            </div>
+            <div>
+              <div class="font-black text-slate-950 text-base">${cardName}</div>
+              <div class="text-xs text-slate-600 font-bold flex flex-wrap items-center gap-2 mt-0.5">
+                ${alert.contact_number ? `<a href="tel:${alert.contact_number}" class="text-blue-700 font-bold hover:underline flex items-center gap-1 bg-blue-100/70 px-2 py-0.5 rounded-lg"><i class="ph ph-phone"></i> ${alert.contact_number}</a>` : '<span class="text-slate-400">No phone</span>'}
+              </div>
+            </div>
+          </div>
+          <span class="text-[11px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 ${statusBadgeClass}">${status}</span>
+        </div>
+        ${handlerBoxHtml}
+        <div class="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/60">
+          <span><i class="ph ph-clock text-slate-400"></i> ${alert.created_at ? (window.formatManilaTime ? window.formatManilaTime(alert.created_at) : 'Just now') : 'Just now'}</span>
+          <button type="button" data-lng="${alertLng}" data-lat="${alertLat}" data-sos-id="${sosId || ''}" onclick="flyToSosAndFocus(this)" class="text-xs font-extrabold text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"><i class="ph ph-navigation-arrow"></i> Focus Map Pin</button>
+        </div>
+        <div class="flex items-center gap-1.5 pt-1">
+          ${actionButtonsSectionHtml}
+        </div>
+      `;
+
+        let card = sosId ? document.getElementById('sos_card_' + sosId) : null;
+        if (!card && resId) {
+          card = document.querySelector(`[data-resident-id="${resId}"]`);
+        }
+
+        if (card) {
+          if (sosId) card.id = 'sos_card_' + sosId;
+          card.setAttribute('data-resident-id', resId || '');
+          card.className = `p-4 rounded-2xl border ${statusClass} space-y-3 shadow-xs hover:shadow-md transition-all`;
+          card.innerHTML = cardHtml;
+        } else {
+          const emptyState = feedList.querySelector('.col-span-full');
+          if (emptyState) emptyState.remove();
+          card = document.createElement('div');
+          if (sosId) card.id = 'sos_card_' + sosId;
+          card.setAttribute('data-resident-id', resId || '');
+          card.className = `p-4 rounded-2xl border ${statusClass} space-y-3 shadow-xs hover:shadow-md transition-all`;
+          card.innerHTML = cardHtml;
+          feedList.prepend(card);
+        }
+        updateActiveCountBadge();
+      }
+
+      window.resolveSosAlert = async function (sosId) {
+        if (!sosId) return;
+        if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
+        try {
+          const res = await fetch('/rescuer/sos/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: sosId, status: 'RESOLVED' })
+          });
+          const data = await res.json();
+          if (data.success) {
+            removeSosMarker(sosId);
+            if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.stopTracking();
+            showSosToast('SOS alert marked as resolved.', 'success');
+          } else {
+            showSosToast(data.message || 'Error resolving SOS alert', 'error');
+            if (data.alert) {
+              addOrUpdateSosMarker(data.alert, false);
+              if (typeof updateSosFeedCard === 'function') updateSosFeedCard(data.alert);
+            }
+          }
+        } catch (err) {
+          console.error("Error resolving SOS alert:", err);
+          showSosToast('Network error resolving SOS alert', 'error');
+        }
+      };
+
+      function flyToSosAndFocus(btnEl) {
+        const lng = parseFloat(btnEl.getAttribute('data-lng'));
+        const lat = parseFloat(btnEl.getAttribute('data-lat'));
+        const sosId = btnEl.getAttribute('data-sos-id');
+        if (!isNaN(lng) && !isNaN(lat)) {
+          flyToSosLocation(lng, lat);
+          let markerObj = sosMarkersMap[`sos_${sosId}`] || sosMarkersMap[`res_${sosId}`];
+          if (!markerObj && sosId) {
+            for (const k in sosMarkersMap) {
+              const m = sosMarkersMap[k];
+              if (m && (m.id == sosId || m.resident_id == sosId)) {
+                markerObj = m;
+                break;
+              }
+            }
+          }
+          if (markerObj && mapInstance) {
+            if (markerObj.marker && typeof markerObj.marker.togglePopup === 'function') {
+              const p = markerObj.marker.getPopup();
+              if (p && !p.isOpen()) markerObj.marker.togglePopup();
+              if (p && typeof window.bringMaplibrePopupToFront === 'function') {
+                window.bringMaplibrePopupToFront(p);
+              }
+            } else if (markerObj.pos) {
+              const infowindow = getStaffInfoWindow();
+              if (infowindow) {
+                infowindow.setContent(markerObj.popupHtml);
+                infowindow.setPosition(markerObj.pos);
+                infowindow.open(mapInstance, markerObj.marker);
+              }
+            }
+          }
+          if (staffSheet && staffSheet.isExpanded) staffSheet.setCollapsed();
+        }
+      }
+      window.flyToSosAndFocus = flyToSosAndFocus;
+
+      // Duplicate SOS Signal Debounce & Unified Real-Time Socket Sync
+      const recentSosAlertAnnouncements = new Map();
+
+      function handleIncomingSosAlert(data, isNew = true) {
+        if (!data) return;
+        const sosId = data.id || data.sos_id;
+        const resId = data.resident_id || data.residentId;
+        const dedupeKey = sosId ? `id_${sosId}` : (resId ? `res_${resId}` : null);
+        const now = Date.now();
+
+        // Check if this SOS record was already processed/announced recently (< 5000ms)
+        const isRecentDuplicate = dedupeKey && recentSosAlertAnnouncements.has(dedupeKey) && (now - recentSosAlertAnnouncements.get(dedupeKey) < 5000);
+
+        if (dedupeKey) {
+          recentSosAlertAnnouncements.set(dedupeKey, now);
+          if (recentSosAlertAnnouncements.size > 50) {
+            for (const [k, timestamp] of recentSosAlertAnnouncements.entries()) {
+              if (now - timestamp > 30000) recentSosAlertAnnouncements.delete(k);
+            }
+          }
+        }
+
+        if (isNew && !isRecentDuplicate) {
+          playEmergencyChime();
+          showSosToast('🚨 EMERGENCY SOS DISTRESS SIGNAL: ' + (data.name || data.residentName || 'Resident'), 'error');
+        }
+
+        // Always update the marker uniquely by ID:
+        addOrUpdateSosMarker(data, isNew && !isRecentDuplicate, isNew && !isRecentDuplicate);
+      }
+
+      function initStaffSocketSync() {
+        if (window.__staffSocketInitialized || typeof io === 'undefined') return;
+        window.__staffSocketInitialized = true;
+        const socket = window.__staffSocket || (window.__staffSocket = io());
+
+        async function fetchAndRefreshCenters() {
+          try {
+            const res = await fetch('/api/centers/active');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers) && mapInstance) {
+              renderStaffCenters(data.centers, mapInstance);
+            }
+          } catch (e) {
+            console.warn('[RescuerMap] Failed to refresh centers live:', e);
+          }
+        }
+
+        async function fetchAndRefreshSosAlerts() {
+          try {
+            const res = await fetch('/api/sos/active');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.alerts)) {
+              const activeIds = new Set();
+              data.alerts.forEach(alert => {
+                const sId = alert.id || alert.sos_id;
+                if (sId) activeIds.add(String(sId));
+                addOrUpdateSosMarker(alert, false, false);
+              });
+              Object.keys(sosMarkersMap).forEach(key => {
+                const item = sosMarkersMap[key];
+                if (item && item.id && !activeIds.has(String(item.id))) {
+                  removeSosMarker(item.id, item.resident_id);
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('[RescuerMap] Failed to refresh active SOS live:', e);
+          }
+        }
+
+        // Live Evacuation Centers & Resident Listed Updates
+        socket.on('center_updated', (data) => {
+          if (data && Array.isArray(data.centers) && mapInstance) {
+            renderStaffCenters(data.centers, mapInstance);
+          } else {
+            fetchAndRefreshCenters();
+          }
+        });
+
+        socket.on('checkin:new', () => {
+          fetchAndRefreshCenters();
+        });
+
+        socket.on('ec_board_updated', (data) => {
+          if (data && Array.isArray(data.centers) && mapInstance) {
+            renderStaffCenters(data.centers, mapInstance);
+          } else {
+            fetchAndRefreshCenters();
+          }
+        });
+
+        socket.on('map_centers_updated', (data) => {
+          if (data && Array.isArray(data.centers) && mapInstance) {
+            renderStaffCenters(data.centers, mapInstance);
+          } else {
+            fetchAndRefreshCenters();
+          }
+        });
+
+        // Live SOS Emergency Signals
+        socket.on('sos:new', function (data) {
+          handleIncomingSosAlert(data, true);
+        });
+
+        socket.on('sos_alert', function (data) {
+          handleIncomingSosAlert(data, true);
+        });
+
+        socket.on('sos:update', function (data) {
+          if (data) handleIncomingSosAlert(data, false);
+        });
+
+        socket.on('sos:cancel', function (data) {
+          showSosToast('SOS Alert Cancelled by Resident', 'info');
+          removeSosMarker(data ? (data.id || data.sos_id) : null, data ? (data.resident_id || data.residentId) : null);
+        });
+
+        socket.on('sos:resolve', function (data) {
+          removeSosMarker(data ? (data.id || data.sos_id) : null, data ? (data.resident_id || data.residentId) : null);
+        });
+
+        socket.on('sos:update_status', function (data) {
+          if (data) {
+            const status = (data.status || '').toUpperCase();
+            if (status === 'RESOLVED' || status === 'CANCELLED') {
+              removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+            } else {
+              const fullAlert = data.alert || data;
+              if (!fullAlert.handled_by && data.handled_by) fullAlert.handled_by = data.handled_by;
+              if (!fullAlert.handler_name && data.handler_name) fullAlert.handler_name = data.handler_name;
+              if (!fullAlert.handler_contact && data.handler_contact) fullAlert.handler_contact = data.handler_contact;
+              handleIncomingSosAlert(fullAlert, false);
+            }
+          }
+        });
+
+        socket.on('map_features_updated', (data) => {
+          if (mapInstance) {
+            if (typeof mapInstance.getLayer === 'function') {
+              renderStaffDrawnFeatures(data, mapInstance);
+            } else if (staffDrawnShapes) {
+              staffDrawnShapes.forEach(s => s.setMap(null));
+              staffDrawnShapes = [];
+              renderStaffDrawnFeatures(data, mapInstance);
+            }
+          }
+        });
+
+        // 433.875 MHz LoRa Mesh SOS Inbound Receiver (100% Offline / Off-Grid)
+        window.addEventListener('evakwar:lora-sos', function (ev) {
+          const pkt = ev && ev.detail;
+          if (!pkt) return;
+          console.log('[Rescuer Map] 🚨 Processing LoRa Mesh SOS packet:', pkt);
+          const sosAlertObj = {
+            id: pkt.sosId || ('lora_' + (pkt.residentId || Date.now())),
+            sos_id: pkt.sosId || ('lora_' + (pkt.residentId || Date.now())),
+            resident_id: pkt.residentId || 0,
+            residentId: pkt.residentId || 0,
+            name: pkt.residentName || pkt.sender || 'Resident in Distress',
+            residentName: pkt.residentName || pkt.sender || 'Resident in Distress',
+            contact_number: pkt.contact || '',
+            emergency_type: pkt.emergencyType || 'EMERGENCY',
+            barangay: pkt.zone || pkt.barangay || 'San Rafael',
+            latitude: pkt.latitude || 13.456,
+            longitude: pkt.longitude || 123.361,
+            status: 'PENDING',
+            transport: 'LORA_MESH_433MHZ',
+            is_lora: true,
+            created_at: new Date().toISOString()
+          };
+          handleIncomingSosAlert(sosAlertObj, true);
+        });
+
+        // Resilience Heartbeat: catch up live data if tab was sleeping or network dropped
+        setInterval(() => {
+          fetchAndRefreshCenters();
+          fetchAndRefreshSosAlerts();
+        }, 12000);
+
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            fetchAndRefreshCenters();
+            fetchAndRefreshSosAlerts();
+          }
+        });
+      }
+
+      class MobileBottomSheet {
+        constructor(sheetId, handleId, scrollAreaId, peekHeight = 48) {
+          this.sheet = document.getElementById(sheetId);
+          this.handle = document.getElementById(handleId);
+          this.scrollArea = document.getElementById(scrollAreaId);
+          this.peekHeight = peekHeight;
+          this.isExpanded = false;
+          this.startY = 0;
+          this.isDragging = false;
+          if (!this.sheet || !this.handle) return;
+          this.init();
+        }
+
+        init() {
+          this.setCollapsed();
+          this.handle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+          });
+          this.handle.addEventListener('touchstart', (e) => {
+            this.startY = e.touches[0].clientY;
+            this.isDragging = true;
+            this.sheet.style.transition = 'none';
+          }, { passive: true });
+          window.addEventListener('touchmove', (e) => {
+            if (!this.isDragging) return;
+            const clientY = e.touches[0].clientY;
+            const deltaY = clientY - this.startY;
+            if (!this.isExpanded) {
+              if (deltaY < 0) {
+                const sheetHeight = this.sheet.offsetHeight;
+                const targetTranslate = Math.max(0, (sheetHeight - this.peekHeight) + deltaY);
+                this.sheet.style.transform = `translateY(${targetTranslate}px)`;
+                if (e.cancelable) e.preventDefault();
+              }
+            } else {
+              if (deltaY > 0 && (!this.scrollArea || this.scrollArea.scrollTop <= 0)) {
+                this.sheet.style.transform = `translateY(${deltaY}px)`;
+                if (e.cancelable) e.preventDefault();
+              }
+            }
+          }, { passive: false });
+          window.addEventListener('touchend', (e) => {
+            if (!this.isDragging) return;
+            this.isDragging = false;
+            const deltaY = (e.changedTouches[0].clientY) - this.startY;
+            if (!this.isExpanded) {
+              if (deltaY < -30) this.setExpanded(); else this.setCollapsed();
+            } else {
+              if (deltaY > 30) this.setCollapsed(); else this.setExpanded();
+            }
+          }, { passive: true });
+        }
+
+        setCollapsed() {
+          this.isExpanded = false;
+          this.sheet.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+          this.sheet.style.transform = `translateY(calc(100% - ${this.peekHeight}px))`;
+          if (this.scrollArea) { this.scrollArea.scrollTop = 0; this.scrollArea.style.overflowY = 'hidden'; }
+        }
+
+        setExpanded() {
+          this.isExpanded = true;
+          this.sheet.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+          this.sheet.style.transform = 'translateY(0)';
+          if (this.scrollArea) this.scrollArea.style.overflowY = 'auto';
+        }
+
+        toggle() { if (this.isExpanded) this.setCollapsed(); else this.setExpanded(); }
+      }
+
+      async function initStaffMaplibreMap() {
+        if (mapInstance) return mapInstance;
+        const container = document.getElementById('evacuationMap');
+        if (!container) return;
+        if (typeof maplibregl === 'undefined' || typeof window.createEvakWarMaplibreMap !== 'function') {
+          setTimeout(initStaffMaplibreMap, 50);
+          return;
+        }
+
+        let centersData = [];
+        try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+
+        let initialFeatures = { type: 'FeatureCollection', features: [] };
+        try {
+          const raw = document.getElementById('map-features-data').textContent;
+          initialFeatures = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (e) { }
+
+        // Local IndexedDB caching fallback for offline use
+        if ((!centersData || centersData.length === 0) && window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+          const cached = await window.EvakWarDB.getMapData();
+          if (cached) {
+            if (cached.centers && cached.centers.length > 0) centersData = cached.centers;
+            if (cached.mapFeatures && cached.mapFeatures.features) initialFeatures = cached.mapFeatures;
+          }
+        }
+
+        const initialSources = {
+          'staff-features': {
+            type: 'geojson',
+            data: initialFeatures || { type: 'FeatureCollection', features: [] }
+          }
+        };
+
+        const initialLayers = [
+          {
+            id: 'staff-hazards-fill',
+            type: 'fill',
+            source: 'staff-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+            paint: {
+              'fill-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#ef4444'],
+              'fill-opacity': 0.35
+            }
+          },
+          {
+            id: 'staff-hazards-line',
+            type: 'line',
+            source: 'staff-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], ['get', 'color'], '#dc2626'],
+              'line-width': 2.5,
+              'line-opacity': 0.95
+            }
+          },
+          {
+            id: 'staff-boundary-dashed-line',
+            type: 'line',
+            source: 'staff-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'boundary']],
+            paint: {
+              'line-color': '#f87171',
+              'line-width': 1.5,
+              'line-dasharray': [3, 2],
+              'line-opacity': 0.85
+            }
+          },
+          {
+            id: 'staff-zone-dashed-line',
+            type: 'line',
+            source: 'staff-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'zone']],
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], '#ffffff'],
+              'line-width': 1.5,
+              'line-dasharray': [3, 2],
+              'line-opacity': 0.9
+            }
+          },
+          {
+            id: 'staff-routes',
+            type: 'line',
+            source: 'staff-features',
+            filter: ['==', '$type', 'LineString'],
+            paint: { 'line-color': '#f97316', 'line-width': 4.5, 'line-opacity': 0.95 }
+          }
+        ];
+
+        const map = window.createEvakWarMaplibreMap(container, {
+          center: [123.3485, 13.5135],
+          zoom: 15.5,
+          initialSources: initialSources,
+          initialLayers: initialLayers,
+          initialBasemap: 'hybrid'
+        });
+
+        mapInstance = map;
+        window.mapInstance = map;
+
+
+
+        // Render Evacuation Centers immediately on creation
+        if (Array.isArray(centersData) && centersData.length > 0) {
+          renderStaffCenters(centersData, map);
+        }
+
+        // Render Active SOS Distress Markers immediately from embedded data
+        let activeSos = [];
+        try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
+        if (Array.isArray(activeSos)) {
+          activeSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+        }
+
+        // Parallel non-blocking fresh SOS fetch
+        fetch('/api/sos/active')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && Array.isArray(data.alerts)) {
+              data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+              checkUrlForSosFocus();
+            }
+          })
+          .catch(err => {
+            console.warn('[Evacwar MapLibre] Offline mode SOS fetch notice:', err.message);
+            checkUrlForSosFocus();
+          });
+
+        map.on('load', () => {
+          renderStaffDrawnFeatures(initialFeatures, map);
+          renderStaffCenters(centersData, map);
+          checkUrlForSosFocus();
+
+          if (!navigator.onLine) {
+            let badge = document.getElementById('mapOfflineBadge');
+            if (!badge) {
+              badge = document.createElement('div');
+              badge.id = 'mapOfflineBadge';
+              badge.className = 'absolute top-3 left-3 z-30 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg';
+              badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>Offline</span>';
+              container.parentElement.appendChild(badge);
+            }
+          }
+        });
+
+        // Unified Real-time Socket.io Sync
+        initStaffSocketSync();
+      }
+
+      let staffSheet = null;
+      if (document.getElementById('evacuationMap') && window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre') {
+        window._staffMapReady = true;
+        initStaffMaplibreMap();
+      }
+      document.addEventListener('DOMContentLoaded', () => {
+        initStaffSocketSync();
+        staffSheet = new MobileBottomSheet('staffBottomSheet', 'staffSheetHandle', 'staffSheetScrollArea', 48);
+
+        if (window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre' && !mapInstance) {
+          window._staffMapReady = true;
+          initStaffMaplibreMap();
+        }
+      });
+
+      whenGoogleMapsReady(() => {
+        window._staffMapReady = true;
+        initStaffCommandMap();
+      });
+
+      // Dual-mode offline fallback if Google Maps fails or offline
+      async function initOfflineStaffMap() {
+        if (window._staffMapReady) return;
+        const container = document.getElementById('evacuationMap');
+        if (!container || typeof L === 'undefined') return;
+
+        let centersData = [];
+        try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+
+        let initialFeatures = { type: 'FeatureCollection', features: [] };
+        try {
+          const raw = document.getElementById('map-features-data').textContent;
+          initialFeatures = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (e) { }
+
+        // If embedded data is empty, query local Dexie DB
+        if ((!centersData || centersData.length === 0) && window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+          const cached = await window.EvakWarDB.getMapData();
+          if (cached) {
+            if (cached.centers && cached.centers.length > 0) centersData = cached.centers;
+            if (cached.mapFeatures && cached.mapFeatures.features) initialFeatures = cached.mapFeatures;
+          }
+        }
+
+        try {
+          container.innerHTML = '';
+          const lMap = L.map(container, { zoomControl: true }).setView([13.5135, 123.3485], 16);
+          const osmTileUrl = (window.MAP_CONFIG && window.MAP_CONFIG.osmUrl) || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+          L.tileLayer(osmTileUrl, { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(lMap);
+
+          // GeoJSON Features (hazards and routes)
+          if (initialFeatures && initialFeatures.features) {
+            L.geoJSON(initialFeatures, {
+              style: function (feature) {
+                const isBoundary = feature.properties && feature.properties.type === 'boundary';
+                if (feature.geometry.type === 'Polygon') {
+                  if (isBoundary) {
+                    return { color: '#f87171', weight: 1.5, dashArray: '3, 2', fillColor: 'transparent', fillOpacity: 0 };
+                  }
+                  return { color: '#ef4444', weight: 2.5, dashArray: '6, 3', fillColor: '#ef4444', fillOpacity: 0.25 };
+                } else if (feature.geometry.type === 'LineString') {
+                  return { color: '#f97316', weight: 4.5, dashArray: '8, 4', opacity: 0.85 };
+                }
+              }
+            }).addTo(lMap);
+          }
+
+          // Evacuation Centers
+          centersData.forEach(center => {
+            const lat = parseFloat(center.latitude) || 13.5102;
+            const lng = parseFloat(center.longitude) || 123.3470;
+            const occ = parseInt(center.current_occupancy, 10) || 0;
+            const cap = parseInt(center.max_capacity, 10) || 25;
+            const pct = Math.round((occ / cap) * 100);
+            let col = '#10b981';
+            if (pct >= 100) col = '#ef4444';
+            else if (pct >= 80) col = '#f97316';
+
+            const m = L.circleMarker([lat, lng], {
+              radius: 10,
+              color: '#ffffff',
+              weight: 2,
+              fillColor: col,
+              fillOpacity: 1
+            }).addTo(lMap);
+
+            m.bindPopup(`
+              <div style="font-family: system-ui; min-width: 220px;">
+                <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${center.name}</div>
+                <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">${center.address || 'San Rafael'}</div>
+                <div style="font-size: 11px; font-weight: 700; color: ${col};">Occupancy: ${occ} / ${cap} (${pct}%)</div>
+                <div style="font-size: 11px; color: #475569; margin-top: 4px;">Contact: ${center.contact_number || 'N/A'}</div>
+              </div>
+            `);
+          });
+
+          // Active SOS Alerts
+          let activeSos = [];
+          try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
+          if (Array.isArray(activeSos)) {
+            activeSos.forEach(alert => {
+              const lat = parseFloat(alert.latitude || alert.lat);
+              const lng = parseFloat(alert.longitude || alert.lng);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                const sosMarker = L.circleMarker([lat, lng], {
+                  radius: 11,
+                  color: '#ffffff',
+                  weight: 2,
+                  fillColor: '#ef4444',
+                  fillOpacity: 0.95
+                }).addTo(lMap);
+                sosMarker.bindPopup(`
+                  <div style="font-family: system-ui; min-width: 200px;">
+                    <div style="font-weight: 800; font-size: 12px; color: #ef4444;">🚨 SOS DISTRESS: ${alert.name || alert.first_name || 'Resident'}</div>
+                    <div style="font-size: 11px; color: #475569; margin: 4px 0;">Status: <b>${alert.status || 'ACTIVE'}</b></div>
+                    <div style="font-size: 11px; color: #64748b;">Phone: ${alert.contact_number || 'N/A'}</div>
+                  </div>
+                `);
+              }
+            });
+          }
+
+          // Show non-blocking offline badge
+          let badge = document.getElementById('mapOfflineBadge');
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.id = 'mapOfflineBadge';
+            badge.className = 'absolute top-3 left-3 z-30 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>Offline</span>';
+            container.parentElement.appendChild(badge);
+          } else {
+            badge.classList.remove('hidden');
+          }
+
+          window._staffMapReady = true;
+          console.log('[Evacwar Map] Dual-mode Leaflet offline map successfully activated.');
+        } catch (err) {
+          console.warn('[Evacwar Map] Leaflet offline error:', err);
+        }
+      }
+
+      window.__triggerOfflineMapFallback = initOfflineStaffMap;
+
+      setTimeout(() => {
+        if (!window._staffMapReady && (!navigator.onLine || typeof google === 'undefined' || !google.maps)) {
+          initOfflineStaffMap();
+        }
+      }, 1800);
+
+      async function handleSosLifecycleBtn(btnEl) {
+        const sosId = btnEl.getAttribute('data-sos-id');
+        const nextStatus = btnEl.getAttribute('data-next-status');
+        if (!sosId || !nextStatus) return;
+
+        if (nextStatus === 'RESOLVED' && !confirm('Mark this emergency SOS request as RESOLVED?')) {
+          return;
+        }
+
+        btnEl.disabled = true; btnEl.classList.add('opacity-50');
+        try {
+          const res = await fetch('/rescuer/sos/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: sosId, status: nextStatus })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showSosToast(data.message || 'Status updated!', 'success');
+            if (nextStatus === 'RESPONDING' || nextStatus === 'RESCUED') {
+              if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.startTracking(sosId);
+            } else if (nextStatus === 'RESOLVED') {
+              if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.stopTracking();
+            }
+            if (data.alert) addOrUpdateSosMarker(data.alert, false); else setTimeout(() => window.location.reload(), 600);
+          } else {
+            showSosToast(data.message || 'This SOS has already been assigned to another rescuer.', 'error');
+            if (data.alert) {
+              addOrUpdateSosMarker(data.alert, false);
+              if (typeof updateSosFeedCard === 'function') updateSosFeedCard(data.alert);
+            }
+            btnEl.disabled = false; btnEl.classList.remove('opacity-50');
+          }
+        } catch (err) {
+          showSosToast('Network error updating status', 'error');
+          btnEl.disabled = false; btnEl.classList.remove('opacity-50');
+        }
+      }
+      window.handleSosLifecycleBtn = handleSosLifecycleBtn;
+    </script>
+
+    <%- include('../partials/footer') %>

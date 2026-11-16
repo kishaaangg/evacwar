@@ -1,0 +1,1198 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main
+        class="app-content h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] overflow-hidden relative !p-0 !m-0 flex-1">
+
+        <!-- Full Width Fixed Edge-to-Edge Map -->
+        <div class="absolute inset-0 w-full h-full z-0">
+          <div id="evacuationMap" class="w-full h-full"></div>
+
+          <!-- Floating Overlay Top Toolbar (Unified Responsive Bar matching Staff Map) -->
+          <div
+            class="absolute top-2 sm:top-4 inset-x-2 sm:inset-x-4 z-10 flex items-center gap-1.5 sm:gap-2 pointer-events-none min-w-0 max-w-full">
+
+            <!-- Left: Live Map & Resident Map Indicator Badge -->
+            <div
+              class="bg-white/95 backdrop-blur-md shadow-md px-2.5 sm:px-3.5 py-1.5 rounded-full border border-white/60 flex items-center gap-1.5 shrink-0 pointer-events-auto">
+              <span class="relative flex h-2.5 w-2.5">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
+              </span>
+              <span class="font-extrabold text-slate-800 text-[11px] sm:text-xs tracking-wide">
+                <span class="hidden xl:inline">Evacuation Map & Routes</span>
+                <span class="xl:hidden hidden sm:inline">Evac Routes</span>
+                <span class="sm:hidden">Resident Map</span>
+              </span>
+            </div>
+
+            <!-- Right: Map Controls Group (Hybrid/Sat/Road Toggle + 3D + Rotate + My Location) -->
+            <div
+              class="flex-1 min-w-0 flex items-center overflow-x-auto no-scrollbar py-0.5 pointer-events-auto overscroll-contain">
+              <div class="flex items-center gap-1 sm:gap-1.5 ml-auto shrink-0">
+                <!-- Basemap Mode Switcher (Selectable Hybrid, No Labels & Roads) -->
+                <div
+                  class="bg-white/95 backdrop-blur-md shadow-md rounded-full p-1 border border-slate-200/80 flex items-center gap-0.5 shrink-0">
+                  <button id="btnMapHybrid" type="button" onclick="setMapStyleMode('hybrid')"
+                    class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-blue-600 text-white shadow-xs flex items-center gap-1 cursor-pointer"
+                    title="Hybrid Satellite & Labels">
+                    <i class="ph ph-planet text-sm"></i> <span class="hidden sm:inline">Hybrid</span>
+                  </button>
+                  <button id="btnMapSatellite" type="button" onclick="setMapStyleMode('satellite')"
+                    class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                    title="Pure Satellite Imagery (No Labels)">
+                    <i class="ph ph-globe text-sm"></i> <span class="hidden sm:inline">No Labels</span>
+                  </button>
+                  <button id="btnMapRoad" type="button" onclick="setMapStyleMode('roads')"
+                    class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1 cursor-pointer"
+                    title="Roads Basemap">
+                    <i class="ph ph-map-trifold text-sm"></i> <span class="hidden sm:inline">Roads</span>
+                  </button>
+                </div>
+
+                <!-- 3D View Toggle -->
+                <button id="btnResident3D" type="button" onclick="toggleResident3DPitch()"
+                  class="bg-white/95 backdrop-blur-md shadow-md hover:bg-emerald-50 text-slate-700 border border-slate-200/80 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                  title="Toggle 3D Perspective">
+                  <i class="ph ph-cube text-sm text-emerald-600"></i>
+                  <span>3D</span>
+                </button>
+
+                <!-- Rotate 45° -->
+                <button id="btnResidentRotate" type="button" onclick="rotateResidentMap(45)"
+                  class="bg-white/95 backdrop-blur-md shadow-md hover:bg-amber-50 text-amber-700 border border-slate-200/80 rounded-full p-1.5 sm:px-2.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                  title="Rotate Map 45°">
+                  <i class="ph ph-arrows-clockwise text-sm text-amber-600"></i>
+                </button>
+
+                <!-- GPS My Location Button -->
+                <button id="btnMyLocation" type="button" onclick="locateResidentUser(mapInstance, true)"
+                  class="bg-white/95 backdrop-blur-md shadow-md hover:bg-blue-50 text-blue-900 border border-slate-200/80 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                  title="My Location">
+                  <i class="ph ph-navigation-arrow text-sm text-blue-600"></i>
+                  <span class="hidden xl:inline">My Location</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Floating Map Legend (Right Side - Collapsible) -->
+          <div id="mapLegendContainer"
+            class="absolute top-16 sm:top-20 right-2 sm:right-4 z-20 pointer-events-none flex flex-col items-end">
+            <!-- Toggle Button (Icon only) -->
+            <button id="btnToggleLegend" type="button" onclick="toggleMapLegend()"
+              class="bg-white/95 backdrop-blur-md shadow-md hover:bg-blue-50 text-blue-600 border border-slate-200/90 rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-all active:scale-95 cursor-pointer pointer-events-auto shrink-0 mb-1.5"
+              title="Toggle Map Legend">
+              <i class="ph ph-map-trifold text-base sm:text-lg font-bold"></i>
+            </button>
+
+            <!-- Legend Card Panel (Hidden initially on resident view) -->
+            <div id="mapLegendCard"
+              class="hidden pointer-events-auto bg-white/95 backdrop-blur-md shadow-xl border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 w-60 sm:w-64 transition-all duration-200 origin-top-right">
+
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                <div class="flex items-center gap-1.5">
+                  <div class="w-5 h-5 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center text-xs">
+                    <i class="ph ph-map-trifold font-bold"></i>
+                  </div>
+                  <span class="text-xs font-black text-slate-900 tracking-wide uppercase">Map Legend</span>
+                </div>
+                <button type="button" onclick="toggleMapLegend(false)"
+                  class="text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Close Legend">
+                  <i class="ph ph-x font-bold text-xs"></i>
+                </button>
+              </div>
+
+              <div class="space-y-2 text-[11px] sm:text-xs">
+                <!-- 1. Evacuation Route (Orange line) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-1.5 rounded-full bg-orange-500 shadow-xs shrink-0"></div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Evacuation Route</span>
+                    <span class="text-[10px] text-slate-500">Orange designated safety path</span>
+                  </div>
+                </div>
+
+                <!-- 2. Barangay Boundary (--- dashed line) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 border-t-2 border-dashed border-red-400 shrink-0"></div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Boundary (<span
+                        class="font-mono text-red-500 font-extrabold">- - -</span>)</span>
+                    <span class="text-[10px] text-slate-500">San Rafael (Ikpan) perimeter</span>
+                  </div>
+                </div>
+
+                <!-- 3. Flood / Hazard Area Polygon -->
+                <div class="flex items-center gap-2.5">
+                  <div
+                    class="w-6 h-5 rounded border border-red-500 bg-red-500/25 flex items-center justify-center shrink-0">
+                    <i class="ph ph-warning text-xs text-red-600"></i>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Hazard Danger Zone</span>
+                    <span class="text-[10px] text-slate-500">Flood / hazard risk area</span>
+                  </div>
+                </div>
+
+                <div class="pt-1 border-t border-slate-100/80"></div>
+
+                <!-- 4. Evacuation Sites (Green = Available, Red = Full) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 36 46" class="w-4 h-5 drop-shadow-xs">
+                      <path d="M18 1 C8.6 1 1 8.6 1 18 C1 29 18 45 18 45 C18 45 35 29 35 18 C35 8.6 27.4 1 18 1 Z"
+                        fill="#10b981" stroke="#FFFFFF" stroke-width="2.5" />
+                      <path d="M11 19 L18 12 L25 19 L23 19 L23 24 L13 24 L13 19 Z" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Available Evac Site</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">Green marker (Space available)</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 36 46" class="w-4 h-5 drop-shadow-xs">
+                      <path d="M18 1 C8.6 1 1 8.6 1 18 C1 29 18 45 18 45 C18 45 35 29 35 18 C35 8.6 27.4 1 18 1 Z"
+                        fill="#ef4444" stroke="#FFFFFF" stroke-width="2.5" />
+                      <path d="M11 19 L18 12 L25 19 L23 19 L23 24 L13 24 L13 19 Z" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Full Evac Site</span>
+                    <span class="text-[10px] text-red-600 font-semibold">Red marker (100% full)</span>
+                  </div>
+                </div>
+                <!-- 5. Ikpan Elementary School special pin -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
+                    <svg viewBox="0 0 38 48" class="w-5 h-6 drop-shadow-xs">
+                      <path d="M19 1 C9.1 1 1 9.1 1 19 C1 31 19 47 19 47 C19 47 37 31 37 19 C37 9.1 28.9 1 19 1 Z"
+                        fill="#10b981" stroke="#FFFFFF" stroke-width="2.5" />
+                      <circle cx="19" cy="18" r="9" fill="#FFFFFF" />
+                      <polygon points="19,11 12,15.5 19,19 26,15.5" fill="#10b981" />
+                      <path d="M15,17 L15,20.5 C15,20.5 17,22 19,22 C21,22 23,20.5 23,20.5 L23,17" fill="none"
+                        stroke="#10b981" stroke-width="1.3" />
+                    </svg>
+
+                    <span
+                      class="absolute -top-1 -right-1 bg-amber-500 text-white text-[7.5px] font-black rounded-full px-1 border border-white leading-tight">
+                      ES
+                    </span>
+                  </div>
+
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">
+                      Ikpan Elementary School
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-semibold">
+                      Special School Icon
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 6. SOS Distress Alert -->
+                <div class="flex items-center gap-2.5 pt-0.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
+                    <span
+                      class="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-red-400 opacity-75"></span>
+                    <span
+                      class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 border border-white shadow-xs"></span>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">SOS Distress Alert</span>
+                    <span class="text-[10px] text-slate-500">Live emergency distress signal</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- True Fixed Google Maps-style Mobile Bottom Sheet -->
+        <div id="residentEvacBottomSheet"
+          class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-4xl mx-auto bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.22)] border-t border-slate-200/90 flex flex-col max-h-[80dvh] will-change-transform transition-transform duration-300 ease-out"
+          style="transform: translateY(calc(100% - 48px));">
+
+          <!-- Drag / Tap Handle Area -->
+          <div id="residentEvacSheetHandle"
+            class="w-full pt-3.5 pb-2.5 flex flex-col items-center justify-center cursor-pointer select-none touch-none rounded-t-3xl bg-white shrink-0 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+            title="Drag or tap to expand/collapse">
+            <div class="w-14 h-1.5 bg-slate-300 rounded-full"></div>
+          </div>
+
+          <!-- Scrollable Sheet Content -->
+          <div id="residentEvacScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-1 overscroll-contain">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-extrabold text-slate-800 text-base sm:text-lg flex items-center gap-2">
+                <div
+                  class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-xs">
+                  <i class="ph ph-buildings text-base"></i>
+                </div>
+                Nearest Centers
+              </h3>
+              <span id="residentCentersCountBadge"
+                class="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                <%= centers ? centers.length : 0 %> Centers
+              </span>
+            </div>
+
+            <div id="residentCentersListContainer" class="flex flex-col gap-3">
+              <% if (centers && centers.length> 0) { %>
+                <% centers.forEach((center, index)=> {
+                  const percent = Math.round((center.current_occupancy / center.max_capacity) * 100);
+                  let barColor = "bg-emerald-500";
+                  let statusColor = "text-emerald-700 bg-emerald-50 border-emerald-200";
+                  let availability = "Available";
+
+                  if (percent >= 100) {
+                  barColor = "bg-red-500";
+                  statusColor = "text-red-700 bg-red-50 border-red-200";
+                  availability = "Full Capacity";
+                  } else if (percent >= 80) {
+                  barColor = "bg-orange-500";
+                  statusColor = "text-orange-700 bg-orange-50 border-orange-200";
+                  availability = "Near Full";
+                  }
+                  const progressWidth = Math.min(percent, 100) + '%';
+                  %>
+                  <div
+                    class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md transition-all relative overflow-hidden group cursor-pointer active:scale-[0.99]"
+                    onclick="flyToCenter('<%= center.longitude %>', '<%= center.latitude %>', '<%= center.id %>')">
+                    <div class="flex justify-between items-start mb-3">
+                      <div class="pr-12">
+                        <h4 class="font-bold text-slate-800 text-base leading-tight">
+                          <%= center.name %>
+                        </h4>
+                        <p class="text-xs font-bold text-slate-500 flex items-center gap-1 mt-1">
+                          <i class="ph ph-map-pin text-blue-500 text-sm"></i>
+                          <%= center.address %>
+                        </p>
+                        <p class="text-xs font-bold text-blue-600 flex items-center gap-1 my-1.5 font-mono">
+                          <i class="ph ph-phone-call text-blue-600 text-sm"></i>
+                          <a href="tel:<%= center.contact_number || '0912-345-6789' %>" class="hover:underline">
+                            <%= center.contact_number || '0912-345-6789' %>
+                          </a>
+                        </p>
+
+                        <!-- Assigned Staff -->
+                        <div class="mb-3">
+                          <div class="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                            <span class="flex items-center gap-1"><i
+                                class="ph ph-user-gear text-sm text-indigo-500"></i> Assigned Staff:</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                              <%= (center.assigned_staff || []).length %>
+                            </span>
+                          </div>
+                          <% if (center.assigned_staff && center.assigned_staff.length> 0) { %>
+                            <div class="space-y-1.5">
+                              <% center.assigned_staff.forEach(st=> { %>
+                                <div
+                                  class="flex items-center justify-between bg-white rounded-xl px-2.5 py-1.5 text-xs border border-slate-100 shadow-xs">
+                                  <span class="font-bold text-slate-800">
+                                    <%= st.full_name %>
+                                  </span>
+                                  <a href="tel:<%= st.contact_number %>"
+                                    class="font-mono font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                                    <i class="ph ph-phone text-xs"></i>
+                                    <%= st.contact_number %>
+                                  </a>
+                                </div>
+                                <% }) %>
+                            </div>
+                            <% } else { %>
+                              <p class="text-xs text-slate-400 italic">No on-site staff listed</p>
+                              <% } %>
+                        </div>
+                      </div>
+                      <span
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border <%= statusColor %>">
+                        <%= availability %>
+                      </span>
+                    </div>
+
+                    <div class="space-y-1.5">
+                      <div class="flex justify-between text-xs font-medium text-slate-600">
+                        <span>Occupancy (<%= percent %>%)</span>
+                        <span class="font-bold">
+                          <%= center.current_occupancy %> / <%= center.max_capacity %>
+                        </span>
+                      </div>
+                      <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+                        <div class="<%= barColor %> h-full rounded-full transition-all duration-500 relative"
+                          style="--progress: <%= progressWidth %>; width: var(--progress);">
+                          <div class="absolute inset-0 bg-white/20 w-full h-full"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <% }) %>
+                    <% } else { %>
+                      <div class="text-slate-500 italic text-sm py-4">No evacuation centers registered yet.</div>
+                      <% } %>
+            </div>
+          </div>
+        </div>
+      </main>
+  </div>
+
+  <script id="map-features-data" type="application/json">
+    <%- mapFeatures || '{"type":"FeatureCollection","features":[]}' %>
+  </script>
+  <script id="centers-data" type="application/json">
+    <%- locals.centers ? JSON.stringify(locals.centers) : '[]' %>
+  </script>
+  <script>
+    let mapInstance = null;
+    let userGpsMarker = null;
+    let userGpsCircle = null;
+    let userGpsWatchId = null;
+    let lastKnownUserCoords = null;
+    let centerMarkersMap = {};
+    let residentDrawnShapes = [];
+    let residentInfoWindow = null;
+
+    function getResidentInfoWindow() {
+      if (!residentInfoWindow && typeof google !== 'undefined' && google.maps) {
+        residentInfoWindow = new google.maps.InfoWindow();
+      }
+      return residentInfoWindow;
+    }
+
+    function flyToCenter(lng, lat, centerId) {
+      if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();
+      if (window.AndroidBleBridge && typeof window.AndroidBleBridge.stopNativeEmergencyAlarm === 'function') {
+        try { window.AndroidBleBridge.stopNativeEmergencyAlarm(); } catch (_) {}
+      }
+      const parsedLng = parseFloat(lng);
+      const parsedLat = parseFloat(lat);
+      if (isNaN(parsedLng) || isNaN(parsedLat)) return;
+
+      if (mapInstance) {
+        let item = null;
+        if (centerId && centerMarkersMap[String(centerId)]) {
+          item = centerMarkersMap[String(centerId)];
+        } else if (centerId && centerMarkersMap[centerId]) {
+          item = centerMarkersMap[centerId];
+        } else {
+          item = Object.values(centerMarkersMap).find(m => Math.abs((m.lat || 0) - parsedLat) < 0.0001 && Math.abs((m.lng || 0) - parsedLng) < 0.0001);
+        }
+
+        if (typeof mapInstance.flyTo === 'function') {
+          if (typeof window.focusMaplibreSiteCentered === 'function') {
+            window.focusMaplibreSiteCentered(mapInstance, parsedLng, parsedLat, item ? item.popup : null, centerMarkersMap, 16.8);
+          }
+          if (residentEvacSheet && residentEvacSheet.isExpanded) {
+            residentEvacSheet.setCollapsed();
+          }
+          return;
+        }
+
+        if (typeof google !== 'undefined' && google.maps) {
+          const pos = new google.maps.LatLng(parsedLat, parsedLng);
+          mapInstance.panTo(pos);
+          mapInstance.setZoom(17);
+          if (item && item.triggerClick) {
+            item.triggerClick();
+          }
+          if (typeof mapInstance.panBy === 'function') {
+            mapInstance.panBy(0, -130);
+          }
+          if (residentEvacSheet && residentEvacSheet.isExpanded) {
+            residentEvacSheet.setCollapsed();
+          }
+          return;
+        }
+      }
+
+      if (window._activeOfflineResidentLeafletMap) {
+        window._activeOfflineResidentLeafletMap.setView([parsedLat, parsedLng], 17);
+        if (centerMarkersMap[centerId] && centerMarkersMap[centerId].triggerClick) {
+          centerMarkersMap[centerId].triggerClick();
+        }
+        if (residentEvacSheet && residentEvacSheet.isExpanded) {
+          residentEvacSheet.setCollapsed();
+        }
+      }
+    }
+    window.flyToCenter = flyToCenter;
+
+    window.setMapStyleMode = function (mode) {
+      const activeMap = mapInstance || window._activeOfflineResidentLeafletMap;
+      if (!activeMap) return;
+      const btnHybrid = document.getElementById('btnMapHybrid');
+      const btnSatellite = document.getElementById('btnMapSatellite');
+      const btnRoad = document.getElementById('btnMapRoad');
+      const buttons = {
+        hybrid: btnHybrid,
+        satellite: btnSatellite,
+        roads: btnRoad,
+        roadmap: btnRoad
+      };
+
+      if (typeof activeMap.getLayer === 'function' && window.setEvakWarMaplibreStyle) {
+        window.setEvakWarMaplibreStyle(activeMap, mode, buttons);
+        return;
+      }
+      if (window.setEvakWarMapType) {
+        window.setEvakWarMapType(activeMap, mode, buttons);
+      }
+    };
+
+    window.toggleResident3DPitch = function () {
+      const activeMap = mapInstance || window._activeOfflineResidentLeafletMap;
+      if (!activeMap) return;
+      if (typeof activeMap.getLayer === 'function' && window.toggleEvakWarMaplibre3D) {
+        window.toggleEvakWarMaplibre3D(activeMap, document.getElementById('btnResident3D'));
+        return;
+      }
+      if (window.toggleEvacwar3D) {
+        window.toggleEvacwar3D(activeMap, document.getElementById('btnResident3D'));
+      }
+    };
+
+    window.rotateResidentMap = function (degrees = 45) {
+      const activeMap = mapInstance || window._activeOfflineResidentLeafletMap;
+      if (!activeMap) return;
+      if (typeof activeMap.getLayer === 'function' && window.rotateEvakWarMaplibreCamera) {
+        window.rotateEvakWarMaplibreCamera(activeMap, degrees);
+        return;
+      }
+      if (window.rotateEvacwarCamera) {
+        window.rotateEvacwarCamera(activeMap, degrees);
+      }
+    };
+
+    function updateLiveDistancesToCenters(userLat, userLng) {
+      if (typeof userLat !== 'number' || typeof userLng !== 'number') return;
+      let nearestCenter = null;
+      let minDistance = Infinity;
+      let centersList = [];
+      const centersDataEl = document.getElementById('centers-data');
+      if (centersDataEl && centersDataEl.textContent) {
+        try { centersList = JSON.parse(centersDataEl.textContent); } catch (e) { }
+      }
+      if (!Array.isArray(centersList) || centersList.length === 0) {
+        if (typeof centerMarkersMap === 'object' && centerMarkersMap) {
+          centersList = Object.keys(centerMarkersMap).map(k => ({
+            id: k,
+            latitude: centerMarkersMap[k].lat,
+            longitude: centerMarkersMap[k].lng
+          })).filter(c => c.latitude && c.longitude);
+        }
+      }
+      if (!Array.isArray(centersList)) return;
+
+      centersList.forEach(center => {
+        if (!center || !center.id) return;
+        const cLat = parseFloat(center.latitude);
+        const cLng = parseFloat(center.longitude);
+        if (isNaN(cLat) || isNaN(cLng)) return;
+
+        const R = 6371; // km
+        const dLat = (cLat - userLat) * Math.PI / 180;
+        const dLon = (cLng - userLng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(userLat * Math.PI / 180) * Math.cos(cLat * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c;
+
+        const distEl = document.getElementById(`distance-${center.id}`);
+        if (distEl) distEl.innerText = d.toFixed(1) + ' km';
+
+        if (d < minDistance) {
+          minDistance = d;
+          nearestCenter = { ...center, distanceKm: d };
+        }
+      });
+
+      // Nearest shelter router suggestion banner (Router management based on resident location)
+      if (nearestCenter) {
+        window._nearestEvacCenter = nearestCenter;
+        let routeBanner = document.getElementById('nearestEvacRouteBanner');
+        if (!routeBanner) {
+          routeBanner = document.createElement('div');
+          routeBanner.id = 'nearestEvacRouteBanner';
+          routeBanner.style.cssText = 'position: fixed; top: 70px; left: 16px; right: 16px; z-index: 999; max-width: 440px; margin: 0 auto; background: #0f172a; color: #ffffff; border: 2px solid #10b981; border-radius: 14px; padding: 10px 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;';
+          document.body.appendChild(routeBanner);
+        }
+        routeBanner.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+            <div style="width: 32px; height: 32px; border-radius: 10px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
+              <i class="ph ph-navigation-arrow"></i>
+            </div>
+            <div style="min-width: 0;">
+              <div style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: #34d399;">Nearest Evacuation Center (${nearestCenter.distanceKm.toFixed(1)} km)</div>
+              <div style="font-size: 12.5px; font-weight: 900; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${nearestCenter.name || 'San Rafael Evacuation Center'}</div>
+            </div>
+          </div>
+          <button type="button" style="padding: 6px 12px; border-radius: 8px; background: #10b981; color: #022c22; font-weight: 900; font-size: 11px; text-transform: uppercase; border: none; cursor: pointer; flex-shrink: 0;">
+            Navigate
+          </button>
+        `;
+        routeBanner.onclick = () => {
+          if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();
+          if (window.AndroidBleBridge && typeof window.AndroidBleBridge.stopNativeEmergencyAlarm === 'function') {
+            try { window.AndroidBleBridge.stopNativeEmergencyAlarm(); } catch (_) {}
+          }
+          if (typeof flyToCenter === 'function') {
+            flyToCenter(parseFloat(nearestCenter.longitude), parseFloat(nearestCenter.latitude), nearestCenter.id);
+          }
+        };
+            const markerEl = (existing.marker.getElement && typeof existing.marker.getElement === 'function') ? existing.marker.getElement() : null;
+            if (markerEl) {
+              const path = markerEl.querySelector('path');
+              if (path) path.setAttribute('fill', markerColor);
+              const rect = markerEl.querySelector('rect');
+              if (rect) rect.setAttribute('fill', markerColor);
+            }
+          }
+
+          // If popup for this center is currently open on map, update live DOM immediately
+          const livePopupEl = document.getElementById(`popup-center-${center.id}`);
+          if (livePopupEl) {
+            livePopupEl.outerHTML = popupContent;
+          } else if (typeof maplibregl !== 'undefined') {
+            const el = window.createMaplibreCenterMarkerEl(markerColor, center);
+            const popup = new maplibregl.Popup({
+              anchor: 'bottom',
+              offset: [0, -44],
+              maxWidth: '360px',
+              closeButton: true,
+              closeOnClick: false
+            }).setHTML(popupContent);
+
+            if (typeof window.bringMaplibrePopupToFront === 'function') {
+              popup.on('open', () => window.bringMaplibrePopupToFront(popup));
+            }
+
+            const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+              .setLngLat([lng, lat])
+              .addTo(map);
+
+            // When resident clicks evacuation center marker, focus on that site and open popup card on top
+            el.addEventListener('click', (e) => {
+              e.stopPropagation();
+              flyToCenter(lng, lat, center.id);
+            });
+
+            const triggerClick = () => {
+              flyToCenter(lng, lat, center.id);
+            };
+
+            const sId = String(center.id);
+            centerMarkersMap[sId] = {
+              marker,
+              popup,
+              triggerClick,
+              lat,
+              lng
+            };
+            centerMarkersMap[center.id] = centerMarkersMap[sId];
+          }
+        });
+
+        // Calculate user distance to centers if geolocation available
+        if ("geolocation" in navigator) {
+          if (lastKnownUserCoords) {
+            updateLiveDistancesToCenters(lastKnownUserCoords.latitude, lastKnownUserCoords.longitude);
+          } else {
+            navigator.geolocation.getCurrentPosition((geoPos) => {
+              lastKnownUserCoords = geoPos.coords;
+              window._lastKnownUserGps = { lat: geoPos.coords.latitude, lng: geoPos.coords.longitude, isFallback: false };
+              updateLiveDistancesToCenters(geoPos.coords.latitude, geoPos.coords.longitude);
+            }, () => { });
+          }
+        }
+        return;
+      }
+
+      // Google Maps Centers Rendering (Intact)
+      if (typeof google === 'undefined' || !google.maps) return;
+      centersList.forEach(center => {
+        const lat = parseFloat(center.latitude) || 13.5102;
+        const lng = parseFloat(center.longitude) || 123.3470;
+        const pos = new google.maps.LatLng(lat, lng);
+
+        const percent = Math.round(((parseInt(center.current_occupancy, 10) || 0) / (parseInt(center.max_capacity, 10) || 25)) * 100);
+        let markerColor = '#10b981';
+        if (percent >= 100) markerColor = '#ef4444';
+        else if (percent >= 80) markerColor = '#f97316';
+
+        const popupContent = window.buildCenterPopupHtml(center, 'resident');
+
+        const centerMarker = new google.maps.Marker({
+          position: pos,
+          map: map,
+          icon: typeof getCenterMarkerIcon === 'function' ? getCenterMarkerIcon(markerColor, center) : undefined,
+          title: center.name,
+          zIndex: 60
+        });
+
+        const openPopup = () => {
+          const infowindow = getResidentInfoWindow();
+          if (infowindow) {
+            infowindow.setContent(popupContent);
+            infowindow.setPosition(pos);
+            infowindow.open(map, centerMarker);
+
+            if ("geolocation" in navigator) {
+              if (lastKnownUserCoords) {
+                updateLiveDistancesToCenters(lastKnownUserCoords.latitude, lastKnownUserCoords.longitude);
+              } else {
+                navigator.geolocation.getCurrentPosition((geoPos) => {
+                  lastKnownUserCoords = geoPos.coords;
+                  window._lastKnownUserGps = { lat: geoPos.coords.latitude, lng: geoPos.coords.longitude, isFallback: false };
+                  updateLiveDistancesToCenters(geoPos.coords.latitude, geoPos.coords.longitude);
+                }, () => {
+                  const distEl = document.getElementById(`distance-${center.id}`);
+                  if (distEl) distEl.innerText = 'Location access denied';
+                });
+              }
+            }
+          }
+        };
+
+        centerMarker.addListener('click', openPopup);
+        centerMarkersMap[center.id] = { marker: centerMarker, triggerClick: openPopup };
+      });
+    }
+
+    function initResidentEvacuationMap() {
+      if (typeof google === 'undefined' || !google.maps) return;
+      if (mapInstance) return;
+
+      const defaultCenter = { lat: 13.5135, lng: 123.3485 };
+      const map = window.createEvakWarMap(document.getElementById('evacuationMap'), {
+        center: defaultCenter,
+        zoom: 16
+      });
+
+      mapInstance = map;
+      window._residentMapReady = true;
+
+      // Admin Drawn Routes & Hazards from DB
+      let initialFeatures = { type: 'FeatureCollection', features: [] };
+      try {
+        const raw = document.getElementById('map-features-data').textContent;
+        initialFeatures = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch (e) { }
+      renderResidentDrawnFeatures(initialFeatures, map);
+
+      // Render Evacuation Centers
+      let centersData = [];
+      try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+
+      // Cache domain map data in IndexedDB for resilient offline access
+      if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function') {
+        window.EvakWarDB.saveMapData(centersData, initialFeatures);
+      }
+
+      if (Array.isArray(centersData) && centersData.length > 0) {
+        renderResidentCenters(centersData, map);
+      } else if (window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+        window.EvakWarDB.getMapData().then(cached => {
+          if (cached) {
+            if (cached.centers && cached.centers.length > 0) renderResidentCenters(cached.centers, map);
+            if (cached.mapFeatures && cached.mapFeatures.features) renderResidentDrawnFeatures(cached.mapFeatures, map);
+          }
+        }).catch(err => console.warn('[Evacwar Map] IndexedDB map data read error:', err));
+      }
+
+
+      // Socket.io for Real-time Map Updates
+      if (typeof io !== 'undefined') {
+        const socket = io();
+
+        async function fetchAndRefreshResidentCenters() {
+          try {
+            const res = await fetch('/api/centers/active');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers) && map) {
+              renderResidentCenters(data.centers, map);
+              updateResidentCentersPanelList(data.centers);
+            }
+          } catch (e) {
+            console.warn('[ResidentMap] Failed to refresh centers live:', e);
+          }
+        }
+
+        socket.on('center_updated', (data) => {
+          if (data && Array.isArray(data.centers) && map) {
+            renderResidentCenters(data.centers, map);
+            updateResidentCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshResidentCenters();
+          }
+        });
+
+        socket.on('checkin:new', () => {
+          fetchAndRefreshResidentCenters();
+        });
+
+        socket.on('ec_board_updated', () => {
+          fetchAndRefreshResidentCenters();
+        });
+
+        socket.on('map_features_updated', (data) => {
+          residentDrawnShapes.forEach(s => s.setMap(null));
+          residentDrawnShapes = [];
+          renderResidentDrawnFeatures(data, map);
+        });
+
+        socket.on('map_centers_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (typeof centerMarkersMap !== 'undefined') {
+              Object.values(centerMarkersMap).forEach(item => {
+                if (item && item.marker && typeof item.marker.setMap === 'function') {
+                  item.marker.setMap(null);
+                }
+              });
+              centerMarkersMap = {};
+            }
+            if (map && typeof renderResidentCenters === 'function') {
+              renderResidentCenters(data.centers, map);
+            }
+            const dataEl = document.getElementById('centers-data');
+            if (dataEl) dataEl.textContent = JSON.stringify(data.centers);
+            if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function') {
+              window.EvakWarDB.saveMapData(data.centers);
+            }
+          } else {
+            fetchAndRefreshResidentCenters();
+          }
+        });
+      }
+    }
+
+    function updateResidentCentersPanelList(centersList) {
+      if (!Array.isArray(centersList) || centersList.length === 0) return;
+      const listContainer = document.getElementById('residentCentersListContainer');
+      const badge = document.getElementById('residentCentersCountBadge');
+      if (badge) badge.textContent = `${centersList.length} Centers`;
+      if (!listContainer) return;
+
+      listContainer.innerHTML = centersList.map((center, index) => {
+        const occ = parseInt(center.current_occupancy, 10) || 0;
+        const max = parseInt(center.max_capacity, 10) || 25;
+        const percent = Math.round((occ / max) * 100);
+        let barColor = "bg-emerald-500";
+        let statusColor = "text-emerald-700 bg-emerald-50 border-emerald-200";
+        let availability = "Available";
+
+        if (percent >= 100) {
+          barColor = "bg-red-500";
+          statusColor = "text-red-700 bg-red-50 border-red-200";
+          availability = "Full Capacity";
+        } else if (percent >= 80) {
+          barColor = "bg-orange-500";
+          statusColor = "text-orange-700 bg-orange-50 border-orange-200";
+          availability = "Near Full";
+        }
+        const progressWidth = Math.min(percent, 100) + '%';
+        const safeLng = String(center.longitude || '123.3470');
+        const safeLat = String(center.latitude || '13.5102');
+        const safeId = String(center.id || index);
+        const safeName = String(center.name || 'Evacuation Center');
+        const safeAddress = String(center.address || 'San Rafael');
+        const safeContact = String(center.contact_number || '0912-345-6789');
+
+        return `
+          <div
+            id="resident-center-card-${safeId}"
+            class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md transition-all relative overflow-hidden group cursor-pointer active:scale-[0.99]"
+            onclick="flyToCenter('${safeLng}', '${safeLat}', '${safeId}')">
+            <div class="flex justify-between items-start mb-3">
+              <div class="pr-12">
+                <h4 class="font-bold text-slate-800 text-base leading-tight">
+                  ${safeName}
+                </h4>
+                <p class="text-xs font-bold text-slate-500 flex items-center gap-1 mt-1">
+                  <i class="ph ph-map-pin text-blue-500 text-sm"></i>
+                  ${safeAddress}
+                </p>
+                <p class="text-xs font-bold text-blue-600 flex items-center gap-1 my-1.5 font-mono">
+                  <i class="ph ph-phone-call text-blue-600 text-sm"></i>
+                  <a href="tel:${safeContact}" class="hover:underline">
+                    ${safeContact}
+                  </a>
+                </p>
+              </div>
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${statusColor}">
+                ${availability}
+              </span>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs font-medium text-slate-600">
+                <span>Occupancy (${percent}%)</span>
+                <span class="font-bold">
+                  ${occ} / ${max}
+                </span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+                <div class="${barColor} h-full rounded-full transition-all duration-500 relative"
+                  style="width: ${progressWidth};">
+                  <div class="absolute inset-0 bg-white/20 w-full h-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function initResidentMaplibreMap() {
+      if (typeof maplibregl === 'undefined' || typeof window.createEvakWarMaplibreMap !== 'function') {
+        setTimeout(initResidentMaplibreMap, 50);
+        return;
+      }
+      if (mapInstance) return mapInstance;
+
+      let centersData = [];
+      try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+
+      let initialFeatures = { type: 'FeatureCollection', features: [] };
+      try {
+        const raw = document.getElementById('map-features-data').textContent;
+        initialFeatures = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch (e) { }
+
+      // Local IndexedDB caching fallback for offline use (identical mechanism as Staff Map)
+      if ((!centersData || centersData.length === 0) && window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+        try {
+          const cached = await window.EvakWarDB.getMapData();
+          if (cached) {
+            if (Array.isArray(cached.centers) && cached.centers.length > 0) {
+              centersData = cached.centers;
+            }
+            if (cached.mapFeatures && Array.isArray(cached.mapFeatures.features) && cached.mapFeatures.features.length > 0) {
+              initialFeatures = cached.mapFeatures;
+            }
+          }
+        } catch (err) {
+          console.warn('[Evacwar Resident Map] EvakWarDB getMapData notice:', err);
+        }
+      }
+
+      // Populate resident list panel if loaded from cache or server
+      if (Array.isArray(centersData) && centersData.length > 0) {
+        updateResidentCentersPanelList(centersData);
+      }
+
+      // Cache fresh data in IndexedDB
+      if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function' && Array.isArray(centersData) && centersData.length > 0) {
+        window.EvakWarDB.saveMapData(centersData, initialFeatures);
+      }
+
+      const defaultCenter = [123.3485, 13.5135];
+      const initialSources = {
+        'resident-features': {
+          type: 'geojson',
+          data: initialFeatures || { type: 'FeatureCollection', features: [] }
+        }
+      };
+      const initialLayers = [
+        {
+          id: 'resident-hazards-fill',
+          type: 'fill',
+          source: 'resident-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+          paint: {
+            'fill-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#ef4444'],
+            'fill-opacity': 0.35
+          }
+        },
+        {
+          id: 'resident-hazards-line',
+          type: 'line',
+          source: 'resident-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], ['get', 'color'], '#dc2626'],
+            'line-width': 2.5,
+            'line-opacity': 0.95
+          }
+        },
+        {
+          id: 'resident-boundary-dashed-line',
+          type: 'line',
+          source: 'resident-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'boundary']],
+          paint: {
+            'line-color': '#f87171',
+            'line-width': 1.5,
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.85
+          }
+        },
+        {
+          id: 'resident-zone-dashed-line',
+          type: 'line',
+          source: 'resident-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'zone']],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], '#ffffff'],
+            'line-width': 1.5,
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.9
+          }
+        },
+        {
+          id: 'resident-routes',
+          type: 'line',
+          source: 'resident-features',
+          filter: ['==', '$type', 'LineString'],
+          paint: { 'line-color': '#f97316', 'line-width': 4.5, 'line-opacity': 0.95 }
+        }
+      ];
+
+      const map = window.createEvakWarMaplibreMap('evacuationMap', {
+        center: defaultCenter,
+        zoom: 15.5,
+        initialSources: initialSources,
+        initialLayers: initialLayers,
+        initialBasemap: 'hybrid'
+      });
+      mapInstance = map;
+      window._residentMapReady = true;
+
+
+
+      // Render Centers immediately without waiting for tiles or load event
+      if (Array.isArray(centersData) && centersData.length > 0) {
+        renderResidentCenters(centersData, map);
+      }
+
+      const renderAllMapData = () => {
+        renderResidentDrawnFeatures(initialFeatures, map);
+        renderResidentCenters(centersData, map);
+      };
+
+      if (map.loaded()) {
+        renderAllMapData();
+      } else {
+        map.once('load', renderAllMapData);
+      }
+      map.on('style.load', () => {
+        renderResidentDrawnFeatures(initialFeatures, map);
+      });
+
+      const updateOfflineBadge = () => {
+        let badge = document.getElementById('mapOfflineBadge');
+        if (!navigator.onLine) {
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.id = 'mapOfflineBadge';
+            badge.className = 'absolute top-3 left-3 z-30 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>Offline Mode</span>';
+            const mapContainer = document.getElementById('evacuationMap');
+            if (mapContainer && mapContainer.parentElement) {
+              mapContainer.parentElement.appendChild(badge);
+            }
+          }
+        } else if (badge) {
+          badge.remove();
+        }
+      };
+      updateOfflineBadge();
+      window.addEventListener('online', updateOfflineBadge);
+      window.addEventListener('offline', updateOfflineBadge);
+
+      // Socket.io for Real-time Map Updates
+      if (typeof io !== 'undefined') {
+        const socket = io();
+
+        async function fetchAndRefreshResidentCenters() {
+          try {
+            const res = await fetch('/api/centers/active');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers) && map) {
+              renderResidentCenters(data.centers, map);
+              updateResidentCentersPanelList(data.centers);
+            }
+          } catch (e) {
+            console.warn('[ResidentMap] Failed to refresh centers live:', e);
+          }
+        }
+
+        socket.on('center_updated', (data) => {
+          if (data && Array.isArray(data.centers) && map) {
+            renderResidentCenters(data.centers, map);
+            updateResidentCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshResidentCenters();
+          }
+        });
+
+        socket.on('checkin:new', () => {
+          fetchAndRefreshResidentCenters();
+        });
+
+        socket.on('ec_board_updated', () => {
+          fetchAndRefreshResidentCenters();
+        });
+
+        socket.on('map_features_updated', (data) => {
+          renderResidentDrawnFeatures(data, map);
+        });
+
+        socket.on('map_centers_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            renderResidentCenters(data.centers, map);
+            updateResidentCentersPanelList(data.centers);
+            const dataEl = document.getElementById('centers-data');
+            if (dataEl) dataEl.textContent = JSON.stringify(data.centers);
+            if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function') {
+              window.EvakWarDB.saveMapData(data.centers);
+            }
+          } else {
+            fetchAndRefreshResidentCenters();
+          }
+        });
+
+        setInterval(fetchAndRefreshResidentCenters, 15000);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) fetchAndRefreshResidentCenters();
+        });
+      }
+
+      return map;
+    }
+
+    class MobileBottomSheet {
+      constructor(sheetId, handleId, scrollAreaId, peekHeight = 48) {
+        this.sheet = document.getElementById(sheetId);
+        this.handle = document.getElementById(handleId);
+        this.scrollArea = document.getElementById(scrollAreaId);
+        this.peekHeight = peekHeight;
+        this.isExpanded = false;
+        this.startY = 0;
+        this.isDragging = false;
+
+        if (!this.sheet || !this.handle) return;
+        this.init();
+      }
+
+      init() {
+        this.setCollapsed();
+
+        this.handle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggle();
+        });
+
+        this.handle.addEventListener('touchstart', (e) => {
+          this.startY = e.touches[0].clientY;
+          this.isDragging = true;
+          this.sheet.style.transition = 'none';
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+          if (!this.isDragging) return;
+          const clientY = e.touches[0].clientY;
+          const deltaY = clientY - this.startY;
+
+          if (!this.isExpanded) {
+            if (deltaY < 0) {
+              const sheetHeight = this.sheet.offsetHeight;
+              const targetTranslate = Math.max(0, (sheetHeight - this.peekHeight) + deltaY);
+              this.sheet.style.transform = `translateY(${targetTranslate}px)`;
+              if (e.cancelable) e.preventDefault();
+            }
+          } else {
+            if (deltaY > 0 && (!this.scrollArea || this.scrollArea.scrollTop <= 0)) {
+              this.sheet.style.transform = `translateY(${deltaY}px)`;
+              if (e.cancelable) e.preventDefault();
+            }
+          }
+        }, { passive: false });
+
+        window.addEventListener('touchend', (e) => {
+          if (!this.isDragging) return;
+          this.isDragging = false;
+          const deltaY = (e.changedTouches[0].clientY) - this.startY;
+
+          if (!this.isExpanded) {
+            if (deltaY < -30) {
+              this.setExpanded();
+            } else {
+              this.setCollapsed();
+            }
+          } else {
+            if (deltaY > 30) {
+              this.setCollapsed();
+            } else {
+              this.setExpanded();
+            }
+          }
+        }, { passive: true });
+      }
+
+      setCollapsed() {
+        this.isExpanded = false;
+        this.sheet.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+        this.sheet.style.transform = `translateY(calc(100% - ${this.peekHeight}px))`;
+        if (this.scrollArea) {
+          this.scrollArea.scrollTop = 0;
+          this.scrollArea.style.overflowY = 'hidden';
+        }
+      }
+
+      setExpanded() {
+        this.isExpanded = true;
+        this.sheet.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+        this.sheet.style.transform = 'translateY(0)';
+        if (this.scrollArea) {
+          this.scrollArea.style.overflowY = 'auto';
+        }
+      }
+
+      toggle() {
+        if (this.isExpanded) this.setCollapsed();
+        else this.setExpanded();
+      }
+    }
+
+    let residentEvacSheet = null;
+    document.addEventListener('DOMContentLoaded', () => {
+      residentEvacSheet = new MobileBottomSheet('residentEvacBottomSheet', 'residentEvacSheetHandle', 'residentEvacScrollArea', 48);
+    });
+
+    if (window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre') {
+      if (document.getElementById('evacuationMap')) {
+        initResidentMaplibreMap();
+      } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initResidentMaplibreMap);
+      } else {
+        initResidentMaplibreMap();
+      }
+    } else {
+      whenGoogleMapsReady(() => {
+        window._residentMapReady = true;
+        initResidentEvacuationMap();
+      });
+    }
+
+    // Immediate Local DB Cache of Server-Rendered Map Data
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]');
+        const raw = document.getElementById('map-features-data').textContent;
+        const initialFeatures = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function' && Array.isArray(centersData) && centersData.length > 0) {
+          window.EvakWarDB.saveMapData(centersData, initialFeatures);
+        }
+      } catch (e) { }
+    });
+  </script>
+
+  <%- include('../partials/footer') %>

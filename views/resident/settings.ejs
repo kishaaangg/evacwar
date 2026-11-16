@@ -1,0 +1,1230 @@
+<%- include('../partials/header') %>
+
+  <style>
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 20px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 20px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: #94a3b8;
+    }  </style>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-100/80 relative pb-44 lg:pb-16 overflow-x-hidden">
+        
+        <!-- Ambient background aura -->
+        <div class="absolute top-0 left-0 w-full h-72 bg-gradient-to-b from-blue-900/15 via-indigo-900/5 to-transparent pointer-events-none -z-10"></div>
+        <div class="absolute top-12 right-4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+        <div class="max-w-xl mx-auto w-full px-3.5 sm:px-6 py-4 sm:py-6 space-y-4 relative z-10">
+
+          <!-- TOP BAR WITH BACK BUTTON & TITLE -->
+          <div class="flex items-center justify-between px-1 mb-1">
+            <a href="/resident" class="w-10 h-10 rounded-full bg-white shadow-xs border border-slate-200/80 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-transform active:scale-95 profile-card">
+              <i class="ph ph-arrow-left text-lg font-bold"></i>
+            </a>
+            <h1 class="text-xl sm:text-2xl font-black font-heading text-slate-900 tracking-tight profile-text-dark" data-i18n="page_title">Profile</h1>
+            <div class="w-10 h-10"></div>
+          </div>
+
+          <!-- FEEDBACK NOTIFICATIONS -->
+          <% if (locals.statusMsg) { %>
+            <div class="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-fade-in">
+              <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                <i class="ph ph-check-circle text-xl text-emerald-600 shrink-0"></i>
+                <span><%= locals.statusMsg %></span>
+              </div>
+              <button onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 text-base"><i class="ph ph-x"></i></button>
+            </div>
+          <% } %>
+
+          <% if (locals.errorMsg) { %>
+            <div class="p-3.5 bg-red-50 border border-red-200 text-red-900 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-fade-in">
+              <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                <i class="ph ph-warning-circle text-xl text-red-600 shrink-0"></i>
+                <span><%= locals.errorMsg %></span>
+              </div>
+              <button onclick="this.parentElement.remove()" class="text-red-700 hover:text-red-950 text-base"><i class="ph ph-x"></i></button>
+            </div>
+          <% } %>
+
+          <!-- 1. PROFILE HERO CARD -->
+          <div class="profile-card bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/90 relative overflow-hidden transition-all hover:shadow-md">
+            
+            <form id="avatarUploadForm" action="/resident/profile" method="POST" enctype="multipart/form-data" class="hidden">
+              <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+              <input type="file" id="photo-upload-input" name="profile_photo" accept="image/*" onchange="previewAndSubmitAvatar(this)" />
+            </form>
+
+            <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+              
+              <!-- Avatar Circle with Camera Overlay (Strictly Fixed Dimensions) -->
+              <div class="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20" style="width: 72px; height: 72px; min-width: 72px; min-height: 72px; max-width: 72px; max-height: 72px;">
+                <div class="w-full h-full rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-md ring-2 ring-blue-100 flex items-center justify-center relative">
+                  <% 
+                    let rawProfilePhoto = (user && user.profile_photo) ? user.profile_photo : (locals.profilePhoto ? locals.profilePhoto : null);
+                    let profilePhotoSrc = null;
+                    if (rawProfilePhoto) {
+                      profilePhotoSrc = (rawProfilePhoto.startsWith('http') || rawProfilePhoto.startsWith('/')) ? rawProfilePhoto : `/uploads/profiles/${rawProfilePhoto}`;
+                    }
+                  %>
+                  <% if (profilePhotoSrc) { %>
+                    <img loading="lazy" id="profile-avatar-display" src="<%= profilePhotoSrc %>" decoding="async" alt="<%= user.name %>" class="w-full h-full object-cover rounded-full aspect-square block bg-white" onerror="this.style.display='none'; document.getElementById('profile-avatar-fallback').classList.remove('hidden');" />
+                    <div id="profile-avatar-fallback" class="w-full h-full rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xl hidden">
+                      <%= (user.name || 'R').charAt(0).toUpperCase() %>
+                    </div>
+                  <% } else { %>
+                    <div class="w-full h-full rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xl">
+                      <%= (user.name || 'R').charAt(0).toUpperCase() %>
+                    </div>
+                  <% } %>
+                </div>
+                
+                <label for="photo-upload-input" title="Upload new photo" class="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer shadow-md transition-transform hover:scale-110 border-2 border-white">
+                  <i class="ph ph-camera text-xs"></i>
+                </label>
+              </div>
+
+              <!-- Resident Name & Contact Details -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-0.5 min-w-0">
+                  <h2 id="profileFullName" class="resident-name-display text-base sm:text-lg font-black text-slate-900 tracking-tight truncate profile-text-dark">
+                    <%= (user && (user.name || user.full_name)) ? (user.name || user.full_name) : 'Resident' %>
+                  </h2>
+                  <span class="inline-flex items-center px-2 py-0.2 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80 shrink-0" data-i18n="badge_resident">
+                    Resident
+                  </span>
+                </div>
+                
+                <p class="text-xs text-slate-500 font-medium truncate mb-1.5 profile-text-muted">
+                  <%= user.email || ((resident && resident.contact_number) || (locals.resident && locals.resident.contact_number) ? ((resident && resident.contact_number) || locals.resident.contact_number) : 'Registered Resident') %>
+                </p>
+
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200/70 profile-sub-bg profile-text-dark">
+                    <i class="ph ph-map-pin text-blue-600"></i> <%= ((resident && resident.barangay) || (locals.resident && locals.resident.barangay)) ? ('Brgy. ' + ((resident && resident.barangay) || locals.resident.barangay)) : 'San Rafael' %>
+                  </span>
+                  <% if ((resident && resident.contact_number) || (locals.resident && locals.resident.contact_number)) { %>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200/70 profile-sub-bg profile-text-dark">
+                      <i class="ph ph-phone text-emerald-600"></i> <%= (resident && resident.contact_number) || locals.resident.contact_number %>
+                    </span>
+                  <% } %>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Quick Edit Action Bar -->
+            <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between profile-sub-bg">
+              <span class="text-[11px] sm:text-xs text-slate-500 font-medium flex items-center gap-1.5 profile-text-muted">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                <span data-i18n="verified_account">Verified Resident Account</span>
+              </span>
+              <button type="button" onclick="openEditProfileModal()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all active:scale-95 border border-blue-200/70">
+                <i class="ph ph-pencil-simple"></i>
+                <span data-i18n="btn_edit_profile">Edit Profile</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- 2. SECTION: ACCOUNT -->
+          <div class="space-y-1.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 px-3 profile-text-muted" data-i18n="sec_account">Account</h3>
+            
+            <div class="profile-section-card bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden divide-y divide-slate-100">
+              
+              <!-- Manage Profile -->
+              <button type="button" onclick="openEditProfileModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-user-circle"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_manage_profile">Manage Profile</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_manage_profile">Update full name, address, and mobile number</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Personal Information -->
+              <button type="button" onclick="openPersonalInfoModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-identification-card"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_personal_info">Personal Information</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_personal_info">Sex, birthdate, household size, and zone details</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Family Members -->
+              <a href="/resident/qr" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-users-three"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 flex items-center gap-2 profile-text-dark">
+                      <span data-i18n="row_family_members">Family Members</span>
+                      <span class="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        <%= (locals.members && members.length) ? (members.length + ' registered') : 'Manage' %>
+                      </span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_family_members">Add dependents for emergency intake and food relief</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </a>
+
+              <!-- QR Code / Household QR -->
+              <a href="/resident/qr" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-qr-code"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_household_qr">Household QR Pass</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_household_qr">Scan for instant evacuation shelter check-in</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </a>
+
+            </div>
+          </div>
+
+          <!-- 3. SECTION: EMERGENCY & PREFERENCES -->
+          <div class="space-y-1.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 px-3 profile-text-muted" data-i18n="sec_emergency">Emergency & Preferences</h3>
+            
+            <div class="profile-section-card bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden divide-y divide-slate-100">
+              
+              <!-- Notifications -->
+              <button type="button" onclick="openNotificationsModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-bell"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_notifications">Notifications & Alerts</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_notifications">Typhoon advisories, SMS alerts & broadcast feed</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Emergency Contact -->
+              <button type="button" onclick="openEmergencyContactModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-phone-call"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_emergency_contact">Emergency Contact</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted">
+                      <%= locals.resident && locals.resident.emergency_contact_name ? (locals.resident.emergency_contact_name + ' (' + (locals.resident.emergency_contact_phone || 'No phone') + ')') : 'Set relative contact for SOS dispatch' %>
+                    </div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Vulnerability / Special Needs -->
+              <button type="button" onclick="openVulnerabilityModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-wheelchair"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_vulnerability">Vulnerability / Special Needs</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted">
+                      <% 
+                        let vBadges = [];
+                        if (locals.resident) {
+                          if (resident.is_4ps) vBadges.push('4Ps');
+                          if (resident.is_pregnant) vBadges.push('Pregnant');
+                          if (resident.is_lactating) vBadges.push('Lactating');
+                          if (resident.is_pwd) vBadges.push('PWD');
+                          if (resident.is_single_head) vBadges.push('Single Parent');
+                          if (resident.has_serious_illness) vBadges.push('Medical');
+                        }
+                      %>
+                      <%= vBadges.length > 0 ? vBadges.join(', ') : 'Standard Resident Profile' %>
+                    </div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Evacuation Information -->
+              <a href="/resident/evacuation" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-buildings"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_evac_info">Evacuation Information</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_evac_info">Nearest shelter, live occupancy & evacuation routes</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </a>
+
+            </div>
+          </div>
+
+          <!-- 4. SECTION: APP SETTINGS -->
+          <div class="space-y-1.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 px-3 profile-text-muted" data-i18n="sec_app_settings">App Settings</h3>
+            
+            <div class="profile-section-card bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden divide-y divide-slate-100">
+              
+              <!-- Language Settings -->
+              <button type="button" onclick="openLanguageModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-globe"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_language">Language Settings</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" id="current-language-label">English (Default)</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Offline Emergency Data Status -->
+              <div class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left">
+                <div class="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div class="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">
+                    <i class="ph ph-check-circle"></i>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark">
+                      <span>Offline Emergency Mode</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted mt-0.5">Evacuation map, QR pass &amp; 433.875 MHz LoRa Mesh work 100% offline</div>
+                  </div>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Offline Ready
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- 5. SECTION: SECURITY -->
+          <div class="space-y-1.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 px-3 profile-text-muted" data-i18n="sec_security">Security</h3>
+            
+            <div class="profile-section-card bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden divide-y divide-slate-100">
+              
+              <!-- Change Password -->
+              <button type="button" onclick="openChangePasswordModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-lock-key"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_change_password">Change Password</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_change_password">Update your account login password securely</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Logout -->
+              <a href="/logout" onclick="openLogoutModal(event)" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-red-50/50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-sign-out"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-red-600" data-i18n="row_logout">Logout</div>
+                    <div class="text-[11px] text-red-400 truncate" data-i18n="sub_logout">Sign out of your resident account</div>
+                  </div>
+                </div>
+                <i class="ph ph-arrow-right text-red-400 group-hover:text-red-600 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </a>
+
+            </div>
+          </div>
+
+          <!-- 6. SECTION: ABOUT -->
+          <div class="space-y-1.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 px-3 profile-text-muted" data-i18n="sec_about">About</h3>
+            
+            <div class="profile-section-card bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden divide-y divide-slate-100">
+              
+              <!-- About Evacwar -->
+              <button type="button" onclick="openAboutModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-info"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_about">About Evacwar</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_about">Barangay disaster preparedness & SOS assistance system</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+              <!-- Privacy & Terms -->
+              <button type="button" onclick="openPrivacyModal()" class="profile-row w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors group">
+                <div class="flex items-center gap-3.5 min-w-0">
+                  <div class="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                    <i class="ph ph-shield-check"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_privacy">Privacy & Terms</div>
+                    <div class="text-[11px] text-slate-400 truncate profile-text-muted" data-i18n="sub_privacy">Data privacy protection & resident rights</div>
+                  </div>
+                </div>
+                <i class="ph ph-caret-right text-slate-400 group-hover:text-slate-700 text-lg transition-transform group-hover:translate-x-0.5"></i>
+              </button>
+
+            </div>
+          </div>
+
+          <!-- FOOTER BRANDING -->
+          <div class="text-center py-6 text-xs text-slate-400 font-medium profile-text-muted">
+            <p>Evacwar &copy; <%= new Date().getFullYear() %> &middot; Barangay San Rafael, Baao</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 profile-text-muted">Municipal Disaster Risk Reduction and Management Office</p>
+          </div>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+      </main>
+  </div>
+
+  <!-- ==================== TOP-ALIGNED CLEAN MODALS (NO BOTTOM NAV CLIPPING) ==================== -->
+
+  <!-- 1. MANAGE / EDIT PROFILE MODAL -->
+  <div id="modalEditProfile" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[85vh] flex flex-col animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-user-circle"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Manage Profile</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Update your personal and contact information</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalEditProfile')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <% const currentResModal = (typeof resident !== 'undefined' && resident && (resident.id || resident.first_name)) ? resident : (locals.resident || {}); %>
+      <form id="formEditProfile" action="/resident/profile" method="POST" class="p-5 overflow-y-auto space-y-4 text-xs font-bold text-slate-700 custom-scrollbar">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">First Name *</label>
+            <input type="text" name="first_name" required class="form-control w-full text-xs font-semibold" value="<%= currentResModal.first_name || '' %>" />
+          </div>
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Middle Name</label>
+            <input type="text" name="middle_name" class="form-control w-full text-xs font-semibold" value="<%= currentResModal.middle_name || '' %>" placeholder="Optional" />
+          </div>
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Last Name *</label>
+            <input type="text" name="last_name" required class="form-control w-full text-xs font-semibold" value="<%= currentResModal.last_name || '' %>" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Mobile Contact Number *</label>
+            <input type="text" id="res_edit_contact" name="contact_number" required pattern="09[0-9]{9}" maxlength="11" class="form-control w-full text-xs font-semibold" value="<%= currentResModal.contact_number || '' %>" placeholder="09123456789" title="11-digit Philippine mobile number starting with 09" />
+          </div>
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Email Address</label>
+            <input type="email" name="email" class="form-control w-full text-xs font-semibold" value="<%= user ? (user.email || '') : '' %>" placeholder="name@example.com" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Barangay</label>
+            <% const resBrgy = currentResModal.barangay || 'San Rafael'; %>
+            <select name="barangay" class="form-control w-full text-xs font-semibold bg-slate-50 cursor-pointer">
+              <option value="San Rafael" <%= resBrgy === 'San Rafael' ? 'selected' : '' %>>Barangay San Rafael (Baao)</option>
+              <option value="San Agustin" <%= resBrgy === 'San Agustin' ? 'selected' : '' %>>Barangay San Agustin</option>
+              <option value="San Francisco" <%= resBrgy === 'San Francisco' ? 'selected' : '' %>>Barangay San Francisco</option>
+              <option value="San Isidro" <%= resBrgy === 'San Isidro' ? 'selected' : '' %>>Barangay San Isidro</option>
+              <option value="San Jose" <%= resBrgy === 'San Jose' ? 'selected' : '' %>>Barangay San Jose</option>
+              <option value="San Nicolas" <%= resBrgy === 'San Nicolas' ? 'selected' : '' %>>Barangay San Nicolas</option>
+              <option value="San Pedro" <%= resBrgy === 'San Pedro' ? 'selected' : '' %>>Barangay San Pedro</option>
+              <option value="San Roque" <%= resBrgy === 'San Roque' ? 'selected' : '' %>>Barangay San Roque</option>
+              <option value="Santa Cruz" <%= resBrgy === 'Santa Cruz' ? 'selected' : '' %>>Barangay Santa Cruz</option>
+              <option value="Santa Isabel" <%= resBrgy === 'Santa Isabel' ? 'selected' : '' %>>Barangay Santa Isabel</option>
+              <option value="Santa Teresa" <%= resBrgy === 'Santa Teresa' ? 'selected' : '' %>>Barangay Santa Teresa</option>
+            </select>
+          </div>
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Zone / Purok / Home Address</label>
+            <input type="text" name="home_address" class="form-control w-full text-xs font-semibold" value="<%= currentResModal.home_address || '' %>" placeholder="e.g. Zone 3, Near Chapel" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Sex</label>
+            <select name="sex" class="form-control w-full text-xs font-semibold bg-slate-50 cursor-pointer">
+              <option value="Male" <%= (currentResModal.sex === 'Male') ? 'selected' : '' %>>Male</option>
+              <option value="Female" <%= (currentResModal.sex === 'Female') ? 'selected' : '' %>>Female</option>
+            </select>
+          </div>
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Birthdate</label>
+            <input type="date" name="birthdate" class="form-control w-full text-xs font-semibold" value="<%= currentResModal.birthdate ? new Date(currentResModal.birthdate).toISOString().split('T')[0] : '' %>" />
+          </div>
+          <div>
+            <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Family Size</label>
+            <input type="number" min="1" max="25" name="family_size" class="form-control w-full text-xs font-semibold" value="<%= currentResModal.family_size || 1 %>" />
+          </div>
+        </div>
+
+        <!-- Hidden preserves for emergency/vulnerabilities so they don't reset on general profile edit -->
+        <input type="hidden" name="emergency_contact_name" value="<%= currentResModal.emergency_contact_name || '' %>">
+        <input type="hidden" name="emergency_contact_phone" value="<%= currentResModal.emergency_contact_phone || '' %>">
+        <% if (locals.resident && locals.resident.is_4ps) { %><input type="hidden" name="is_4ps" value="1"><% } %>
+        <% if (locals.resident && locals.resident.is_pregnant) { %><input type="hidden" name="is_pregnant" value="1"><% } %>
+        <% if (locals.resident && locals.resident.is_lactating) { %><input type="hidden" name="is_lactating" value="1"><% } %>
+        <% if (locals.resident && locals.resident.is_pwd) { %><input type="hidden" name="is_pwd" value="1"><% } %>
+        <% if (locals.resident && locals.resident.is_single_head) { %><input type="hidden" name="is_single_head" value="1"><% } %>
+        <% if (locals.resident && locals.resident.has_serious_illness) { %><input type="hidden" name="has_serious_illness" value="1"><% } %>
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('modalEditProfile')" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <i class="ph ph-floppy-disk"></i> Save Profile
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. PERSONAL INFORMATION MODAL -->
+  <div id="modalPersonalInfo" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-identification-card"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Personal Information</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Registered civil & household identity data</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalPersonalInfo')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs">
+        <!-- Resident Basic Info Card -->
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 space-y-2 profile-sub-bg">
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Full Legal Name</span>
+            <span class="font-bold text-slate-800 profile-text-dark text-right"><%= [locals.resident ? locals.resident.first_name : '', locals.resident ? locals.resident.middle_name : '', locals.resident ? locals.resident.last_name : ''].filter(Boolean).join(' ') || user.name %></span>
+          </div>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Age & Sex</span>
+            <span class="font-bold text-slate-800 profile-text-dark"><%= (locals.resident && locals.resident.age) ? (locals.resident.age + ' yrs old') : '' %> <%= (locals.resident && locals.resident.sex) ? ('• ' + locals.resident.sex) : 'Male' %></span>
+          </div>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Birthdate</span>
+            <span class="font-bold text-slate-800 profile-text-dark">
+              <%= locals.resident && locals.resident.birthdate ? new Date(locals.resident.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not specified' %>
+            </span>
+          </div>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Contact Number</span>
+            <span class="font-bold text-slate-800 profile-text-dark"><%= locals.resident && locals.resident.contact_number ? locals.resident.contact_number : (user.email || 'None') %></span>
+          </div>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Household Size</span>
+            <span class="font-bold text-blue-600"><%= locals.resident ? (locals.resident.family_size || 1) : 1 %> member(s)</span>
+          </div>
+          <div class="flex justify-between items-center py-1">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Home Address</span>
+            <span class="font-bold text-slate-800 text-right profile-text-dark"><%= locals.resident && locals.resident.home_address ? (locals.resident.home_address + ', ') : '' %>Brgy. <%= locals.resident && locals.resident.barangay ? locals.resident.barangay : 'San Rafael' %>, Baao</span>
+          </div>
+        </div>
+
+        <!-- Special Categories & Vulnerabilities -->
+        <% 
+          const isSenior = Boolean(locals.resident && (locals.resident.age >= 60 || locals.resident.vulnerability === 'Senior Citizen'));
+          const is4Ps = Boolean(locals.resident && locals.resident.is_4ps);
+          const isPwd = Boolean(locals.resident && locals.resident.is_pwd);
+          const isPregnant = Boolean(locals.resident && locals.resident.is_pregnant);
+          const isLactating = Boolean(locals.resident && locals.resident.is_lactating);
+          const isSoloParent = Boolean(locals.resident && locals.resident.is_single_head);
+          const hasIllness = Boolean(locals.resident && (locals.resident.has_serious_illness || locals.resident.serious_illness_details));
+          const tags = [];
+          if (is4Ps) tags.push('4Ps Beneficiary');
+          if (isSenior) tags.push('Senior Citizen');
+          if (isPwd) tags.push('PWD');
+          if (isPregnant) tags.push('Pregnant');
+          if (isLactating) tags.push('Lactating');
+          if (isSoloParent) tags.push('Solo Parent');
+          if (hasIllness) tags.push(locals.resident.serious_illness_details || 'Medical Illness');
+        %>
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 space-y-2 profile-sub-bg">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Special Categories & Vulnerabilities</span>
+            <span class="text-[10px] font-bold text-indigo-600"><%= tags.length %> Active</span>
+          </div>
+          <% if (tags.length > 0) { %>
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <% tags.forEach(tag => { %>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200/80">
+                  <i class="ph ph-check-circle"></i> <%= tag %>
+                </span>
+              <% }); %>
+            </div>
+          <% } else { %>
+            <p class="text-[11px] text-slate-500 font-medium">Standard household classification (no urgent vulnerabilities tagged).</p>
+          <% } %>
+        </div>
+
+        <!-- Emergency Contact Summary -->
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 space-y-1.5 profile-sub-bg">
+          <div class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Emergency Next-of-Kin</div>
+          <div class="flex items-center justify-between text-xs font-bold text-slate-800 profile-text-dark">
+            <span><%= (locals.resident && locals.resident.emergency_contact_name) ? locals.resident.emergency_contact_name : 'No emergency contact set' %></span>
+            <% if (locals.resident && locals.resident.emergency_contact_phone) { %>
+              <a href="tel:<%= locals.resident.emergency_contact_phone %>" class="text-emerald-700 hover:underline flex items-center gap-1">
+                <i class="ph ph-phone text-emerald-600"></i> <%= locals.resident.emergency_contact_phone %>
+              </a>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeModal('modalPersonalInfo'); openEditProfileModal();" class="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95">
+            <i class="ph ph-pencil-simple"></i> Edit Profile
+          </button>
+          <button type="button" onclick="closeModal('modalPersonalInfo')" class="py-2.5 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 3. EMERGENCY CONTACT MODAL -->
+  <div id="modalEmergencyContact" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-phone-call"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Emergency Contact</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Kin or relative notified during SOS dispatch</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalEmergencyContact')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <form id="formEmergencyContact" action="/resident/profile" method="POST" class="p-5 space-y-4 text-xs font-bold text-slate-700">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        
+        <div>
+          <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Emergency Contact Person</label>
+          <input type="text" name="emergency_contact_name" class="form-control w-full text-xs font-semibold" value="<%= locals.resident ? (locals.resident.emergency_contact_name || '') : '' %>" placeholder="Full Name of Relative / Next of Kin" required />
+        </div>
+
+        <div>
+          <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Emergency Contact Phone Number</label>
+          <input type="text" id="res_emerg_phone" name="emergency_contact_phone" required pattern="09[0-9]{9}" maxlength="11" class="form-control w-full text-xs font-semibold" value="<%= locals.resident ? (locals.resident.emergency_contact_phone || '') : '' %>" placeholder="09189876543" title="11-digit Philippine mobile number starting with 09" />
+        </div>
+
+        <!-- Preserve other details -->
+        <input type="hidden" name="first_name" value="<%= locals.resident ? (locals.resident.first_name || '') : '' %>">
+        <input type="hidden" name="last_name" value="<%= locals.resident ? (locals.resident.last_name || '') : '' %>">
+        <input type="hidden" name="contact_number" value="<%= locals.resident ? (locals.resident.contact_number || '') : '' %>">
+        <input type="hidden" name="barangay" value="<%= locals.resident ? (locals.resident.barangay || 'San Rafael') : 'San Rafael' %>">
+        <input type="hidden" name="home_address" value="<%= locals.resident ? (locals.resident.home_address || '') : '' %>">
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('modalEmergencyContact')" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <i class="ph ph-floppy-disk"></i> Save Contact
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- 4. VULNERABILITY & SPECIAL NEEDS MODAL -->
+  <div id="modalVulnerability" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-wheelchair"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Special Categories & Vulnerabilities</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Helps responders prioritize medical and physical care</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalVulnerability')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <form action="/resident/profile" method="POST" class="p-5 space-y-4 text-xs font-bold text-slate-700">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        
+        <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 profile-sub-bg">
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="is_4ps" value="1" <%= (locals.resident && locals.resident.is_4ps) ? 'checked' : '' %> class="w-4 h-4 rounded text-blue-600">
+            <span class="profile-text-dark">4Ps Beneficiary Household</span>
+          </label>
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="is_pregnant" value="1" <%= (locals.resident && locals.resident.is_pregnant) ? 'checked' : '' %> class="w-4 h-4 rounded text-pink-600">
+            <span class="profile-text-dark">Pregnant Household Member</span>
+          </label>
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="is_lactating" value="1" <%= (locals.resident && locals.resident.is_lactating) ? 'checked' : '' %> class="w-4 h-4 rounded text-purple-600">
+            <span class="profile-text-dark">Lactating / Nursing Mother</span>
+          </label>
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="is_pwd" value="1" <%= (locals.resident && locals.resident.is_pwd) ? 'checked' : '' %> class="w-4 h-4 rounded text-indigo-600">
+            <span class="profile-text-dark">Person with Disability (PWD)</span>
+          </label>
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="is_single_head" value="1" <%= (locals.resident && locals.resident.is_single_head) ? 'checked' : '' %> class="w-4 h-4 rounded text-amber-600">
+            <span class="profile-text-dark">Single Parent Household Head</span>
+          </label>
+          <label class="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" name="has_serious_illness" value="1" <%= (locals.resident && locals.resident.has_serious_illness) ? 'checked' : '' %> class="w-4 h-4 rounded text-red-600">
+            <span class="profile-text-dark">Serious Illness / Maintenance Medication</span>
+          </label>
+        </div>
+
+        <div>
+          <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Medical / Special Needs Details (Optional)</label>
+          <input type="text" name="serious_illness_details" class="form-control w-full text-xs font-semibold" placeholder="e.g. Asthma, Dialysis, Wheelchair needed" value="<%= locals.resident ? (locals.resident.serious_illness_details || '') : '' %>" />
+        </div>
+
+        <!-- Preserve basic profile -->
+        <input type="hidden" name="first_name" value="<%= locals.resident ? (locals.resident.first_name || '') : '' %>">
+        <input type="hidden" name="last_name" value="<%= locals.resident ? (locals.resident.last_name || '') : '' %>">
+        <input type="hidden" name="contact_number" value="<%= locals.resident ? (locals.resident.contact_number || '') : '' %>">
+        <input type="hidden" name="barangay" value="<%= locals.resident ? (locals.resident.barangay || 'San Rafael') : 'San Rafael' %>">
+        <input type="hidden" name="home_address" value="<%= locals.resident ? (locals.resident.home_address || '') : '' %>">
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('modalVulnerability')" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <i class="ph ph-floppy-disk"></i> Update Categories
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- 5. CHANGE PASSWORD MODAL -->
+  <div id="modalChangePassword" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-lock-key"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Change Password</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Keep your account secure with a strong password</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalChangePassword')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <form id="formChangePassword" action="/resident/profile" method="POST" class="p-5 space-y-3.5 text-xs font-bold text-slate-700">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        
+        <div>
+          <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Current Password *</label>
+          <input type="password" name="current_password" required class="form-control w-full text-xs font-semibold" placeholder="Enter current password" />
+        </div>
+
+        <div>
+          <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">New Password (Min. 8 chars, letters & numbers) *</label>
+          <input type="password" id="res_new_password" name="new_password" required minlength="8" class="form-control w-full text-xs font-semibold" placeholder="Min. 8 characters (letters & numbers)" />
+        </div>
+
+        <div>
+          <label class="block uppercase text-[10px] text-slate-400 mb-1 profile-text-muted">Confirm New Password *</label>
+          <input type="password" id="res_confirm_password" name="confirm_password" required minlength="8" class="form-control w-full text-xs font-semibold" placeholder="Repeat new password" />
+        </div>
+
+        <!-- Preserve basic profile -->
+        <input type="hidden" name="first_name" value="<%= locals.resident ? (locals.resident.first_name || '') : '' %>">
+        <input type="hidden" name="last_name" value="<%= locals.resident ? (locals.resident.last_name || '') : '' %>">
+        <input type="hidden" name="contact_number" value="<%= locals.resident ? (locals.resident.contact_number || '') : '' %>">
+        <input type="hidden" name="barangay" value="<%= locals.resident ? (locals.resident.barangay || 'San Rafael') : 'San Rafael' %>">
+        <input type="hidden" name="home_address" value="<%= locals.resident ? (locals.resident.home_address || '') : '' %>">
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('modalChangePassword')" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <i class="ph ph-key"></i> Update Password
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- 6. NOTIFICATIONS MODAL -->
+  <div id="modalNotifications" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-bell"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Notification Channels</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Live emergency advisories and SMS broadcast status</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalNotifications')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs font-semibold text-slate-700">
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 profile-sub-bg">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <i class="ph ph-device-mobile-speaker text-lg text-blue-600"></i>
+              <div>
+                <div class="font-bold text-slate-900 profile-text-dark">SMS Disaster Alerts</div>
+                <div class="text-[11px] text-slate-400 profile-text-muted">Direct mobile broadcast via iProgSMS</div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Connected</span>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <i class="ph ph-broadcast text-lg text-amber-600"></i>
+              <div>
+                <div class="font-bold text-slate-900 profile-text-dark">Socket.IO Live Sync</div>
+                <div class="text-[11px] text-slate-400 profile-text-muted">Real-time shelter and typhoon updates</div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Active</span>
+          </div>
+
+          <div class="pt-2.5 border-t border-slate-200/80">
+            <div class="text-[11px] font-bold text-slate-800 mb-1.5 profile-text-dark flex items-center gap-1.5">
+              <i class="ph ph-bell-simple-ringing text-blue-600"></i>
+              <span>Browser Web Push Alerts</span>
+            </div>
+            <%- include('../partials/push-control') %>
+          </div>
+        </div>
+
+        <button type="button" onclick="closeModal('modalNotifications'); toggleNotificationPanel();" class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md">
+          <i class="ph ph-bell-ringing"></i> Open Notification Center
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 7. LANGUAGE SETTINGS MODAL -->
+  <div id="modalLanguage" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-globe"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Language Settings</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Choose your preferred app display language</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalLanguage')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <div class="p-4 space-y-2 text-xs">
+        <button type="button" onclick="setAppLanguage('en', 'English (Default)')" id="lang-btn-en" class="w-full p-3 rounded-2xl border border-blue-200 bg-blue-50 text-blue-900 font-bold flex items-center justify-between transition-colors">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🇺🇸</span>
+            <span>English (Default)</span>
+          </div>
+          <i class="ph ph-check text-blue-600 font-bold lang-check"></i>
+        </button>
+
+        <button type="button" onclick="setAppLanguage('tl', 'Filipino / Tagalog')" id="lang-btn-tl" class="w-full p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold flex items-center justify-between transition-colors profile-text-dark">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🇵🇭</span>
+            <span>Filipino / Tagalog</span>
+          </div>
+          <i class="ph ph-check text-blue-600 font-bold lang-check hidden"></i>
+        </button>
+
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 8. ABOUT Evacwar MODAL -->
+  <div id="modalAbout" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-info"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">About Evacwar</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">San Rafael Disaster Risk Reduction Platform</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalAbout')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs text-slate-600 profile-text-muted">
+        <div class="flex items-center gap-3 bg-blue-50/70 p-3.5 rounded-2xl border border-blue-100 profile-sub-bg">
+          <div class="w-12 h-12 rounded-2xl bg-white p-1 shadow-xs shrink-0 flex items-center justify-center">
+            <img loading="lazy" src="/images/logo.png" alt="Evacwar" class="w-full h-full object-contain" / decoding="async">
+          </div>
+          <div>
+            <h4 class="font-black text-slate-900 text-sm profile-text-dark">Evacwar System</h4>
+            <p class="text-[11px] text-slate-500 font-medium profile-text-muted">Empowering Community Resilience</p>
+          </div>
+        </div>
+
+        <p class="leading-relaxed font-medium profile-text-dark">
+          <strong>Evacwar</strong> is an integrated barangay disaster preparedness and emergency response system developed for <strong>Barangay San Rafael, Baao, Camarines Sur</strong>.
+        </p>
+
+        <div class="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 text-[11px] font-semibold text-slate-700 profile-sub-bg profile-text-dark">
+          <div class="flex items-center gap-2"><i class="ph ph-check-circle text-emerald-600"></i> Real-time Emergency SOS & GPS Dispatch</div>
+          <div class="flex items-center gap-2"><i class="ph ph-check-circle text-emerald-600"></i> Evacuation Center Capacity & Live Rostering</div>
+          <div class="flex items-center gap-2"><i class="ph ph-check-circle text-emerald-600"></i> PAGASA Typhoon Radar & Wind Simulation</div>
+          <div class="flex items-center gap-2"><i class="ph ph-check-circle text-emerald-600"></i> Fast QR-based Shelter Check-in & Relief Masterlist</div>
+        </div>
+
+        <div class="pt-2 text-center text-[11px] text-slate-400 profile-text-muted">
+          Barangay Disaster Risk Reduction and Management Council (BDRRMC)
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 9. PRIVACY & TERMS MODAL -->
+  <div id="modalPrivacy" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-3 sm:p-6 pt-4 sm:pt-8 pb-32 sm:pb-12">
+    <div class="modal-content-card bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-scale-up">
+      
+      <!-- Clean Light Header -->
+      <div class="px-5 py-4 bg-white border-b border-slate-100 text-slate-900 flex items-center justify-between shrink-0 profile-card">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-base">
+            <i class="ph ph-shield-check"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base leading-tight profile-text-dark">Privacy & Data Terms</h3>
+            <p class="text-[10px] text-slate-400 profile-text-muted">Republic Act 10173 (Data Privacy Act of 2012)</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeModal('modalPrivacy')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-base"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3 text-xs text-slate-600 leading-relaxed font-medium profile-text-muted">
+        <p class="profile-text-dark">
+          All resident information, emergency contact details, GPS coordinates, and household member records collected through <strong>Evacwar</strong> are strictly used for disaster response, emergency assistance, relief allocation, and evacuation management.
+        </p>
+        <p>
+          Your data is safeguarded and accessible only to authorized Barangay San Rafael DRRM officials and emergency rescue responders during active operations.
+        </p>
+        <div class="p-3 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-200 text-[11px] font-bold profile-sub-bg">
+          🔒 Encrypted Password Storage & Localized Protected Database
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIC FOR MODALS, AVATAR, THEME & LOCALIZATION -->
+  <script>
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+      }
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    function openEditProfileModal() { openModal('modalEditProfile'); }
+    function openPersonalInfoModal() { openModal('modalPersonalInfo'); }
+    function openEmergencyContactModal() { openModal('modalEmergencyContact'); }
+    function openVulnerabilityModal() { openModal('modalVulnerability'); }
+    function openChangePasswordModal() { openModal('modalChangePassword'); }
+    function openNotificationsModal() { openModal('modalNotifications'); }
+    function openLanguageModal() { openModal('modalLanguage'); }
+    function openAboutModal() { openModal('modalAbout'); }
+    function openPrivacyModal() { openModal('modalPrivacy'); }
+    function openInstallAppModal() {
+      if (window.EvakWarPWA && window.EvakWarPWA.openInstallModal) {
+        window.EvakWarPWA.openInstallModal();
+      } else {
+        openModal('modalInstallApp');
+      }
+    }
+    function closeInstallAppModal() {
+      if (window.EvakWarPWA && window.EvakWarPWA.closeInstallModal) {
+        window.EvakWarPWA.closeInstallModal();
+      } else {
+        closeModal('modalInstallApp');
+      }
+    }
+
+    // Instant Avatar Upload & Submit
+    function previewAndSubmitAvatar(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+          alert('Please select a valid image file.');
+          input.value = '';
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          alert('Image file size must be less than 10MB.');
+          input.value = '';
+          return;
+        }
+        
+        // Submit avatar form immediately
+        const form = document.getElementById('avatarUploadForm');
+        if (form) form.submit();
+      }
+    }
+
+    // App Theme Toggle (Light / Dark)
+    function toggleAppTheme() {
+      const current = localStorage.getItem('Evacwar_theme') || 'light';
+      const next = current === 'light' ? 'dark' : 'light';
+      localStorage.setItem('Evacwar_theme', next);
+      applyTheme(next);
+    }
+
+    function applyTheme(theme) {
+      const label = document.getElementById('current-theme-label');
+      const icon = document.getElementById('theme-icon');
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        if (label) label.innerText = 'Dark Mode Active';
+        if (icon) icon.className = 'ph ph-moon';
+      } else {
+        document.documentElement.classList.remove('dark');
+        if (label) label.innerText = 'Light Mode Active';
+        if (icon) icon.className = 'ph ph-sun';
+      }
+    }
+
+    // Centralized Shared Language Setter & Localizer
+    function setAppLanguage(lang, label) {
+      if (window.EvacwarI18n && window.EvacwarI18n.setLanguage) {
+        window.EvacwarI18n.setLanguage(lang, label);
+      }
+      closeModal('modalLanguage');
+    }
+
+    // Initialize state
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedTheme = localStorage.getItem('Evacwar_theme') || 'light';
+      applyTheme(savedTheme);
+
+      if (window.applyCurrentLanguage) {
+        window.applyCurrentLanguage();
+      }
+
+      if (window.EvakWarPWA && window.EvakWarPWA.syncUI) {
+        window.EvakWarPWA.syncUI();
+      }
+
+      // Validation for Edit Profile Form
+      const formEditProfile = document.getElementById('formEditProfile');
+      if (formEditProfile) {
+        formEditProfile.addEventListener('submit', function (e) {
+          const contact = (document.getElementById('res_edit_contact')?.value || '').trim();
+          if (contact && !/^09\d{9}$/.test(contact)) {
+            e.preventDefault();
+            alert('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789).');
+            document.getElementById('res_edit_contact')?.focus();
+            return false;
+          }
+        });
+      }
+
+      // Validation for Emergency Contact Form
+      const formEmerg = document.getElementById('formEmergencyContact');
+      if (formEmerg) {
+        formEmerg.addEventListener('submit', function (e) {
+          const phone = (document.getElementById('res_emerg_phone')?.value || '').trim();
+          if (phone && !/^09\d{9}$/.test(phone)) {
+            e.preventDefault();
+            alert('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789).');
+            document.getElementById('res_emerg_phone')?.focus();
+            return false;
+          }
+        });
+      }
+
+      // Validation for Change Password Form
+      const formPass = document.getElementById('formChangePassword');
+      if (formPass) {
+        formPass.addEventListener('submit', function (e) {
+          const newPass = (document.getElementById('res_new_password')?.value || '').trim();
+          const confPass = (document.getElementById('res_confirm_password')?.value || '').trim();
+
+          if (newPass.length < 8 || !/[a-zA-Z]/.test(newPass) || !/[0-9]/.test(newPass)) {
+            e.preventDefault();
+            alert('Password must be at least 8 characters long and contain both letters and numbers.');
+            document.getElementById('res_new_password')?.focus();
+            return false;
+          }
+
+          if (newPass !== confPass) {
+            e.preventDefault();
+            alert('New password and confirmation password do not match.');
+            document.getElementById('res_confirm_password')?.focus();
+            return false;
+          }
+        });
+      }
+
+      // Auto-open modal if URL specifies
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('openModal') === 'editProfile') {
+        openEditProfileModal();
+      } else if (urlParams.get('openModal') === 'personalInfo') {
+        openPersonalInfoModal();
+      }
+
+      // Close modal on escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          ['modalEditProfile', 'modalPersonalInfo', 'modalEmergencyContact', 'modalVulnerability', 'modalChangePassword', 'modalNotifications', 'modalLanguage', 'modalAbout', 'modalPrivacy', 'modalInstallApp'].forEach(id => {
+            closeModal(id);
+          });
+        }
+      });
+    });
+  </script>
+
+  <%- include('../partials/footer') %>
+<script>
+    (function() {
+      function syncSettingsTransportBadge() {
+        const badge = document.getElementById('settingsActiveTransportBadge');
+        if (!badge) return;
+        const lora = window.evakwarLoraClient;
+        const isOnline = navigator.onLine;
+        if (lora && lora.connected) {
+          if (lora.transport === 'BLE') {
+            badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-300';
+            badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span> BLE: ' + (lora.deviceName ? lora.deviceName.split(' ')[0] : 'RES1');
+          } else if (lora.transport === 'USB_SERIAL') {
+            badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-100 text-cyan-800 border border-cyan-300';
+            badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span> USB-OTG CABLE';
+          }
+        } else if (isOnline) {
+          badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300';
+          badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> WI-FI ONLINE';
+        } else {
+          badge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 animate-pulse';
+          badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> OFFLINE (NO LORA)';
+        }
+      }
+
+      window.addEventListener('online', syncSettingsTransportBadge);
+      window.addEventListener('offline', syncSettingsTransportBadge);
+      if (window.evakwarLoraClient && typeof window.evakwarLoraClient.on === 'function') {
+        window.evakwarLoraClient.on('status', syncSettingsTransportBadge);
+      }
+      setTimeout(syncSettingsTransportBadge, 200);
+      setTimeout(syncSettingsTransportBadge, 1000);
+    })();
+  </script>

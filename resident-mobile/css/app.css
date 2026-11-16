@@ -1,0 +1,590 @@
+/* ==========================================================================
+   EvakWar (E-BAKWAR) — Resident Offline Mobile App Stylesheet
+   100% Self-Contained (Zero External CDN Required)
+   ========================================================================== */
+
+:root {
+  --bg-app: #f8fafc;
+  --surface: #ffffff;
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --red-50: #fef2f2;
+  --red-100: #fee2e2;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+  --blue-50: #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --emerald-50: #ecfdf5;
+  --emerald-100: #d1fae5;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --amber-50: #fffbeb;
+  --amber-100: #fef3c7;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --purple-50: #faf5ff;
+  --purple-600: #9333ea;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--slate-900);
+  overscroll-behavior-y: none;
+  user-select: none;
+}
+
+.app-shell {
+  max-width: 520px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding-bottom: 98px;
+  position: relative;
+}
+
+/* Top App Header + LoRa Connection Bar */
+.top-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--slate-200);
+  padding: 12px 16px;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--slate-200);
+  background: var(--slate-100);
+}
+
+.brand-title {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--slate-900);
+  margin: 0;
+  line-height: 1.1;
+}
+
+.brand-sub {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--slate-500);
+  margin: 2px 0 0 0;
+}
+
+/* LoRa Status Pill */
+.lora-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--slate-200);
+  background: var(--slate-100);
+  color: var(--slate-700);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lora-pill.connected {
+  background: var(--emerald-50);
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.lora-pill.disconnected {
+  background: var(--amber-50);
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.lora-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber-500);
+}
+
+.lora-pill.connected .lora-dot {
+  background: var(--emerald-500);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+}
+
+/* Tab Views */
+.tab-view {
+  display: none;
+  padding: 16px;
+  animation: fadeIn 0.18s ease-out;
+}
+
+.tab-view.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards & Containers */
+.card {
+  background: var(--surface);
+  border-radius: 20px;
+  border: 1px solid var(--slate-200);
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+  margin-bottom: 14px;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--slate-400);
+  margin: 0 0 10px 2px;
+}
+
+/* Active Typhoon / Emergency Banner */
+.alert-banner {
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 24px -6px rgba(220, 38, 38, 0.35);
+}
+
+.alert-banner.severity-RED {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+}
+
+.alert-banner.severity-ORANGE {
+  background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
+}
+
+.alert-banner.severity-YELLOW {
+  background: linear-gradient(135deg, #d97706 0%, #92400e 100%);
+}
+
+.alert-banner.severity-BLUE {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 10px 24px -6px rgba(37, 99, 235, 0.3);
+}
+
+.alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.22);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* 2x2 Quick Action Grid (Identical to views/resident/dashboard.ejs) */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.quick-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 16px;
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--slate-200);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+}
+
+.quick-card:active {
+  transform: scale(0.97);
+}
+
+.quick-card.sos-card {
+  background: var(--red-600);
+  border-color: var(--red-500);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(220, 38, 38, 0.35);
+}
+
+.quick-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.quick-title {
+  font-size: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.quick-sub {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 2px 0 0 0;
+  opacity: 0.85;
+}
+
+.quick-art {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* SOS Emergency View */
+.sos-hero-btn {
+  width: 176px;
+  height: 176px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ef4444, #b91c1c);
+  color: #ffffff;
+  border: 8px solid #fee2e2;
+  box-shadow: 0 14px 35px rgba(220, 38, 38, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 12px auto 16px auto;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.sos-hero-btn:active {
+  transform: scale(0.94);
+}
+
+.sos-hero-btn.transmitting {
+  background: radial-gradient(circle at 35% 30%, #dc2626, #7f1d1d);
+  animation: sosPulse 1.5s infinite;
+}
+
+@keyframes sosPulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.65); }
+  70% { box-shadow: 0 0 0 24px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+/* Vulnerability Pills */
+.vuln-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vuln-chip {
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1.5px solid var(--slate-200);
+  background: var(--slate-50);
+  color: var(--slate-700);
+  cursor: pointer;
+}
+
+.vuln-chip.selected {
+  background: var(--red-50);
+  border-color: var(--red-600);
+  color: var(--red-700);
+}
+
+/* Delivery Tracker Steps */
+.delivery-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--slate-400);
+}
+
+.step-item.done {
+  color: var(--emerald-600);
+}
+
+.step-item.current {
+  color: var(--blue-600);
+}
+
+.step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--slate-100);
+  border: 2px solid var(--slate-300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.step-item.done .step-dot {
+  background: var(--emerald-500);
+  border-color: var(--emerald-500);
+  color: #fff;
+}
+
+.step-item.current .step-dot {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: #fff;
+}
+
+/* Map Containers */
+.map-box {
+  width: 100%;
+  height: 240px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--slate-200);
+  background: #e2e8f0;
+  position: relative;
+}
+
+/* Bottom Navigation Bar (Identical to views/partials/bottom-nav.ejs) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 68px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--slate-200);
+  z-index: 60;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.bottom-nav-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  padding: 0 6px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--slate-400);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.nav-item.active {
+  color: var(--blue-600);
+}
+
+.nav-sos-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  top: -16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-sos-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--red-600);
+  color: #fff;
+  border: 4px solid #fff;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.nav-sos-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--red-600);
+  margin-top: 2px;
+}
+
+/* Modal Overlay */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal-sheet {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  padding: 20px;
+  max-height: 88vh;
+  overflow-y: auto;
+  animation: slideUp 0.22s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Buttons & Inputs */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: var(--blue-600);
+  color: #fff;
+}
+
+.btn-danger {
+  background: var(--red-600);
+  color: #fff;
+}
+
+.btn-emerald {
+  background: var(--emerald-600);
+  color: #fff;
+}
+
+.btn-outline {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
+}
+
+.input-field {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--slate-300);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate-900);
+  background: #fff;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}

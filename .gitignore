@@ -1,0 +1,40 @@
+# Environment Variables & Certificates (Secrets & Tokens)
+.env
+.env.local
+.env.*.local
+ca.pem
+cert.pem
+*.p12
+ssl/
+
+# Dependency directories
+node_modules/
+
+# Android Gradle & Build Outputs (regenerate locally via Android Studio / gradlew)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# Duplicate APK files (app.js serves public/evakwar-resident.apk for all APK routes)
+public/evakwar-resident-v2.apk
+public/evakwar-mobile.apk
+
+# Firmware archives & scratch binaries
+firmware-esp32.zip
+firmware_esp32_bin/
+*.bin
+scratch/
+temp/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs.txt
+
+# Operating System Files
+.DS_Store
+Thumbs.db

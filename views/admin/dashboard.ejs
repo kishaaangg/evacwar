@@ -1,0 +1,1486 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-24 lg:pb-8 overflow-x-hidden">
+        <div class="max-w-7xl mx-auto space-y-4 sm:space-y-5 flex-1 w-full p-3 sm:p-4 lg:p-6">
+
+          <!-- 1. ADMIN DASHBOARD HEADER -->
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 pb-3 sm:pb-4 border-b border-slate-200/80">
+            <div>
+              <h1 class="text-xl sm:text-2xl font-bold text-blue-950 tracking-tight">System Overview</h1>
+              <p class="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                Real-time typhoon monitoring and early warning for Barangay San Rafael Baao, Camarines Sur.
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <!-- System Status Badge -->
+              <% const hasSos=(locals.summary && locals.summary.activeSosCount> 0); %>
+                <% if (hasSos) { %>
+                  <a href="/admin/evacuation"
+                    class="bg-red-50 hover:bg-red-100 text-red-700 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-red-200 font-bold flex items-center gap-1.5 shadow-2xs text-[10px] sm:text-xs transition-colors animate-pulse"
+                    title="View Active SOS on Evacuation Map">
+                    <span class="relative flex h-2 w-2">
+                      <span
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                    </span>
+                    <%= locals.summary.activeSosCount %> Active SOS Alert<% if (locals.summary.activeSosCount> 1) { %>s
+                        <% } %>
+                  </a>
+                  <% } else { %>
+
+                    <% } %>
+
+                      <!-- Real-Time PST Live Digital Clock -->
+                      <div
+                        class="text-[10px] sm:text-xs font-mono font-bold text-blue-900 bg-blue-50 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-blue-200/80 flex items-center shadow-2xs">
+                        <i class="ph ph-clock mr-1.5 text-blue-600"></i>
+                        <span id="dashboardLiveClock">--:--:--</span>
+                        <span class="ml-1 text-[9px] text-blue-600/80 font-sans font-bold">PST</span>
+                      </div>
+
+                      <!-- Date Badge -->
+                      <div
+                        class="text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-slate-200 flex items-center shadow-2xs">
+                        <i class="ph ph-calendar-blank mr-1.5 text-slate-400"></i>
+                        <span id="dashboardDateText">Today</span>
+                      </div>
+            </div>
+          </div>
+
+          <!-- Floating container for Upper-Right SOS Emergency Pop-ups (with Sound) -->
+          <div id="adminSosToastContainer" class="fixed top-16 sm:top-20 right-4 z-50 flex flex-col gap-3 pointer-events-none max-w-sm sm:max-w-md w-full px-2"></div>
+          <script type="application/json" id="initialAdminActiveSos">
+            <%- JSON.stringify(locals.activeSosAlerts || []) %>
+          </script>
+
+                  <!-- 3. KEY COMMAND STATISTICS CARDS (MATCHING REFERENCE UI) -->
+                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+
+                    <!-- Card 1: Residents (Sky Blue Theme) -->
+                    <div
+                      class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all">
+                      <!-- Top Pastel Section -->
+                      <div class="bg-[#d8ecfd] p-3.5 sm:p-4 rounded-t-2xl">
+                        <div class="flex items-center gap-2.5 sm:gap-3">
+                          <div
+                            class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs text-sky-600">
+                            <i class="ph ph-users-three text-xl sm:text-2xl"></i>
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="text-xs sm:text-[13px] font-semibold text-slate-700 leading-tight">
+                              Total Residents
+                            </div>
+                            <div class="flex items-baseline justify-between gap-1 mt-1.5">
+                              <span class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-none">
+                                <%= locals.summary ? Number(locals.summary.totalResidents).toLocaleString() : 0 %>
+                              </span>
+                              <div class="text-right shrink-0">
+                                <span
+                                  class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shadow-2xs">
+                                  Official
+                                </span>
+                                <div
+                                  class="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-0.5 whitespace-nowrap">
+                                  San Rafael</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Bottom White Section -->
+                      <div class="bg-white p-3.5 sm:p-4 rounded-b-2xl space-y-2 text-xs">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Registered:</span>
+                          <span class="font-bold text-slate-900 shrink-0">
+                            <%= locals.summary ? Number(locals.summary.totalResidents).toLocaleString() : 0 %>
+                          </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Households:</span>
+                          <span class="font-bold text-slate-900 shrink-0">
+                            <%= locals.summary ? Number(locals.summary.totalFamilies).toLocaleString() : 0 %>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card 2: Families (Mint Green Theme) -->
+                    <div
+                      class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all">
+                      <!-- Top Pastel Section -->
+                      <div class="bg-[#dcfce7] p-3.5 sm:p-4 rounded-t-2xl">
+                        <div class="flex items-center gap-2.5 sm:gap-3">
+                          <div
+                            class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs text-emerald-600">
+                            <i class="ph ph-house-line text-xl sm:text-2xl"></i>
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="text-xs sm:text-[13px] font-semibold text-slate-700 leading-tight">
+                              Total Families
+                            </div>
+                            <div class="flex items-baseline justify-between gap-1 mt-1.5">
+                              <span class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-none">
+                                <%= locals.summary ? Number(locals.summary.totalFamilies).toLocaleString() : 0 %>
+                              </span>
+                              <div class="text-right shrink-0">
+                                <span
+                                  class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/80 text-emerald-900 shadow-2xs">
+                                  Verified
+                                </span>
+                                <div
+                                  class="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-0.5 whitespace-nowrap">
+                                  Households</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Bottom White Section -->
+                      <div class="bg-white p-3.5 sm:p-4 rounded-b-2xl space-y-2 text-xs">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Household Units:</span>
+                          <span class="font-bold text-slate-900 shrink-0">
+                            <%= locals.summary ? Number(locals.summary.totalFamilies).toLocaleString() : 0 %>
+                          </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Avg Family Size:</span>
+                          <span class="font-bold text-slate-900 shrink-0">
+                            <%= (locals.summary && locals.summary.totalFamilies> 0) ? (locals.summary.totalResidents /
+                              locals.summary.totalFamilies).toFixed(1) : '1.0' %> / fam
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card 3: Evacuation Centers (Lavender Theme) -->
+                    <div
+                      class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all">
+                      <!-- Top Pastel Section -->
+                      <div class="bg-[#f3e8ff] p-3.5 sm:p-4 rounded-t-2xl">
+                        <div class="flex items-center gap-2.5 sm:gap-3">
+                          <div
+                            class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs text-purple-600">
+                            <i class="ph ph-buildings text-xl sm:text-2xl"></i>
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="text-xs sm:text-[13px] font-semibold text-slate-700 leading-tight">
+                              Evacuation Centers
+                            </div>
+                            <div class="flex items-baseline justify-between gap-1 mt-1.5">
+                              <span class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-none">
+                                <%= locals.summary ? Number(locals.summary.totalCenters).toLocaleString() : 0 %>
+                              </span>
+                              <div class="text-right shrink-0">
+                                <span
+                                  class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shadow-2xs">
+                                  Shelters
+                                </span>
+                                <div
+                                  class="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-0.5 whitespace-nowrap">
+                                  Operational</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Bottom White Section -->
+                      <div class="bg-white p-3.5 sm:p-4 rounded-b-2xl space-y-2 text-xs">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Total Sheltered:</span>
+                          <span class="font-bold text-purple-700 shrink-0">
+                            <%= locals.summary ? Number(locals.summary.totalEvacuees).toLocaleString() : 0 %>
+                          </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Total Capacity:</span>
+                          <span class="font-bold text-slate-900 shrink-0">
+                            <%= locals.summary ? Number(locals.summary.totalCapacity).toLocaleString() : 0 %> slots
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card 4: Alerts Sent (Amber Theme) -->
+                    <div
+                      class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all">
+                      <!-- Top Pastel Section -->
+                      <div class="bg-[#fef3c7] p-3.5 sm:p-4 rounded-t-2xl">
+                        <div class="flex items-center gap-2.5 sm:gap-3">
+                          <div
+                            class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs text-amber-600">
+                            <i class="ph ph-megaphone text-xl sm:text-2xl"></i>
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="text-xs sm:text-[13px] font-semibold text-slate-700 leading-tight">
+                              Alerts Sent
+                            </div>
+                            <div class="flex items-baseline justify-between gap-1 mt-1.5">
+                              <span class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-none">
+                                <%= locals.summary ? Number(locals.summary.totalAlerts || 0).toLocaleString() : 0 %>
+                              </span>
+                              <div class="text-right shrink-0">
+                                <span
+                                  class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 shadow-2xs">
+                                  Broadcasts
+                                </span>
+                                <div
+                                  class="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-0.5 whitespace-nowrap">
+                                  SMS Outbox</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Bottom White Section -->
+                      <div class="bg-white p-3.5 sm:p-4 rounded-b-2xl space-y-2 text-xs">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">SMS Dispatched:</span>
+                          <span class="font-bold text-slate-900 shrink-0">
+                            <%= locals.summary ? Number(locals.summary.totalAlerts || 0).toLocaleString() : 0 %> logs
+                          </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-slate-600 font-normal">Gateway Status:</span>
+                          <span class="font-bold text-emerald-700 shrink-0">Active</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card 5: Emergency Cases / Active SOS (Rose Theme) -->
+                    <% const isSosActive=(locals.summary && locals.summary.activeSosCount> 0); %>
+                      <div
+                        id="cardEmergencyCasesContainer"
+                        class="col-span-1 sm:col-span-2 lg:col-span-1 bg-white rounded-2xl border <%= isSosActive ? 'border-red-300 ring-2 ring-red-500/20' : 'border-slate-200/90' %> shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all">
+                        <!-- Top Pastel Section -->
+                        <div class="<%= isSosActive ? 'bg-red-100/90' : 'bg-[#ffe4e6]' %> p-3.5 sm:p-4 rounded-t-2xl">
+                          <div class="flex items-center gap-2.5 sm:gap-3">
+                            <div
+                              id="cardEmergencyCasesIcon"
+                              class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs <%= isSosActive ? 'text-red-600 animate-pulse' : 'text-rose-600' %>">
+                              <i class="ph ph-siren text-xl sm:text-2xl"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                              <div
+                                class="text-xs sm:text-[13px] font-semibold <%= isSosActive ? 'text-red-900' : 'text-slate-700' %> leading-tight">
+                                Emergency Cases
+                              </div>
+                              <div class="flex items-baseline justify-between gap-1 mt-1.5">
+                                <span
+                                  id="cardEmergencyCasesCount"
+                                  class="text-xl sm:text-2xl font-bold <%= isSosActive ? 'text-red-600' : 'text-slate-900' %> tracking-tight leading-none">
+                                  <%= locals.summary ? Number(locals.summary.activeSosCount).toLocaleString() : 0 %>
+                                </span>
+                                <div class="text-right shrink-0">
+                                  <span
+                                    id="cardEmergencyCasesBadge"
+                                    class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold <%= isSosActive ? 'bg-red-200 text-red-900 animate-pulse border border-red-300' : 'bg-rose-100 text-rose-800' %> shadow-2xs">
+                                    <%= isSosActive ? 'URGENT' : 'ALL CLEAR' %>
+                                  </span>
+                                  <div
+                                    id="cardEmergencyCasesSubtext"
+                                    class="text-[9px] sm:text-[10px] font-medium <%= isSosActive ? 'text-red-600 font-bold' : 'text-slate-500' %> mt-0.5 whitespace-nowrap">
+                                    <%= isSosActive ? 'Active SOS' : 'Standby' %>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <!-- Bottom White Section -->
+                        <div class="bg-white p-3.5 sm:p-4 rounded-b-2xl space-y-2 text-xs">
+                          <div class="flex items-center justify-between gap-2">
+                            <span class="text-slate-600 font-normal">Distress Status:</span>
+                            <span id="cardEmergencyCasesDistressStatus" class="font-bold <%= isSosActive ? 'text-red-600' : 'text-emerald-700' %> shrink-0">
+                              <%= isSosActive ? 'Active Distress' : 'No Incidents' %>
+                            </span>
+                          </div>
+                          <div class="flex items-center justify-between gap-2">
+                            <span class="text-slate-600 font-normal">Active Signals:</span>
+                            <span id="cardEmergencyCasesPendingCount" class="font-bold text-slate-900 shrink-0">
+                              <%= locals.summary ? Number(locals.summary.activeSosCount).toLocaleString() : 0 %>
+                                pending
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                  </div>
+
+
+                  <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+                    <div class="lg:col-span-8 space-y-4 sm:space-y-5">
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+
+                        <!-- Donut 1: Account Verification -->
+                        <div
+                          class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between">
+                          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-2">
+                            <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm uppercase tracking-wider">
+                              Account Verification</h4>
+                          </div>
+                          <div class="relative h-56 sm:h-60 w-full flex items-center justify-center">
+                            <canvas id="chartRegistrationStatus"></canvas>
+                          </div>
+                        </div>
+
+                        <!-- Donut 2: Gender Demographics (Clean) -->
+                        <div
+                          class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between">
+                          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-2">
+                            <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm uppercase tracking-wider">
+                              Gender</h4>
+                          </div>
+                          <div class="relative h-56 sm:h-60 w-full flex items-center justify-center">
+                            <canvas id="chartGenderDistribution"></canvas>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      <!-- ROW 2: CHECK-INS (SOLO FULL-WIDTH) -->
+                      <div
+                        class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-2">
+                          <div class="flex items-center gap-2">
+
+                            <div>
+                              <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm uppercase tracking-wider">
+                                Evacuee Check-in Activity</h4>
+
+                            </div>
+                          </div>
+
+                        </div>
+                        <div class="relative h-60 sm:h-64 w-full">
+                          <canvas id="chartEvacuationTrends"></canvas>
+                        </div>
+                      </div>
+
+                      <!-- ROW 3: SOS EMERGENCY REPORTS (SOLO FULL-WIDTH) -->
+                      <div
+                        class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-2">
+                          <div class="flex items-center gap-2">
+
+                            <div>
+                              <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm uppercase tracking-wider">SOS
+                                Emergency Reports</h4>
+
+                            </div>
+                          </div>
+
+                        </div>
+                        <div class="relative h-60 sm:h-64 w-full">
+                          <canvas id="chartSosReports"></canvas>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <!-- RIGHT / OPERATIONS COLUMN (4 COLS) -->
+                    <div class="lg:col-span-4 space-y-4">
+
+                      <!-- REGIONAL WEATHER TELEMETRY CARD (MODERN 3D WIDGET DESIGN) -->
+                      <% const now=new Date(); const currentDayName=now.toLocaleDateString('en-US', { weekday: 'long' ,
+                        timeZone: 'Asia/Manila' }); const currentTimeStr=now.toLocaleTimeString('en-US', {
+                        hour: 'numeric' , minute: '2-digit' , hour12: true, timeZone: 'Asia/Manila' }).toLowerCase();
+                        const currentTemp=(locals.weather && locals.weather.temperature !=null) ?
+                        Math.round(locals.weather.temperature) : 27; const realFeelTemp=(locals.weather &&
+                        locals.weather.apparent_temperature !=null) ? Math.round(locals.weather.apparent_temperature) :
+                        Math.round(currentTemp - 2); const currentWind=(locals.weather && locals.weather.wind_speed
+                        !=null) ? Math.round(locals.weather.wind_speed) : 18; const currentRainfall=(locals.weather &&
+                        locals.weather.rainfall !=null) ? locals.weather.rainfall : 0.2; const
+                        currentHumidity=(locals.weather && locals.weather.humidity !=null) ? locals.weather.humidity :
+                        89; const weatherStatus=(locals.weather && locals.weather.weather_status) ?
+                        locals.weather.weather_status : 'Scattered Rain Showers' ; const
+                        isRainyWeather=weatherStatus.toLowerCase().includes('rain') ||
+                        weatherStatus.toLowerCase().includes('drizzle') ||
+                        weatherStatus.toLowerCase().includes('thunder') || weatherStatus.toLowerCase().includes('storm')
+                        || weatherStatus.toLowerCase().includes('shower'); %>
+                        <div
+                          class="!bg-white rounded-[32px] border border-slate-200/80 shadow-[0_10px_25px_rgba(0,0,0,0.03)] p-5 sm:p-6 relative overflow-hidden font-heading transition-all"
+                          style="background-color: #ffffff !important;">
+
+                          <!-- TOP HEADER BAR: DAY & LOCATION (LEFT), TIME & ACTION BUTTONS (RIGHT) -->
+                          <div class="flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                              <h3 class="font-bold text-slate-800 text-base sm:text-lg tracking-tight leading-tight"
+                                id="weatherDay">
+                                <%= currentDayName %>
+                              </h3>
+                              <div class="text-[11px] font-medium text-slate-400 mt-0.5 truncate max-w-[190px]"
+                                id="dashWeatherLocLabel">
+                                <%= (locals.weather && locals.weather.location_name) ? locals.weather.location_name
+                                  : 'San Rafael, Baao' %>
+                              </div>
+                            </div>
+                            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                              <span class="font-semibold text-slate-600 text-xs sm:text-sm tracking-tight"
+                                id="weatherTime">
+                                <%= currentTimeStr %>
+                              </span>
+                              <button type="button" onclick="useMyLocationDashboard(this)" id="btnDashMyLocation"
+                                class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer shrink-0"
+                                title="Use device GPS location">
+                                <i class="ph ph-crosshair text-xs font-bold text-slate-700" id="dashLocIcon"></i>
+                              </button>
+                              <button type="button" onclick="refreshWeatherData(this)"
+                                class="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer shrink-0"
+                                title="Refresh Telemetry">
+                                <i class="ph ph-arrow-up-right text-xs font-bold" id="weatherRefreshIcon"></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <!-- MIDDLE SECTION: TEMPERATURE & 3D VOLUMETRIC ARTWORK -->
+                          <div class="flex items-center justify-between gap-2 mt-4 sm:mt-5">
+                            <div class="min-w-0">
+                              <div class="text-5xl sm:text-[54px] font-black text-slate-900 tracking-tight leading-none"
+                                id="weatherTemp">
+                                <%= currentTemp %>°C
+                              </div>
+                              <div
+                                class="text-xs sm:text-sm font-semibold text-slate-500 mt-2.5 flex items-center gap-1.5"
+                                id="weatherRealFeelContainer">
+                                <span>Real feel <span id="weatherRealFeel">
+                                    <%= realFeelTemp %>°C
+                                  </span></span>
+                              </div>
+                            </div>
+
+                            <!-- 3D WEATHER ARTWORK CONTAINER -->
+                            <div id="weatherVisualContainer"
+                              class="shrink-0 flex items-center justify-center select-none">
+                              <% if (isRainyWeather) { %>
+                                <!-- 3D Daytime Sun + Puffy Cloud + Raindrops (Windy Daytime Style) -->
+                                <svg viewBox="0 0 140 120"
+                                  class="w-24 h-20 sm:w-28 sm:h-24 drop-shadow-md select-none pointer-events-none"
+                                  fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <defs>
+                                    <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
+                                      <stop offset="0%" stop-color="#FFF5A0" />
+                                      <stop offset="30%" stop-color="#FFC800" />
+                                      <stop offset="75%" stop-color="#FF8A00" />
+                                      <stop offset="100%" stop-color="#FF5D00" />
+                                    </radialGradient>
+                                    <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                      <feGaussianBlur stdDeviation="2" result="blur" />
+                                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                    </filter>
+                                    <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
+                                      <stop offset="0%" stop-color="#FFFFFF" />
+                                      <stop offset="45%" stop-color="#F2F8FD" />
+                                      <stop offset="85%" stop-color="#C5DDFB" />
+                                      <stop offset="100%" stop-color="#A5C9F7" />
+                                    </linearGradient>
+                                    <linearGradient id="dashDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                      <stop offset="0%" stop-color="#73D0FF" />
+                                      <stop offset="100%" stop-color="#2196F3" />
+                                    </linearGradient>
+                                    <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%" height="145%">
+                                      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
+                                        flood-opacity="0.22" />
+                                    </filter>
+                                  </defs>
+                                  <!-- Radiant 3D Sun Behind Cloud -->
+                                  <g transform="translate(88, 38)">
+                                    <g filter="url(#dashSunRayGlow)" opacity="0.95">
+                                      <path
+                                        d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
+                                        fill="#FFA500" />
+                                    </g>
+                                    <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
+                                    <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
+                                  </g>
+                                  <!-- Puffy Cloud in front of Sun -->
+                                  <g filter="url(#dashCloudSoftShadow)">
+                                    <path
+                                      d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z"
+                                      fill="url(#dashCloudGrad)" />
+                                    <ellipse cx="58" cy="28" rx="18" ry="10" fill="#FFFFFF" opacity="0.65" />
+                                    <ellipse cx="98" cy="44" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
+                                  </g>
+                                  <!-- 3D Blue Raindrops Falling -->
+                                  <path d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z"
+                                    fill="url(#dashDropGrad)" />
+                                  <path d="M54 95 C52 98 51 103 53 106 C54 108 57 108 58 106 C60 103 58 98 56 95 Z"
+                                    fill="url(#dashDropGrad)" />
+                                  <path d="M72 90 C70 93 69 98 71 101 C72 103 75 103 76 101 C78 98 76 93 74 90 Z"
+                                    fill="url(#dashDropGrad)" />
+                                  <path d="M88 95 C86 98 85 103 87 106 C88 108 91 108 92 106 C94 103 92 98 90 95 Z"
+                                    fill="url(#dashDropGrad)" />
+                                </svg>
+                                <% } else { %>
+                                  <!-- 3D Sun & Cloud Illustration (Image 2 Style) -->
+                                  <svg viewBox="0 0 140 120"
+                                    class="w-24 h-20 sm:w-28 sm:h-24 drop-shadow-md select-none pointer-events-none"
+                                    fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <defs>
+                                      <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
+                                        <stop offset="0%" stop-color="#FFF5A0" />
+                                        <stop offset="30%" stop-color="#FFC800" />
+                                        <stop offset="75%" stop-color="#FF8A00" />
+                                        <stop offset="100%" stop-color="#FF5D00" />
+                                      </radialGradient>
+                                      <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                        <feGaussianBlur stdDeviation="2" result="blur" />
+                                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                      </filter>
+                                      <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
+                                        <stop offset="0%" stop-color="#FFFFFF" />
+                                        <stop offset="45%" stop-color="#F2F8FD" />
+                                        <stop offset="85%" stop-color="#C5DDFB" />
+                                        <stop offset="100%" stop-color="#A5C9F7" />
+                                      </linearGradient>
+                                      <linearGradient id="dashCloudWarmth" x1="80%" y1="10%" x2="20%" y2="90%">
+                                        <stop offset="0%" stop-color="#FFE8A3" stop-opacity="0.6" />
+                                        <stop offset="40%" stop-color="#FFD67A" stop-opacity="0.2" />
+                                        <stop offset="100%" stop-color="#A5C9F7" stop-opacity="0" />
+                                      </linearGradient>
+                                      <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%" height="145%">
+                                        <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
+                                          flood-opacity="0.22" />
+                                      </filter>
+                                    </defs>
+                                    <!-- 3D Sun Behind Cloud -->
+                                    <g transform="translate(88, 38)">
+                                      <g filter="url(#dashSunRayGlow)" opacity="0.95">
+                                        <path
+                                          d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
+                                          fill="#FFA500" />
+                                      </g>
+                                      <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
+                                      <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
+                                    </g>
+                                    <!-- 3D Volumetric Cloud -->
+                                    <g filter="url(#dashCloudSoftShadow)">
+                                      <path
+                                        d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z"
+                                        fill="url(#dashCloudGrad)" />
+                                      <path
+                                        d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z"
+                                        fill="url(#dashCloudWarmth)" />
+                                      <ellipse cx="58" cy="36" rx="18" ry="10" fill="#FFFFFF" opacity="0.65" />
+                                      <ellipse cx="98" cy="52" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
+                                    </g>
+                                  </svg>
+                                  <% } %>
+                            </div>
+                          </div>
+
+                          <!-- BOTTOM STATS: 3 ROUNDED PILL CARDS -->
+                          <div class="grid grid-cols-3 gap-2 sm:gap-2.5 mt-5 sm:mt-6">
+                            <!-- WIND PILL -->
+                            <div
+                              class="bg-[#e6f0fa] rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-blue-100/60 transition-all">
+                              <i class="ph ph-wind text-blue-600 text-lg sm:text-xl"></i>
+                              <div class="mt-2.5">
+                                <div class="text-[11px] font-semibold text-slate-500">Wind</div>
+                                <div class="text-xs sm:text-sm font-bold text-slate-800 leading-tight mt-0.5">
+                                  <span id="weatherWind">
+                                    <%= currentWind %>
+                                  </span> km/h
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- TEMPERATURE PILL -->
+                            <div
+                              class="bg-[#f0f4f9] rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-slate-100 transition-all">
+                              <i class="ph ph-thermometer-simple text-amber-500 text-lg sm:text-xl"></i>
+                              <div class="mt-2.5">
+                                <div class="text-[11px] font-semibold text-slate-500">Temperature</div>
+                                <div class="text-xs sm:text-sm font-bold text-slate-800 leading-tight mt-0.5"
+                                  id="weatherTempPill">
+                                  <%= currentTemp %>°C
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- RAINFALL PILL -->
+                            <div
+                              class="bg-[#f0f4f9] rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-slate-100 transition-all">
+                              <i class="ph ph-drop text-blue-500 text-lg sm:text-xl"></i>
+                              <div class="mt-2.5">
+                                <div class="text-[11px] font-semibold text-slate-500">Rainfall</div>
+                                <div class="text-xs sm:text-sm font-bold text-slate-800 leading-tight mt-0.5">
+                                  <span id="weatherRain">
+                                    <%= currentRainfall %>
+                                  </span> mm
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- COMPATIBILITY HOOKS (HIDDEN) -->
+                          <span id="weatherStatus" class="hidden">
+                            <%= weatherStatus %>
+                          </span>
+                          <span id="weatherHumidity" class="hidden">
+                            <%= currentHumidity %>%
+                          </span>
+                          <span id="weatherUpdated" class="hidden">
+                            <%= (locals.weather && locals.weather.formatted_time) ? locals.weather.formatted_time
+                              : 'Just now' %>
+                          </span>
+                          <i id="weatherIcon" class="hidden"></i>
+                        </div>
+
+                        <!-- RESIDENT VULNERABILITY PROFILE (RIGHT COLUMN) -->
+                        <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
+                          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <div class="flex items-center gap-2">
+                              <div
+                                class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                                <i class="ph ph-heartbeat text-base"></i>
+                              </div>
+                              <div>
+                                <h3 class="font-extrabold text-slate-900 text-xs uppercase tracking-wider">Vulnerability
+                                  Profile</h3>
+                                <span class="text-[10px] text-slate-400 font-semibold">
+                                  Barangay San Rafael &bull; Household Heads &amp; Members
+                                </span>
+                              </div>
+                            </div>
+                            <span
+                              class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
+                              DSWD Priority
+                            </span>
+                          </div>
+
+                          <div class="relative h-48 sm:h-52 w-full">
+                            <canvas id="chartVulnerability"></canvas>
+                          </div>
+
+                          <!-- Priority Breakdown Quick Metrics -->
+                          <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                            <div
+                              class="p-2.5 rounded-2xl bg-amber-50/70 border border-amber-100 flex items-center justify-between">
+                              <div>
+                                <div class="text-[11px] font-bold text-amber-900">Senior Citizens</div>
+                                <div class="text-[9px] text-amber-600 font-medium">Age 60+</div>
+                              </div>
+                              <div class="text-sm font-black text-amber-700 font-mono">
+                                <%= (locals.analytics && locals.analytics.vulnerabilities) ?
+                                  locals.analytics.vulnerabilities.seniors : 0 %>
+                              </div>
+                            </div>
+                            <div
+                              class="p-2.5 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-between">
+                              <div>
+                                <div class="text-[11px] font-bold text-blue-900">PWD</div>
+                                <div class="text-[9px] text-blue-600 font-medium">Special Needs</div>
+                              </div>
+                              <div class="text-sm font-black text-blue-700 font-mono">
+                                <%= (locals.analytics && locals.analytics.vulnerabilities) ?
+                                  locals.analytics.vulnerabilities.pwd : 0 %>
+                              </div>
+                            </div>
+                            <div
+                              class="p-2.5 rounded-2xl bg-pink-50/70 border border-pink-100 flex items-center justify-between">
+                              <div>
+                                <div class="text-[11px] font-bold text-pink-900">Pregnant</div>
+                                <div class="text-[9px] text-pink-600 font-medium">Maternal Care</div>
+                              </div>
+                              <div class="text-sm font-black text-pink-700 font-mono">
+                                <%= (locals.analytics && locals.analytics.vulnerabilities) ?
+                                  locals.analytics.vulnerabilities.pregnant : 0 %>
+                              </div>
+                            </div>
+                            <div
+                              class="p-2.5 rounded-2xl bg-cyan-50/70 border border-cyan-100 flex items-center justify-between">
+                              <div>
+                                <div class="text-[11px] font-bold text-cyan-900">Children</div>
+                                <div class="text-[9px] text-cyan-600 font-medium">0 - 12 Years</div>
+                              </div>
+                              <div class="text-sm font-black text-cyan-700 font-mono">
+                                <%= (locals.analytics && locals.analytics.vulnerabilities) ?
+                                  locals.analytics.vulnerabilities.children : 0 %>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                    </div>
+
+                  </div>
+
+            </div>
+
+            <%- include('../partials/footer-visible') %>
+      </main>
+  </div>
+
+  <script>
+    // Real-time ticking digital clock
+    function startLiveDashboardClock() {
+      const clockEl = document.getElementById('dashboardLiveClock');
+      const dateEl = document.getElementById('dashboardDateText');
+      function updateTime() {
+        const now = new Date();
+        if (clockEl) {
+          clockEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        if (dateEl) {
+          dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      }
+      updateTime();
+      setInterval(updateTime, 1000);
+    }
+    document.addEventListener('DOMContentLoaded', startLiveDashboardClock);
+
+    // Refresh telemetry weather data
+    function updateDashboardWeatherUI(w) {
+      if (!w) return;
+      const statusEl = document.getElementById('weatherStatus');
+      const tempEl = document.getElementById('weatherTemp');
+      const realFeelEl = document.getElementById('weatherRealFeel');
+      const tempPillEl = document.getElementById('weatherTempPill');
+      const rainEl = document.getElementById('weatherRain');
+      const windEl = document.getElementById('weatherWind');
+      const humidityEl = document.getElementById('weatherHumidity');
+      const updatedEl = document.getElementById('weatherUpdated');
+      const timeEl = document.getElementById('weatherTime');
+      const iconEl = document.getElementById('weatherIcon');
+      const locLabel = document.getElementById('dashWeatherLocLabel');
+      const visualContainer = document.getElementById('weatherVisualContainer');
+
+      const roundedTemp = w.temperature != null ? Math.round(w.temperature) : 24;
+      const realFeel = w.apparent_temperature != null ? Math.round(w.apparent_temperature) : (roundedTemp - 2);
+
+      if (locLabel && w.location_name) locLabel.textContent = w.location_name;
+      if (statusEl) statusEl.textContent = w.weather_status || 'Partly Cloudy';
+      if (tempEl) tempEl.textContent = roundedTemp + '°C';
+      if (realFeelEl) realFeelEl.textContent = realFeel + '°C';
+      if (tempPillEl) tempPillEl.textContent = roundedTemp + '°C';
+      if (rainEl) rainEl.textContent = w.rainfall != null ? w.rainfall : 0;
+      if (windEl) windEl.textContent = w.wind_speed != null ? Math.round(w.wind_speed) : 0;
+      if (humidityEl) humidityEl.textContent = (w.humidity != null ? w.humidity : 51) + '%';
+      if (updatedEl) updatedEl.textContent = 'Just now';
+      if (timeEl) timeEl.textContent = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+      if (iconEl && w.icon) iconEl.className = 'ph ' + w.icon;
+
+      if (visualContainer && w.weather_status) {
+        const st = w.weather_status.toLowerCase();
+        const isRainy = st.includes('rain') || st.includes('drizzle') || st.includes('thunder') || st.includes('storm') || st.includes('shower');
+        if (isRainy) {
+          visualContainer.innerHTML = `
+            <svg viewBox="0 0 140 120" class="w-24 h-20 sm:w-28 sm:h-24 drop-shadow-md select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
+                  <stop offset="0%" stop-color="#FFF5A0" />
+                  <stop offset="30%" stop-color="#FFC800" />
+                  <stop offset="75%" stop-color="#FF8A00" />
+                  <stop offset="100%" stop-color="#FF5D00" />
+                </radialGradient>
+                <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
+                  <stop offset="0%" stop-color="#FFFFFF" />
+                  <stop offset="45%" stop-color="#F2F8FD" />
+                  <stop offset="85%" stop-color="#C5DDFB" />
+                  <stop offset="100%" stop-color="#A5C9F7" />
+                </linearGradient>
+                <linearGradient id="dashDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#73D0FF" />
+                  <stop offset="100%" stop-color="#2196F3" />
+                </linearGradient>
+                <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%" height="145%">
+                  <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC" flood-opacity="0.22" />
+                </filter>
+              </defs>
+              <!-- Radiant 3D Sun Behind Cloud -->
+              <g transform="translate(88, 38)">
+                <g filter="url(#dashSunRayGlow)" opacity="0.95">
+                  <path d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z" fill="#FFA500" />
+                </g>
+                <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
+                <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
+              </g>
+              <!-- Puffy Cloud in front of Sun -->
+              <g filter="url(#dashCloudSoftShadow)">
+                <path d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z" fill="url(#dashCloudGrad)" />
+                <ellipse cx="58" cy="28" rx="18" ry="10" fill="#FFFFFF" opacity="0.65" />
+                <ellipse cx="98" cy="44" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
+              </g>
+              <!-- 3D Blue Raindrops Falling -->
+              <path d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z" fill="url(#dashDropGrad)" />
+              <path d="M54 95 C52 98 51 103 53 106 C54 108 57 108 58 106 C60 103 58 98 56 95 Z" fill="url(#dashDropGrad)" />
+              <path d="M72 90 C70 93 69 98 71 101 C72 103 75 103 76 101 C78 98 76 93 74 90 Z" fill="url(#dashDropGrad)" />
+              <path d="M88 95 C86 98 85 103 87 106 C88 108 91 108 92 106 C94 103 92 98 90 95 Z" fill="url(#dashDropGrad)" />
+            </svg>`;
+        } else {
+          visualContainer.innerHTML = `
+            <svg viewBox="0 0 140 120" class="w-24 h-20 sm:w-28 sm:h-24 drop-shadow-md select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
+                  <stop offset="0%" stop-color="#FFF5A0" />
+                  <stop offset="30%" stop-color="#FFC800" />
+                  <stop offset="75%" stop-color="#FF8A00" />
+                  <stop offset="100%" stop-color="#FF5D00" />
+                </radialGradient>
+                <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
+                  <stop offset="0%" stop-color="#FFFFFF" />
+                  <stop offset="45%" stop-color="#F2F8FD" />
+                  <stop offset="85%" stop-color="#C5DDFB" />
+                  <stop offset="100%" stop-color="#A5C9F7" />
+                </linearGradient>
+                <linearGradient id="dashCloudWarmth" x1="80%" y1="10%" x2="20%" y2="90%">
+                  <stop offset="0%" stop-color="#FFE8A3" stop-opacity="0.6" />
+                  <stop offset="40%" stop-color="#FFD67A" stop-opacity="0.2" />
+                  <stop offset="100%" stop-color="#A5C9F7" stop-opacity="0" />
+                </linearGradient>
+                <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%" height="145%">
+                  <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC" flood-opacity="0.22" />
+                </filter>
+              </defs>
+              <g transform="translate(88, 38)">
+                <g filter="url(#dashSunRayGlow)" opacity="0.95">
+                  <path d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z" fill="#FFA500" />
+                </g>
+                <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
+                <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
+              </g>
+              <g filter="url(#dashCloudSoftShadow)">
+                <path d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z" fill="url(#dashCloudGrad)" />
+                <path d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z" fill="url(#dashCloudWarmth)" />
+                <ellipse cx="58" cy="36" rx="18" ry="10" fill="#FFFFFF" opacity="0.65" />
+                <ellipse cx="98" cy="52" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
+              </g>
+            </svg>`;
+        }
+      }
+    }
+
+    // Use device GPS location for Admin Dashboard Weather
+    async function useMyLocationDashboard(btn) {
+      const icon = document.getElementById('dashLocIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.disabled = true;
+
+      try {
+        if (!window.EvakwarWeatherLocation) {
+          throw new Error('Location manager is still loading. Please try again in a moment.');
+        }
+        const coords = await window.EvakwarWeatherLocation.getCurrentPosition();
+        const weather = await window.EvakwarWeatherLocation.fetchWeather(coords);
+        updateDashboardWeatherUI(weather);
+        window.EvakwarWeatherLocation.showToast('Updated weather for your device location!');
+      } catch (err) {
+        console.warn('GPS location retrieval error:', err.message);
+        if (window.EvakwarWeatherLocation) {
+          window.EvakwarWeatherLocation.showToast(err.message, true);
+        } else {
+          alert(err.message);
+        }
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function refreshWeatherData(btn) {
+      const icon = document.getElementById('weatherRefreshIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.disabled = true;
+
+      try {
+        const saved = (window.EvakwarWeatherLocation) ? window.EvakwarWeatherLocation.getSavedLocation() : null;
+        const res = await fetch('/api/weather/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(saved || {})
+        });
+        const data = await res.json();
+        if (data.success && data.weather) {
+          updateDashboardWeatherUI(data.weather);
+        }
+      } catch (err) {
+        console.error('Failed to refresh weather telemetry:', err);
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // Live ticking clock for Regional Weather Telemetry Card
+    function tickWeatherClock() {
+      const timeEl = document.getElementById('weatherTime');
+      const dayEl = document.getElementById('weatherDay');
+      const now = new Date();
+      if (timeEl) {
+        timeEl.textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+      }
+      if (dayEl) {
+        dayEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long' });
+      }
+    }
+    setInterval(tickWeatherClock, 1000);
+    tickWeatherClock();
+
+    // Audio Chime generator using Web Audio API (matches Staff interface)
+    let adminAudioCtx = null;
+    function getAdminAudioContext() {
+      try {
+        if (!adminAudioCtx) {
+          const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtxClass) adminAudioCtx = new AudioCtxClass();
+        }
+        if (adminAudioCtx && adminAudioCtx.state === 'suspended') {
+          adminAudioCtx.resume().catch(() => {});
+        }
+      } catch (e) {
+        console.warn('AudioContext init skipped:', e);
+      }
+      return adminAudioCtx;
+    }
+
+    ['click', 'touchstart', 'keydown'].forEach(evt => {
+      document.addEventListener(evt, () => {
+        getAdminAudioContext();
+      }, { once: true, passive: true });
+    });
+
+    function playEmergencyChime() {
+      try {
+        const ctx = getAdminAudioContext();
+        if (!ctx) return;
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        const now = ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(880, now);
+        osc1.frequency.exponentialRampToValueAtTime(440, now + 0.35);
+        gain1.gain.setValueAtTime(0.35, now);
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.35);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1200, now + 0.2);
+        osc2.frequency.exponentialRampToValueAtTime(600, now + 0.55);
+        gain2.gain.setValueAtTime(0.35, now + 0.2);
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.2);
+        osc2.stop(now + 0.55);
+      } catch (e) {
+        console.warn('Emergency audio chime skipped:', e);
+      }
+    }
+
+    // Top-Right Floating SOS Pop-Up Management
+    const activeAdminToasts = new Map();
+
+    function showAdminSosToast(alert, playSound = true) {
+      if (!alert) return;
+      if (typeof window.showGlobalDistressNotification === 'function') {
+        window.showGlobalDistressNotification(alert);
+        return;
+      }
+      const sosId = alert.id || 'temp_' + Date.now();
+
+      let container = document.getElementById('adminSosToastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'adminSosToastContainer';
+        container.className = 'fixed top-16 sm:top-20 right-4 z-50 flex flex-col gap-3 pointer-events-none max-w-sm sm:max-w-md w-full px-2';
+        document.body.appendChild(container);
+      }
+
+      const resName = alert.name || (alert.first_name ? `${alert.first_name} ${alert.last_name || ''}`.trim() : 'Resident');
+      const barangay = alert.barangay || 'San Rafael';
+      const status = (alert.status || 'ACTIVE').toUpperCase();
+      const statusBadgeBg = status === 'ACKNOWLEDGED' ? 'bg-amber-400 text-slate-950' : 
+                           (status === 'RESPONDING' ? 'bg-indigo-200 text-indigo-950' : 
+                           (status === 'RESCUED' ? 'bg-emerald-200 text-emerald-950' : 'bg-red-900/80 text-white animate-pulse'));
+
+      let handlerHtml = '';
+      if (alert.handler_name) {
+        handlerHtml = `<i class="ph ph-user-check text-emerald-300 text-sm"></i><span>Acknowledged by: <strong class="text-white">${alert.handler_name}</strong></span>`;
+      } else {
+        handlerHtml = `<i class="ph ph-clock text-amber-300 text-sm"></i><span>Situation: <strong class="text-white">Awaiting Staff Acknowledgment</strong></span>`;
+      }
+
+      const existingToast = document.getElementById(`adminSosToast_${sosId}`);
+      if (existingToast) {
+        const badge = existingToast.querySelector('.sos-status-badge');
+        if (badge) {
+          badge.className = `sos-status-badge text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${statusBadgeBg}`;
+          badge.innerText = status;
+        }
+        const handler = existingToast.querySelector('.sos-handler-info');
+        if (handler) handler.innerHTML = handlerHtml;
+        return;
+      }
+
+      const toast = document.createElement('div');
+      toast.id = `adminSosToast_${sosId}`;
+      toast.className = 'pointer-events-auto bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white p-4 rounded-2xl shadow-2xl shadow-red-900/40 border border-red-400/80 transform transition-all duration-300 ease-out translate-y-3 opacity-0 flex flex-col gap-2.5 backdrop-blur-md';
+      toast.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-xl shrink-0 shadow-inner animate-pulse">
+              <i class="ph ph-siren text-white"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="bg-white/20 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider border border-white/30">
+                  Urgent Distress Signal
+                </span>
+                <span class="sos-status-badge text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${statusBadgeBg}">
+                  ${status}
+                </span>
+              </div>
+              <h4 class="font-black text-sm sm:text-base text-white leading-tight mt-1 truncate">
+                ${resName}
+                <span class="text-red-200 text-xs font-bold font-mono">• ${barangay}</span>
+              </h4>
+            </div>
+          </div>
+          <button type="button" onclick="dismissAdminSosToast('${sosId}')" class="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors shrink-0" title="Dismiss">
+            <i class="ph ph-x text-lg"></i>
+          </button>
+        </div>
+        
+        <div class="sos-handler-info text-xs text-red-100 font-medium flex items-center gap-1.5 pl-0.5">
+          ${handlerHtml}
+        </div>
+
+        <div class="flex items-center justify-between gap-2 pt-2 border-t border-white/20 mt-0.5">
+          <span class="text-[11px] text-red-100/90 font-medium flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Signal
+          </span>
+          <a href="/admin/evacuation?sos_id=${sosId}" class="px-3.5 py-1.5 bg-white text-red-700 hover:bg-red-50 font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5 active:scale-95 shrink-0">
+            <i class="ph ph-navigation-arrow"></i> Dispatch & Radar Map
+          </a>
+        </div>
+      `;
+
+      container.prepend(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-3', 'opacity-0');
+      });
+
+      if (playSound) {
+        playEmergencyChime();
+      }
+
+      // Auto dismiss after 25 seconds
+      const timer = setTimeout(() => {
+        dismissAdminSosToast(sosId);
+      }, 25000);
+
+      activeAdminToasts.set(sosId, timer);
+    }
+
+    function dismissAdminSosToast(sosId) {
+      if (typeof window.dismissGlobalDistressBanner === 'function') {
+        window.dismissGlobalDistressBanner(sosId);
+      }
+      const toast = document.getElementById(`adminSosToast_${sosId}`);
+      if (toast) {
+        toast.classList.add('opacity-0', 'translate-y-3');
+        setTimeout(() => {
+          if (toast && toast.parentElement) toast.remove();
+        }, 300);
+      }
+      if (activeAdminToasts.has(sosId)) {
+        clearTimeout(activeAdminToasts.get(sosId));
+        activeAdminToasts.delete(sosId);
+      }
+    }
+
+    function updateEmergencyCasesCard(count) {
+      const cardContainer = document.getElementById('cardEmergencyCasesContainer');
+      const cardCount = document.getElementById('cardEmergencyCasesCount');
+      const cardBadge = document.getElementById('cardEmergencyCasesBadge');
+      const cardSubtext = document.getElementById('cardEmergencyCasesSubtext');
+      const cardDistressStatus = document.getElementById('cardEmergencyCasesDistressStatus');
+      const cardPendingCount = document.getElementById('cardEmergencyCasesPendingCount');
+      const cardIcon = document.getElementById('cardEmergencyCasesIcon');
+
+      const isSos = count > 0;
+      if (cardCount) cardCount.innerText = Number(count).toLocaleString();
+      if (cardPendingCount) cardPendingCount.innerText = `${Number(count).toLocaleString()} pending`;
+
+      if (cardContainer) {
+        cardContainer.className = `col-span-1 sm:col-span-2 lg:col-span-1 bg-white rounded-2xl border ${isSos ? 'border-red-300 ring-2 ring-red-500/20' : 'border-slate-200/90'} shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all`;
+      }
+      if (cardIcon) {
+        cardIcon.className = `w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-xs ${isSos ? 'text-red-600 animate-pulse' : 'text-rose-600'}`;
+      }
+      if (cardBadge) {
+        cardBadge.innerText = isSos ? 'URGENT' : 'ALL CLEAR';
+        cardBadge.className = `inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold ${isSos ? 'bg-red-200 text-red-900 animate-pulse border border-red-300' : 'bg-rose-100 text-rose-800'} shadow-2xs`;
+      }
+      if (cardSubtext) {
+        cardSubtext.innerText = isSos ? 'Active SOS' : 'Standby';
+        cardSubtext.className = `text-[9px] sm:text-[10px] font-medium ${isSos ? 'text-red-600 font-bold' : 'text-slate-500'} mt-0.5 whitespace-nowrap`;
+      }
+      if (cardDistressStatus) {
+        cardDistressStatus.innerText = isSos ? 'Active Distress' : 'No Incidents';
+        cardDistressStatus.className = `font-bold ${isSos ? 'text-red-600' : 'text-emerald-700'} shrink-0`;
+      }
+    }
+
+    function refreshAdminSosState(triggerChime = false) {
+      fetch('/api/sos/active')
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.success && Array.isArray(data.alerts)) {
+            updateEmergencyCasesCard(data.alerts.length);
+            if (data.alerts.length > 0) {
+              data.alerts.forEach((alert, idx) => {
+                showAdminSosToast(alert, triggerChime && idx === 0);
+              });
+            }
+          } else {
+            updateEmergencyCasesCard(0);
+          }
+        })
+        .catch(e => console.warn('Admin SOS state check error:', e));
+    }
+
+    // Real-time Socket listeners for Admin
+    if (typeof io !== 'undefined') {
+      const dashSocket = window.__appSocket || (window.__appSocket = io());
+
+      dashSocket.on('sos:new', function(data) {
+        if (data) {
+          showAdminSosToast(data, true);
+          refreshAdminSosState(false);
+        }
+      });
+
+      dashSocket.on('sos_alert', function(data) {
+        if (data) {
+          showAdminSosToast(data, true);
+          refreshAdminSosState(false);
+        }
+      });
+
+      dashSocket.on('sos:update', function(data) {
+        if (data && data.id) {
+          showAdminSosToast(data, false);
+        }
+        refreshAdminSosState(false);
+      });
+
+      dashSocket.on('sos:update_status', function(data) {
+        if (data && data.id) {
+          if (data.status === 'RESOLVED' || data.status === 'CANCELLED') {
+            dismissAdminSosToast(data.id);
+          } else {
+            showAdminSosToast(data, false);
+          }
+        }
+        refreshAdminSosState(false);
+      });
+
+      dashSocket.on('sos:resolve', function(data) {
+        if (data && data.id) dismissAdminSosToast(data.id);
+        refreshAdminSosState(false);
+      });
+
+      dashSocket.on('sos:cancel', function(data) {
+        if (data && data.id) dismissAdminSosToast(data.id);
+        refreshAdminSosState(false);
+      });
+    }
+
+    // On initial page load: pop up notification with chime if active alerts exist
+    try {
+      const initDataEl = document.getElementById('initialAdminActiveSos');
+      if (initDataEl) {
+        const initialAlerts = JSON.parse(initDataEl.textContent || '[]');
+        if (Array.isArray(initialAlerts) && initialAlerts.length > 0) {
+          initialAlerts.forEach((alert, idx) => {
+            showAdminSosToast(alert, idx === 0);
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Initial SOS toast parse error:', e);
+    }
+  </script>
+
+  <!-- Chart.js Engine & EvakWar Dashboard Analytics Visualizations -->
+  <script type="application/json" id="evakWarChartData">
+    <%- JSON.stringify((locals.analytics && locals.analytics.chartData) ? locals.analytics.chartData : {}) %>
+  </script>
+  <script src="/js/chart.umd.min.js"></script>
+  <script>
+    (function initEvakWarDashboardCharts() {
+      // Safely parse dynamic Chart Data from JSON data island
+      const dataIsland = document.getElementById('evakWarChartData');
+      const chartRawData = dataIsland ? JSON.parse(dataIsland.textContent || '{}') : {};
+
+      function setupCharts() {
+        if (typeof Chart === 'undefined') {
+          // Fallback to CDN if needed
+          const cdnScript = document.createElement('script');
+          cdnScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
+          cdnScript.onload = renderAllCharts;
+          document.head.appendChild(cdnScript);
+          return;
+        }
+        renderAllCharts();
+      }
+
+      window.__evakWarCharts = window.__evakWarCharts || {};
+
+      function renderAllCharts() {
+        Chart.defaults.font.family = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        Chart.defaults.color = '#64748b';
+        Chart.defaults.plugins.tooltip.backgroundColor = '#0f172a';
+        Chart.defaults.plugins.tooltip.titleFont = { weight: 'bold', size: 12 };
+        Chart.defaults.plugins.tooltip.bodyFont = { size: 11 };
+        Chart.defaults.plugins.tooltip.padding = 10;
+        Chart.defaults.plugins.tooltip.cornerRadius = 8;
+
+        // 1. Evacuation Trends (Line Chart)
+        const ctxEvac = document.getElementById('chartEvacuationTrends');
+        if (ctxEvac) {
+          if (window.__evakWarCharts.evac) window.__evakWarCharts.evac.destroy();
+          const evacData = chartRawData.evacuationTrends || { labels: [], data: [] };
+          window.__evakWarCharts.evac = new Chart(ctxEvac, {
+            type: 'line',
+            data: {
+              labels: evacData.labels,
+              datasets: [{
+                label: 'Check-Ins Logged',
+                data: evacData.data,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                borderWidth: 2.5,
+                fill: true,
+                tension: 0.35,
+                pointBackgroundColor: '#2563eb',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { precision: 0 },
+                  grid: { color: 'rgba(226, 232, 240, 0.8)' }
+                },
+                x: {
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+        }
+
+        // 2. SOS Emergency Reports (Line Chart)
+        const ctxSos = document.getElementById('chartSosReports');
+        if (ctxSos) {
+          if (window.__evakWarCharts.sos) window.__evakWarCharts.sos.destroy();
+          const sosData = chartRawData.sosTimeline || { labels: [], data: [] };
+          window.__evakWarCharts.sos = new Chart(ctxSos, {
+            type: 'line',
+            data: {
+              labels: sosData.labels,
+              datasets: [{
+                label: 'Distress Reports',
+                data: sosData.data,
+                borderColor: '#e11d48',
+                backgroundColor: 'rgba(225, 29, 72, 0.12)',
+                borderWidth: 2.5,
+                fill: true,
+                tension: 0.35,
+                pointBackgroundColor: '#e11d48',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { precision: 0 },
+                  grid: { color: 'rgba(226, 232, 240, 0.8)' }
+                },
+                x: {
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+        }
+
+
+        // 4. Resident Vulnerability (Horizontal Bar Chart)
+        const ctxVuln = document.getElementById('chartVulnerability');
+        if (ctxVuln) {
+          if (window.__evakWarCharts.vulnerability) window.__evakWarCharts.vulnerability.destroy();
+          const vulnData = chartRawData.vulnerabilities || { labels: [], data: [] };
+          window.__evakWarCharts.vulnerability = new Chart(ctxVuln, {
+            type: 'bar',
+            data: {
+              labels: vulnData.labels,
+              datasets: [{
+                label: 'Individuals',
+                data: vulnData.data,
+                backgroundColor: [
+                  '#f59e0b', // Senior Citizens
+                  '#3b82f6', // PWDs
+                  '#ec4899', // Pregnant
+                  '#06b6d4', // Children
+                  '#10b981'  // Lactating
+                ],
+                borderRadius: 6,
+                barThickness: 18
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  ticks: { precision: 0 },
+                  grid: { color: 'rgba(226, 232, 240, 0.8)' }
+                },
+                y: {
+                  grid: { display: false },
+                  ticks: { font: { weight: 'bold', size: 10 } }
+                }
+              }
+            }
+          });
+        }
+
+        // 5. Resident Registration Status (Donut Chart)
+        const ctxReg = document.getElementById('chartRegistrationStatus');
+        if (ctxReg) {
+          if (window.__evakWarCharts.regStatus) window.__evakWarCharts.regStatus.destroy();
+          const regData = chartRawData.registrationStatus || { labels: [], data: [] };
+          window.__evakWarCharts.regStatus = new Chart(ctxReg, {
+            type: 'doughnut',
+            data: {
+              labels: regData.labels,
+              datasets: [{
+                data: regData.data,
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                hoverBackgroundColor: ['#059669', '#d97706', '#dc2626'],
+                borderWidth: 3,
+                borderColor: '#ffffff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '68%',
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: {
+                    boxWidth: 12,
+                    boxHeight: 12,
+                    usePointStyle: true,
+                    font: { size: 11, weight: 'bold' },
+                    padding: 14
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        // 6. Gender Distribution (Donut Chart)
+        const ctxGen = document.getElementById('chartGenderDistribution');
+        if (ctxGen) {
+          if (window.__evakWarCharts.gender) window.__evakWarCharts.gender.destroy();
+          const genData = chartRawData.genderDistribution || { labels: [], data: [] };
+          window.__evakWarCharts.gender = new Chart(ctxGen, {
+            type: 'doughnut',
+            data: {
+              labels: genData.labels,
+              datasets: [{
+                data: genData.data,
+                backgroundColor: ['#3b82f6', '#ec4899'],
+                hoverBackgroundColor: ['#2563eb', '#db2777'],
+                borderWidth: 3,
+                borderColor: '#ffffff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '68%',
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: {
+                    boxWidth: 12,
+                    boxHeight: 12,
+                    usePointStyle: true,
+                    font: { size: 11, weight: 'bold' },
+                    padding: 14
+                  }
+                }
+              }
+            }
+          });
+        }
+      }
+
+      window.refreshEvakWarCharts = function () {
+        location.reload();
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupCharts);
+      } else {
+        setupCharts();
+      }
+    })();
+  </script>
+
+  <%- include('../partials/footer') %>

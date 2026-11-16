@@ -1,0 +1,11 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col flex-1 bg-slate-50 relative pb-0 lg:pb-2 overflow-x-hidden">
+        <%- include('../partials/lora-chat-room', { chatRole: 'Admin' }) %>
+      </main>
+  </div>
+
+<%- include('../partials/footer') %>

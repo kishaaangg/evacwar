@@ -1,0 +1,1976 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-28 lg:pb-12 overflow-x-hidden">
+        <div class="max-w-7xl mx-auto space-y-5 flex-1 w-full p-4 sm:p-6 lg:p-7">
+
+          <!-- Page Header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 class="text-2xl sm:text-3xl font-black text-blue-950 tracking-tight">Manage Residents & Households
+              </h1>
+              <p class="text-sm text-slate-500 font-medium mt-0.5">View and manage resident profiles, vulnerability
+                tags, and household records.</p>
+            </div>
+            <button
+              class="btn btn-primary px-5 py-3 rounded-2xl shadow-md shadow-blue-500/20 text-sm font-bold flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-98"
+              onclick="document.getElementById('residentModal').classList.remove('hidden')">
+              <i class="ph ph-user-plus text-xl"></i> Add New Resident
+            </button>
+          </div>
+
+          <!-- Main Card Container -->
+          <div class="card p-0 overflow-hidden shadow-sm bg-white border border-slate-200/90 rounded-3xl">
+
+            <!-- Search & Filter Toolbar -->
+            <div
+              class="p-4 sm:p-5 border-b border-slate-200/80 bg-slate-50/70 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4">
+
+              <!-- Search Input -->
+              <div class="relative flex-1 min-w-[260px] lg:max-w-md">
+                <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                <input type="text" id="residentSearchInput" oninput="debouncedFilterResidents()"
+                  placeholder="Search residents by name, email, phone, zone..."
+                  class="w-full pl-11 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-2xs font-medium text-slate-800 placeholder:text-slate-400" />
+              </div>
+
+              <!-- Filter Dropdowns Grid -->
+              <div class="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                <div class="min-w-[160px]">
+                  <select id="residentStatusFilter" onchange="filterResidents()"
+                    class="w-full text-xs sm:text-sm py-2.5 px-3.5 bg-white font-semibold border border-slate-200 rounded-2xl outline-none focus:border-blue-500 shadow-2xs text-slate-700 cursor-pointer">
+                    <option value="all" selected>All Statuses</option>
+                    <option value="pending">⏳ Pending Approval</option>
+                    <option value="approved">✅ Approved</option>
+                    <option value="walk_in">🚶 Walk-In</option>
+                    <option value="rejected">❌ Rejected</option>
+                  </select>
+                </div>
+                <div class="min-w-[160px]">
+                  <select id="residentZoneFilter" onchange="filterResidents()"
+                    class="w-full text-xs sm:text-sm py-2.5 px-3.5 bg-white font-semibold border border-slate-200 rounded-2xl outline-none focus:border-blue-500 shadow-2xs text-slate-700 cursor-pointer">
+                    <option value="all" selected>All Zones</option>
+                    <option value="zone 1">Zone 1</option>
+                    <option value="zone 2">Zone 2</option>
+                    <option value="zone 3">Zone 3</option>
+                    <option value="zone 4">Zone 4</option>
+                    <option value="zone 5">Zone 5</option>
+                    <option value="zone 6">Zone 6</option>
+                    <option value="zone 7">Zone 7</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Desktop View: Table -->
+            <div class="hidden md:block border-0 rounded-none overflow-x-auto">
+              <table class="w-full text-left border-collapse table-fixed">
+                <colgroup>
+                  <col style="width: 50px;">
+                  <col style="width: 38%;">
+                  <col style="width: 19%;">
+                  <col style="width: 11%;">
+                  <col style="width: 14%;">
+                  <col style="width: 215px;">
+                </colgroup>
+                <thead
+                  class="bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 border-b border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 select-none shadow-xs font-extrabold">
+                  <tr>
+                    <th
+                      class="py-3.5 px-3 text-[11px] font-extrabold uppercase tracking-wider text-center bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      ID</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Resident</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Email</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Zone / Purok</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Contact</th>
+                    <th
+                      class="py-3.5 px-4 text-[11px] font-extrabold uppercase tracking-wider text-right bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100">
+                      Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="residentsTableBody" class="divide-y divide-slate-100 bg-white">
+                  <% if (locals.residents && locals.residents.length> 0) { %>
+                    <% locals.residents.forEach(res=> {
+                      const isOnline = Boolean(res.is_online);
+                      const isWalkin = Boolean(res.is_walkin || !res.user_id || res.registration_source === 'WALK_IN');
+                      const photoUrl = res.profile_photo ? ((res.profile_photo.startsWith('http') ||
+                      res.profile_photo.startsWith('/')) ? res.profile_photo : `/uploads/profiles/${res.profile_photo}`)
+                      : null;
+                      const idPhotoUrl = res.id_photo_url || (res.barangay_id_photo ? ((res.barangay_id_photo.startsWith('http') || res.barangay_id_photo.startsWith('/')) ? res.barangay_id_photo : `/uploads/profiles/${res.barangay_id_photo}`) : null);
+                      const initial = (res.first_name || res.name || 'R').charAt(0).toUpperCase();
+                      %>
+                      <% const isPending=!isWalkin && res.approval_status==='PENDING' ; const isRejected=!isWalkin &&
+                        res.approval_status==='REJECTED' ; const statusTag=isWalkin ? 'walk_in' : (res.approval_status ?
+                        res.approval_status.toLowerCase() : 'approved' ); %>
+                        <tr class="resident-row-item hover:bg-blue-50/40 transition-colors group <%= isPending ? 'bg-amber-50/25' : '' %>"
+                          data-zone="<%= (res.purok || '').toLowerCase() %>" data-status="<%= statusTag %>">
+                          <!-- ID -->
+                          <td class="py-4 px-3 text-center font-mono text-xs font-bold text-slate-400">#<%= res.id %>
+                          </td>
+
+                          <!-- Resident Name & Photo (with Live Online Indicator Circle on top layer) -->
+                          <td class="py-4 px-4">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <div
+                                class="relative shrink-0 w-10 h-10 min-w-[40px] max-w-[40px] min-h-[40px] max-h-[40px]">
+                                <div
+                                  class="w-full h-full aspect-square rounded-2xl <%= isWalkin ? 'bg-amber-100 border border-amber-200 text-amber-700' : (isPending ? 'bg-amber-50 border border-amber-300 text-amber-800' : 'bg-blue-100 border border-blue-200 text-blue-700') %> flex items-center justify-center font-bold text-sm shadow-2xs overflow-hidden">
+                                  <% if (photoUrl) { %>
+                                    <img src="<%= photoUrl %>" alt="<%= res.name %>"
+                                      loading="lazy" decoding="async"
+                                      class="w-full h-full object-cover rounded-2xl"
+                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                    <span style="display:none;"
+                                      class="w-full h-full flex items-center justify-center font-bold text-xs">
+                                      <%= initial %>
+                                    </span>
+                                    <% } else { %>
+                                      <span class="font-bold text-xs">
+                                        <%= initial %>
+                                      </span>
+                                      <% } %>
+                                </div>
+
+                                <!-- Live Online/Offline Status Indicator on top layer -->
+                                <% if (!isWalkin) { %>
+                                  <span
+                                    class="user-status-dot user-status-dot-<%= res.user_id %> absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full z-10 <%= isOnline ? 'bg-emerald-500 ring-2 ring-white animate-pulse' : 'bg-slate-300 ring-2 ring-white' %>"
+                                    title="<%= isOnline ? 'Online' : 'Offline' %>"></span>
+                                  <% } %>
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <div
+                                  class="font-bold text-slate-900 text-sm truncate group-hover:text-blue-900 transition-colors flex items-center gap-1.5 flex-wrap"
+                                  title="<%= res.name %>">
+                                  <span>
+                                    <%= res.name %>
+                                  </span>
+                                  <% const isLoraNode = Boolean(res.has_lora || res.lora_node_id || (res.name && res.name.toLowerCase().includes('sinfuego') && res.name.toLowerCase().includes('laurence')) || res.user_id === 3 || res.user_id === 6 || res.id === 22 || res.id === 5); %>
+                                  <% if (isLoraNode) { %>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs shrink-0" title="Assigned 433 MHz LoRa Hardware Terminal (!f4e213d4)">
+                                      <i class="ph ph-broadcast text-[10px] text-emerald-600 font-bold"></i> LoRa Node: !f4e213d4
+                                    </span>
+                                  <% } %>
+                                  <% if (isWalkin) { %>
+                                    <span
+                                      class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                                      <i class="ph ph-footprints text-[10px]"></i> Walk-In
+                                    </span>
+                                    <% } else if (isPending) { %>
+                                      <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 animate-pulse shrink-0">
+                                        <i class="ph ph-clock-countdown text-[10px]"></i> Pending Approval
+                                      </span>
+                                      <% } else if (isRejected) { %>
+                                        <span
+                                          class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 shrink-0">
+                                          <i class="ph ph-x-circle text-[10px]"></i> Rejected
+                                        </span>
+                                        <% } else { %>
+                                          <span
+                                            class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                            <i class="ph ph-check-circle text-[10px]"></i> Approved
+                                          </span>
+                                          <% } %>
+                                  </div>
+                                <% if (res.household_names) { %>
+                                  <div class="text-[11px] text-slate-400 font-medium truncate"
+                                    title="<%= res.household_names %>">
+                                    <strong class="text-slate-500">Family:</strong>
+                                    <%= res.household_names %>
+                                  </div>
+                                  <% } %>
+                              </div>
+                            </div>
+                          </td>
+
+                          <!-- Email / Source -->
+                          <td class="py-4 px-4">
+                            <% if (isWalkin) { %>
+                              <div class="text-amber-700 text-xs font-semibold flex items-center gap-1.5 truncate"
+                                title="Walk-In (No Registered Account)">
+                                <i class="ph ph-footprints text-amber-500 text-sm shrink-0"></i>
+                                <span class="truncate">Walk-In (No Login)</span>
+                              </div>
+                              <% } else { %>
+                                <div class="text-slate-600 text-xs font-medium flex items-center gap-1.5 truncate"
+                                  title="<%= res.email || 'N/A' %>">
+                                  <i class="ph ph-envelope-simple text-slate-400 text-sm shrink-0"></i>
+                                  <span class="truncate">
+                                    <%= res.email || 'N/A' %>
+                                  </span>
+                                </div>
+                                <% } %>
+                          </td>
+
+                          <!-- Zone / Purok -->
+                          <td class="py-4 px-4">
+                            <span
+                              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 max-w-full truncate"
+                              title="<%= res.purok %>">
+                              <i class="ph ph-map-pin text-rose-500 shrink-0"></i>
+                              <span class="truncate">
+                                <%= res.purok %>
+                              </span>
+                            </span>
+                          </td>
+
+                          <!-- Contact -->
+                          <td class="py-4 px-4 whitespace-nowrap">
+                            <div class="text-slate-600 text-xs font-medium flex items-center gap-1.5"
+                              title="<%= res.contact %>">
+                              <i class="ph ph-phone text-slate-400 text-sm shrink-0"></i>
+                              <span class="font-semibold text-slate-700">
+                                <%= res.contact %>
+                              </span>
+                            </div>
+                          </td>
+
+                          <!-- Actions (Fixed Aspect-Square Icon Buttons) -->
+                          <td class="py-4 px-4 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end gap-1.5 shrink-0">
+                              <% if (isPending) { %>
+                                <button
+                                  class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all shadow-xs hover:scale-105 active:scale-95 shrink-0 cursor-pointer"
+                                  title="Approve Resident Account" data-id="<%= res.id %>"
+                                  data-name="<%= res.name || '' %>"
+                                  onclick="handleApproveResident(this.getAttribute('data-id'), this.getAttribute('data-name'))">
+                                  <i class="ph ph-check text-base font-bold"></i>
+                                </button>
+                                <button
+                                  class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 transition-all shadow-xs hover:scale-105 active:scale-95 shrink-0 cursor-pointer"
+                                  title="Reject Registration" data-id="<%= res.id %>" data-name="<%= res.name || '' %>"
+                                  onclick="handleRejectResident(this.getAttribute('data-id'), this.getAttribute('data-name'))">
+                                  <i class="ph ph-x text-base font-bold"></i>
+                                </button>
+                                <% } %>
+                                  <button
+                                    class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                                    title="View Details & Household History" data-id="<%= res.id %>"
+                                    onmouseenter="prefetchResidentDetails(this.getAttribute('data-id'))"
+                                    onpointerdown="prefetchResidentDetails(this.getAttribute('data-id'))"
+                                    onclick="openResidentDetailsModal(this.getAttribute('data-id'))">
+                                    <i class="ph ph-eye text-sm"></i>
+                                  </button>
+                                  <button
+                                    class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                                    title="Edit Resident" data-id="<%= res.id %>"
+                                    data-first-name="<%= res.first_name || '' %>"
+                                    data-middle-name="<%= res.middle_name || '' %>"
+                                    data-last-name="<%= res.last_name || '' %>" data-sex="<%= res.sex || 'Male' %>"
+                                    data-birthdate="<%= res.birthdate ? new Date(res.birthdate).toISOString().split('T')[0] : '' %>"
+                                    data-age="<%= res.age || '' %>" data-contact="<%= res.contact || '' %>"
+                                    data-address="<%= res.purok || '' %>"
+                                    data-barangay="<%= res.barangay || 'San Rafael' %>"
+                                    data-emergency-name="<%= res.emergency_contact_name || '' %>"
+                                    data-emergency-phone="<%= res.emergency_contact_phone || '' %>"
+                                    data-vulnerability="<%= res.vulnerability || 'None' %>"
+                                    data-is-4ps="<%= res.is_4ps ? 'true' : 'false' %>"
+                                    data-is-pregnant="<%= res.is_pregnant ? 'true' : 'false' %>"
+                                    data-is-lactating="<%= res.is_lactating ? 'true' : 'false' %>"
+                                    data-is-pwd="<%= res.is_pwd ? 'true' : 'false' %>"
+                                    data-is-single-head="<%= res.is_single_head ? 'true' : 'false' %>"
+                                    data-has-serious-illness="<%= res.has_serious_illness ? 'true' : 'false' %>"
+                                    data-serious-illness-details="<%= res.serious_illness_details || '' %>"
+                                    data-photo="<%= photoUrl || '' %>"
+                                    data-id-photo="<%= idPhotoUrl || '' %>" onclick="openEditModalFromBtn(this)">
+                                    <i class="ph ph-pencil-simple text-sm"></i>
+                                  </button>
+                                  <% if (isWalkin) { %>
+                                    <button type="button"
+                                      class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                                      title="Remove Walk-In" data-id="<%= res.id %>" data-name="<%= res.name || '' %>"
+                                      data-is-walkin="true" onclick="confirmDeleteResident(this)">
+                                      <i class="ph ph-user-minus text-sm"></i>
+                                    </button>
+                                    <% } else { %>
+                                      <button type="button"
+                                        class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-all shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                                        title="Delete Resident" data-id="<%= res.id %>"
+                                        data-name="<%= res.name || '' %>" data-is-walkin="false"
+                                        onclick="confirmDeleteResident(this)">
+                                        <i class="ph ph-trash text-sm"></i>
+                                      </button>
+                                      <% } %>
+                            </div>
+                          </td>
+                        </tr>
+                        <% }) %>
+                          <% } else { %>
+                            <tr>
+                              <td colspan="6" class="text-center py-14 text-slate-400">
+                                <i class="ph ph-users text-4xl mb-2 text-slate-300"></i>
+                                <p class="font-semibold text-sm">No resident records found.</p>
+                              </td>
+                            </tr>
+                            <% } %>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile View: Card List -->
+            <div id="residentsMobileContainer"
+              class="block md:hidden border-t border-slate-100 divide-y divide-slate-100">
+              <% if (locals.residents && locals.residents.length> 0) { %>
+                <% locals.residents.forEach(res=> {
+                  const isOnline = Boolean(res.is_online);
+                  const isWalkin = Boolean(res.is_walkin || !res.user_id || res.registration_source === 'WALK_IN');
+                  const photoUrl = res.profile_photo ? ((res.profile_photo.startsWith('http') ||
+                  res.profile_photo.startsWith('/')) ? res.profile_photo : `/uploads/profiles/${res.profile_photo}`) :
+                  null;
+                  const idPhotoUrl = res.id_photo_url || (res.barangay_id_photo ? ((res.barangay_id_photo.startsWith('http') || res.barangay_id_photo.startsWith('/')) ? res.barangay_id_photo : `/uploads/profiles/${res.barangay_id_photo}`) : null);
+                  const initial = (res.first_name || res.name || 'R').charAt(0).toUpperCase();
+                  %>
+                  <% const isPendingMob=!isWalkin && res.approval_status==='PENDING' ; const isRejectedMob=!isWalkin &&
+                    res.approval_status==='REJECTED' ; const statusTagMob=isWalkin ? 'walk_in' : (res.approval_status ?
+                    res.approval_status.toLowerCase() : 'approved' ); %>
+                    <div
+                      class="resident-card-item p-4 bg-white hover:bg-slate-50 transition-colors <%= isPendingMob ? 'bg-amber-50/25' : '' %>"
+                      data-zone="<%= (res.purok || '').toLowerCase() %>" data-status="<%= statusTagMob %>">
+                      <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <div class="relative shrink-0 w-11 h-11 min-w-[44px] max-w-[44px] min-h-[44px] max-h-[44px]">
+                            <div
+                              class="w-full h-full aspect-square rounded-2xl <%= isWalkin ? 'bg-amber-100 border border-amber-200 text-amber-700' : (isPendingMob ? 'bg-amber-50 border border-amber-300 text-amber-800' : 'bg-blue-100 border border-blue-200 text-blue-700') %> flex items-center justify-center font-bold shadow-2xs overflow-hidden">
+                              <% if (photoUrl) { %>
+                                <img src="<%= photoUrl %>" alt="<%= res.name %>"
+                                  loading="lazy" decoding="async"
+                                  class="w-full h-full object-cover rounded-2xl"
+                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <span style="display:none;"
+                                  class="w-full h-full flex items-center justify-center font-bold text-sm">
+                                  <%= initial %>
+                                </span>
+                                <% } else { %>
+                                  <span class="font-bold text-sm">
+                                    <%= initial %>
+                                  </span>
+                                  <% } %>
+                            </div>
+
+                            <!-- Live Online/Offline Status Indicator on top layer -->
+                            <% if (!isWalkin) { %>
+                              <span
+                                class="user-status-dot user-status-dot-<%= res.user_id %> absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full z-10 <%= isOnline ? 'bg-emerald-500 ring-2 ring-white animate-pulse' : 'bg-slate-300 ring-2 ring-white' %>"
+                                title="<%= isOnline ? 'Online' : 'Offline' %>"></span>
+                              <% } %>
+                          </div>
+                          <div class="min-w-0">
+                            <div class="font-bold text-slate-900 text-sm truncate flex items-center gap-1.5 flex-wrap">
+                              <span>
+                                <%= res.name %>
+                              </span>
+                              <% const isLoraNodeMob = Boolean(res.has_lora || res.lora_node_id || (res.name && res.name.toLowerCase().includes('sinfuego') && res.name.toLowerCase().includes('laurence')) || res.user_id === 3 || res.user_id === 6 || res.id === 22 || res.id === 5); %>
+                              <% if (isLoraNodeMob) { %>
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                  <i class="ph ph-broadcast text-[10px] text-emerald-600 font-bold"></i> LoRa
+                                </span>
+                              <% } %>
+                              <% if (isWalkin) { %>
+                                <span
+                                  class="inline-flex items-center gap-0.5 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 rounded">
+                                  Walk-In
+                                </span>
+                                <% } else if (isPendingMob) { %>
+                                  <span
+                                    class="inline-flex items-center gap-1 px-2 py-0.2 text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 rounded animate-pulse">
+                                    Pending
+                                  </span>
+                                  <% } else if (isRejectedMob) { %>
+                                    <span
+                                      class="inline-flex items-center gap-0.5 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 rounded">
+                                      Rejected
+                                    </span>
+                                    <% } else { %>
+                                      <span
+                                        class="inline-flex items-center gap-0.5 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
+                                        Approved
+                                      </span>
+                                      <% } %>
+                            </div>
+                            <div
+                              class="text-xs text-slate-500 font-medium tracking-wide mt-0.5 flex items-center gap-1">
+                              <i class="ph ph-phone text-slate-400"></i>
+                              <%= res.contact %>
+                            </div>
+                            <div
+                              class="text-xs <%= isWalkin ? 'text-amber-700 font-semibold' : 'text-slate-500 font-medium' %> tracking-wide mt-0.5 flex items-center gap-1 truncate">
+                              <i
+                                class="ph <%= isWalkin ? 'ph-footprints text-amber-500' : 'ph-envelope-simple text-slate-400' %>"></i>
+                              <%= isWalkin ? 'Walk-In (No Login)' : (res.email || 'N/A' ) %>
+                            </div>
+                            <% if (res.household_names) { %>
+                              <div class="text-[11px] text-slate-400 mt-1 truncate">
+                                <strong class="text-slate-500">Family:</strong>
+                                <%= res.household_names %>
+                              </div>
+                              <% } %>
+                          </div>
+                        </div>
+                        <span
+                          class="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 shrink-0">#
+                          <%= res.id %>
+                        </span>
+                      </div>
+
+                      <div class="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
+                        <span
+                          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                          <i class="ph ph-map-pin text-rose-500"></i>
+                          <%= res.purok %>
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <% if (isPendingMob) { %>
+                            <button
+                              class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-xs"
+                              title="Approve Resident" data-id="<%= res.id %>" data-name="<%= res.name || '' %>"
+                              onclick="handleApproveResident(this.getAttribute('data-id'), this.getAttribute('data-name'))">
+                              <i class="ph ph-check text-base font-bold"></i>
+                            </button>
+                            <button
+                              class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 transition-colors shadow-xs"
+                              title="Reject Registration" data-id="<%= res.id %>" data-name="<%= res.name || '' %>"
+                              onclick="handleRejectResident(this.getAttribute('data-id'), this.getAttribute('data-name'))">
+                              <i class="ph ph-x text-base font-bold"></i>
+                            </button>
+                            <% } %>
+                              <button
+                                class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors shadow-2xs"
+                                title="View Details & Household History" data-id="<%= res.id %>"
+                                onmouseenter="prefetchResidentDetails(this.getAttribute('data-id'))"
+                                onpointerdown="prefetchResidentDetails(this.getAttribute('data-id'))"
+                                onclick="openResidentDetailsModal(this.getAttribute('data-id'))">
+                                <i class="ph ph-eye text-sm"></i>
+                              </button>
+                              <button
+                                class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
+                                title="Edit Resident" data-id="<%= res.id %>"
+                                data-first-name="<%= res.first_name || '' %>"
+                                data-middle-name="<%= res.middle_name || '' %>"
+                                data-last-name="<%= res.last_name || '' %>" data-sex="<%= res.sex || 'Male' %>"
+                                data-birthdate="<%= res.birthdate ? new Date(res.birthdate).toISOString().split('T')[0] : '' %>"
+                                data-age="<%= res.age || '' %>" data-contact="<%= res.contact || '' %>"
+                                data-address="<%= res.purok || '' %>"
+                                data-barangay="<%= res.barangay || 'San Rafael' %>"
+                                data-emergency-name="<%= res.emergency_contact_name || '' %>"
+                                data-emergency-phone="<%= res.emergency_contact_phone || '' %>"
+                                data-vulnerability="<%= res.vulnerability || 'None' %>"
+                                data-is-4ps="<%= res.is_4ps ? 'true' : 'false' %>"
+                                data-is-pregnant="<%= res.is_pregnant ? 'true' : 'false' %>"
+                                data-is-lactating="<%= res.is_lactating ? 'true' : 'false' %>"
+                                data-is-pwd="<%= res.is_pwd ? 'true' : 'false' %>"
+                                data-is-single-head="<%= res.is_single_head ? 'true' : 'false' %>"
+                                data-has-serious-illness="<%= res.has_serious_illness ? 'true' : 'false' %>"
+                                data-serious-illness-details="<%= res.serious_illness_details || '' %>"
+                                data-photo="<%= photoUrl || '' %>"
+                                data-id-photo="<%= idPhotoUrl || '' %>" onclick="openEditModalFromBtn(this)">
+                                <i class="ph ph-pencil-simple text-sm"></i>
+                              </button>
+                              <% if (isWalkin) { %>
+                                <button type="button"
+                                  class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors shadow-2xs"
+                                  title="Remove Walk-In" data-id="<%= res.id %>" data-name="<%= res.name || '' %>"
+                                  data-is-walkin="true" onclick="confirmDeleteResident(this)">
+                                  <i class="ph ph-user-minus text-sm"></i>
+                                </button>
+                                <% } else { %>
+                                  <button type="button"
+                                    class="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] aspect-square rounded-xl flex items-center justify-center text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors shadow-2xs"
+                                    title="Delete Resident" data-id="<%= res.id %>" data-name="<%= res.name || '' %>"
+                                    data-is-walkin="false" onclick="confirmDeleteResident(this)">
+                                    <i class="ph ph-trash text-sm"></i>
+                                  </button>
+                                  <% } %>
+                        </div>
+                      </div>
+                    </div>
+                    <% }) %>
+                      <% } else { %>
+                        <div class="text-center py-14 text-slate-400">
+                          <i class="ph ph-users text-4xl mb-2 text-slate-300"></i>
+                          <p class="font-semibold text-sm">No resident records found.</p>
+                        </div>
+                        <% } %>
+            </div>
+
+            <!-- Pagination Controls (ITE-PT-DOM001: 25 items/page for 60fps scrolling & instant search) -->
+            <div id="residentPaginationBar" class="p-4 border-t border-slate-200/80 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+              <div id="residentPaginationInfo">
+                Showing <span id="pagStart">1</span>-<span id="pagEnd">25</span> of <span id="pagTotal">0</span> residents
+              </div>
+              <div class="flex items-center gap-1.5" id="residentPaginationBtns">
+                <button type="button" id="prevPageBtn" onclick="changeResidentPage(-1)" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all">
+                  <i class="ph ph-caret-left font-bold"></i> Previous
+                </button>
+                <div id="paginationPageNumbers" class="flex items-center gap-1"></div>
+                <button type="button" id="nextPageBtn" onclick="changeResidentPage(1)" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all">
+                  Next <i class="ph ph-caret-right font-bold"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+      </main>
+
+      <!-- 1. ADD RESIDENT MODAL (CLEAN HEADER) -->
+      <div id="residentModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+
+          <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+            <h3 class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2.5">
+              <i class="ph ph-user-plus text-xl text-blue-600"></i> Register New Resident
+            </h3>
+            <button onclick="document.getElementById('residentModal').classList.add('hidden')"
+              class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+              <i class="ph ph-x text-base font-bold"></i>
+            </button>
+          </div>
+
+          <form id="addResidentForm" action="/admin/residents/create" method="POST" enctype="multipart/form-data"
+            class="p-6 space-y-4 overflow-y-auto">
+            <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+            <!-- Profile Photo Upload (Centered Circular Avatar) -->
+            <div class="flex flex-col items-center justify-center pt-1 pb-2 text-center">
+              <div class="relative group cursor-pointer" onclick="document.getElementById('add_resident_avatar_input').click()">
+                <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-blue-50/70 border-2 border-dashed border-blue-300 hover:border-blue-500 shadow-sm flex items-center justify-center overflow-hidden transition-all group-hover:scale-105">
+                  <img id="add_resident_avatar_preview" src="" class="w-full h-full object-cover hidden" alt="Avatar preview" />
+                  <i id="add_resident_avatar_icon" class="ph ph-user text-3xl sm:text-4xl text-blue-500 group-hover:text-blue-600 transition-colors"></i>
+                </div>
+                <div class="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-blue-600 group-hover:bg-blue-700 text-white flex items-center justify-center shadow-md border-2 border-white transition-transform group-hover:scale-110">
+                  <i class="ph ph-camera text-xs font-bold"></i>
+                </div>
+              </div>
+              <input type="file" id="add_resident_avatar_input" name="profile_photo" accept="image/*" class="hidden" onchange="previewAddResidentAvatar(this)" />
+              <div class="mt-2.5 flex flex-col items-center gap-1">
+                <button type="button" onclick="document.getElementById('add_resident_avatar_input').click()"
+                  class="px-4 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/90 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer">
+                  <i class="ph ph-upload-simple text-sm text-blue-600 font-bold"></i>
+                  <span id="add_avatar_btn_label">Upload Profile Photo</span>
+                </button>
+                <span id="add_avatar_file_info" class="text-[11px] text-slate-400 font-medium">PNG, JPG or WEBP up to 5MB</span>
+              </div>
+            </div>
+
+            <!-- Name Fields (3 Columns) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">First Name <span
+                    class="text-red-500">*</span></label>
+                <input type="text" name="first_name" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Juan">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Middle Name</label>
+                <input type="text" name="middle_name"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Santos">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Last Name <span
+                    class="text-red-500">*</span></label>
+                <input type="text" name="last_name" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="Dela Cruz">
+              </div>
+            </div>
+
+            <!-- Email & Phone -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Email (Login) <span
+                    class="text-red-500">*</span></label>
+                <input type="email" name="email" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="juan@example.com">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Phone Number <span
+                    class="text-red-500">*</span></label>
+                <input type="tel" id="add_resident_contact" name="contact_number" required pattern="09[0-9]{9}"
+                  maxlength="11"
+                  title="Must be an 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="09123456789">
+              </div>
+            </div>
+
+            <!-- Address / Zone & Password -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Zone Location <span
+                    class="text-red-500">*</span></label>
+                <div class="relative">
+                  <select name="home_address" id="add_resident_home_address" required
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold cursor-pointer appearance-none">
+                    <option value="" disabled selected>Select Zone</option>
+                    <option value="Zone 1">Zone 1</option>
+                    <option value="Zone 2">Zone 2</option>
+                    <option value="Zone 3">Zone 3</option>
+                    <option value="Zone 4">Zone 4</option>
+                    <option value="Zone 5">Zone 5</option>
+                    <option value="Zone 6">Zone 6</option>
+                    <option value="Zone 7">Zone 7</option>
+                  </select>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                    <i class="ph ph-caret-down text-sm"></i>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Temporary Password</label>
+                <input type="password" id="add_resident_password" name="password" minlength="8"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold"
+                  placeholder="(Defaults to password123)">
+              </div>
+            </div>
+
+            <div class="pt-3 flex gap-3">
+              <button type="button" onclick="document.getElementById('residentModal').classList.add('hidden')"
+                class="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 text-xs uppercase tracking-wider">Cancel</button>
+              <button type="submit"
+                class="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 text-xs uppercase tracking-wider transition-all">Save
+                Resident</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 2. EDIT RESIDENT MODAL (CLEAN HEADER) -->
+      <div id="editResidentModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+
+          <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+            <h3 class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2.5">
+              <i class="ph ph-pencil-simple text-xl text-blue-600"></i> Edit Resident Profile
+            </h3>
+            <button onclick="document.getElementById('editResidentModal').classList.add('hidden')"
+              class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+              <i class="ph ph-x text-base font-bold"></i>
+            </button>
+          </div>
+
+          <form id="editResidentForm" method="POST" enctype="multipart/form-data"
+            class="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+            <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+            <!-- Profile Photo Upload Card -->
+            <div class="p-3.5 bg-gradient-to-r from-blue-50/70 via-slate-50 to-white rounded-2xl border border-blue-100/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3.5">
+              <div class="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
+                <!-- Avatar Preview with Camera Overlay -->
+                <div class="relative shrink-0">
+                  <div class="w-14 h-14 min-w-[56px] max-w-[56px] min-h-[56px] max-h-[56px] rounded-2xl bg-blue-100 border-2 border-white shadow-sm ring-2 ring-blue-200/70 overflow-hidden flex items-center justify-center">
+                    <img id="edit_resident_avatar_preview" src="" class="w-full h-full object-cover hidden" />
+                    <i id="edit_resident_avatar_icon" class="ph ph-user text-2xl text-blue-600"></i>
+                  </div>
+                  <label for="edit_resident_avatar_input"
+                    class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer shadow-sm border-2 border-white transition-transform hover:scale-110"
+                    title="Change Profile Photo">
+                    <i class="ph ph-camera text-[10px]"></i>
+                  </label>
+                </div>
+
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-black text-slate-800 tracking-tight">Resident Profile Photo</span>
+                    <span id="edit_avatar_status_badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100/80 text-blue-700 border border-blue-200">Current</span>
+                  </div>
+                  <p id="edit_avatar_filename" class="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                    Click to change picture &bull; JPG, PNG or WEBP (Max 5MB)
+                  </p>
+                </div>
+              </div>
+
+              <!-- Styled Upload Action Button -->
+              <div class="shrink-0 w-full sm:w-auto flex items-center justify-end">
+                <input type="file" id="edit_resident_avatar_input" name="profile_photo" accept="image/*" class="hidden" onchange="previewEditResidentAvatar(this)" />
+                <label for="edit_resident_avatar_input"
+                  class="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer">
+                  <i class="ph ph-upload-simple text-sm text-blue-600 font-bold"></i>
+                  <span>Upload New Photo</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Full Name Section -->
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Personal Identity</h4>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
+                  <input type="text" id="edit_first_name" name="first_name" required
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Middle Name</label>
+                  <input type="text" id="edit_middle_name" name="middle_name"
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Last Name *</label>
+                  <input type="text" id="edit_last_name" name="last_name" required
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                </div>
+              </div>
+            </div>
+
+            <!-- Demographics Section -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Sex</label>
+                <select id="edit_sex" name="sex"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Birthdate</label>
+                <input type="date" id="edit_birthdate" name="birthdate" onchange="calculateAgeFromBirthdate(this.value)"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Age</label>
+                <input type="number" id="edit_age" name="age" min="0" max="150"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+            </div>
+
+            <!-- Contact & Address -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Contact Number *</label>
+                <input type="tel" id="edit_contact_number" name="contact_number" required pattern="09[0-9]{9}"
+                  maxlength="11"
+                  title="Must be an 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Zone Location *</label>
+                <div class="relative">
+                  <select id="edit_home_address" name="home_address" required
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold cursor-pointer appearance-none">
+                    <option value="" disabled selected>Select Zone</option>
+                    <option value="Zone 1">Zone 1</option>
+                    <option value="Zone 2">Zone 2</option>
+                    <option value="Zone 3">Zone 3</option>
+                    <option value="Zone 4">Zone 4</option>
+                    <option value="Zone 5">Zone 5</option>
+                    <option value="Zone 6">Zone 6</option>
+                    <option value="Zone 7">Zone 7</option>
+                  </select>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                    <i class="ph ph-caret-down text-sm"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <input type="hidden" id="edit_barangay" name="barangay" value="San Rafael">
+
+            <!-- Emergency Contact -->
+            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Emergency Contact Person</h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Contact Name</label>
+                  <input type="text" id="edit_emergency_contact_name" name="emergency_contact_name"
+                    class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Contact Phone</label>
+                  <input type="tel" id="edit_emergency_contact_phone" name="emergency_contact_phone"
+                    pattern="09[0-9]{9}" maxlength="11"
+                    title="Must be an 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)"
+                    class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+                </div>
+              </div>
+            </div>
+
+            <!-- Vulnerability & Tags -->
+            <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Vulnerabilities & Classifications
+              </h4>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="edit_is_4ps" name="is_4ps"
+                    class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"> 4Ps Member
+                </label>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="edit_is_pwd" name="is_pwd"
+                    class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"> PWD
+                </label>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="edit_is_pregnant" name="is_pregnant"
+                    class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"> Pregnant
+                </label>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="edit_is_lactating" name="is_lactating"
+                    class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"> Lactating
+                </label>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="edit_is_single_head" name="is_single_head"
+                    class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"> Single Parent
+                </label>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="edit_has_serious_illness" name="has_serious_illness"
+                    onchange="toggleIllnessDetails()" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"> Serious
+                  Illness
+                </label>
+              </div>
+
+              <div id="edit_illness_details_container" class="hidden pt-2">
+                <label class="block text-xs font-bold text-slate-700 mb-1">Illness / Condition Details</label>
+                <input type="text" id="edit_serious_illness_details" name="serious_illness_details"
+                  placeholder="e.g. Hypertension, Dialysis"
+                  class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold">
+              </div>
+            </div>
+
+            <div class="pt-3 flex gap-3">
+              <button type="button" onclick="document.getElementById('editResidentModal').classList.add('hidden')"
+                class="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 text-xs uppercase tracking-wider">Cancel</button>
+              <button type="submit"
+                class="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 text-xs uppercase tracking-wider transition-all">Save
+                Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 3. VIEW RESIDENT & HOUSEHOLD DETAILS MODAL (CLEAN HEADER) -->
+      <div id="viewResidentDetailsModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+          <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+            <h3 class="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2.5">
+              <i class="ph ph-identification-card text-xl text-blue-600"></i> Resident & Household Details
+            </h3>
+            <button onclick="document.getElementById('viewResidentDetailsModal').classList.add('hidden')"
+              class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+              <i class="ph ph-x text-base font-bold"></i>
+            </button>
+          </div>
+          <div id="residentDetailsContent" class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+            <!-- Dynamic Content Injected via openResidentDetailsModal() -->
+          </div>
+          <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+            <button type="button" onclick="document.getElementById('viewResidentDetailsModal').classList.add('hidden')"
+              class="px-6 py-2.5 rounded-xl font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors text-xs sm:text-sm">
+              Close Profile
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. DELETE / REMOVE WALK-IN RESIDENT CONFIRMATION MODAL -->
+      <div id="deleteResidentModal"
+        class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+        <div
+          class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4 border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-150">
+          <div id="deleteResidentModalIconContainer"
+            class="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+            <i id="deleteResidentModalIcon" class="ph ph-warning-circle font-bold"></i>
+          </div>
+          <div>
+            <h3 id="deleteResidentModalTitle" class="text-lg font-extrabold text-slate-900">Confirm Resident Deletion
+            </h3>
+            <p class="text-xs text-slate-500 mt-1" id="deleteResidentModalText">Are you sure you want to delete this
+              resident record and user account? Historical evacuation records will remain archived.</p>
+          </div>
+          <form id="deleteResidentForm" action="" method="POST" class="flex gap-3 pt-2">
+            <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+            <button type="button" onclick="closeDeleteResidentModal()"
+              class="flex-1 px-4 py-2.5 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all text-xs uppercase tracking-wider">Cancel</button>
+            <button type="submit" id="deleteResidentSubmitBtn"
+              class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/20 transition-all text-xs uppercase tracking-wider">Yes,
+              Delete</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- FULLSCREEN VALID ID PREVIEW MODAL / LIGHTBOX -->
+      <div id="residentIdPreviewModal" class="fixed inset-0 z-[70] hidden bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 transition-all duration-200">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150">
+          <!-- Modal Header -->
+          <div class="px-5 py-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 text-lg">
+                <i class="ph ph-identification-card"></i>
+              </div>
+              <div class="min-w-0">
+                <h3 id="residentIdPreviewTitle" class="text-sm sm:text-base font-extrabold text-white truncate">Resident Valid ID</h3>
+                <p class="text-[11px] text-slate-400 font-medium">Barangay / Government Identification Document</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <a id="residentIdPreviewDownloadBtn" href="#" target="_blank" rel="noopener noreferrer" download
+                class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                title="Open original file in new tab">
+                <i class="ph ph-arrow-square-out text-sm"></i>
+                <span class="hidden sm:inline">Open Full Size</span>
+              </a>
+              <button type="button" onclick="closeResidentIdModal()"
+                class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer text-lg"
+                title="Close Lightbox">
+                <i class="ph ph-x font-bold"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Image / Document Viewer Body -->
+          <div class="flex-1 overflow-auto p-4 sm:p-6 flex items-center justify-center bg-slate-950/80 min-h-[300px]">
+            <img id="residentIdPreviewImg" src="" alt="Valid ID Document"
+              class="max-w-full max-h-[70vh] object-contain rounded-xl shadow-2xl border border-slate-800/80 transition-transform" />
+            <div id="residentIdPreviewFallback" class="hidden text-center text-slate-400 p-8">
+              <i class="ph ph-file-pdf text-5xl text-rose-500 mb-3 block"></i>
+              <p class="text-sm font-bold text-white mb-1">Document Preview</p>
+              <p class="text-xs text-slate-400 mb-4">This document cannot be previewed directly as an image.</p>
+              <a id="residentIdPreviewFallbackLink" href="#" target="_blank" rel="noopener noreferrer"
+                class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs inline-flex items-center gap-1.5">
+                <i class="ph ph-download-simple"></i> Download / View Document
+              </a>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="px-5 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <span class="text-[11px]">Press ESC or click close to exit lightbox</span>
+            <button type="button" onclick="closeResidentIdModal()"
+              class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+
+
+  </div>
+
+  <%- include('../partials/footer') %>
+
+    <script>
+      // Avatar Instant Previews
+      function previewAddResidentAvatar(input) {
+        if (input.files && input.files[0]) {
+          const file = input.files[0];
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = document.getElementById('add_resident_avatar_preview');
+            const icon = document.getElementById('add_resident_avatar_icon');
+            if (img && icon) {
+              img.src = e.target.result;
+              img.classList.remove('hidden');
+              icon.classList.add('hidden');
+            }
+          };
+          reader.readAsDataURL(file);
+
+          const label = document.getElementById('add_avatar_btn_label');
+          const info = document.getElementById('add_avatar_file_info');
+          if (label) label.textContent = 'Change Photo';
+          if (info) {
+            const sizeKb = (file.size / 1024).toFixed(0);
+            info.textContent = `${file.name} (${sizeKb} KB)`;
+            info.className = 'text-[11px] text-blue-600 font-semibold truncate max-w-xs';
+          }
+        }
+      }
+
+      function previewEditResidentAvatar(input) {
+        if (input.files && input.files[0]) {
+          const file = input.files[0];
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = document.getElementById('edit_resident_avatar_preview');
+            const icon = document.getElementById('edit_resident_avatar_icon');
+            if (img && icon) {
+              img.src = e.target.result;
+              img.classList.remove('hidden');
+              icon.classList.add('hidden');
+            }
+          };
+          reader.readAsDataURL(file);
+
+          const nameEl = document.getElementById('edit_avatar_filename');
+          const badgeEl = document.getElementById('edit_avatar_status_badge');
+          if (nameEl) nameEl.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+          if (badgeEl) {
+            badgeEl.textContent = 'New Photo';
+            badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300';
+          }
+        }
+      }
+
+      function previewAddResidentId(input) {
+        if (input.files && input.files[0]) {
+          const file = input.files[0];
+          const img = document.getElementById('add_resident_id_preview');
+          const icon = document.getElementById('add_resident_id_icon');
+          if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              if (img && icon) {
+                img.src = e.target.result;
+                img.classList.remove('hidden');
+                icon.classList.add('hidden');
+              }
+            };
+            reader.readAsDataURL(file);
+          } else {
+            if (img && icon) {
+              img.classList.add('hidden');
+              icon.classList.remove('hidden');
+              icon.className = 'ph ph-file-pdf text-xl text-rose-600';
+            }
+          }
+        }
+      }
+
+      function previewEditResidentId(input) {
+        if (input.files && input.files[0]) {
+          const file = input.files[0];
+          const img = document.getElementById('edit_resident_id_preview');
+          const icon = document.getElementById('edit_resident_id_icon');
+          const viewBtn = document.getElementById('edit_resident_id_view_btn');
+          if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              if (img && icon) {
+                img.src = e.target.result;
+                img.classList.remove('hidden');
+                icon.classList.add('hidden');
+                if (viewBtn) viewBtn.classList.remove('hidden');
+              }
+            };
+            reader.readAsDataURL(file);
+          } else {
+            if (img && icon) {
+              img.classList.add('hidden');
+              icon.classList.remove('hidden');
+              icon.className = 'ph ph-file-pdf text-xl text-rose-600';
+            }
+          }
+        }
+      }
+
+      function viewCurrentEditResidentId() {
+        const idImg = document.getElementById('edit_resident_id_preview');
+        if (idImg && idImg.src && !idImg.classList.contains('hidden')) {
+          previewResidentIdModal(idImg.src, 'Resident ID');
+        }
+      }
+
+      function calculateAgeFromBirthdate(bdateStr) {
+        if (!bdateStr) return;
+        const bdate = new Date(bdateStr);
+        const diff = Date.now() - bdate.getTime();
+        const ageDate = new Date(diff);
+        const calculatedAge = Math.abs(ageDate.getUTCFullYear() - 1970);
+        if (!isNaN(calculatedAge) && calculatedAge >= 0) {
+          document.getElementById('edit_age').value = calculatedAge;
+        }
+      }
+
+      const residentDetailsCache = new Map();
+
+      window.prefetchResidentDetails = function (residentId) {
+        if (!residentId || residentDetailsCache.has(String(residentId))) return;
+        const basePath = window.location.pathname.startsWith('/staff') ? '/staff' : '/admin';
+        fetch(basePath + '/residents/details/' + residentId)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data && data.success) {
+              residentDetailsCache.set(String(residentId), data);
+            }
+          })
+          .catch(() => {});
+      };
+
+      window.openResidentDetailsModal = function (residentId) {
+        const modal = document.getElementById('viewResidentDetailsModal');
+        const container = document.getElementById('residentDetailsContent');
+        if (modal) modal.classList.remove('hidden');
+
+        // Instant rendering if already cached in memory
+        const cached = residentDetailsCache.get(String(residentId));
+        if (cached) {
+          renderResidentDetailsModal(cached, container);
+          return;
+        }
+
+        if (container) container.innerHTML = '<div class="text-center py-12 text-slate-500 font-medium"><i class="ph ph-spinner animate-spin text-3xl mb-2 text-blue-600 block"></i>Loading resident profile and household history...</div>';
+
+        const basePath = window.location.pathname.startsWith('/staff') ? '/staff' : '/admin';
+        fetch(basePath + '/residents/details/' + residentId)
+          .then(res => {
+            if (!res.ok) {
+              throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (!data.success) {
+              container.innerHTML = '<div class="text-center py-8 text-red-500 font-bold"><i class="ph ph-warning-circle text-2xl"></i> ' + (data.message || 'Error loading details') + '</div>';
+              return;
+            }
+            residentDetailsCache.set(String(residentId), data);
+            renderResidentDetailsModal(data, container);
+          })
+          .catch(err => {
+            console.error("Error fetching resident details modal:", err);
+            container.innerHTML = '<div class="text-center py-8 text-red-500 font-bold">Failed to load resident details.</div>';
+          });
+      };
+
+      function renderResidentDetailsModal(data, container) {
+        if (!container) container = document.getElementById('residentDetailsContent');
+        if (!container) return;
+
+        const resObj = data.resident;
+        const members = data.members || [];
+        const history = data.history || [];
+
+        let membersRows = '';
+            if (members.length > 0) {
+              members.forEach(m => {
+                let statusBadges = '';
+                if (m.status && m.status !== 'None') {
+                  m.status.split(',').forEach(st => {
+                    if (st.trim()) {
+                      statusBadges += `<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 mr-1">${st.trim()}</span>`;
+                    }
+                  });
+                }
+                const photoHtml = m.profile_photo
+                  ? `<img src="${m.profile_photo}" class="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" alt="${m.name}" onerror="this.outerHTML='<div class=\\'w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0\\'>${(m.first_name || 'M').charAt(0).toUpperCase()}</div>'"/>`
+                  : `<div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">${(m.first_name || 'M').charAt(0).toUpperCase()}</div>`;
+                const displayAge = (m.age !== null && m.age !== undefined && m.age !== 'N/A') ? (m.age + ' yrs') : 'N/A';
+
+                membersRows += `
+              <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="py-2.5 px-3">
+                  <div class="flex items-center gap-2.5">
+                    ${photoHtml}
+                    <div>
+                      <div class="font-semibold text-slate-800 text-xs sm:text-sm">${m.name}</div>
+                      <div class="text-[11px] text-slate-400 font-medium">${m.sex || 'Male'}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="py-2.5 px-3 text-slate-600 font-semibold">${displayAge}</td>
+                <td class="py-2.5 px-3">
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">
+                    <i class="ph ph-tag text-xs text-blue-500"></i> ${m.relation || 'Family'}
+                  </span>
+                </td>
+                <td class="py-2.5 px-3">${statusBadges || '<span class="text-slate-400 text-xs">None</span>'}</td>
+              </tr>
+            `;
+              });
+            } else {
+              membersRows = `<tr><td colspan="4" class="text-center py-4 text-slate-400 text-xs font-medium">No secondary family members registered.</td></tr>`;
+            }
+
+            let historyRows = '';
+            if (history.length > 0) {
+              history.forEach(h => {
+                const isCurrent = h.status === 'ACTIVE';
+                const methodBadge = (h.method === 'MANUAL')
+                  ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200"><i class="ph ph-footprints"></i> Walk-In</span>`
+                  : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200"><i class="ph ph-qr-code"></i> QR Pass</span>`;
+                historyRows += `
+              <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="py-2.5 px-3 font-bold text-slate-800">${h.person_name}</td>
+                <td class="py-2.5 px-3 text-slate-700 font-semibold">${h.center_name}</td>
+                <td class="py-2.5 px-3 text-slate-600 text-xs">${h.check_in_time}</td>
+                <td class="py-2.5 px-3">${methodBadge}</td>
+                <td class="py-2.5 px-3">
+                  <div class="font-bold text-slate-800 text-xs">${h.staff_name || h.staff_email || 'Staff'}</div>
+                  ${h.staff_email && h.staff_name && h.staff_name !== h.staff_email ? `<div class="text-[10px] text-slate-400 font-medium truncate max-w-[160px]">${h.staff_email}</div>` : ''}
+                </td>
+                <td class="py-2.5 px-3">
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${isCurrent ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+                    ${h.status}
+                  </span>
+                </td>
+              </tr>
+            `;
+              });
+            } else {
+              historyRows = `<tr><td colspan="6" class="text-center py-4 text-slate-400 text-xs font-medium">No check-in history records found.</td></tr>`;
+            }
+
+            let vulnerabilityBadges = '';
+            if (resObj.vulnerability && resObj.vulnerability !== 'None') {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1"><i class="ph ph-warning"></i> ${resObj.vulnerability}</span>`;
+            }
+            if (resObj.is_4ps) {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1"><i class="ph ph-hand-heart"></i> 4Ps Beneficiary</span>`;
+            }
+            if (resObj.is_pwd) {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1"><i class="ph ph-wheelchair"></i> PWD</span>`;
+            }
+            if (resObj.is_pregnant) {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1"><i class="ph ph-baby"></i> Pregnant</span>`;
+            }
+            if (resObj.is_lactating) {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-pink-100 text-pink-800 border border-pink-200 flex items-center gap-1"><i class="ph ph-heartbeat"></i> Lactating Mother</span>`;
+            }
+            if (resObj.is_single_head) {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1"><i class="ph ph-user"></i> Single Parent / Head</span>`;
+            }
+            if (resObj.has_serious_illness) {
+              vulnerabilityBadges += `<span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-red-100 text-red-800 border border-red-200 flex items-center gap-1"><i class="ph ph-first-aid"></i> Serious Illness</span>`;
+            }
+            if (!vulnerabilityBadges) {
+              vulnerabilityBadges = `<span class="text-xs text-slate-400 italic">No vulnerability flags recorded.</span>`;
+            }
+
+            const isWalkinProfile = resObj.is_walkin || resObj.registration_source === 'WALK_IN' || !resObj.user_id;
+
+            container.innerHTML = `
+          <div class="space-y-6">
+            <!-- TOP PROFILE CARD -->
+            <div class="bg-slate-900 text-white rounded-3xl p-5 shadow-md flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 border border-slate-800">
+              <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                <!-- PROFILE PHOTO AVATAR -->
+                <div class="w-16 h-16 sm:w-20 sm:h-20 min-w-[64px] max-w-[64px] sm:min-w-[80px] sm:max-w-[80px] min-h-[64px] max-h-[64px] sm:min-h-[80px] sm:max-h-[80px] aspect-square rounded-2xl border-2 border-white/40 shadow-lg overflow-hidden shrink-0 ${isWalkinProfile ? 'bg-amber-900' : 'bg-blue-800'} flex items-center justify-center relative">
+                  ${resObj.profile_photo
+                ? `<img src="${resObj.profile_photo}" alt="${resObj.name}" class="w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                       <span style="display:none;" class="text-2xl sm:text-3xl font-black text-blue-100">${resObj.initials || 'R'}</span>`
+                : `<span class="text-2xl sm:text-3xl font-black text-blue-100">${resObj.initials || 'R'}</span>`}
+                </div>
+                <div class="space-y-1 text-center sm:text-left">
+                  <div class="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                    <h3 class="text-xl sm:text-2xl font-black text-white">${resObj.name}</h3>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/30 border border-blue-400/40 text-blue-200 uppercase">Head of Household</span>
+                    ${isWalkinProfile
+                ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/30 border border-amber-400/50 text-amber-200 uppercase flex items-center gap-1"><i class="ph ph-footprints"></i> Walk-In Intake</span>`
+                : (resObj.approval_status === 'PENDING'
+                  ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/40 border border-amber-300 text-amber-100 uppercase flex items-center gap-1 animate-pulse"><i class="ph ph-clock-countdown"></i> Pending Staff Approval</span>`
+                  : (resObj.approval_status === 'REJECTED'
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-500/30 border border-red-400/50 text-red-200 uppercase flex items-center gap-1"><i class="ph ph-x-circle"></i> Rejected</span>`
+                    : `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 uppercase flex items-center gap-1"><i class="ph ph-user-check"></i> Approved Resident</span>`
+                  )
+                )}
+                  </div>
+                  <p class="text-xs text-blue-200 font-medium flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                    <span><i class="ph ph-envelope-simple"></i> ${resObj.email}</span> • 
+                    <span><i class="ph ph-phone"></i> ${resObj.contact}</span>
+                  </p>
+                  <p class="text-xs text-blue-100 font-medium flex items-center justify-center sm:justify-start gap-1 pt-1">
+                    <i class="ph ph-map-pin text-rose-400"></i> ${resObj.address}, Barangay ${resObj.barangay}
+                  </p>
+                  <div class="pt-2 flex items-center justify-center sm:justify-start">
+                    <span class="px-3 py-1 rounded-full bg-white/15 hover:bg-white/20 text-white font-bold text-xs border border-white/25 inline-flex items-center gap-1.5 shadow-sm">
+                      <i class="ph ph-users text-sm text-blue-300"></i> ${resObj.family_size} Household Member(s)
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-col items-center sm:items-end justify-center shrink-0 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-white/10 gap-2">
+                ${(resObj.approval_status === 'APPROVED' && resObj.qr_code_uuid) ? `
+                  <div class="bg-white p-1.5 rounded-2xl shadow-md border border-white/40 flex items-center justify-center shrink-0" title="Resident Household QR Code (${resObj.qr_code_uuid})">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(resObj.qr_code_uuid)}&color=0f172a" 
+                         alt="Resident Household QR Code" 
+                         class="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-contain bg-white" 
+                         loading="lazy" />
+                  </div>
+                  <div class="flex flex-col items-center sm:items-end text-center sm:text-right max-w-[170px] space-y-1">
+                    <span class="text-[9px] uppercase tracking-wider font-extrabold text-blue-300 flex items-center gap-1">
+                      <i class="ph ph-qr-code text-[11px] text-emerald-400"></i> Unique Household QR ID
+                    </span>
+                    <div class="flex items-center gap-1">
+                      <code class="font-mono text-[10px] text-emerald-300 font-bold px-2 py-0.5 rounded-md bg-black/40 border border-white/15 select-all truncate max-w-[130px] sm:max-w-[140px]" title="${resObj.qr_code_uuid}">
+                        ${resObj.qr_code_uuid}
+                      </code>
+                      <button type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('${resObj.qr_code_uuid}'); this.innerHTML='<i class=\\'ph ph-check text-emerald-400\\'></i>'; setTimeout(() => this.innerHTML='<i class=\\'ph ph-copy\\'></i>', 1500);" class="p-1 rounded-md bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors text-xs" title="Copy QR UUID">
+                        <i class="ph ph-copy"></i>
+                      </button>
+                    </div>
+                  </div>
+                ` : (resObj.approval_status === 'PENDING' ? `
+                  <div class="w-28 sm:w-32 py-3 px-2 rounded-2xl bg-amber-500/15 border border-amber-400/40 flex flex-col items-center justify-center text-amber-200 text-[10px] text-center gap-1 shadow-inner">
+                    <div class="w-8 h-8 rounded-full bg-amber-400/25 text-amber-300 flex items-center justify-center mb-0.5">
+                      <i class="ph ph-lock-key text-lg"></i>
+                    </div>
+                    <span class="font-black uppercase tracking-wider text-[9px] text-amber-300">QR Pass Locked</span>
+                    <span class="text-[8px] text-amber-200/80 leading-tight">Issued upon approval</span>
+                  </div>
+                ` : (resObj.approval_status === 'REJECTED' ? `
+                  <div class="w-28 sm:w-32 py-3 px-2 rounded-2xl bg-rose-500/15 border border-rose-400/40 flex flex-col items-center justify-center text-rose-200 text-[10px] text-center gap-1 shadow-inner">
+                    <div class="w-8 h-8 rounded-full bg-rose-400/25 text-rose-300 flex items-center justify-center mb-0.5">
+                      <i class="ph ph-prohibit text-lg"></i>
+                    </div>
+                    <span class="font-black uppercase tracking-wider text-[9px] text-rose-300">No QR Token</span>
+                    <span class="text-[8px] text-rose-200/80 leading-tight">Account rejected</span>
+                  </div>
+                ` : `
+                  <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white/10 border border-white/20 flex flex-col items-center justify-center text-blue-200 text-[10px] text-center p-2">
+                    <i class="ph ph-qr-code text-2xl mb-1 text-slate-400"></i>
+                    <span>No QR Token</span>
+                  </div>
+                `))}
+              </div>
+            </div>
+
+            <!-- PENDING APPROVAL ACTION BANNER (Only for Pending accounts) -->
+            ${(!isWalkinProfile && resObj.approval_status === 'PENDING') ? `
+              <div class="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-xl font-bold">
+                    <i class="ph ph-shield-warning"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-bold text-amber-950">Verification Pending</h4>
+                    <p class="text-xs text-amber-800 font-medium">This resident registration requires review and approval before they can access the web app.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                  <button type="button" onclick="handleApproveResident('${resObj.id}', '${resObj.name.replace(/'/g, "\\'")}'); closeResidentDetailsModal();" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer">
+                    <i class="ph ph-check-circle text-base"></i> Approve 
+                  </button>
+                  <button type="button" onclick="handleRejectResident('${resObj.id}', '${resObj.name.replace(/'/g, "\\'")}'); closeResidentDetailsModal();" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer">
+                    <i class="ph ph-x-circle text-base"></i> Reject
+                  </button>
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- VALID ID / BARANGAY ID VERIFICATION DOCUMENT CARD -->
+            <div class="bg-gradient-to-br from-indigo-50/70 via-slate-50 to-white p-4 sm:p-5 rounded-2xl border border-indigo-100 shadow-xs">
+              <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h4 class="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <i class="ph ph-identification-card text-indigo-600 text-base"></i> Valid ID / Barangay Verification Document
+                </h4>
+                ${resObj.barangay_id_photo ? `
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <i class="ph ph-check-circle text-emerald-600"></i> Document Attached
+                  </span>
+                ` : `
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                    <i class="ph ph-warning-circle text-amber-600"></i> Missing Document
+                  </span>
+                `}
+              </div>
+
+              ${resObj.barangay_id_photo ? `
+                <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 bg-white p-3.5 rounded-xl border border-indigo-100/60 shadow-2xs">
+                  <div class="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 shadow-xs shrink-0 w-36 sm:w-44 h-24 sm:h-28 bg-slate-900 flex items-center justify-center"
+                       onclick="previewResidentIdModal('${resObj.barangay_id_photo}', '${resObj.name.replace(/'/g, "\\'")}')"
+                       title="Click to view full size">
+                    <img src="${resObj.barangay_id_photo}" alt="Valid ID of ${resObj.name}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                         onerror="this.outerHTML='<div class=\\'text-xs text-slate-400 p-2 text-center flex flex-col items-center justify-center h-full\\'><i class=\\'ph ph-file-pdf text-2xl text-rose-500 mb-1\\'></i>Document File (Click to view)</div>'" />
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-bold">
+                      <i class="ph ph-magnifying-glass-plus text-base"></i> Zoom
+                    </div>
+                  </div>
+                  <div class="flex-1 min-w-0 space-y-2 text-center sm:text-left">
+                    <div>
+                      <p class="text-xs font-bold text-slate-800">Barangay Resident Verification ID</p>
+                      <p class="text-[11px] text-slate-500">Official government-issued or Barangay identification document uploaded for identity verification.</p>
+                    </div>
+                    <div class="flex items-center justify-center sm:justify-start gap-2 flex-wrap pt-1">
+                      <button type="button" 
+                        onclick="previewResidentIdModal('${resObj.barangay_id_photo}', '${resObj.name.replace(/'/g, "\\'")}')"
+                        class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer">
+                        <i class="ph ph-arrows-out text-sm"></i> Fullscreen Preview
+                      </button>
+                      <a href="${resObj.barangay_id_photo}" target="_blank" rel="noopener noreferrer"
+                        class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all">
+                        <i class="ph ph-arrow-square-out text-sm"></i> Open in New Tab
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <div class="flex items-center gap-3 bg-white p-4 rounded-xl border border-dashed border-amber-200">
+                  <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 text-xl font-bold">
+                    <i class="ph ph-identification-badge"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs font-bold text-slate-800">No Valid ID or Barangay ID Uploaded</p>
+                    <p class="text-[11px] text-slate-500">This resident does not have a verification document attached yet.</p>
+                  </div>
+                </div>
+              `}
+            </div>
+
+            <!-- PERSONAL DEMOGRAPHICS & EMERGENCY DETAILS GRID -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Personal Info Card -->
+              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <i class="ph ph-identification-card text-blue-600 text-base"></i> Personal Demographics
+                </h4>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div><span class="text-slate-400 font-medium">Sex:</span> <span class="font-bold text-slate-800">${resObj.sex || 'Male'}</span></div>
+                  <div><span class="text-slate-400 font-medium">Age:</span> <span class="font-bold text-slate-800">${resObj.age ? resObj.age + ' yrs' : 'N/A'}</span></div>
+                  <div><span class="text-slate-400 font-medium">Birthdate:</span> <span class="font-bold text-slate-800">${resObj.birthdate ? new Date(resObj.birthdate).toLocaleDateString() : 'N/A'}</span></div>
+                  <div><span class="text-slate-400 font-medium">Barangay:</span> <span class="font-bold text-slate-800">${resObj.barangay}</span></div>
+                </div>
+              </div>
+
+              <!-- Emergency Contact Card -->
+              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <i class="ph ph-phone-call text-emerald-500 text-base"></i> Emergency Contact Person
+                </h4>
+                <p class="text-sm font-bold text-slate-800">${resObj.emergency_contact_name || 'None'}</p>
+                <p class="text-xs font-semibold text-slate-600">${resObj.emergency_contact_phone || 'None'}</p>
+              </div>
+            </div>
+
+            <!-- VULNERABILITY & SECTORAL TAGS -->
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <i class="ph ph-warning-circle text-amber-500 text-base"></i> Vulnerability & Sectoral Classification
+              </h4>
+              <div class="flex flex-wrap gap-2">
+                ${vulnerabilityBadges}
+              </div>
+              ${resObj.has_serious_illness && resObj.serious_illness_details ? `
+                <div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs">
+                  <span class="font-bold text-red-800 flex items-center gap-1 mb-0.5"><i class="ph ph-first-aid"></i> Medical Illness Details:</span>
+                  <p class="text-red-700 font-medium">${resObj.serious_illness_details}</p>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- HOUSEHOLD / FAMILY MEMBERS TABLE -->
+            <div>
+              <h4 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <i class="ph ph-users-three text-blue-600 text-lg"></i> Family Members (${members.length})
+              </h4>
+              <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th class="py-2.5 px-3">Full Name</th>
+                      <th class="py-2.5 px-3">Age</th>
+                      <th class="py-2.5 px-3">Relation</th>
+                      <th class="py-2.5 px-3">Status / Tags</th>
+                    </tr>
+                  </thead>
+                  <tbody>${membersRows}</tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- EVACUATION CHECK-IN HISTORY -->
+            <div>
+              <h4 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <i class="ph ph-clock-counter-clockwise text-indigo-600 text-lg"></i> Evacuation & Check-in History (${history.length})
+              </h4>
+              <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-xs max-h-48 overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider sticky top-0">
+                    <tr>
+                      <th class="py-2.5 px-3">Person</th>
+                      <th class="py-2.5 px-3">Evacuation Center</th>
+                      <th class="py-2.5 px-3">Check-in Time</th>
+                      <th class="py-2.5 px-3">Intake Method</th>
+                      <th class="py-2.5 px-3">Logged By</th>
+                      <th class="py-2.5 px-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>${historyRows}</tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function openEditModalFromBtn(btn) {
+        const id = btn.getAttribute('data-id');
+        const firstName = btn.getAttribute('data-first-name');
+        const middleName = btn.getAttribute('data-middle-name');
+        const lastName = btn.getAttribute('data-last-name');
+        const sex = btn.getAttribute('data-sex');
+        const birthdate = btn.getAttribute('data-birthdate');
+        const age = btn.getAttribute('data-age');
+        const contact = btn.getAttribute('data-contact');
+        const address = btn.getAttribute('data-address');
+        const barangay = btn.getAttribute('data-barangay');
+        const emergencyName = btn.getAttribute('data-emergency-name');
+        const emergencyPhone = btn.getAttribute('data-emergency-phone');
+        const vulnerability = btn.getAttribute('data-vulnerability');
+        const is4ps = btn.getAttribute('data-is-4ps') === 'true';
+        const isPregnant = btn.getAttribute('data-is-pregnant') === 'true';
+        const isLactating = btn.getAttribute('data-is-lactating') === 'true';
+        const isPwd = btn.getAttribute('data-is-pwd') === 'true';
+        const isSingleHead = btn.getAttribute('data-is-single-head') === 'true';
+        const hasSeriousIllness = btn.getAttribute('data-has-serious-illness') === 'true';
+        const seriousIllnessDetails = btn.getAttribute('data-serious-illness-details');
+        const photo = btn.getAttribute('data-photo');
+        const idPhoto = btn.getAttribute('data-id-photo');
+
+        openEditModal(id, firstName, middleName, lastName, sex, birthdate, age, contact, address, barangay, emergencyName, emergencyPhone, vulnerability, is4ps, isPregnant, isLactating, isPwd, isSingleHead, hasSeriousIllness, seriousIllnessDetails, photo, idPhoto);
+      }
+
+      function openEditModal(id, firstName, middleName, lastName, sex, birthdate, age, contact, address, barangay, emergencyName, emergencyPhone, vulnerability, is4ps, isPregnant, isLactating, isPwd, isSingleHead, hasSeriousIllness, seriousIllnessDetails, photo, idPhoto) {
+        document.getElementById('editResidentForm').action = '/admin/residents/edit/' + id;
+        document.getElementById('edit_first_name').value = firstName || '';
+        document.getElementById('edit_middle_name').value = middleName || '';
+        document.getElementById('edit_last_name').value = lastName || '';
+        document.getElementById('edit_sex').value = sex || 'Male';
+        document.getElementById('edit_birthdate').value = birthdate || '';
+        document.getElementById('edit_age').value = age || '';
+        document.getElementById('edit_contact_number').value = contact || '';
+        const zoneSelect = document.getElementById('edit_home_address');
+        if (zoneSelect) {
+          const targetZone = address || '';
+          let found = Array.from(zoneSelect.options).some(opt => opt.value.toLowerCase() === targetZone.toLowerCase());
+          if (!found && targetZone) {
+            const opt = new Option(targetZone, targetZone, true, true);
+            zoneSelect.add(opt);
+          }
+          zoneSelect.value = targetZone;
+        }
+        document.getElementById('edit_barangay').value = barangay || 'San Rafael';
+        document.getElementById('edit_emergency_contact_name').value = emergencyName || '';
+        document.getElementById('edit_emergency_contact_phone').value = emergencyPhone || '';
+
+        document.getElementById('edit_is_4ps').checked = !!is4ps;
+        document.getElementById('edit_is_pregnant').checked = !!isPregnant;
+        document.getElementById('edit_is_lactating').checked = !!isLactating;
+        document.getElementById('edit_is_pwd').checked = !!isPwd;
+        document.getElementById('edit_is_single_head').checked = !!isSingleHead;
+        document.getElementById('edit_has_serious_illness').checked = !!hasSeriousIllness;
+        document.getElementById('edit_serious_illness_details').value = seriousIllnessDetails || '';
+
+        // Reset file input and preview avatar if exists
+        const fileInput = document.getElementById('edit_resident_avatar_input');
+        if (fileInput) fileInput.value = '';
+        const nameEl = document.getElementById('edit_avatar_filename');
+        const badgeEl = document.getElementById('edit_avatar_status_badge');
+        if (badgeEl) {
+          badgeEl.textContent = (photo && photo.trim() !== '') ? 'Current' : 'Default';
+          badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100/80 text-blue-700 border border-blue-200';
+        }
+        if (nameEl) {
+          nameEl.textContent = (photo && photo.trim() !== '') ? 'Current photo on file • Click to change (Max 5MB)' : 'Click to upload picture • JPG, PNG or WEBP (Max 5MB)';
+        }
+
+        const img = document.getElementById('edit_resident_avatar_preview');
+        const icon = document.getElementById('edit_resident_avatar_icon');
+        if (photo && photo.trim() !== '') {
+          img.src = photo;
+          img.classList.remove('hidden');
+          icon.classList.add('hidden');
+        } else {
+          img.src = '';
+          img.classList.add('hidden');
+          icon.classList.remove('hidden');
+        }
+
+
+
+        toggleIllnessDetails();
+        document.getElementById('editResidentModal').classList.remove('hidden');
+      }
+
+      function toggleIllnessDetails() {
+        const checkbox = document.getElementById('edit_has_serious_illness');
+        const container = document.getElementById('edit_illness_details_container');
+        if (checkbox && container) {
+          if (checkbox.checked) {
+            container.classList.remove('hidden');
+          } else {
+            container.classList.add('hidden');
+          }
+        }
+      }
+
+      // Valid ID Lightbox & Direct Upload Handlers
+      window.previewResidentIdModal = function(url, residentName) {
+        if (!url) return;
+        const modal = document.getElementById('residentIdPreviewModal');
+        const img = document.getElementById('residentIdPreviewImg');
+        const title = document.getElementById('residentIdPreviewTitle');
+        const dlBtn = document.getElementById('residentIdPreviewDownloadBtn');
+        const fallback = document.getElementById('residentIdPreviewFallback');
+        const fallbackLink = document.getElementById('residentIdPreviewFallbackLink');
+
+        if (title) title.textContent = residentName ? `Valid ID: ${residentName}` : 'Resident Valid ID';
+        if (dlBtn) dlBtn.href = url;
+        if (fallbackLink) fallbackLink.href = url;
+
+        const isPdf = url.toLowerCase().endsWith('.pdf');
+        if (isPdf) {
+          if (img) img.classList.add('hidden');
+          if (fallback) fallback.classList.remove('hidden');
+        } else {
+          if (fallback) fallback.classList.add('hidden');
+          if (img) {
+            img.src = url;
+            img.classList.remove('hidden');
+            img.onerror = function() {
+              img.classList.add('hidden');
+              if (fallback) fallback.classList.remove('hidden');
+            };
+          }
+        }
+
+        if (modal) {
+          modal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        }
+      };
+
+      window.closeResidentIdModal = function() {
+        const modal = document.getElementById('residentIdPreviewModal');
+        if (modal) modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      };
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          closeResidentIdModal();
+        }
+      });
+
+      // High-performance debounced live search & pagination controller
+      let residentCurrentPage = 1;
+      const residentPageSize = 25;
+      let matchedRows = [];
+      let matchedCards = [];
+
+      let searchDebounceTimer = null;
+      function debouncedFilterResidents() {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(filterResidents, 200);
+      }
+
+      function filterResidents() {
+        const searchEl = document.getElementById('residentSearchInput');
+        const zoneEl = document.getElementById('residentZoneFilter');
+        const statusEl = document.getElementById('residentStatusFilter');
+
+        const query = (searchEl && searchEl.value) ? searchEl.value.toLowerCase().trim() : '';
+        const zone = (zoneEl && zoneEl.value) ? zoneEl.value.toLowerCase().trim() : 'all';
+        const status = (statusEl && statusEl.value) ? statusEl.value.toLowerCase().trim() : 'all';
+
+        const tableRows = Array.from(document.querySelectorAll('#residentsTableBody tr.resident-row-item'));
+        const cards = Array.from(document.querySelectorAll('#residentsMobileContainer > div.resident-card-item'));
+
+        matchedRows = [];
+        matchedCards = [];
+
+        tableRows.forEach(row => {
+          const text = (row.textContent || '').toLowerCase();
+          const rowZone = (row.getAttribute('data-zone') || '').toLowerCase();
+          const rowStatus = (row.getAttribute('data-status') || '').toLowerCase();
+
+          const matchesSearch = !query || text.includes(query);
+          const matchesZone = zone === 'all' || rowZone.includes(zone) || text.includes(zone);
+          const matchesStatus = status === 'all' || rowStatus === status;
+
+          if (matchesSearch && matchesZone && matchesStatus) {
+            matchedRows.push(row);
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        cards.forEach(card => {
+          const text = (card.textContent || '').toLowerCase();
+          const cardZone = (card.getAttribute('data-zone') || '').toLowerCase();
+          const cardStatus = (card.getAttribute('data-status') || '').toLowerCase();
+
+          const matchesSearch = !query || text.includes(query);
+          const matchesZone = zone === 'all' || cardZone.includes(zone) || text.includes(zone);
+          const matchesStatus = status === 'all' || cardStatus === status;
+
+          if (matchesSearch && matchesZone && matchesStatus) {
+            matchedCards.push(card);
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        residentCurrentPage = 1;
+        renderPaginatedView();
+      }
+
+      function renderPaginatedView() {
+        const total = Math.max(matchedRows.length, matchedCards.length);
+        const totalPages = Math.ceil(total / residentPageSize) || 1;
+        if (residentCurrentPage > totalPages) residentCurrentPage = totalPages;
+        if (residentCurrentPage < 1) residentCurrentPage = 1;
+
+        const startIdx = (residentCurrentPage - 1) * residentPageSize;
+        const endIdx = startIdx + residentPageSize;
+
+        matchedRows.forEach((row, idx) => {
+          row.style.display = (idx >= startIdx && idx < endIdx) ? '' : 'none';
+        });
+
+        matchedCards.forEach((card, idx) => {
+          card.style.display = (idx >= startIdx && idx < endIdx) ? '' : 'none';
+        });
+
+        const pagStart = document.getElementById('pagStart');
+        const pagEnd = document.getElementById('pagEnd');
+        const pagTotal = document.getElementById('pagTotal');
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        const numContainer = document.getElementById('paginationPageNumbers');
+
+        if (pagStart) pagStart.textContent = total > 0 ? (startIdx + 1) : 0;
+        if (pagEnd) pagEnd.textContent = Math.min(endIdx, total);
+        if (pagTotal) pagTotal.textContent = total;
+
+        if (prevBtn) prevBtn.disabled = (residentCurrentPage <= 1);
+        if (nextBtn) nextBtn.disabled = (residentCurrentPage >= totalPages);
+
+        if (numContainer) {
+          numContainer.innerHTML = '';
+          const maxVisiblePages = 5;
+          let pStart = Math.max(1, residentCurrentPage - 2);
+          let pEnd = Math.min(totalPages, pStart + maxVisiblePages - 1);
+          if (pEnd - pStart < maxVisiblePages - 1) {
+            pStart = Math.max(1, pEnd - maxVisiblePages + 1);
+          }
+
+          for (let p = pStart; p <= pEnd; p++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `w-7 h-7 rounded-lg text-xs font-bold transition-all ${p === residentCurrentPage ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'}`;
+            btn.textContent = p;
+            btn.onclick = () => { residentCurrentPage = p; renderPaginatedView(); };
+            numContainer.appendChild(btn);
+          }
+        }
+      }
+
+      function changeResidentPage(direction) {
+        residentCurrentPage += direction;
+        renderPaginatedView();
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchParam = urlParams.get('search');
+        const statusParam = urlParams.get('status');
+        if (searchParam) {
+          const searchEl = document.getElementById('residentSearchInput');
+          if (searchEl) searchEl.value = searchParam;
+        }
+        if (statusParam) {
+          const statusEl = document.getElementById('residentStatusFilter');
+          if (statusEl) statusEl.value = statusParam;
+        }
+        filterResidents();
+      });
+
+      window.closeResidentDetailsModal = function () {
+        const modal = document.getElementById('viewResidentDetailsModal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.handleApproveResident = async function (id, name) {
+        if (!confirm(`Are you sure you want to APPROVE resident "${name || 'resident'}"?\n\nThis will verify their residency and grant immediate web app access and QR pass generation.`)) {
+          return;
+        }
+        const basePath = window.location.pathname.startsWith('/staff') ? '/staff' : '/admin';
+        try {
+          const csrfToken = document.querySelector('input[name="_csrf"]')?.value || '';
+          const res = await fetch(`${basePath}/residents/approve/${id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ _csrf: csrfToken })
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert(data.message || 'Resident approved successfully.');
+            window.location.reload();
+          } else {
+            alert(data.message || 'Failed to approve resident.');
+          }
+        } catch (err) {
+          console.error('Error approving resident:', err);
+          alert('Network error while approving resident.');
+        }
+      };
+
+      window.handleRejectResident = async function (id, name) {
+        if (!confirm(`Are you sure you want to REJECT the registration for resident "${name || 'resident'}"?\n\nThis resident will be restricted from logging in.`)) {
+          return;
+        }
+        const basePath = window.location.pathname.startsWith('/staff') ? '/staff' : '/admin';
+        try {
+          const csrfToken = document.querySelector('input[name="_csrf"]')?.value || '';
+          const res = await fetch(`${basePath}/residents/reject/${id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ _csrf: csrfToken })
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert(data.message || 'Resident registration rejected.');
+            window.location.reload();
+          } else {
+            alert(data.message || 'Failed to reject resident.');
+          }
+        } catch (err) {
+          console.error('Error rejecting resident:', err);
+          alert('Network error while rejecting resident.');
+        }
+      };
+
+      window.confirmDeleteResident = function (id, name, isWalkin) {
+        if (id && typeof id === 'object') {
+          const btn = id;
+          id = btn.getAttribute('data-id');
+          name = btn.getAttribute('data-name');
+          isWalkin = btn.getAttribute('data-is-walkin') === 'true';
+        }
+        const form = document.getElementById('deleteResidentForm');
+        const text = document.getElementById('deleteResidentModalText');
+        const title = document.getElementById('deleteResidentModalTitle');
+        const iconContainer = document.getElementById('deleteResidentModalIconContainer');
+        const icon = document.getElementById('deleteResidentModalIcon');
+        const submitBtn = document.getElementById('deleteResidentSubmitBtn');
+
+        if (form) form.action = '/admin/residents/delete/' + id;
+        if (isWalkin) {
+          if (title) title.textContent = 'Remove Walk-In Resident';
+          if (text) text.innerHTML = `Are you sure you want to remove walk-in resident <strong>${name}</strong> from the active resident directory?<br><span class="text-amber-700 font-semibold block mt-1.5 text-[11px]"><i class="ph ph-shield-check"></i> Shelter check-in and evacuation logs will remain safely preserved.</span>`;
+          if (iconContainer) iconContainer.className = 'w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-2xl shadow-inner';
+          if (icon) icon.className = 'ph ph-user-minus font-bold';
+          if (submitBtn) {
+            submitBtn.textContent = 'Yes, Remove Walk-In';
+            submitBtn.className = 'flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md shadow-amber-600/20 transition-all text-xs uppercase tracking-wider';
+          }
+        } else {
+          if (title) title.textContent = 'Delete Resident Account';
+          if (text) text.innerHTML = `Are you sure you want to delete resident <strong>${name}</strong>?<br><span class="text-slate-500 font-semibold block mt-1.5 text-[11px]"><i class="ph ph-shield-check"></i> Historical records will remain safely archived.</span>`;
+          if (iconContainer) iconContainer.className = 'w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl shadow-inner';
+          if (icon) icon.className = 'ph ph-warning-circle font-bold';
+          if (submitBtn) {
+            submitBtn.textContent = 'Yes, Delete';
+            submitBtn.className = 'flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/20 transition-all text-xs uppercase tracking-wider';
+          }
+        }
+        const modal = document.getElementById('deleteResidentModal');
+        if (modal) modal.classList.remove('hidden');
+      };
+
+      window.closeDeleteResidentModal = function () {
+        const modal = document.getElementById('deleteResidentModal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      // Live Real-Time Online / Offline Status Synchronizer & Client Side Validation
+      document.addEventListener('DOMContentLoaded', () => {
+        if (typeof io !== 'undefined') {
+          const socket = window.__appSocket || io();
+          window.__appSocket = socket;
+
+          socket.on('user:status_change', (data) => {
+            if (!data || !data.userId) return;
+            const dots = document.querySelectorAll('.user-status-dot-' + data.userId);
+            dots.forEach((dot) => {
+              if (data.isOnline) {
+                dot.className = 'user-status-dot user-status-dot-' + data.userId + ' absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full z-10 bg-emerald-500 ring-2 ring-white animate-pulse';
+                dot.title = 'Online';
+              } else {
+                dot.className = 'user-status-dot user-status-dot-' + data.userId + ' absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full z-10 bg-slate-300 ring-2 ring-white';
+                dot.title = 'Offline';
+              }
+            });
+          });
+        }
+
+        const addForm = document.getElementById('addResidentForm');
+        if (addForm) {
+          addForm.addEventListener('submit', function (e) {
+            const phoneInput = document.getElementById('add_resident_contact');
+            const phone = (phoneInput ? phoneInput.value : '').trim();
+            if (!/^09\d{9}$/.test(phone)) {
+              e.preventDefault();
+              alert('Mobile number must be a valid 11-digit Philippine number starting with 09 (e.g. 09123456789).');
+              if (phoneInput) phoneInput.focus();
+              return;
+            }
+            const zoneInput = document.getElementById('add_resident_home_address');
+            const zone = zoneInput ? zoneInput.value : '';
+            const validZones = ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'];
+            if (!zone || !validZones.includes(zone)) {
+              e.preventDefault();
+              alert('Please select a valid Barangay Zone from the dropdown (Zone 1 to Zone 7).');
+              if (zoneInput) zoneInput.focus();
+              return;
+            }
+            const passInput = document.getElementById('add_resident_password');
+            const pass = passInput ? passInput.value : '';
+            if (pass && (pass.length < 8 || !/[a-zA-Z]/.test(pass) || !/[0-9]/.test(pass))) {
+              e.preventDefault();
+              alert('Temporary password must be at least 8 characters long and contain both letters and numbers.');
+              if (passInput) passInput.focus();
+              return;
+            }
+          });
+        }
+
+        const editForm = document.getElementById('editResidentForm');
+        if (editForm) {
+          editForm.addEventListener('submit', function (e) {
+            const phoneInput = document.getElementById('edit_contact_number');
+            const phone = (phoneInput ? phoneInput.value : '').trim();
+            if (phone && !/^09\d{9}$/.test(phone)) {
+              e.preventDefault();
+              alert('Mobile number must be a valid 11-digit Philippine number starting with 09 (e.g. 09123456789).');
+              if (phoneInput) phoneInput.focus();
+              return;
+            }
+            const emergInput = document.getElementById('edit_emergency_contact_phone');
+            const emergPhone = (emergInput ? emergInput.value : '').trim();
+            if (emergPhone && !/^09\d{9}$/.test(emergPhone)) {
+              e.preventDefault();
+              alert('Emergency contact phone must be a valid 11-digit Philippine number starting with 09 (e.g. 09123456789).');
+              if (emergInput) emergInput.focus();
+              return;
+            }
+            const zoneInput = document.getElementById('edit_home_address');
+            const zone = zoneInput ? zoneInput.value : '';
+            const validZones = ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'];
+            if (!zone || !validZones.includes(zone)) {
+              e.preventDefault();
+              alert('Please select a valid Barangay Zone from the dropdown (Zone 1 to Zone 7).');
+              if (zoneInput) zoneInput.focus();
+              return;
+            }
+          });
+        }
+      });
+    </script>

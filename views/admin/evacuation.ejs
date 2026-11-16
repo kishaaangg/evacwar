@@ -1,0 +1,3951 @@
+<%- include('../partials/header') %>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main
+        class="app-content h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] overflow-hidden relative !p-0 !m-0 flex-1">
+
+        <!-- Full Width Fixed Edge-to-Edge Map -->
+        <div class="absolute inset-0 w-full h-full z-0">
+          <div id="evacMap" class="w-full h-full"></div>
+
+          <!-- Floating Overlay Top Toolbar -->
+          <div
+            class="absolute top-2 sm:top-4 inset-x-2 sm:inset-x-4 z-10 flex items-center gap-2 pointer-events-none min-w-0 max-w-full">
+
+            <!-- Left: Live Status Badge "Evacuation Map" -->
+            <div
+              class="bg-white/95 backdrop-blur-md shadow-md px-2.5 sm:px-3.5 py-1.5 rounded-full border border-white/60 flex items-center gap-1.5 shrink-0 pointer-events-auto">
+              <span class="relative flex h-2.5 w-2.5">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span class="font-extrabold text-slate-800 text-[11px] sm:text-xs tracking-wide">
+                <span class="hidden xl:inline">Evacuation Map</span>
+                <span class="xl:hidden">Map</span>
+              </span>
+            </div>
+
+            <!-- Right: Action & Map Tools Toolbar (Eliminates negative overflow bug, scrolls right smoothly when narrow) -->
+            <div
+              class="flex-1 min-w-0 flex items-center overflow-x-auto no-scrollbar py-0.5 pointer-events-auto overscroll-contain">
+              <div class="flex items-center gap-1 sm:gap-1.5 ml-auto shrink-0">
+
+                <!-- Register New Center Button beside Draw Route -->
+                <button type="button" onclick="openCenterModal()"
+                  class="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 shadow-md active:scale-95 shrink-0"
+                  title="Register New Center">
+                  <i class="ph ph-plus-circle text-sm sm:text-base"></i>
+                  <span class="hidden xl:inline">Register Center</span>
+                  <span class="xl:hidden hidden sm:inline">Register</span>
+                </button>
+
+                <!-- Route & Hazard Draw Tools -->
+                <div
+                  class="bg-white/95 backdrop-blur-md shadow-md rounded-full p-1 border border-slate-200/80 flex items-center gap-0.5 shrink-0">
+                  <button id="btnDrawRoute" type="button" onclick="toggleDrawMode('route')"
+                    title="Create Evacuation Route"
+                    class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 flex items-center gap-1 cursor-pointer">
+                    <i class="ph ph-path text-sm text-amber-600"></i>
+                    <span class="hidden 2xl:inline">Draw Route</span>
+                    <span class="2xl:hidden hidden sm:inline">Route</span>
+                  </button>
+
+                  <button id="btnDrawHazard" type="button" onclick="toggleDrawMode('hazard')"
+                    title="Add Hazard Zone Polygon"
+                    class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center gap-1 cursor-pointer">
+                    <i class="ph ph-polygon text-sm text-purple-600"></i>
+                    <span class="hidden 2xl:inline">Hazard Zone</span>
+                    <span class="2xl:hidden hidden sm:inline">Hazard</span>
+                  </button>
+
+
+
+                  <button type="button" onclick="clearAllDrawFeatures()" title="Clear All Drawn Routes & Hazard Zones"
+                    class="p-1.5 rounded-full text-slate-500 hover:bg-slate-100 flex items-center justify-center cursor-pointer">
+                    <i class="ph ph-arrow-counter-clockwise text-sm sm:text-base"></i>
+                  </button>
+                </div>
+
+                <!-- Centers Panel Toggle Button -->
+                <button id="btnToggleCentersPanel" type="button" onclick="toggleCentersPanel()"
+                  class="px-2.5 sm:px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md shadow-md hover:bg-blue-50 text-slate-700 border border-slate-200/80 text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+                  title="Toggle Evacuation Centers Panel">
+                  <i class="ph ph-buildings text-sm sm:text-base text-blue-600"></i>
+                  <span class="hidden sm:inline">Centers</span> (<%= locals.centers ? locals.centers.length : 0 %>)
+                </button>
+
+                <!-- SOS Distress Radar Toggle Button -->
+                <% const initialSosAlertCount=(locals.activeSosAlerts && locals.activeSosAlerts.length) ?
+                  locals.activeSosAlerts.length : 0; %>
+                  <button id="btnToggleSosPanel" type="button" onclick="toggleSosRadarPanel()"
+                    class="px-2.5 sm:px-3 py-1.5 rounded-full <%= initialSosAlertCount > 0 ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/30' : 'bg-white/95 backdrop-blur-md text-slate-700 hover:bg-red-50 border border-slate-200/80' %> shadow-md text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+                    title="Toggle Emergency SOS Distress Radar">
+                    <span class="relative flex h-2 w-2 <%= initialSosAlertCount > 0 ? '' : 'hidden' %>"
+                      id="sosRadarLiveDot">
+                      <span
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                    </span>
+                    <i
+                      class="ph ph-warning-octagon text-sm sm:text-base <%= initialSosAlertCount > 0 ? 'text-white' : 'text-red-600' %>"></i>
+                    <span class="hidden sm:inline">SOS</span>
+                    (<span id="adminSosBadgeCount">
+                      <%= initialSosAlertCount %>
+                    </span>)
+                  </button>
+
+                  <!-- Basemap Mode Switcher (Selectable Hybrid, No Labels & Roads) -->
+                  <div
+                    class="bg-white/95 backdrop-blur-md shadow-md rounded-full p-1 border border-slate-200/80 flex items-center gap-0.5 shrink-0">
+                    <button id="btnAdminMapHybrid" type="button" onclick="setAdminMapStyle('hybrid')"
+                      class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-blue-600 text-white shadow-xs flex items-center gap-1"
+                      title="Hybrid Satellite & Labels">
+                      <i class="ph ph-planet text-sm"></i> <span class="hidden sm:inline">Hybrid</span>
+                    </button>
+                    <button id="btnAdminMapSatellite" type="button" onclick="setAdminMapStyle('satellite')"
+                      class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                      title="Pure Satellite Imagery (No Labels)">
+                      <i class="ph ph-globe text-sm"></i> <span class="hidden sm:inline">No Labels</span>
+                    </button>
+                    <button id="btnAdminMapRoad" type="button" onclick="setAdminMapStyle('roads')"
+                      class="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                      title="Roads Basemap">
+                      <i class="ph ph-map-trifold text-sm"></i> <span class="hidden sm:inline">Roads</span>
+                    </button>
+                  </div>
+
+                  <!-- 3D View Toggle -->
+                  <button id="btnToggle3D" type="button" onclick="toggle3DPitch()"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-emerald-50 text-slate-700 border border-slate-200/80 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Toggle 3D Perspective">
+                    <i class="ph ph-cube text-sm text-emerald-600"></i>
+                    <span>3D</span>
+                  </button>
+
+                  <!-- Rotate 45° -->
+                  <button id="btnRotateMap" type="button" onclick="rotateMapBearing(45)"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-amber-50 text-amber-700 border border-slate-200/80 rounded-full p-1.5 sm:px-2.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0"
+                    title="Rotate Map 45°">
+                    <i class="ph ph-arrows-clockwise text-sm text-amber-600"></i>
+                  </button>
+
+                  <!-- GPS My Location Button -->
+                  <button id="btnAdminMyLocation" type="button" onclick="locateAdminUser(adminMapInstance, true)"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-blue-50 text-blue-900 border border-slate-200/80 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="My Location">
+                    <i class="ph ph-navigation-arrow text-sm text-blue-600"></i>
+                    <span class="hidden xl:inline"></span>
+                  </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Floating Interactive Drawing Status & Control HUD -->
+          <div id="drawingModeHud"
+            class="hidden absolute top-14 sm:top-18 inset-x-0 mx-auto w-fit max-w-[95vw] z-30 pointer-events-auto transition-all duration-300">
+            <div
+              class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-slate-900/95 text-white backdrop-blur-md px-3.5 sm:px-4 py-2 rounded-2xl shadow-2xl border border-white/20">
+              <div class="flex items-center gap-2">
+                <div id="drawingHudIcon"
+                  class="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs shrink-0">
+                  <i class="ph ph-pencil-simple-line text-base animate-pulse"></i>
+                </div>
+                <div class="text-left">
+                  <div id="drawingHudTitle" class="text-xs font-extrabold text-amber-300 leading-tight">Drawing Active
+                  </div>
+                  <div id="drawingHudSubtitle" class="text-[10px] text-slate-300 leading-tight hidden xs:block">Click on
+                    map to place points • Double-click or click Finish</div>
+                </div>
+              </div>
+              <div class="hidden sm:block h-6 w-px bg-white/20"></div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span id="drawingPointsCount"
+                  class="text-[11px] font-mono font-bold bg-white/10 px-2 py-0.5 rounded-lg text-slate-200">0 pts</span>
+                <button type="button" onclick="undoLastDrawPoint()"
+                  class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center gap-1 cursor-pointer"
+                  title="Undo Last Point">
+                  <i class="ph ph-arrow-u-up-left text-xs"></i> <span class="hidden sm:inline">Undo</span>
+                </button>
+                <button type="button" onclick="finishActiveDrawing()"
+                  class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                  title="Finish and Save Shape">
+                  <i class="ph ph-check-bold text-xs"></i> Finish
+                </button>
+                <button type="button" onclick="cancelActiveDrawing()"
+                  class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                  title="Cancel Drawing">
+                  <i class="ph ph-x text-sm"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating Map Legend (Right Side - Open by default on PC, collapsible) -->
+          <div id="mapLegendContainer"
+            class="absolute top-16 sm:top-20 right-2 sm:right-4 z-20 pointer-events-none flex flex-col items-end">
+            <!-- Toggle Button -->
+            <button id="btnToggleLegend" type="button" onclick="toggleMapLegend()"
+              class="bg-white/95 backdrop-blur-md shadow-md hover:bg-slate-50 text-slate-800 border border-slate-200/90 rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer pointer-events-auto shrink-0 mb-1.5"
+              title="Toggle Map Legend">
+              <i class="ph ph-map-trifold text-sm text-blue-600 font-bold"></i>
+              <span>Legend</span>
+              <i id="legendChevronIcon"
+                class="ph ph-caret-down text-xs text-slate-400 transition-transform duration-200"></i>
+            </button>
+
+            <!-- Legend Card Panel -->
+            <div id="mapLegendCard"
+              class="hidden pointer-events-auto bg-white/95 backdrop-blur-md shadow-xl border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 w-60 sm:w-64 transition-all duration-200 origin-top-right">
+
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                <div class="flex items-center gap-1.5">
+                  <div class="w-5 h-5 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center text-xs">
+                    <i class="ph ph-map-trifold font-bold"></i>
+                  </div>
+                  <span class="text-xs font-black text-slate-900 tracking-wide uppercase">Map Legend</span>
+                </div>
+                <button type="button" onclick="toggleMapLegend(false)"
+                  class="text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Close Legend">
+                  <i class="ph ph-x font-bold text-xs"></i>
+                </button>
+              </div>
+
+              <div class="space-y-2 text-[11px] sm:text-xs">
+                <!-- 1. Evacuation Route (Orange line) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-1.5 rounded-full bg-orange-500 shadow-xs shrink-0"></div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Evacuation Route</span>
+                    <span class="text-[10px] text-slate-500">Orange designated safety path</span>
+                  </div>
+                </div>
+
+                <!-- 2. Barangay Boundary (--- dashed line) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 border-t-2 border-dashed border-red-400 shrink-0"></div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Boundary (<span
+                        class="font-mono text-red-500 font-extrabold">- - -</span>)</span>
+                    <span class="text-[10px] text-slate-500">San Rafael (Ikpan) perimeter</span>
+                  </div>
+                </div>
+
+                <!-- 3. Flood / Hazard Area Polygon -->
+                <div class="flex items-center gap-2.5">
+                  <div
+                    class="w-6 h-5 rounded border border-red-500 bg-red-500/25 flex items-center justify-center shrink-0">
+                    <i class="ph ph-warning text-xs text-red-600"></i>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Hazard Danger Zone</span>
+                    <span class="text-[10px] text-slate-500">Flood / hazard risk area</span>
+                  </div>
+                </div>
+
+                <div class="pt-1 border-t border-slate-100/80"></div>
+
+                <!-- 4. Evacuation Sites (Green = Available, Red = Full) -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 36 46" class="w-4 h-5 drop-shadow-xs">
+                      <path d="M18 1 C8.6 1 1 8.6 1 18 C1 29 18 45 18 45 C18 45 35 29 35 18 C35 8.6 27.4 1 18 1 Z"
+                        fill="#10b981" stroke="#FFFFFF" stroke-width="2.5" />
+                      <path d="M11 19 L18 12 L25 19 L23 19 L23 24 L13 24 L13 19 Z" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Available Evac Site</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">Green marker (Space available)</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 36 46" class="w-4 h-5 drop-shadow-xs">
+                      <path d="M18 1 C8.6 1 1 8.6 1 18 C1 29 18 45 18 45 C18 45 35 29 35 18 C35 8.6 27.4 1 18 1 Z"
+                        fill="#ef4444" stroke="#FFFFFF" stroke-width="2.5" />
+                      <path d="M11 19 L18 12 L25 19 L23 19 L23 24 L13 24 L13 19 Z" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">Full Evac Site</span>
+                    <span class="text-[10px] text-red-600 font-semibold">Red marker (100% full)</span>
+                  </div>
+                </div>
+
+                <!-- 5. Ikpan Elementary School special pin -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
+                    <svg viewBox="0 0 38 48" class="w-5 h-6 drop-shadow-xs">
+                      <path d="M19 1 C9.1 1 1 9.1 1 19 C1 31 19 47 19 47 C19 47 37 31 37 19 C37 9.1 28.9 1 19 1 Z"
+                        fill="#10b981" stroke="#FFFFFF" stroke-width="2.5" />
+                      <circle cx="19" cy="18" r="9" fill="#FFFFFF" />
+                      <polygon points="19,11 12,15.5 19,19 26,15.5" fill="#10b981" />
+                      <path d="M15,17 L15,20.5 C15,20.5 17,22 19,22 C21,22 23,20.5 23,20.5 L23,17" fill="none"
+                        stroke="#10b981" stroke-width="1.3" />
+                    </svg>
+
+                    <span
+                      class="absolute -top-1 -right-1 bg-amber-500 text-white text-[7.5px] font-black rounded-full px-1 border border-white leading-tight">
+                      ES
+                    </span>
+                  </div>
+
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">
+                      Ikpan Elementary School
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-semibold">
+                      Special School Icon
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 6. SOS Distress Alert -->
+                <div class="flex items-center gap-2.5 pt-0.5">
+                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
+                    <span
+                      class="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-red-400 opacity-75"></span>
+                    <span
+                      class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 border border-white shadow-xs"></span>
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-bold text-slate-800 leading-tight">SOS Distress Alert</span>
+                    <span class="text-[10px] text-slate-500">Live emergency distress signal</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
+  </div>
+
+  <!-- Manage Evacuation Centers Centered Modal -->
+  <div id="adminCentersPanel"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-5 md:p-6 overflow-y-auto transition-all"
+    onclick="if (event.target === this) toggleCentersPanel()">
+    <div
+      class="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[86vh] sm:max-h-[88vh] flex flex-col border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto"
+      onclick="event.stopPropagation()">
+
+      <!-- Modal Header -->
+      <div
+        class="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/80 shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div
+            class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0 shadow-xs">
+            <i class="ph ph-buildings text-xl sm:text-2xl"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="font-extrabold text-slate-900 text-sm sm:text-base md:text-lg leading-tight truncate">Manage
+                Evacuation Sites</h3>
+              <span id="adminCentersPanelBadge"
+                class="text-[11px] sm:text-xs font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap">
+                <span id="adminCentersPanelCount">
+                  <%= locals.centers ? locals.centers.length : 0 %>
+                </span> Sites
+              </span>
+            </div>
+            <p class="text-[11px] sm:text-xs text-slate-500 font-medium truncate hidden xs:block sm:block">
+              Registered evacuation centers, live occupancy & assigned personnel in San Rafael
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button type="button" onclick="openCenterModal()"
+            class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer whitespace-nowrap">
+            <i class="ph ph-plus-circle text-sm sm:text-base"></i>
+            <span class="hidden sm:inline">Register Site</span>
+            <span class="sm:hidden">New</span>
+          </button>
+          <button type="button" onclick="toggleCentersPanel()"
+            class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white hover:bg-slate-200 text-slate-500 flex items-center justify-center border border-slate-200 shadow-xs transition-colors cursor-pointer shrink-0"
+            title="Close Modal">
+            <i class="ph ph-x text-sm sm:text-base"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Bar & Filter Controls Toolbar -->
+      <div
+        class="px-3.5 sm:px-5 py-2.5 sm:py-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row items-center gap-2 shrink-0">
+        <div class="relative flex-1 w-full">
+          <i
+            class="ph ph-magnifying-glass absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base"></i>
+          <input type="text" id="adminCentersSearchInput"
+            placeholder="Search by shelter name, zone/address, contact, or assigned staff..."
+            oninput="handleAdminCentersSearch(this.value)"
+            class="w-full pl-9 sm:pl-10 pr-8 sm:pr-9 py-1.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-slate-400" />
+          <button type="button" id="btnAdminCentersSearchClear" onclick="clearAdminCentersSearch()"
+            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
+            title="Clear search">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+        <div class="text-[11px] font-semibold text-slate-500 whitespace-nowrap self-end sm:self-center shrink-0">
+          <span id="adminCentersSearchResultText">Showing <span id="adminCentersVisibleCount"
+              class="font-bold text-slate-700">
+              <%= locals.centers ? locals.centers.length : 0 %>
+            </span> shelters</span>
+        </div>
+      </div>
+
+      <!-- Scrollable Centers Grid Container -->
+      <div id="adminCentersListContainer" class="flex-1 overflow-y-auto p-3 sm:p-5 custom-scrollbar bg-slate-50/50">
+        <% if (locals.centers && locals.centers.length> 0) { %>
+          <div id="adminCentersCardsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            <% locals.centers.forEach(center=> { %>
+              <% const percentage=Math.round((center.current_occupancy / center.max_capacity) * 100); const
+                barWidthStyle='style="width: ' + Math.min(percentage, 100) + '%;"' ; let barColor='bg-emerald-500' ; let
+                textColor='text-emerald-700 bg-emerald-50 border-emerald-200' ; let statusText='Available' ; if
+                (percentage>= 100) {
+                barColor = 'bg-red-500';
+                textColor = 'text-red-700 bg-red-50 border-red-200';
+                statusText = 'Full Capacity';
+                } else if (percentage >= 80) {
+                barColor = 'bg-orange-500';
+                textColor = 'text-orange-700 bg-orange-50 border-orange-200';
+                statusText = 'Near Full';
+                }
+                %>
+                <div
+                  class="bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between group">
+                  <div>
+                    <!-- Header of Card -->
+                    <div class="flex justify-between items-start gap-2 mb-2">
+                      <button type="button" data-lat="<%= center.latitude %>" data-lng="<%= center.longitude %>"
+                        data-id="<%= center.id %>" onclick="handleCenterCardClick(this)"
+                        class="text-left font-bold text-slate-800 text-xs sm:text-sm hover:text-blue-600 transition-colors line-clamp-1 flex items-center gap-1.5 cursor-pointer"
+                        title="Click to locate on map">
+                        <i class="ph ph-buildings text-blue-500 text-sm shrink-0"></i>
+                        <span class="truncate">
+                          <%= center.name %>
+                        </span>
+                      </button>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <button type="button" data-lat="<%= center.latitude %>" data-lng="<%= center.longitude %>"
+                          data-id="<%= center.id %>" onclick="handleCenterCardClick(this)"
+                          class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Locate on Map">
+                          <i class="ph ph-crosshair text-xs"></i>
+                        </button>
+                        <button type="button" data-id="<%= center.id %>" data-name="<%= center.name || '' %>"
+                          data-address="<%= center.address || '' %>" data-contact="<%= center.contact_number || '' %>"
+                          data-capacity="<%= center.max_capacity %>" data-lat="<%= center.latitude %>"
+                          data-lng="<%= center.longitude %>"
+                          data-staff-ids="<%= JSON.stringify((center.assigned_staff || []).map(s => s.user_id)) %>"
+                          onclick="openEditCenterModal(this)"
+                          class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Edit Center">
+                          <i class="ph ph-pencil-simple text-xs"></i>
+                        </button>
+                        <button type="button" data-id="<%= center.id %>" data-name="<%= center.name || '' %>"
+                          onclick="confirmDeleteCenter(this)"
+                          class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Delete Center">
+                          <i class="ph ph-trash text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Address & Phone -->
+                    <div class="space-y-1 mb-2">
+                      <p class="text-[11px] sm:text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                        <i class="ph ph-map-pin text-blue-500 text-xs shrink-0"></i>
+                        <span class="truncate">
+                          <%= center.address || 'San Rafael' %>
+                        </span>
+                      </p>
+                      <p class="text-[11px] sm:text-xs font-bold text-blue-700 flex items-center gap-1.5 font-mono">
+                        <i class="ph ph-phone text-blue-600 text-xs shrink-0"></i>
+                        <a href="tel:<%= center.contact_number || '(054) 881-2345' %>" class="hover:underline">
+                          <%= center.contact_number || '(054) 881-2345' %>
+                        </a>
+                      </p>
+                    </div>
+
+                    <!-- Assigned Staff -->
+                    <div class="mb-2.5 bg-slate-50/80 p-2 sm:p-2.5 rounded-xl border border-slate-100">
+                      <div class="flex items-center justify-between text-[11px] font-semibold text-slate-600 mb-1">
+                        <span class="flex items-center gap-1">
+                          <i class="ph ph-users text-xs text-indigo-500"></i> Assigned Staff
+                        </span>
+                        <span
+                          class="text-[10px] px-1.5 py-0.2 rounded-full bg-white border border-slate-200 text-slate-600 font-bold">
+                          <%= (center.assigned_staff || []).length %>
+                        </span>
+                      </div>
+                      <% if (center.assigned_staff && center.assigned_staff.length> 0) { %>
+                        <div class="space-y-1 max-h-20 sm:max-h-24 overflow-y-auto custom-scrollbar pr-1">
+                          <% center.assigned_staff.forEach(st=> { %>
+                            <div
+                              class="flex items-center justify-between bg-white rounded-lg px-2 py-1 text-[10px] border border-slate-100 shadow-xs">
+                              <span class="font-bold text-slate-700 truncate max-w-[130px]">
+                                <%= st.full_name %>
+                              </span>
+                              <a href="tel:<%= st.contact_number %>"
+                                class="font-mono font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
+                                <i class="ph ph-phone text-[10px]"></i>
+                                <%= st.contact_number %>
+                              </a>
+                            </div>
+                            <% }) %>
+                        </div>
+                        <% } else { %>
+                          <p class="text-[10px] text-slate-400 italic">No staff assigned to this center</p>
+                          <% } %>
+                    </div>
+                  </div>
+
+                  <!-- Occupancy & Footer -->
+                  <div class="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div class="space-y-1">
+                      <div class="flex justify-between items-center text-[11px] sm:text-xs">
+                        <span class="text-slate-500 font-semibold">Occupancy</span>
+                        <span class="font-bold text-slate-800 font-mono">
+                          <%= center.current_occupancy %> / <%= center.max_capacity %>
+                        </span>
+                      </div>
+                      <div class="w-full bg-slate-100 rounded-full h-1.5 sm:h-2 overflow-hidden shadow-inner">
+                        <div class="<%= barColor %> h-full rounded-full transition-all duration-500" <%- barWidthStyle
+                          %>></div>
+                      </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-0.5">
+                      <span
+                        class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md font-bold text-[9px] sm:text-[10px] border <%= textColor %>">
+                        <%= percentage %>% • <%= statusText %>
+                      </span>
+                      <a href="/admin/evacuation-center/<%= center.id %>"
+                        class="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline">
+                        View Details <i class="ph ph-arrow-right text-xs"></i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <% }) %>
+          </div>
+          <% } else { %>
+            <div class="text-center py-12 text-slate-400">
+              <div
+                class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
+                <i class="ph ph-buildings text-2xl"></i>
+              </div>
+              <p class="text-sm font-bold text-slate-700">No evacuation centers registered yet.</p>
+              <p class="text-xs text-slate-400 mt-1">Click "Register Site" above to add your first shelter.</p>
+            </div>
+            <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Emergency SOS Distress Radar Modal for Admin -->
+  <div id="adminSosPanel"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-5 md:p-6 overflow-y-auto transition-all"
+    onclick="if (event.target === this) toggleSosRadarPanel()">
+    <div
+      class="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[86vh] sm:max-h-[88vh] flex flex-col border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto"
+      onclick="event.stopPropagation()">
+
+      <!-- Modal Header -->
+      <div
+        class="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div
+            class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-white/20 text-white flex items-center justify-center font-bold shrink-0 shadow-inner">
+            <i class="ph ph-warning-octagon text-xl sm:text-2xl animate-pulse"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="font-extrabold text-white text-sm sm:text-base md:text-lg leading-tight truncate">
+                Emergency SOS Distress Signals & Situations
+              </h3>
+              <span id="adminSosModalBadge"
+                class="text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full bg-white/25 text-white border border-white/40 whitespace-nowrap">
+                <span id="adminSosModalCount">
+                  <%= (locals.activeSosAlerts && locals.activeSosAlerts.length) ? locals.activeSosAlerts.length : 0 %>
+                </span> Active Signals
+              </span>
+            </div>
+            <p class="text-[11px] sm:text-xs text-red-100 font-medium truncate hidden xs:block sm:block">
+              Real-time distress signals, assigned staff responders, and response status
+            </p>
+          </div>
+        </div>
+
+        <button type="button" onclick="toggleSosRadarPanel()"
+          class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center border border-white/30 shadow-xs transition-colors cursor-pointer shrink-0"
+          title="Close Modal">
+          <i class="ph ph-x text-sm sm:text-base"></i>
+        </button>
+      </div>
+
+      <!-- Search Bar & Filter Controls Toolbar -->
+      <div
+        class="px-3.5 sm:px-5 py-2.5 sm:py-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row items-center gap-2 shrink-0">
+        <div class="relative flex-1 w-full">
+          <i
+            class="ph ph-magnifying-glass absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base"></i>
+          <input type="text" id="adminSosSearchInput"
+            placeholder="Search by resident name, location, contact, situation, or assigned staff..."
+            oninput="handleAdminSosSearch(this.value)"
+            class="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm focus:bg-white focus:border-red-500 focus:ring-4 focus:ring-red-500/10 transition-all outline-none text-slate-800 placeholder-slate-400">
+        </div>
+      </div>
+
+      <!-- Scrollable SOS Cards List -->
+      <div class="p-3.5 sm:p-5 overflow-y-auto flex-1 custom-scrollbar bg-slate-50/50" id="adminSosListContainer">
+        <!-- Rendered dynamically by JavaScript or populated from data -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Center Modal -->
+  <div id="centerModal"
+    class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+    <div class="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 shrink-0">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="ph ph-buildings text-blue-600 text-xl"></i> Register Center
+        </h3>
+        <button onclick="closeCenterModal()" type="button"
+          class="w-8 h-8 rounded-full bg-white hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-200 shadow-sm">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Form -->
+      <form id="createCenterForm" action="/admin/evacuation/create" method="POST"
+        class="flex flex-col flex-1 overflow-hidden">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        <div class="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar text-sm">
+          <!-- Center Name -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Center Name</label>
+            <input type="text" name="name" required placeholder="Barcelona Site"
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800">
+          </div>
+
+          <!-- Zone Selection (Zone 1 to Zone 7 max) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Zone Selection (Zone 1
+              - 7)</label>
+            <div class="relative">
+              <select name="address" required
+                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800 appearance-none cursor-pointer pr-10">
+                <option value="" disabled selected>Select Zone</option>
+                <% for (let z=1; z <=7; z++) { %>
+                  <option value="Zone <%= z %>">Zone <%= z %>
+                  </option>
+                  <% } %>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                <i class="ph ph-caret-down text-base"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contact Number (Strictly 11 Digits) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Contact Number</label>
+            <input type="tel" name="contact_number" required maxlength="11" pattern="09[0-9]{9}"
+              placeholder="09123456789" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800"
+              title="11-digit Philippine mobile number starting with 09">
+          </div>
+
+          <!-- Max Capacity (No Default, Empty) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Max Capacity
+              (Persons)</label>
+            <input type="number" name="max_capacity" required min="1" placeholder="Enter capacity..."
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800">
+          </div>
+
+          <!-- Assign Staff Members -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Assign Staff
+                Members</label>
+              <span class="text-[11px] text-slate-400 font-medium">Up to 3 sites per staff</span>
+            </div>
+            <% if (locals.eligibleStaff && locals.eligibleStaff.length> 0) { %>
+              <div
+                class="max-h-36 overflow-y-auto p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 custom-scrollbar">
+                <% locals.eligibleStaff.forEach(st=> { %>
+                  <label
+                    class="flex items-center justify-between p-2 rounded-xl bg-white hover:bg-blue-50/50 transition-colors cursor-pointer border border-slate-100 shadow-xs">
+                    <div class="flex items-center gap-2">
+                      <input type="checkbox" name="assigned_staff_ids[]" value="<%= st.user_id %>"
+                        class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                      <div>
+                        <span class="text-xs font-bold text-slate-800 block leading-tight">
+                          <%= st.full_name %>
+                        </span>
+                        <span class="text-[10px] text-slate-500 block">
+                          <%= st.occupation || st.staff_type %>
+                        </span>
+                      </div>
+                    </div>
+                    <span class="text-[10px] font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-full">
+                      <%= st.contact_number %>
+                    </span>
+                  </label>
+                  <% }) %>
+              </div>
+              <% } else { %>
+                <p class="text-xs text-slate-400 italic bg-slate-50 p-2.5 rounded-xl border border-slate-200">No staff
+                  accounts available for assignment.</p>
+                <% } %>
+          </div>
+
+          <!-- Pin Location on Map -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Pin Location on
+              Map</label>
+            <div id="modalMap"
+              class="w-full h-48 rounded-2xl border border-slate-200 overflow-hidden relative shadow-inner z-10"></div>
+            <p class="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+              <i class="ph ph-info text-blue-500"></i> Click anywhere on the map to set the evacuation center's
+              location.
+            </p>
+          </div>
+
+          <!-- Coordinates Grid (Lat/Lng) -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Latitude</label>
+              <input type="text" id="modalLat" name="latitude" required value="13.510200" readonly
+                class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono text-xs text-slate-600 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Longitude</label>
+              <input type="text" id="modalLng" name="longitude" required value="123.347000" readonly
+                class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono text-xs text-slate-600 outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-4 border-t border-slate-100 flex gap-3 bg-slate-50/80 shrink-0">
+          <button type="button" onclick="closeCenterModal()"
+            class="flex-1 px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all text-xs">CANCEL</button>
+          <button type="submit"
+            class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all text-xs">REGISTER
+            CENTER</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Component for Editing Center -->
+  <div id="editCenterModal"
+    class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+    <div
+      class="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-100">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 shrink-0">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="ph ph-pencil-simple-line text-blue-600 text-xl"></i> Edit Evacuation Center
+        </h3>
+        <button onclick="closeEditCenterModal()" type="button"
+          class="w-8 h-8 rounded-full bg-white hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors border border-slate-200 shadow-sm">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Form -->
+      <form id="editCenterForm" action="" method="POST" class="flex flex-col flex-1 overflow-hidden">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        <div class="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar text-sm">
+          <!-- Center Name -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Center Name</label>
+            <input type="text" id="editName" name="name" required placeholder="Center name..."
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800">
+          </div>
+
+          <!-- Zone Selection (Zone 1 to Zone 7 max) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Zone Selection (Zone 1
+              - 7)</label>
+            <div class="relative">
+              <select id="editAddress" name="address" required
+                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800 appearance-none cursor-pointer pr-10">
+                <option value="" disabled>Select Zone (Zone 1 - 7)</option>
+                <% for (let z=1; z <=7; z++) { %>
+                  <option value="Zone <%= z %>">Zone <%= z %>
+                  </option>
+                  <% } %>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                <i class="ph ph-caret-down text-base"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contact Number (Strictly 11 Digits) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Contact Number (11
+              Digits)</label>
+            <input type="tel" id="editContactNumber" name="contact_number" required maxlength="11" pattern="09[0-9]{9}"
+              placeholder="09123456789" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800"
+              title="11-digit Philippine mobile number starting with 09">
+          </div>
+
+          <!-- Max Capacity (No 25 Cap, Empty Placeholder) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Max Capacity
+              (Persons)</label>
+            <input type="number" id="editMaxCapacity" name="max_capacity" required min="1"
+              placeholder="Enter capacity..."
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-medium text-slate-800">
+          </div>
+
+          <!-- Assigned Staff Members -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Assigned Staff
+                Members</label>
+              <span class="text-[11px] text-slate-400 font-medium">Up to 3 sites per staff</span>
+            </div>
+            <% if (locals.eligibleStaff && locals.eligibleStaff.length> 0) { %>
+              <div
+                class="max-h-36 overflow-y-auto p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 custom-scrollbar">
+                <% locals.eligibleStaff.forEach(st=> { %>
+                  <label
+                    class="flex items-center justify-between p-2 rounded-xl bg-white hover:bg-blue-50/50 transition-colors cursor-pointer border border-slate-100 shadow-xs">
+                    <div class="flex items-center gap-2">
+                      <input type="checkbox" name="assigned_staff_ids[]" value="<%= st.user_id %>"
+                        class="edit-center-staff-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                      <div>
+                        <span class="text-xs font-bold text-slate-800 block leading-tight">
+                          <%= st.full_name %>
+                        </span>
+                        <span class="text-[10px] text-slate-500 block">
+                          <%= st.occupation || st.staff_type %>
+                        </span>
+                      </div>
+                    </div>
+                    <span class="text-[10px] font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-full">
+                      <%= st.contact_number %>
+                    </span>
+                  </label>
+                  <% }) %>
+              </div>
+              <% } else { %>
+                <p class="text-xs text-slate-400 italic bg-slate-50 p-2.5 rounded-xl border border-slate-200">No staff
+                  accounts available for assignment.</p>
+                <% } %>
+          </div>
+
+          <!-- Coordinates Grid (Lat/Lng) -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Latitude</label>
+              <input type="text" id="editLat" name="latitude" required
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Longitude</label>
+              <input type="text" id="editLng" name="longitude" required
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10">
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-4 border-t border-slate-100 flex gap-3 bg-slate-50/80 shrink-0">
+          <button type="button" onclick="closeEditCenterModal()"
+            class="flex-1 px-4 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all text-xs uppercase tracking-wider">CANCEL</button>
+          <button type="submit"
+            class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all text-xs uppercase tracking-wider">SAVE
+            CHANGES</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal (Yes / No) -->
+  <div id="deleteCenterModal"
+    class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+    <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4 border border-slate-100 text-center">
+      <div
+        class="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+        <i class="ph ph-warning-circle font-bold"></i>
+      </div>
+      <div>
+        <h3 class="text-lg font-extrabold text-slate-900">Confirm Deletion</h3>
+        <p class="text-xs text-slate-500 mt-1" id="deleteCenterModalText">Are you sure you want to delete this
+          evacuation center? This action cannot be undone.</p>
+      </div>
+      <form id="deleteCenterForm" action="" method="POST" class="flex gap-3 pt-2">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        <button type="button" onclick="closeDeleteCenterModal()"
+          class="flex-1 px-4 py-2.5 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all text-xs uppercase tracking-wider">No,
+          Cancel</button>
+        <button type="submit"
+          class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/20 transition-all text-xs uppercase tracking-wider">Yes,
+          Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <script id="map-features-data" type="application/json">
+    <%- mapFeatures || '{"type":"FeatureCollection","features":[]}' %>
+  </script>
+  <script id="centers-data" type="application/json">
+    <%- locals.centers ? JSON.stringify(locals.centers) : '[]' %>
+  </script>
+  <script id="active-sos-data" type="application/json">
+    <%- locals.activeSosAlerts ? JSON.stringify(locals.activeSosAlerts) : '[]' %>
+  </script>
+  <script>
+    // Frame-0 Immediate Parsing of GIS Features and Evacuation Centers
+    let adminGeoJsonFeatures = { type: 'FeatureCollection', features: [] };
+    try {
+      const featEl = document.getElementById('map-features-data');
+      if (featEl && featEl.textContent) {
+        const parsed = JSON.parse(featEl.textContent.trim());
+        if (parsed && Array.isArray(parsed.features)) {
+          adminGeoJsonFeatures = parsed;
+          adminGeoJsonFeatures.features.forEach((f, i) => {
+            if (!f.properties) f.properties = {};
+            if (!f.properties.featureId) {
+              f.properties.featureId = (f.id ? String(f.id) : (f.properties.type || 'feat') + '_' + i + '_' + Date.now());
+            }
+            if (!f.id) f.id = f.properties.featureId;
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error pre-parsing embedded map features:', e);
+    }
+
+    let initialAdminCenters = [];
+    try {
+      const centersEl = document.getElementById('centers-data');
+      if (centersEl && centersEl.textContent) {
+        initialAdminCenters = JSON.parse(centersEl.textContent.trim() || '[]');
+      }
+    } catch (e) {
+      console.warn('Error pre-parsing embedded centers:', e);
+    }
+
+    let modalMap = null;
+    let modalMarker = null;
+    let adminMapInstance = null;
+    let adminGpsMarker = null;
+    let adminGpsCircle = null;
+    let is3DAxisActive = false;
+    let currentDrawingMode = null; // 'route' | 'hazard' | null
+    let activeDrawPoints = [];
+    const sosMapMarkers = {};
+    const rescuerMapMarkers = {};
+    let globalInfoWindow = null;
+
+    function getInfoWindow() {
+      if (!globalInfoWindow && typeof google !== 'undefined' && google.maps) {
+        globalInfoWindow = new google.maps.InfoWindow();
+      }
+      return globalInfoWindow;
+    }
+
+    function locateAdminUser(mapObj, autoFly = true) {
+      const targetMap = mapObj || adminMapInstance;
+      const btn = document.getElementById('btnAdminMyLocation');
+      if (btn) btn.classList.add('opacity-50');
+
+      if (!("geolocation" in navigator)) {
+        alert("Geolocation is not supported by your browser.");
+        if (btn) btn.classList.remove('opacity-50');
+        return;
+      }
+
+      if (window.isSecureContext === false && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        console.warn("Geolocation blocked on insecure origin:", location.origin);
+        alert("GPS Location notice: Mobile and modern desktop browsers require an HTTPS connection (or localhost) to access device GPS.\n\nIf testing over local LAN IP, you can also enable 'Insecure origins treated as secure' in chrome://flags.");
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (btn) btn.classList.remove('opacity-50');
+          const { latitude, longitude, accuracy } = pos.coords;
+          // MapLibre GPS Handler
+          if (targetMap && typeof targetMap.flyTo === 'function') {
+            if (autoFly) {
+              targetMap.flyTo({
+                center: [longitude, latitude],
+                zoom: 16,
+                pitch: typeof targetMap.getPitch === 'function' ? targetMap.getPitch() : 55,
+                bearing: typeof targetMap.getBearing === 'function' ? targetMap.getBearing() : -20,
+                essential: true
+              });
+            }
+            if (adminGpsMarker && typeof adminGpsMarker.setLngLat === 'function') {
+              adminGpsMarker.setLngLat([longitude, latitude]);
+            } else if (typeof maplibregl !== 'undefined') {
+              const el = typeof window.createMaplibreGpsMarkerEl === 'function' ? window.createMaplibreGpsMarkerEl() : document.createElement('div');
+              adminGpsMarker = new maplibregl.Marker({ element: el })
+                .setLngLat([longitude, latitude])
+                .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(`
+                    <div style="font-family: system-ui; padding: 6px; text-align: center;">
+                      <div style="font-weight: 800; color: #1e293b; font-size: 13px;">Admin Location</div>
+                      <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 2px;">Accuracy: ±${Math.round(accuracy)}m</div>
+                      <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">${latitude.toFixed(5)}, ${longitude.toFixed(5)}</div>
+                    </div>
+                  `))
+                .addTo(targetMap);
+            }
+            return;
+          }
+
+          // Google Maps GPS Handler (Intact)
+          if (typeof google !== 'undefined' && google.maps) {
+            const userPos = new google.maps.LatLng(latitude, longitude);
+
+            if (targetMap && autoFly) {
+              targetMap.panTo(userPos);
+              targetMap.setZoom(16);
+            }
+
+            if (adminGpsCircle) {
+              adminGpsCircle.setCenter(userPos);
+              adminGpsCircle.setRadius(accuracy || 40);
+            } else if (targetMap) {
+              adminGpsCircle = new google.maps.Circle({
+                map: targetMap,
+                center: userPos,
+                radius: accuracy || 40,
+                fillColor: '#3b82f6',
+                fillOpacity: 0.15,
+                strokeColor: '#2563eb',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                clickable: false
+              });
+            }
+
+            if (adminGpsMarker) {
+              adminGpsMarker.setPosition(userPos);
+            } else if (targetMap) {
+              adminGpsMarker = new google.maps.Marker({
+                position: userPos,
+                map: targetMap,
+                icon: typeof getGpsUserMarkerIcon === 'function' ? getGpsUserMarkerIcon() : undefined,
+                title: "Admin Current Location",
+                zIndex: 100
+              });
+
+              adminGpsMarker.addListener('click', () => {
+                const infowindow = getInfoWindow();
+                if (infowindow) {
+                  infowindow.setContent(`
+                      <div style="font-family: system-ui; padding: 4px; text-align: center;">
+                        <div style="font-weight: 800; color: #1e293b; font-size: 13px;">Admin Location</div>
+                        <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 2px;">Accuracy: ±${Math.round(accuracy)}m</div>
+                        <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">${latitude.toFixed(5)}, ${longitude.toFixed(5)}</div>
+                      </div>
+                    `);
+                  infowindow.setPosition(userPos);
+                  infowindow.open(targetMap, adminGpsMarker);
+                }
+              });
+            }
+          }
+        },
+        (err) => {
+          if (btn) btn.classList.remove('opacity-50');
+          console.warn("GPS error:", err.message);
+          let msg = "Unable to retrieve location.";
+          if (err.code === 1) { // PERMISSION_DENIED
+            msg = "Location permission was denied or blocked by your browser. If testing over LAN HTTP, please use HTTPS or localhost.";
+          } else if (err.code === 2) { // POSITION_UNAVAILABLE
+            msg = "Location information is unavailable from device GPS.";
+          } else if (err.code === 3) { // TIMEOUT
+            msg = "GPS location request timed out.";
+          }
+          alert(msg);
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    }
+    window.locateAdminUser = locateAdminUser;
+
+    function openCenterModal() {
+      document.getElementById('centerModal').classList.remove('hidden');
+
+      // MapLibre Modal Location Picker
+      if (window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre') {
+        setTimeout(() => {
+          const defaultPos = [123.347000, 13.510200]; // [lng, lat]
+          const container = document.getElementById('modalMap');
+          if (!modalMap && container && typeof maplibregl !== 'undefined') {
+            modalMap = window.createEvakWarMaplibreMap(container, {
+              center: defaultPos,
+              zoom: 15,
+              pitch: 0,
+              bearing: 0,
+              enable3D: false
+            });
+            const el = typeof window.createMaplibreCenterMarkerEl === 'function' ? window.createMaplibreCenterMarkerEl('#2563eb') : document.createElement('div');
+            modalMarker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'bottom' })
+              .setLngLat(defaultPos)
+              .addTo(modalMap);
+
+            modalMarker.on('dragend', () => {
+              const lngLat = modalMarker.getLngLat();
+              document.getElementById('modalLat').value = lngLat.lat.toFixed(6);
+              document.getElementById('modalLng').value = lngLat.lng.toFixed(6);
+            });
+
+            modalMap.on('click', (e) => {
+              modalMarker.setLngLat(e.lngLat);
+              document.getElementById('modalLat').value = e.lngLat.lat.toFixed(6);
+              document.getElementById('modalLng').value = e.lngLat.lng.toFixed(6);
+            });
+          } else if (modalMap && typeof modalMap.resize === 'function') {
+            modalMap.resize();
+            modalMap.setCenter(defaultPos);
+          }
+        }, 150);
+        return;
+      }
+
+      // Google Maps Modal Location Picker (Intact)
+      whenGoogleMapsReady(() => {
+        setTimeout(() => {
+          const defaultPos = { lat: 13.510200, lng: 123.347000 };
+          if (!modalMap) {
+            modalMap = new google.maps.Map(document.getElementById('modalMap'), {
+              center: defaultPos,
+              zoom: 15,
+              mapTypeId: google.maps.MapTypeId.HYBRID,
+              gestureHandling: 'greedy',
+              disableDefaultUI: false,
+              mapTypeControl: true
+            });
+
+            modalMarker = new google.maps.Marker({
+              position: defaultPos,
+              map: modalMap,
+              draggable: true,
+              icon: typeof getCenterMarkerIcon === 'function' ? getCenterMarkerIcon('#2563eb') : undefined,
+              title: "Evacuation Center Location"
+            });
+
+            modalMarker.addListener('dragend', () => {
+              const pos = modalMarker.getPosition();
+              document.getElementById('modalLat').value = pos.lat().toFixed(6);
+              document.getElementById('modalLng').value = pos.lng().toFixed(6);
+            });
+
+            modalMap.addListener('click', (e) => {
+              modalMarker.setPosition(e.latLng);
+              document.getElementById('modalLat').value = e.latLng.lat().toFixed(6);
+              document.getElementById('modalLng').value = e.latLng.lng().toFixed(6);
+            });
+          } else {
+            google.maps.event.trigger(modalMap, 'resize');
+            modalMap.setCenter(defaultPos);
+          }
+        }, 150);
+      });
+    }
+
+    function closeCenterModal() {
+      document.getElementById('centerModal').classList.add('hidden');
+    }
+
+    window.openEditCenterModal = function (id, name, address, maxCap, lat, lng, contact, ownerName, staffIds) {
+      if (id && typeof id === 'object') {
+        const btn = id;
+        id = btn.getAttribute('data-id');
+        name = btn.getAttribute('data-name');
+        address = btn.getAttribute('data-address');
+        contact = btn.getAttribute('data-contact');
+        maxCap = btn.getAttribute('data-capacity');
+        lat = btn.getAttribute('data-lat');
+        lng = btn.getAttribute('data-lng');
+        const staffIdsAttr = btn.getAttribute('data-staff-ids');
+        try {
+          staffIds = staffIdsAttr ? JSON.parse(staffIdsAttr) : [];
+        } catch (e) {
+          staffIds = [];
+        }
+      }
+      const form = document.getElementById('editCenterForm');
+      if (form) form.action = '/admin/evacuation/edit/' + id;
+      if (document.getElementById('editName')) document.getElementById('editName').value = name || '';
+      if (document.getElementById('editAddress')) {
+        const select = document.getElementById('editAddress');
+        const cleanAddr = (address || '').trim();
+        let matched = false;
+        for (let i = 0; i < select.options.length; i++) {
+          if (select.options[i].value.toLowerCase() === cleanAddr.toLowerCase()) {
+            select.selectedIndex = i;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched && cleanAddr) {
+          const opt = new Option(cleanAddr, cleanAddr, true, true);
+          select.add(opt);
+        }
+      }
+      if (document.getElementById('editContactNumber')) document.getElementById('editContactNumber').value = contact || '';
+      if (document.getElementById('editMaxCapacity')) document.getElementById('editMaxCapacity').value = maxCap ? Math.max(1, parseInt(maxCap, 10)) : '';
+      if (document.getElementById('editLat')) document.getElementById('editLat').value = lat || '13.510200';
+      if (document.getElementById('editLng')) document.getElementById('editLng').value = lng || '123.347000';
+
+      const staffIdList = Array.isArray(staffIds) ? staffIds.map(Number) : [];
+      document.querySelectorAll('.edit-center-staff-checkbox').forEach(cb => {
+        cb.checked = staffIdList.includes(Number(cb.value));
+      });
+
+      const modal = document.getElementById('editCenterModal');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.openEditCenterModalFromData = function (centerId) {
+      let centersData = [];
+      try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+      const center = centersData.find(c => Number(c.id) === Number(centerId));
+      if (!center) return;
+      const staffIds = (center.assigned_staff || []).map(s => s.user_id);
+      window.openEditCenterModal(
+        center.id,
+        center.name,
+        center.address,
+        center.max_capacity || '',
+        center.latitude,
+        center.longitude,
+        center.contact_number,
+        staffIds
+      );
+    };
+
+    window.closeEditCenterModal = function () {
+      const modal = document.getElementById('editCenterModal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.confirmDeleteCenter = function (id, name) {
+      if (id && typeof id === 'object') {
+        const btn = id;
+        id = btn.getAttribute('data-id');
+        name = btn.getAttribute('data-name');
+      }
+      const form = document.getElementById('deleteCenterForm');
+      const text = document.getElementById('deleteCenterModalText');
+      if (form) form.action = '/admin/evacuation/delete/' + id;
+      if (text) text.textContent = `Are you sure you want to delete "${name}"? This action cannot be undone.`;
+      const modal = document.getElementById('deleteCenterModal');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.closeDeleteCenterModal = function () {
+      const modal = document.getElementById('deleteCenterModal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    // Basemap Style Switcher (MapLibre & Google Maps)
+    window.setAdminMapStyle = function (mode) {
+      if (!adminMapInstance) return;
+      const btnHybrid = document.getElementById('btnAdminMapHybrid');
+      const btnSatellite = document.getElementById('btnAdminMapSatellite');
+      const btnRoad = document.getElementById('btnAdminMapRoad');
+      const buttons = {
+        hybrid: btnHybrid,
+        satellite: btnSatellite,
+        roads: btnRoad,
+        roadmap: btnRoad
+      };
+
+      if (adminMapInstance && typeof adminMapInstance.getLayer === 'function' && typeof window.setEvakWarMaplibreStyle === 'function') {
+        window.setEvakWarMaplibreStyle(adminMapInstance, mode, buttons);
+      } else if (typeof window.setEvakWarMapType === 'function') {
+        window.setEvakWarMapType(adminMapInstance, mode, buttons);
+      }
+    };
+
+    // 3D Pitch & Tilt Toggle (MapLibre & Google Maps)
+    window.toggle3DPitch = function () {
+      const btn = document.getElementById('btnToggle3D');
+      if (adminMapInstance && typeof adminMapInstance.getPitch === 'function' && typeof window.toggleEvakWarMaplibre3D === 'function') {
+        window.toggleEvakWarMaplibre3D(adminMapInstance, btn);
+      } else if (typeof window.toggleEvacwar3D === 'function') {
+        window.toggleEvacwar3D(adminMapInstance, btn);
+      }
+    };
+
+    // Camera Rotation (MapLibre & Google Maps)
+    window.rotateMapBearing = function (degrees = 45) {
+      if (adminMapInstance && typeof adminMapInstance.getBearing === 'function' && typeof window.rotateEvakWarMaplibreCamera === 'function') {
+        window.rotateEvakWarMaplibreCamera(adminMapInstance, degrees);
+      } else if (typeof window.rotateEvacwarCamera === 'function') {
+        window.rotateEvacwarCamera(adminMapInstance, degrees);
+      }
+    };
+
+    // SVG Pen Precision Cursor Data URI
+    const PEN_CURSOR_URL = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cdefs%3E%3Cfilter id='s' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeDropShadow dx='0' dy='1' stdDeviation='1' flood-color='%23000000' flood-opacity='0.5'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23s)'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z' fill='%232563eb' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='m15 5 4 4' stroke='%23ffffff' stroke-width='1.5'/%3E%3Ccircle cx='2' cy='22' r='2' fill='%23ef4444' stroke='%23ffffff' stroke-width='0.75'/%3E%3C/g%3E%3C/svg%3E") 2 22, crosshair`;
+
+
+
+    // Interactive Drawing State & Pen Cursor Controller
+    function updateDrawingCursor(cursorType) {
+      const mapDiv = document.getElementById('evacMap');
+      if (cursorType === 'pen') {
+        if (mapDiv) mapDiv.classList.add('map-pen-cursor');
+        if (adminMapInstance && typeof adminMapInstance.getCanvas === 'function') {
+          adminMapInstance.getCanvas().style.cursor = 'crosshair';
+        } else if (adminMapInstance && typeof adminMapInstance.setOptions === 'function') {
+          adminMapInstance.setOptions({ draggableCursor: PEN_CURSOR_URL });
+        }
+      } else {
+        if (mapDiv) mapDiv.classList.remove('map-pen-cursor');
+        if (adminMapInstance && typeof adminMapInstance.getCanvas === 'function') {
+          adminMapInstance.getCanvas().style.cursor = '';
+        } else if (adminMapInstance && typeof adminMapInstance.setOptions === 'function') {
+          adminMapInstance.setOptions({ draggableCursor: null });
+        }
+      }
+    }
+
+    function updateToolbarButtonStates() {
+      const btnRoute = document.getElementById('btnDrawRoute');
+      const btnHazard = document.getElementById('btnDrawHazard');
+
+      if (btnRoute) {
+        if (currentDrawingMode === 'route') {
+          btnRoute.className = "px-2.5 sm:px-3.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-amber-500 text-white shadow-md ring-2 ring-amber-300 animate-pulse flex items-center gap-1.5 cursor-pointer";
+        } else {
+          btnRoute.className = "px-2.5 sm:px-3.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 flex items-center gap-1 cursor-pointer";
+        }
+      }
+
+      if (btnHazard) {
+        if (currentDrawingMode === 'hazard') {
+          btnHazard.className = "px-2.5 sm:px-3.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-purple-600 text-white shadow-md ring-2 ring-purple-300 animate-pulse flex items-center gap-1.5 cursor-pointer";
+        } else {
+          btnHazard.className = "px-2.5 sm:px-3.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center gap-1 cursor-pointer";
+        }
+      }
+    }
+
+    function showDrawingHud(mode) {
+      const hud = document.getElementById('drawingModeHud');
+      const title = document.getElementById('drawingHudTitle');
+      const subtitle = document.getElementById('drawingHudSubtitle');
+      const iconBox = document.getElementById('drawingHudIcon');
+      if (!hud) return;
+
+      if (mode === 'route') {
+        if (title) title.textContent = "✏️ Drawing Evacuation Route";
+        if (subtitle) subtitle.textContent = "Click on map to place route points • Finish when done";
+        if (iconBox) iconBox.className = "flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs shrink-0";
+      } else if (mode === 'hazard') {
+        if (title) title.textContent = "✏️ Drawing Hazard Zone Polygon";
+        if (subtitle) subtitle.textContent = "Click on map to outline hazard zone (min 3 points) • Finish when done";
+        if (iconBox) iconBox.className = "flex h-7 w-7 items-center justify-center rounded-xl bg-purple-600 text-white shadow-xs shrink-0";
+      } else if (mode === 'boundary') {
+        if (title) title.textContent = "✏️ Drawing Barangay Boundary";
+        if (subtitle) subtitle.textContent = "Outline outer border • Dashed line & Plain interior (min 3 points)";
+        if (iconBox) iconBox.className = "flex h-7 w-7 items-center justify-center rounded-xl bg-rose-600 text-white shadow-xs shrink-0";
+      } else if (mode === 'zone') {
+        const zName = (typeof window.getTempZoneName === 'function' ? window.getTempZoneName() : 'Zone');
+        if (title) title.textContent = `✏️ Drawing Zone Boundary: ${zName}`;
+        if (subtitle) subtitle.textContent = "Outline zone • Subtle White Dashed (- - - -) line & Plain interior (min 3 points)";
+        if (iconBox) iconBox.className = "flex h-7 w-7 items-center justify-center rounded-xl bg-slate-700 text-white shadow-xs shrink-0 border border-white/30";
+      }
+      hud.classList.remove('hidden');
+      updateDrawingHudPoints();
+    }
+
+    function hideDrawingHud() {
+      const hud = document.getElementById('drawingModeHud');
+      if (hud) hud.classList.add('hidden');
+    }
+
+    function updateDrawingHudPoints() {
+      const count = activeDrawPoints.length;
+      const minRequired = (currentDrawingMode === 'route') ? 2 : 3;
+
+      const countSpan = document.getElementById('drawingPointsCount');
+      if (countSpan) {
+        countSpan.textContent = `${count} pts (${minRequired}+ needed)`;
+        if (count >= minRequired) {
+          countSpan.className = "text-[11px] font-mono font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-lg";
+        } else {
+          countSpan.className = "text-[11px] font-mono font-bold bg-white/10 text-slate-200 px-2 py-0.5 rounded-lg";
+        }
+      }
+    }
+
+    window.toggleDrawMode = function (mode) {
+      if (currentDrawingMode === mode) {
+        finishActiveDrawing();
+      } else {
+        if (mode === 'route') {
+          window.startDrawRoute();
+        } else if (mode === 'hazard') {
+          window.startDrawHazard();
+        }
+      }
+    };
+
+    window.startDrawRoute = function () {
+      if (!adminMapInstance) return;
+      finishActiveDrawing();
+      currentDrawingMode = 'route';
+      activeDrawPoints = [];
+      updateDrawingCursor('pen');
+      updateToolbarButtonStates();
+      showDrawingHud('route');
+    };
+
+    window.startDrawHazard = function () {
+      if (!adminMapInstance) return;
+      finishActiveDrawing();
+      currentDrawingMode = 'hazard';
+      activeDrawPoints = [];
+      updateDrawingCursor('pen');
+      updateToolbarButtonStates();
+      showDrawingHud('hazard');
+    };
+
+    if (typeof adminGeoJsonFeatures === 'undefined' || !adminGeoJsonFeatures) {
+      adminGeoJsonFeatures = { type: 'FeatureCollection', features: [] };
+    }
+    let selectedMaplibreFeatureIndex = -1;
+    let featureClickedJustNow = false;
+
+    // Helper: extract [lng, lat] coordinate array from various point representations
+    function getPointLngLat(pt) {
+      if (Array.isArray(pt)) return [Number(pt[0]), Number(pt[1])];
+      if (pt && typeof pt.lng === 'function') return [Number(pt.lng()), Number(pt.lat())];
+      if (pt && typeof pt.lng !== 'undefined') return [Number(pt.lng), Number(pt.lat)];
+      return [0, 0];
+    }
+
+    function updateMaplibreDrawPreview() {
+      if (!adminMapInstance || typeof adminMapInstance.getSource !== 'function') return;
+      const src = adminMapInstance.getSource('admin-draw-preview');
+      if (!src) return;
+
+      const previewFeatures = [];
+      if (!currentDrawingMode || !activeDrawPoints || activeDrawPoints.length === 0) {
+        src.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      const coords = activeDrawPoints.map(getPointLngLat);
+      const isZone = (currentDrawingMode === 'zone');
+      const isBoundary = (currentDrawingMode === 'boundary');
+      const strokeColor = isBoundary ? '#f87171' : (isZone ? '#ffffff' : (currentDrawingMode === 'hazard' ? '#dc2626' : '#f97316'));
+
+      // 1. Vertex points (circle for each clicked point)
+      coords.forEach((c, idx) => {
+        previewFeatures.push({
+          type: 'Feature',
+          properties: { shapeType: currentDrawingMode, strokeColor: strokeColor, pointIndex: idx },
+          geometry: { type: 'Point', coordinates: c }
+        });
+      });
+
+      // 2. Line preview between vertices
+      if (coords.length >= 2) {
+        previewFeatures.push({
+          type: 'Feature',
+          properties: { shapeType: currentDrawingMode, strokeColor: strokeColor },
+          geometry: { type: 'LineString', coordinates: coords }
+        });
+      }
+
+      // 3. Polygon preview: Only hazard gets tinted fill preview (Boundary & Zone stay plain interior with zero fill)
+      if (currentDrawingMode === 'hazard' && coords.length >= 3) {
+        const ring = coords.slice();
+        if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+          ring.push(ring[0]);
+        }
+        previewFeatures.push({
+          type: 'Feature',
+          properties: { shapeType: currentDrawingMode, fillColor: '#ef4444', fillOpacity: 0.35 },
+          geometry: { type: 'Polygon', coordinates: [ring] }
+        });
+      }
+
+      src.setData({ type: 'FeatureCollection', features: previewFeatures });
+    }
+
+    // Expose both names so no caller or external event throws ReferenceError
+    window.updateMaplibreDrawPreview = updateMaplibreDrawPreview;
+    window.renderMaplibreDrawingPreview = updateMaplibreDrawPreview;
+
+    window.undoLastDrawPoint = function () {
+      if (activeDrawPoints.length === 0) return;
+      activeDrawPoints.pop();
+      updateMaplibreDrawPreview();
+      updateDrawingHudPoints();
+    };
+
+    window.cancelActiveDrawing = function () {
+      activeDrawPoints = [];
+      currentDrawingMode = null;
+      updateMaplibreDrawPreview();
+      updateDrawingCursor('default');
+      updateToolbarButtonStates();
+      hideDrawingHud();
+    };
+
+    function finishActiveDrawing() {
+      const minRequired = (currentDrawingMode === 'route') ? 2 : 3;
+
+      if (activeDrawPoints.length >= minRequired) {
+        if (!adminGeoJsonFeatures) adminGeoJsonFeatures = { type: 'FeatureCollection', features: [] };
+        if (!Array.isArray(adminGeoJsonFeatures.features)) adminGeoJsonFeatures.features = [];
+
+        const coords = activeDrawPoints.map(getPointLngLat);
+        const featPrefix = (currentDrawingMode === 'route' ? 'route_' : (currentDrawingMode === 'boundary' ? 'boundary_' : (currentDrawingMode === 'zone' ? 'zone_' : 'hazard_')));
+        const featId = featPrefix + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+        if (currentDrawingMode === 'route') {
+          adminGeoJsonFeatures.features.push({
+            type: 'Feature',
+            id: featId,
+            properties: { featureId: featId, type: 'route', name: 'Evacuation Route', color: '#f97316' },
+            geometry: { type: 'LineString', coordinates: coords }
+          });
+        } else if (currentDrawingMode === 'boundary') {
+          const ring = coords.slice();
+          if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+            ring.push(ring[0]);
+          }
+          // Remove any existing boundary so user only has 1 clean boundary
+          adminGeoJsonFeatures.features = adminGeoJsonFeatures.features.filter(f => !(f.properties && f.properties.type === 'boundary'));
+          adminGeoJsonFeatures.features.push({
+            type: 'Feature',
+            id: featId,
+            properties: {
+              featureId: featId,
+              type: 'boundary',
+              name: 'Barangay San Rafael (Ikpan) Boundary',
+              strokeColor: '#f87171',
+              strokeWidth: 1.5,
+              fillColor: 'transparent',
+              fillOpacity: 0
+            },
+            geometry: { type: 'Polygon', coordinates: [ring] }
+          });
+        } else if (currentDrawingMode === 'zone') {
+          const ring = coords.slice();
+          if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+            ring.push(ring[0]);
+          }
+          const zoneName = (typeof window.getTempZoneName === 'function' ? window.getTempZoneName() : null) || ('Zone ' + (adminGeoJsonFeatures.features.filter(f => f.properties && f.properties.type === 'zone').length + 1));
+          adminGeoJsonFeatures.features.push({
+            type: 'Feature',
+            id: featId,
+            properties: {
+              featureId: featId,
+              type: 'zone',
+              name: zoneName,
+              strokeColor: '#ffffff',
+              strokeWidth: 1.5,
+              strokeDasharray: [3, 2],
+              fillColor: 'transparent',
+              fillOpacity: 0
+            },
+            geometry: { type: 'Polygon', coordinates: [ring] }
+          });
+          if (typeof window.advanceTempZoneName === 'function') window.advanceTempZoneName();
+        } else if (currentDrawingMode === 'hazard') {
+          const ring = coords.slice();
+          if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+            ring.push(ring[0]);
+          }
+          adminGeoJsonFeatures.features.push({
+            type: 'Feature',
+            id: featId,
+            properties: { featureId: featId, type: 'hazard', name: 'Hazard Zone', color: '#ef4444' },
+            geometry: { type: 'Polygon', coordinates: [ring] }
+          });
+        }
+
+        if (adminMapInstance && typeof adminMapInstance.getSource === 'function') {
+          const src = adminMapInstance.getSource('admin-saved-features');
+          if (src) src.setData(adminGeoJsonFeatures);
+        }
+        saveMapFeatures();
+        if (typeof window.updateZoneLabelsOnMap === 'function') window.updateZoneLabelsOnMap(adminMapInstance, adminGeoJsonFeatures);
+      }
+
+      activeDrawPoints = [];
+      currentDrawingMode = null;
+      updateMaplibreDrawPreview();
+      updateDrawingCursor('default');
+      updateToolbarButtonStates();
+      hideDrawingHud();
+    }
+    window.finishActiveDrawing = finishActiveDrawing;
+
+    window.deleteSelectedDraw = function () {
+      if (selectedMaplibreFeatureIndex >= 0 && adminGeoJsonFeatures && Array.isArray(adminGeoJsonFeatures.features) && selectedMaplibreFeatureIndex < adminGeoJsonFeatures.features.length) {
+        adminGeoJsonFeatures.features.splice(selectedMaplibreFeatureIndex, 1);
+        selectedMaplibreFeatureIndex = -1;
+        if (window.selectedFeaturePopup) {
+          window.selectedFeaturePopup.remove();
+          window.selectedFeaturePopup = null;
+        }
+        if (typeof window.updateDeleteButtonState === 'function') {
+          window.updateDeleteButtonState(false);
+        }
+        if (adminMapInstance && typeof adminMapInstance.getSource === 'function') {
+          const src = adminMapInstance.getSource('admin-saved-features');
+          if (src) src.setData(adminGeoJsonFeatures);
+          const selSrc = adminMapInstance.getSource('admin-selected-feature');
+          if (selSrc) selSrc.setData({ type: 'FeatureCollection', features: [] });
+        }
+        saveMapFeatures();
+        return;
+      }
+      alert("Click on a route line or hazard zone on the map to select it first, then click delete.");
+    };
+
+    window.clearAllDrawFeatures = function () {
+      if (confirm('Are you sure you want to clear all drawn routes and hazard zones?')) {
+        adminGeoJsonFeatures = { type: 'FeatureCollection', features: [] };
+        selectedMaplibreFeatureIndex = -1;
+        if (window.selectedFeaturePopup) {
+          window.selectedFeaturePopup.remove();
+          window.selectedFeaturePopup = null;
+        }
+        if (typeof window.updateDeleteButtonState === 'function') {
+          window.updateDeleteButtonState(false);
+        }
+        if (adminMapInstance && typeof adminMapInstance.getSource === 'function') {
+          const src = adminMapInstance.getSource('admin-saved-features');
+          if (src) src.setData(adminGeoJsonFeatures);
+          const selSrc = adminMapInstance.getSource('admin-selected-feature');
+          if (selSrc) selSrc.setData({ type: 'FeatureCollection', features: [] });
+        }
+        activeDrawPoints = [];
+        currentDrawingMode = null;
+        updateMaplibreDrawPreview();
+        updateDrawingCursor('default');
+        updateToolbarButtonStates();
+        hideDrawingHud();
+        saveMapFeatures();
+      }
+    };
+
+    function saveMapFeatures() {
+      const geoJson = adminGeoJsonFeatures || { type: 'FeatureCollection', features: [] };
+
+      // Local offline IndexedDB sync
+      if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function') {
+        let currentCenters = [];
+        try { currentCenters = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+        window.EvakWarDB.saveMapData(currentCenters, geoJson);
+      }
+
+      fetch('/admin/map-features', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geoJson)
+      }).catch(err => console.error("Error saving map features:", err));
+    }
+
+
+    // HTML Zone Badge Markers on Map (centrally positioned on each drawn zone)
+    window.activeZoneLabelMarkers = [];
+    window.updateZoneLabelsOnMap = function (map, geoJson) {
+      if (!map || typeof maplibregl === 'undefined') return;
+      (window.activeZoneLabelMarkers || []).forEach(m => m.remove());
+      window.activeZoneLabelMarkers = [];
+
+      if (!geoJson || !Array.isArray(geoJson.features)) return;
+      const zoneFeats = geoJson.features.filter(f => f.properties && f.properties.type === 'zone');
+
+      zoneFeats.forEach(feat => {
+        const p = feat.properties || {};
+        const coords = (feat.geometry && feat.geometry.coordinates && feat.geometry.coordinates[0]) || [];
+        if (coords.length < 3) return;
+
+        let sumLng = 0, sumLat = 0;
+        coords.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
+        const cLng = sumLng / coords.length;
+        const cLat = sumLat / coords.length;
+
+        const el = document.createElement('div');
+        el.className = 'pointer-events-none select-none px-2 py-0.5 rounded-md text-[10.5px] font-extrabold shadow-md border flex items-center gap-1.5';
+        el.style.backgroundColor = 'rgba(15, 23, 42, 0.88)';
+        el.style.color = '#ffffff';
+        el.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+        el.style.backdropFilter = 'blur(4px)';
+        el.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-white shrink-0"></span><span class="tracking-wide">${p.name || 'Zone'}</span>`;
+
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([cLng, cLat])
+          .addTo(map);
+
+        window.activeZoneLabelMarkers.push(marker);
+      });
+    };
+    /* ========================================================================= */
+    /* END TEMPORARY BOUNDARY & ZONE AUTHORING SCRIPT */
+    /* ========================================================================= */
+
+    // Emergency SOS Resolution & Marker Logic
+    window.resolveSosAlert = async function (sosId) {
+      if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
+      try {
+        const res = await fetch('/api/sos/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sosId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          removeSosMarker(sosId);
+        }
+      } catch (err) {
+        console.error("Error resolving SOS alert:", err);
+      }
+    };
+
+    function addOrUpdateSosMarker(sosAlert, autoFly = false) {
+      if (!adminMapInstance || !sosAlert) return;
+      const lng = parseFloat(sosAlert.longitude || sosAlert.lng);
+      const lat = parseFloat(sosAlert.latitude || sosAlert.lat);
+      if (isNaN(lng) || isNaN(lat)) return;
+
+      const sosId = (sosAlert.id !== undefined && sosAlert.id !== null) ? sosAlert.id : (sosAlert.sos_id !== undefined && sosAlert.sos_id !== null ? sosAlert.sos_id : null);
+      const resId = (sosAlert.resident_id !== undefined && sosAlert.resident_id !== null) ? sosAlert.resident_id : (sosAlert.residentId || null);
+      const status = (sosAlert.status || 'ACTIVE').toUpperCase();
+
+      if (status === 'RESOLVED' || status === 'CANCELLED') {
+        removeSosMarker(sosId, resId);
+        return;
+      }
+
+      const resName = sosAlert.first_name ? `${sosAlert.first_name} ${sosAlert.last_name || ''}`.trim() : (sosAlert.name || 'Resident in Distress');
+      const contactNum = sosAlert.contact_number || sosAlert.phone || '';
+      const popupHtml = window.buildSosPopupHtml(sosAlert, 'admin');
+
+      // Sync with in-memory admin SOS radar list
+      if (!Array.isArray(window.currentAdminSosAlerts)) window.currentAdminSosAlerts = [];
+      const existingSosIdx = window.currentAdminSosAlerts.findIndex(a => (sosId && (a.id == sosId || a.sos_id == sosId)) || (resId && (a.resident_id == resId || a.residentId == resId)));
+      if (existingSosIdx >= 0) {
+        window.currentAdminSosAlerts[existingSosIdx] = Object.assign({}, window.currentAdminSosAlerts[existingSosIdx], sosAlert);
+      } else {
+        window.currentAdminSosAlerts.unshift(sosAlert);
+      }
+      if (typeof updateAdminSosPanelList === 'function') {
+        updateAdminSosPanelList();
+      }
+
+      // Canonical lookup in sosMapMarkers: find existing marker by sosId OR resident_id
+      let existingKey = null;
+      if (sosId && sosMapMarkers[`sos_${sosId}`]) {
+        existingKey = `sos_${sosId}`;
+      } else if (sosId && sosMapMarkers[String(sosId)]) {
+        existingKey = String(sosId);
+      } else if (resId && sosMapMarkers[`res_${resId}`]) {
+        existingKey = `res_${resId}`;
+      } else {
+        for (const k in sosMapMarkers) {
+          const m = sosMapMarkers[k];
+          if (m && ((sosId && (m.id == sosId || k === `sos_${sosId}` || k == sosId)) || (resId && m.resident_id == resId))) {
+            existingKey = k;
+            break;
+          }
+        }
+      }
+
+      // MapLibre SOS Marker Handler (Rule: One SOS ID = One Marker)
+      if (typeof adminMapInstance.getLayer === 'function') {
+        if (existingKey && sosMapMarkers[existingKey] && sosMapMarkers[existingKey].marker) {
+          const item = sosMapMarkers[existingKey];
+          // UPDATE existing marker in-place: coordinates, popup, status
+          if (typeof item.marker.setLngLat === 'function') {
+            item.marker.setLngLat([lng, lat]);
+          }
+          if (item.popup && typeof item.popup.setHTML === 'function') {
+            item.popup.setHTML(popupHtml);
+          }
+          item.popupHtml = popupHtml;
+          item.pos = [lng, lat];
+          item.id = sosId || item.id;
+          item.resident_id = resId || item.resident_id;
+
+          // If status changed, update marker visual element
+          if (item.status !== status && typeof window.createMaplibreSosMarkerEl === 'function') {
+            item.status = status;
+            const markerEl = item.marker.getElement();
+            if (markerEl) {
+              markerEl.innerHTML = window.createMaplibreSosMarkerEl(status).innerHTML;
+            }
+          }
+
+          // Re-key under canonical `sos_${sosId}` if sosId is known
+          if (sosId && existingKey !== `sos_${sosId}`) {
+            sosMapMarkers[`sos_${sosId}`] = item;
+            delete sosMapMarkers[existingKey];
+          }
+        } else if (typeof maplibregl !== 'undefined') {
+          // Create exactly ONE new MapLibre marker
+          const el = window.createMaplibreSosMarkerEl(status);
+          const popup = new maplibregl.Popup({
+            anchor: 'bottom',
+            offset: [0, -22],
+            maxWidth: '280px',
+            closeButton: true,
+            closeOnClick: false
+          }).setHTML(popupHtml);
+
+          if (typeof window.bringMaplibrePopupToFront === 'function') {
+            popup.on('open', () => window.bringMaplibrePopupToFront(popup));
+          }
+
+          const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([lng, lat])
+            .setPopup(popup)
+            .addTo(adminMapInstance);
+
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window.focusMaplibreSiteCentered === 'function') {
+              window.focusMaplibreSiteCentered(adminMapInstance, lng, lat, popup, sosMapMarkers, 16.8);
+            } else {
+              if (!popup.isOpen()) marker.togglePopup();
+            }
+          });
+
+          const canonicalKey = sosId ? `sos_${sosId}` : `res_${resId}`;
+          sosMapMarkers[canonicalKey] = {
+            marker,
+            popup,
+            id: sosId,
+            resident_id: resId,
+            popupHtml,
+            pos: [lng, lat],
+            status
+          };
+        }
+
+        if (autoFly && typeof adminMapInstance.flyTo === 'function') {
+          const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(adminMapInstance, 16) : 16;
+          const curPitch = typeof adminMapInstance.getPitch === 'function' ? adminMapInstance.getPitch() : 0;
+          const curBearing = typeof adminMapInstance.getBearing === 'function' ? adminMapInstance.getBearing() : 0;
+          adminMapInstance.flyTo({
+            center: [lng, lat],
+            zoom: targetZoom,
+            offset: [0, 130],
+            pitch: curPitch,
+            bearing: curBearing,
+            essential: true
+          });
+        }
+        return;
+      }
+
+      // Google Maps SOS Marker Handler (Intact)
+      if (typeof google === 'undefined' || !google.maps) return;
+      const pos = new google.maps.LatLng(lat, lng);
+
+      if (existingKey && sosMapMarkers[existingKey]) {
+        sosMapMarkers[existingKey].marker.setPosition(pos);
+        sosMapMarkers[existingKey].marker.setIcon(getSosMarkerIcon(status));
+        sosMapMarkers[existingKey].popupHtml = popupHtml;
+        sosMapMarkers[existingKey].pos = pos;
+        if (sosAlert.id && existingKey !== sosAlert.id) {
+          sosMapMarkers[sosAlert.id] = sosMapMarkers[existingKey];
+          delete sosMapMarkers[existingKey];
+        }
+      } else {
+        const marker = new google.maps.Marker({
+          position: pos,
+          map: adminMapInstance,
+          icon: typeof getSosMarkerIcon === 'function' ? getSosMarkerIcon(status) : undefined,
+          title: `SOS: ${resName}`
+        });
+
+        marker.addListener('click', () => {
+          const infowindow = getInfoWindow();
+          if (infowindow) {
+            infowindow.setContent(sosMapMarkers[sosAlert.id] ? sosMapMarkers[sosAlert.id].popupHtml : popupHtml);
+            infowindow.setPosition(pos);
+            infowindow.open(adminMapInstance, marker);
+          }
+        });
+
+        sosMapMarkers[sosAlert.id] = { marker, popupHtml, resident_id: sosAlert.resident_id, pos };
+      }
+
+      if (autoFly && adminMapInstance.panTo) {
+        adminMapInstance.panTo(pos);
+        adminMapInstance.setZoom(17);
+      }
+    }
+
+    function removeSosMarker(sosId, residentId) {
+      if (sosId) {
+        removeRescuerMarker(sosId);
+      }
+      const removeObj = (obj) => {
+        if (!obj) return;
+        if (obj.marker) {
+          if (typeof obj.marker.remove === 'function') obj.marker.remove();
+          else if (typeof obj.marker.setMap === 'function') obj.marker.setMap(null);
+        }
+      };
+      if (sosId) {
+        const canonicalKey = `sos_${sosId}`;
+        if (sosMapMarkers[canonicalKey]) {
+          removeObj(sosMapMarkers[canonicalKey]);
+          delete sosMapMarkers[canonicalKey];
+        }
+        if (sosMapMarkers[String(sosId)]) {
+          removeObj(sosMapMarkers[String(sosId)]);
+          delete sosMapMarkers[String(sosId)];
+        }
+        for (const k in sosMapMarkers) {
+          if (sosMapMarkers[k] && sosMapMarkers[k].id == sosId) {
+            removeObj(sosMapMarkers[k]);
+            delete sosMapMarkers[k];
+          }
+        }
+      }
+      if (residentId) {
+        const resKey = `res_${residentId}`;
+        if (sosMapMarkers[resKey]) {
+          removeObj(sosMapMarkers[resKey]);
+          delete sosMapMarkers[resKey];
+        }
+        for (const k in sosMapMarkers) {
+          if (sosMapMarkers[k] && (sosMapMarkers[k].resident_id == residentId || k === `res_${residentId}`)) {
+            removeObj(sosMapMarkers[k]);
+            delete sosMapMarkers[k];
+          }
+        }
+      }
+
+      if (!Array.isArray(window.currentAdminSosAlerts)) window.currentAdminSosAlerts = [];
+      window.currentAdminSosAlerts = window.currentAdminSosAlerts.filter(a => {
+        if (sosId && (a.id == sosId || a.sos_id == sosId)) return false;
+        if (residentId && (a.resident_id == residentId || a.residentId == residentId)) return false;
+        return true;
+      });
+      if (typeof updateAdminSosPanelList === 'function') {
+        updateAdminSosPanelList();
+      }
+    }
+
+    function buildRescuerPopupHtml(rescuerData) {
+      const rescuerName = rescuerData.rescuer_name || 'Emergency Rescuer';
+      const rescuerRole = rescuerData.rescuer_role || 'Emergency Response Staff';
+      const status = (rescuerData.status || 'RESPONDING').toUpperCase();
+      const photo = rescuerData.rescuer_photo;
+      const timeStr = rescuerData.updated_at ? (window.formatManilaTime ? window.formatManilaTime(rescuerData.updated_at) : 'Just now') : 'Just now';
+      const sosId = rescuerData.sos_id || '';
+
+      let statusBadgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
+      let statusLabel = 'DISPATCHED';
+      if (status === 'RESCUED') {
+        statusBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        statusLabel = 'RESCUING';
+      } else if (status === 'RESPONDING') {
+        statusBadgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
+        statusLabel = 'DISPATCHED';
+      }
+
+      const initials = rescuerName.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'R';
+
+      const avatarHtml = photo
+        ? `<div style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; border: 2.5px solid #2563eb; flex-shrink: 0; background: #eff6ff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(37,99,235,0.2);">
+            <img src="${photo}" alt="${rescuerName}" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <span style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #1d4ed8; background: #dbeafe;">${initials}</span>
+          </div>`
+        : `<div style="width: 44px; height: 44px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 2.5px solid #2563eb; flex-shrink: 0; box-shadow: 0 2px 6px rgba(37,99,235,0.2);">${initials}</div>`;
+
+      return `
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 250px; max-width: 310px; padding: 2px;">
+          <!-- Header with 32px right padding to ensure MapLibre close button never overlaps status badge -->
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; padding-bottom: 7px; padding-right: 32px; border-bottom: 1px solid #e2e8f0;">
+            <span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #2563eb;">
+              <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2563eb; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+              Rescuer Live Tracking
+            </span>
+            <span class="${statusBadgeClass}" style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 9999px; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.02em;">
+              ${statusLabel}
+            </span>
+          </div>
+
+          <!-- Body: Rescuer Info -->
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 9px;">
+            ${avatarHtml}
+            <div style="min-width: 0; flex: 1;">
+              <h4 style="margin: 0; font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;">${rescuerName}</h4>
+              <p style="margin: 2px 0 0; font-size: 11px; font-weight: 600; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${rescuerRole}</p>
+              ${sosId ? `
+                <div style="margin-top: 4px;">
+                  <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: #334155; background: #f1f5f9; padding: 2px 7px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                    <i class="ph ph-siren" style="color: #ef4444;"></i> Handling SOS: <b style="color: #0f172a; margin-left: 2px;">#${sosId}</b>
+                  </span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Footer: Fix Time & Live GPS Indicator -->
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; color: #64748b; background: #f8fafc; padding: 5px 9px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <span style="display: flex; align-items: center; gap: 4px;">
+              <i class="ph ph-clock" style="color: #94a3b8;"></i> Fix: ${timeStr}
+            </span>
+            <span style="color: #059669; font-weight: 800; display: flex; align-items: center; gap: 4px;">
+              <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
+              Live GPS Active
+            </span>
+          </div>
+        </div>
+      `;
+    }
+
+    function addOrUpdateRescuerMarker(rescuerData, autoFly = false) {
+      if (!adminMapInstance || !rescuerData) return;
+      const lng = parseFloat(rescuerData.longitude || rescuerData.lng);
+      const lat = parseFloat(rescuerData.latitude || rescuerData.lat);
+      if (isNaN(lng) || isNaN(lat)) return;
+
+      const sosId = rescuerData.sos_id || rescuerData.id;
+      if (!sosId) return;
+      const markerKey = `rescuer_${sosId}`;
+
+      const status = (rescuerData.status || 'RESPONDING').toUpperCase();
+      if (status === 'RESOLVED' || status === 'CANCELLED') {
+        removeRescuerMarker(sosId);
+        return;
+      }
+
+      const popupHtml = buildRescuerPopupHtml(rescuerData);
+
+      // MapLibre Provider
+      if (typeof adminMapInstance.getLayer === 'function') {
+        if (rescuerMapMarkers[markerKey] && rescuerMapMarkers[markerKey].marker) {
+          const item = rescuerMapMarkers[markerKey];
+          if (typeof item.marker.setLngLat === 'function') {
+            item.marker.setLngLat([lng, lat]);
+          }
+          if (item.popup && typeof item.popup.setHTML === 'function') {
+            item.popup.setHTML(popupHtml);
+          }
+          item.popupHtml = popupHtml;
+          item.pos = [lng, lat];
+          item.status = status;
+        } else if (typeof maplibregl !== 'undefined') {
+          const el = (typeof window.createMaplibreRescuerMarkerEl === 'function')
+            ? window.createMaplibreRescuerMarkerEl(rescuerData)
+            : document.createElement('div');
+
+          const popup = new maplibregl.Popup({
+            anchor: 'bottom',
+            offset: [0, -30],
+            maxWidth: '340px',
+            closeButton: true,
+            closeOnClick: false
+          }).setHTML(popupHtml);
+
+          if (typeof window.bringMaplibrePopupToFront === 'function') {
+            popup.on('open', () => window.bringMaplibrePopupToFront(popup));
+          }
+
+          const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([lng, lat])
+            .setPopup(popup)
+            .addTo(adminMapInstance);
+
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof adminMapInstance.flyTo === 'function') {
+              const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(adminMapInstance, 16) : 16;
+              adminMapInstance.flyTo({
+                center: [lng, lat],
+                zoom: targetZoom,
+                essential: true
+              });
+            }
+            if (!popup.isOpen()) marker.togglePopup();
+          });
+
+          rescuerMapMarkers[markerKey] = {
+            marker,
+            popup,
+            sos_id: sosId,
+            rescuer_id: rescuerData.rescuer_user_id,
+            pos: [lng, lat],
+            popupHtml,
+            status
+          };
+        }
+
+        if (autoFly && typeof adminMapInstance.flyTo === 'function') {
+          const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(adminMapInstance, 16) : 16;
+          adminMapInstance.flyTo({
+            center: [lng, lat],
+            zoom: targetZoom,
+            essential: true
+          });
+        }
+        return;
+      }
+
+      // Google Maps Provider Fallback
+      if (typeof google !== 'undefined' && google.maps) {
+        const pos = new google.maps.LatLng(lat, lng);
+        if (rescuerMapMarkers[markerKey] && rescuerMapMarkers[markerKey].marker) {
+          rescuerMapMarkers[markerKey].marker.setPosition(pos);
+          rescuerMapMarkers[markerKey].popupHtml = popupHtml;
+        } else {
+          const marker = new google.maps.Marker({
+            position: pos,
+            map: adminMapInstance,
+            title: `Rescuer: ${rescuerData.rescuer_name || 'Staff'}`
+          });
+          marker.addListener('click', () => {
+            const infowindow = getInfoWindow();
+            if (infowindow) {
+              infowindow.setContent(popupHtml);
+              infowindow.setPosition(pos);
+              infowindow.open(adminMapInstance, marker);
+            }
+          });
+          rescuerMapMarkers[markerKey] = { marker, popupHtml, pos, sos_id: sosId };
+        }
+      }
+    }
+
+    function removeRescuerMarker(sosId) {
+      if (!sosId) return;
+      const markerKey = `rescuer_${sosId}`;
+      const removeObj = (obj) => {
+        if (!obj) return;
+        if (obj.marker) {
+          if (typeof obj.marker.remove === 'function') obj.marker.remove();
+          else if (typeof obj.marker.setMap === 'function') obj.marker.setMap(null);
+        }
+      };
+
+      if (rescuerMapMarkers[markerKey]) {
+        removeObj(rescuerMapMarkers[markerKey]);
+        delete rescuerMapMarkers[markerKey];
+      }
+      for (const k in rescuerMapMarkers) {
+        if (rescuerMapMarkers[k] && (rescuerMapMarkers[k].sos_id == sosId || k === String(sosId))) {
+          removeObj(rescuerMapMarkers[k]);
+          delete rescuerMapMarkers[k];
+        }
+      }
+    }
+
+    function checkAdminUrlForSosFocus() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetSosId = urlParams.get('sos_id') || urlParams.get('id');
+      const targetLat = parseFloat(urlParams.get('lat'));
+      const targetLng = parseFloat(urlParams.get('lng'));
+
+      const markerObj = (targetSosId && (sosMapMarkers[targetSosId] || sosMapMarkers[`sos_${targetSosId}`])) || null;
+      if (markerObj && adminMapInstance) {
+        if (typeof adminMapInstance.flyTo === 'function') {
+          const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(adminMapInstance, 16) : 16;
+          const curPitch = typeof adminMapInstance.getPitch === 'function' ? adminMapInstance.getPitch() : 0;
+          const curBearing = typeof adminMapInstance.getBearing === 'function' ? adminMapInstance.getBearing() : 0;
+          adminMapInstance.flyTo({
+            center: markerObj.pos,
+            zoom: targetZoom,
+            offset: [0, 130],
+            pitch: curPitch,
+            bearing: curBearing,
+            essential: true
+          });
+          if (markerObj.popup) {
+            if (!markerObj.popup.isOpen() && markerObj.marker && typeof markerObj.marker.togglePopup === 'function') {
+              markerObj.marker.togglePopup();
+            } else if (!markerObj.popup.isOpen()) {
+              markerObj.popup.addTo(adminMapInstance);
+            }
+            if (typeof window.bringMaplibrePopupToFront === 'function') {
+              window.bringMaplibrePopupToFront(markerObj.popup);
+            }
+          }
+          return;
+        }
+        if (adminMapInstance.panTo) {
+          adminMapInstance.panTo(markerObj.pos);
+          adminMapInstance.setZoom(16);
+          const infowindow = getInfoWindow();
+          if (infowindow) {
+            infowindow.setContent(markerObj.popupHtml);
+            infowindow.setPosition(markerObj.pos);
+            infowindow.open(adminMapInstance, markerObj.marker);
+          }
+          return;
+        }
+      }
+
+      if (!isNaN(targetLat) && !isNaN(targetLng) && adminMapInstance) {
+        if (typeof adminMapInstance.flyTo === 'function') {
+          const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(adminMapInstance, 16) : 16;
+          const curPitch = typeof adminMapInstance.getPitch === 'function' ? adminMapInstance.getPitch() : 0;
+          const curBearing = typeof adminMapInstance.getBearing === 'function' ? adminMapInstance.getBearing() : 0;
+          adminMapInstance.flyTo({
+            center: [targetLng, targetLat],
+            zoom: targetZoom,
+            offset: [0, 130],
+            pitch: curPitch,
+            bearing: curBearing,
+            essential: true
+          });
+        } else if (adminMapInstance.panTo && typeof google !== 'undefined' && google.maps) {
+          adminMapInstance.panTo(new google.maps.LatLng(targetLat, targetLng));
+          adminMapInstance.setZoom(16);
+        }
+      }
+    }
+
+    window.toggleCentersPanel = function (forceState) {
+      const panel = document.getElementById('adminCentersPanel');
+      if (!panel) return;
+      const willOpen = typeof forceState === 'boolean' ? forceState : panel.classList.contains('hidden');
+      if (willOpen) {
+        panel.classList.remove('hidden');
+        setTimeout(() => {
+          const searchInput = document.getElementById('adminCentersSearchInput');
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }, 50);
+      } else {
+        panel.classList.add('hidden');
+      }
+    };
+
+    // Emergency SOS Distress Radar Panel Controller for Admin
+    window.currentAdminSosAlerts = [];
+    try {
+      const initSosEl = document.getElementById('active-sos-data');
+      if (initSosEl && initSosEl.textContent) {
+        window.currentAdminSosAlerts = JSON.parse(initSosEl.textContent.trim() || '[]');
+      }
+    } catch (e) {
+      window.currentAdminSosAlerts = [];
+    }
+
+    window.toggleSosRadarPanel = function (forceState) {
+      const panel = document.getElementById('adminSosPanel');
+      if (!panel) return;
+      const willOpen = typeof forceState === 'boolean' ? forceState : panel.classList.contains('hidden');
+      if (willOpen) {
+        panel.classList.remove('hidden');
+        renderAdminSosPanelList(window.currentAdminSosAlerts);
+        setTimeout(() => {
+          const searchInput = document.getElementById('adminSosSearchInput');
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }, 50);
+      } else {
+        panel.classList.add('hidden');
+      }
+    };
+
+    window.handleAdminSosSearch = function (query = '') {
+      const q = (query || '').toLowerCase().trim();
+      if (!q) {
+        renderAdminSosPanelList(window.currentAdminSosAlerts);
+        return;
+      }
+      const filtered = (window.currentAdminSosAlerts || []).filter(a => {
+        const name = (a.name || `${a.first_name || ''} ${a.last_name || ''}`).toLowerCase();
+        const contact = (a.contact_number || '').toLowerCase();
+        const bgy = (a.barangay || '').toLowerCase();
+        const status = (a.status || '').toLowerCase();
+        const handler = (a.handler_name || '').toLowerCase();
+        return name.includes(q) || contact.includes(q) || bgy.includes(q) || status.includes(q) || handler.includes(q);
+      });
+      renderAdminSosPanelList(filtered);
+    };
+
+    function renderAdminSosPanelList(alerts = []) {
+      const listContainer = document.getElementById('adminSosListContainer');
+      if (!listContainer) return;
+
+      if (!alerts || alerts.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center py-12 text-slate-400">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
+              <i class="ph ph-shield-check text-2xl text-emerald-600"></i>
+            </div>
+            <p class="text-sm font-bold text-slate-700">All Clear — No Active SOS Distress Signals</p>
+            <p class="text-xs text-slate-400 mt-1">Live distress signals from residents in danger zones will appear here instantly.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const cardsHtml = alerts.map(alert => {
+        const sosId = alert.id || alert.sos_id;
+        const lat = parseFloat(alert.latitude || alert.lat || 13.5102);
+        const lng = parseFloat(alert.longitude || alert.lng || 123.3470);
+        const name = alert.resident_display_name || (alert.first_name ? `${alert.first_name} ${alert.last_name || ''}`.trim() : (alert.name || 'Resident in Distress'));
+        const status = (alert.status || 'ACTIVE').toUpperCase();
+        const rawPhoto = alert.resident_profile_photo || alert.profile_photo || null;
+        let photoUrl = null;
+        if (rawPhoto) {
+          photoUrl = (rawPhoto.startsWith('http') || rawPhoto.startsWith('/')) ? rawPhoto : `/uploads/profiles/${rawPhoto}`;
+        }
+        const initial = name.charAt(0).toUpperCase();
+
+        let statusBadgeClass = 'bg-red-600 text-white animate-pulse';
+        let statusText = 'ACTIVE SOS';
+        let cardBorderClass = 'border-red-200 hover:border-red-400';
+        if (status === 'ACKNOWLEDGED') {
+          statusBadgeClass = 'bg-amber-500 text-white';
+          statusText = 'ACKNOWLEDGED';
+          cardBorderClass = 'border-amber-200 hover:border-amber-400';
+        } else if (status === 'RESPONDING') {
+          statusBadgeClass = 'bg-indigo-600 text-white';
+          statusText = 'DISPATCHED';
+          cardBorderClass = 'border-indigo-200 hover:border-indigo-400';
+        } else if (status === 'RESCUED') {
+          statusBadgeClass = 'bg-emerald-600 text-white';
+          statusText = 'RESCUED';
+          cardBorderClass = 'border-emerald-200 hover:border-emerald-400';
+        }
+
+        const handlerInfo = alert.handler_name ? `
+          <div class="bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-xl px-2.5 py-1 text-xs font-bold flex items-center gap-1.5">
+            <i class="ph ph-user-check text-emerald-600 text-sm"></i>
+            <span>Acknowledged by: <strong class="text-emerald-950">${alert.handler_name}</strong></span>
+          </div>
+        ` : (status === 'ACTIVE' ? `
+          <div class="bg-red-50 text-red-700 border border-red-200/80 rounded-xl px-2.5 py-1 text-xs font-bold flex items-center gap-1.5">
+            <i class="ph ph-clock text-red-500 text-sm"></i>
+            <span>Situation: <strong>Awaiting Staff Acknowledgment</strong></span>
+          </div>
+        ` : `
+          <div class="bg-slate-100 text-slate-700 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold flex items-center gap-1.5">
+            <i class="ph ph-user text-slate-500 text-sm"></i>
+            <span>Situation: <strong>Staff Assigned</strong></span>
+          </div>
+        `);
+
+        return `
+          <div class="bg-white rounded-2xl p-4 shadow-xs border ${cardBorderClass} transition-all space-y-3" id="admin_sos_card_${sosId}">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm border border-slate-700">
+                  ${photoUrl ? `<img loading="lazy" decoding="async" src="${photoUrl}" alt="${name}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"><span class="hidden">${initial}</span>` : `<span>${initial}</span>`}
+                </div>
+                <div class="min-w-0">
+                  <h4 class="font-extrabold text-slate-900 text-sm truncate">${name}</h4>
+                  <div class="text-xs text-slate-500 font-medium flex flex-wrap items-center gap-2 mt-0.5">
+                    <span class="flex items-center gap-1 text-rose-600 font-semibold"><i class="ph ph-map-pin"></i> ${alert.barangay || 'San Rafael'}</span>
+                    ${alert.contact_number ? `<span>•</span><a href="tel:${alert.contact_number}" class="text-blue-600 hover:underline font-bold font-mono">${alert.contact_number}</a>` : ''}
+                    <span>•</span>
+                    <span class="text-slate-400 font-mono text-[11px]"><i class="ph ph-crosshair"></i> ${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+                  </div>
+                </div>
+              </div>
+              <span class="text-[10px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 ${statusBadgeClass}">${statusText}</span>
+            </div>
+
+            <!-- Situation & Responder Info -->
+            ${handlerInfo}
+
+            <!-- Card Actions -->
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onclick="focusSosOnAdminMap(${lat}, ${lng}, ${sosId})" class="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer">
+                <i class="ph ph-navigation-arrow text-sm"></i> Focus Map Pin
+              </button>
+              <button type="button" onclick="resolveSosAlertFromAdmin(${sosId})" class="py-2 px-3 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i class="ph ph-check-circle text-sm text-emerald-600"></i> Mark Resolved
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      listContainer.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">${cardsHtml}</div>`;
+    }
+
+    window.updateAdminSosPanelList = function (alertsList) {
+      if (Array.isArray(alertsList)) {
+        window.currentAdminSosAlerts = alertsList;
+      }
+      const count = (window.currentAdminSosAlerts || []).length;
+
+      const badgeCountEl = document.getElementById('adminSosBadgeCount');
+      if (badgeCountEl) badgeCountEl.innerText = count;
+
+      const modalCountEl = document.getElementById('adminSosModalCount');
+      if (modalCountEl) modalCountEl.innerText = count;
+
+      const liveDot = document.getElementById('sosRadarLiveDot');
+      if (liveDot) {
+        if (count > 0) liveDot.classList.remove('hidden');
+        else liveDot.classList.add('hidden');
+      }
+
+      const toggleBtn = document.getElementById('btnToggleSosPanel');
+      if (toggleBtn) {
+        if (count > 0) {
+          toggleBtn.className = "px-2.5 sm:px-3 py-1.5 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/30 text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer";
+        } else {
+          toggleBtn.className = "px-2.5 sm:px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md text-slate-700 hover:bg-red-50 border border-slate-200/80 shadow-md text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer";
+        }
+      }
+
+      const searchInput = document.getElementById('adminSosSearchInput');
+      const q = searchInput ? searchInput.value : '';
+      window.handleAdminSosSearch(q);
+    };
+
+    window.focusSosOnAdminMap = function (lat, lng, sosId) {
+      const panel = document.getElementById('adminSosPanel');
+      if (panel) panel.classList.add('hidden');
+
+      if (!adminMapInstance || isNaN(lat) || isNaN(lng)) return;
+      const numLat = parseFloat(lat);
+      const numLng = parseFloat(lng);
+
+      if (typeof adminMapInstance.flyTo === 'function') {
+        const key = `sos_${sosId}`;
+        const item = sosMapMarkers[key] || sosMapMarkers[String(sosId)] || Object.values(sosMapMarkers).find(m => m.id == sosId);
+        const p = item && (item.popup || (item.marker && typeof item.marker.getPopup === 'function' ? item.marker.getPopup() : null));
+        if (typeof window.focusMaplibreSiteCentered === 'function') {
+          window.focusMaplibreSiteCentered(adminMapInstance, numLng, numLat, p, sosMapMarkers, 16.8);
+        }
+      } else if (adminMapInstance.panTo && typeof google !== 'undefined' && google.maps) {
+        const pos = new google.maps.LatLng(numLat, numLng);
+        adminMapInstance.panTo(pos);
+        adminMapInstance.setZoom(17);
+        const item = sosMapMarkers[String(sosId)] || sosMapMarkers[`sos_${sosId}`];
+        if (item && item.marker) {
+          const infowindow = getInfoWindow();
+          if (infowindow) {
+            infowindow.setContent(item.popupHtml);
+            infowindow.setPosition(pos);
+            infowindow.open(adminMapInstance, item.marker);
+          }
+        }
+      }
+    };
+
+    window.resolveSosAlertFromAdmin = async function (sosId) {
+      if (!sosId) return;
+      if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
+      try {
+        const res = await fetch('/api/sos/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sosId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          removeSosMarker(sosId);
+          window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => (a.id || a.sos_id) != sosId);
+          updateAdminSosPanelList();
+        } else {
+          alert(data.error || 'Failed to resolve SOS alert.');
+        }
+      } catch (err) {
+        console.error('Error resolving SOS alert:', err);
+        alert('Network error resolving SOS alert.');
+      }
+    };
+
+    // Close modal on Escape key press
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const panel = document.getElementById('adminCentersPanel');
+        if (panel && !panel.classList.contains('hidden')) {
+          panel.classList.add('hidden');
+        }
+        const sosPanel = document.getElementById('adminSosPanel');
+        if (sosPanel && !sosPanel.classList.contains('hidden')) {
+          sosPanel.classList.add('hidden');
+        }
+      }
+    });
+
+    window.focusCenterOnMap = function (lat, lng, centerId) {
+      if (!adminMapInstance || isNaN(lat) || isNaN(lng)) return;
+      const numLat = parseFloat(lat);
+      const numLng = parseFloat(lng);
+
+      let item = null;
+      if (centerId && adminCenterMarkers[String(centerId)]) {
+        item = adminCenterMarkers[String(centerId)];
+      } else if (centerId && adminCenterMarkers[centerId]) {
+        item = adminCenterMarkers[centerId];
+      } else {
+        item = Object.values(adminCenterMarkers).find(m => Math.abs((m.lat || 0) - numLat) < 0.0001 && Math.abs((m.lng || 0) - numLng) < 0.0001);
+      }
+
+      if (typeof adminMapInstance.flyTo === 'function') {
+        if (typeof window.focusMaplibreSiteCentered === 'function') {
+          window.focusMaplibreSiteCentered(adminMapInstance, numLng, numLat, item ? item.popup : null, adminCenterMarkers, 16.8);
+        }
+        return;
+      }
+      if (typeof google !== 'undefined' && google.maps) {
+        const pos = new google.maps.LatLng(numLat, numLng);
+        adminMapInstance.panTo(pos);
+        adminMapInstance.setZoom(17);
+        if (item && item.marker) {
+          const infowindow = getInfoWindow();
+          if (infowindow) {
+            infowindow.setContent(item.popupContent);
+            infowindow.setPosition(pos);
+            infowindow.open(adminMapInstance, item.marker);
+          }
+        }
+        if (typeof adminMapInstance.panBy === 'function') {
+          adminMapInstance.panBy(0, -130);
+        }
+      }
+    };
+
+    window.handleCenterCardClick = function (btn) {
+      if (!btn) return;
+      const lat = parseFloat(btn.getAttribute('data-lat'));
+      const lng = parseFloat(btn.getAttribute('data-lng'));
+      const centerId = btn.getAttribute('data-id');
+      const panel = document.getElementById('adminCentersPanel');
+      if (panel) panel.classList.add('hidden');
+      focusCenterOnMap(lat, lng, centerId);
+    };
+
+    let adminCenterMarkers = {};
+
+    function renderAdminCenterMarkers(centersList, map) {
+      if (!map) return;
+      const currentIds = new Set();
+
+      // MapLibre Admin Centers Rendering
+      if (typeof map.getLayer === 'function') {
+        (centersList || []).forEach(center => {
+          if (!center || !center.id) return;
+          const cId = String(center.id);
+          currentIds.add(cId);
+
+          const lat = parseFloat(center.latitude) || 13.5102;
+          const lng = parseFloat(center.longitude) || 123.3470;
+          const cap = parseInt(center.max_capacity, 10) || 25;
+          const occ = parseInt(center.current_occupancy, 10) || 0;
+          const percent = Math.round((occ / cap) * 100);
+          let markerColor = '#10b981';
+          if (percent >= 100) markerColor = '#ef4444';
+          else if (percent >= 80) markerColor = '#f97316';
+
+          const popupContent = window.buildCenterPopupHtml(center, 'admin');
+
+          // Instantly update live open popup DOM if currently displayed on the map
+          const activePopupEl = document.getElementById('popup-center-' + center.id);
+          if (activePopupEl) {
+            activePopupEl.outerHTML = popupContent;
+          }
+
+          if (adminCenterMarkers[cId] && adminCenterMarkers[cId].marker) {
+            const item = adminCenterMarkers[cId];
+            if (typeof item.marker.setLngLat === 'function') {
+              item.marker.setLngLat([lng, lat]);
+            }
+            if (item.popup) item.popup.setHTML(popupContent);
+            item.center = center;
+            item.lat = lat;
+            item.lng = lng;
+            item.triggerClick = () => {
+              window.focusCenterOnMap(lat, lng, cId);
+            };
+          } else if (typeof maplibregl !== 'undefined') {
+            const el = window.createMaplibreCenterMarkerEl(markerColor, center);
+            const popup = new maplibregl.Popup({
+              anchor: 'bottom',
+              offset: [0, -44],
+              maxWidth: '360px',
+              closeButton: true,
+              closeOnClick: false
+            }).setHTML(popupContent);
+
+            if (typeof window.bringMaplibrePopupToFront === 'function') {
+              popup.on('open', () => window.bringMaplibrePopupToFront(popup));
+            }
+
+            const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+              .setLngLat([lng, lat])
+              .addTo(map);
+
+            // When admin clicks evacuation center marker, focus on that site and open popup card on top
+            el.addEventListener('click', (e) => {
+              e.stopPropagation();
+              window.focusCenterOnMap(lat, lng, cId);
+            });
+
+            const triggerClick = () => {
+              window.focusCenterOnMap(lat, lng, cId);
+            };
+            adminCenterMarkers[cId] = { marker, popup, triggerClick, center, lat, lng };
+            if (center.id) adminCenterMarkers[center.id] = adminCenterMarkers[cId];
+          }
+        });
+
+        Object.keys(adminCenterMarkers).forEach(cId => {
+          if (!currentIds.has(cId)) {
+            if (adminCenterMarkers[cId] && adminCenterMarkers[cId].marker && adminCenterMarkers[cId].marker.remove) {
+              adminCenterMarkers[cId].marker.remove();
+            }
+            delete adminCenterMarkers[cId];
+          }
+        });
+        return;
+      }
+
+      // Google Maps Centers Rendering (Intact)
+      if (typeof google === 'undefined' || !google.maps) return;
+
+      (centersList || []).forEach(center => {
+        if (!center || !center.id) return;
+        const cId = String(center.id);
+        currentIds.add(cId);
+
+        const lat = parseFloat(center.latitude) || 13.5102;
+        const lng = parseFloat(center.longitude) || 123.3470;
+        const pos = new google.maps.LatLng(lat, lng);
+
+        const cap = parseInt(center.max_capacity, 10) || 25;
+        const occ = parseInt(center.current_occupancy, 10) || 0;
+        const percent = Math.round((occ / cap) * 100);
+        let markerColor = '#10b981';
+        if (percent >= 100) markerColor = '#ef4444';
+        else if (percent >= 80) markerColor = '#f97316';
+
+        const popupContent = window.buildCenterPopupHtml(center, 'admin');
+
+        if (adminCenterMarkers[cId]) {
+          const item = adminCenterMarkers[cId];
+          item.marker.setPosition(pos);
+          if (typeof getCenterMarkerIcon === 'function') {
+            item.marker.setIcon(getCenterMarkerIcon(markerColor, center));
+          }
+          item.marker.setTitle(center.name);
+          item.popupContent = popupContent;
+          item.center = center;
+        } else {
+          const marker = new google.maps.Marker({
+            position: pos,
+            map: map,
+            icon: typeof getCenterMarkerIcon === 'function' ? getCenterMarkerIcon(markerColor, center) : undefined,
+            title: center.name,
+            zIndex: 60
+          });
+
+          const item = { marker, popupContent, center, lat, lng };
+
+          marker.addListener('click', () => {
+            window.focusCenterOnMap(lat, lng, cId);
+          });
+
+          adminCenterMarkers[cId] = item;
+        }
+      });
+
+      Object.keys(adminCenterMarkers).forEach(cId => {
+        if (!currentIds.has(cId)) {
+          if (adminCenterMarkers[cId] && adminCenterMarkers[cId].marker) {
+            adminCenterMarkers[cId].marker.setMap(null);
+          }
+          delete adminCenterMarkers[cId];
+        }
+      });
+    }
+
+    // Admin Centers Data & Search State
+    window.currentAdminCenters = [];
+    try {
+      const initCentersData = document.getElementById('centers-data');
+      if (initCentersData && initCentersData.textContent) {
+        window.currentAdminCenters = JSON.parse(initCentersData.textContent);
+      }
+    } catch (e) {
+      window.currentAdminCenters = [];
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    window.clearAdminCentersSearch = function () {
+      const searchInput = document.getElementById('adminCentersSearchInput');
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      handleAdminCentersSearch('');
+    };
+
+    window.handleAdminCentersSearch = function (query) {
+      const rawQuery = (query || '').trim();
+      const q = rawQuery.toLowerCase();
+      const clearBtn = document.getElementById('btnAdminCentersSearchClear');
+      if (clearBtn) {
+        if (rawQuery) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+
+      const centers = Array.isArray(window.currentAdminCenters) ? window.currentAdminCenters : [];
+      let filtered = centers;
+
+      if (q) {
+        filtered = centers.filter(center => {
+          const name = (center.name || '').toLowerCase();
+          const addr = (center.address || '').toLowerCase();
+          const contact = (center.contact_number || '').toLowerCase();
+          const staffText = (center.assigned_staff || []).map(s => ((s.full_name || '') + ' ' + (s.contact_number || ''))).join(' ').toLowerCase();
+          return name.includes(q) || addr.includes(q) || contact.includes(q) || staffText.includes(q);
+        });
+      }
+
+      const visibleCountEl = document.getElementById('adminCentersVisibleCount');
+      if (visibleCountEl) visibleCountEl.innerText = filtered.length;
+
+      const resultTextEl = document.getElementById('adminCentersSearchResultText');
+      if (resultTextEl) {
+        if (q) {
+          resultTextEl.innerHTML = `Found <span class="font-bold text-blue-600">${filtered.length}</span> of ${centers.length} shelters`;
+        } else {
+          resultTextEl.innerHTML = `Showing <span id="adminCentersVisibleCount" class="font-bold text-slate-700">${centers.length}</span> shelters`;
+        }
+      }
+
+      renderAdminCentersCards(filtered, rawQuery);
+    };
+
+    function renderAdminCentersCards(centersList, activeQuery = '') {
+      const listContainer = document.getElementById('adminCentersListContainer');
+      if (!listContainer) return;
+
+      if (!centersList || centersList.length === 0) {
+        if (activeQuery) {
+          listContainer.innerHTML = `
+            <div class="py-12 text-center">
+              <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
+                <i class="ph ph-magnifying-glass text-2xl"></i>
+              </div>
+              <h4 class="font-bold text-slate-700 text-sm">No evacuation sites found</h4>
+              <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">No shelters match "${escapeHtml(activeQuery)}". Try searching by a different name, zone, or staff member.</p>
+              <button type="button" onclick="clearAdminCentersSearch()" class="mt-3.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer">
+                <i class="ph ph-arrow-counter-clockwise text-sm"></i> Clear Search
+              </button>
+            </div>
+          `;
+        } else {
+          listContainer.innerHTML = `
+            <div class="py-12 text-center text-slate-400">
+              <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
+                <i class="ph ph-buildings text-2xl"></i>
+              </div>
+              <p class="text-sm font-bold text-slate-700">No evacuation centers registered yet.</p>
+              <p class="text-xs text-slate-400 mt-1">Click "Register Site" above to add your first shelter.</p>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      const cardsHtml = centersList.map(center => {
+        const cap = parseInt(center.max_capacity, 10) || 25;
+        const occ = parseInt(center.current_occupancy, 10) || 0;
+        const percentage = Math.round((occ / cap) * 100);
+
+        let barColor = 'bg-emerald-500';
+        let textColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        let statusText = 'Available';
+        if (percentage >= 100) {
+          barColor = 'bg-red-500';
+          textColor = 'text-red-700 bg-red-50 border-red-200';
+          statusText = 'Full Capacity';
+        } else if (percentage >= 80) {
+          barColor = 'bg-orange-500';
+          textColor = 'text-orange-700 bg-orange-50 border-orange-200';
+          statusText = 'Near Full';
+        }
+
+        const safeStaffIds = JSON.stringify((center.assigned_staff || []).map(s => s.user_id)).replace(/"/g, '&quot;');
+        const safeName = escapeHtml(center.name || '');
+        const safeAddr = escapeHtml(center.address || 'San Rafael');
+        const safeContact = escapeHtml(center.contact_number || '(054) 881-2345');
+
+        let staffHtml = '';
+        if (center.assigned_staff && center.assigned_staff.length > 0) {
+          staffHtml = `
+            <div class="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1">
+              ${center.assigned_staff.map(st => `
+                <div class="flex items-center justify-between bg-white rounded-lg px-2 py-1 text-[10px] border border-slate-100 shadow-xs">
+                  <span class="font-bold text-slate-700 truncate max-w-[130px]">${escapeHtml(st.full_name || '')}</span>
+                  <a href="tel:${escapeHtml(st.contact_number || '')}" class="font-mono font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
+                    <i class="ph ph-phone text-[10px]"></i>
+                    ${escapeHtml(st.contact_number || '')}
+                  </a>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        } else {
+          staffHtml = '<p class="text-[10px] text-slate-400 italic">No staff assigned to this center</p>';
+        }
+
+        return `
+          <div class="bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between group">
+            <div>
+              <div class="flex justify-between items-start gap-2 mb-2">
+                <button type="button" data-lat="${center.latitude}" data-lng="${center.longitude}"
+                  data-id="${center.id}" onclick="handleCenterCardClick(this)"
+                  class="text-left font-bold text-slate-800 text-xs sm:text-sm hover:text-blue-600 transition-colors line-clamp-1 flex items-center gap-1.5 cursor-pointer"
+                  title="Click to locate on map">
+                  <i class="ph ph-buildings text-blue-500 text-sm shrink-0"></i>
+                  <span class="truncate">${safeName}</span>
+                </button>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button type="button" data-lat="${center.latitude}" data-lng="${center.longitude}"
+                    data-id="${center.id}" onclick="handleCenterCardClick(this)"
+                    class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Locate on Map">
+                    <i class="ph ph-crosshair text-xs"></i>
+                  </button>
+                  <button type="button" data-id="${center.id}" data-name="${safeName}"
+                    data-address="${safeAddr}"
+                    data-contact="${safeContact}"
+                    data-capacity="${center.max_capacity}" data-lat="${center.latitude}"
+                    data-lng="${center.longitude}"
+                    data-staff-ids="${safeStaffIds}"
+                    onclick="openEditCenterModal(this)"
+                    class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Edit Center">
+                    <i class="ph ph-pencil-simple text-xs"></i>
+                  </button>
+                  <button type="button" data-id="${center.id}" data-name="${safeName}"
+                    onclick="confirmDeleteCenter(this)"
+                    class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Delete Center">
+                    <i class="ph ph-trash text-xs"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="space-y-1 mb-2">
+                <p class="text-[11px] sm:text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                  <i class="ph ph-map-pin text-blue-500 text-xs shrink-0"></i>
+                  <span class="truncate">${safeAddr}</span>
+                </p>
+                <p class="text-[11px] sm:text-xs font-bold text-blue-700 flex items-center gap-1.5 font-mono">
+                  <i class="ph ph-phone text-blue-600 text-xs shrink-0"></i>
+                  <a href="tel:${safeContact}" class="hover:underline">
+                    ${safeContact}
+                  </a>
+                </p>
+              </div>
+
+              <div class="mb-2.5 bg-slate-50/80 p-2 sm:p-2.5 rounded-xl border border-slate-100">
+                <div class="flex items-center justify-between text-[11px] font-semibold text-slate-600 mb-1">
+                  <span class="flex items-center gap-1">
+                    <i class="ph ph-users text-xs text-indigo-500"></i> Assigned Staff
+                  </span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-white border border-slate-200 text-slate-600 font-bold">
+                    ${(center.assigned_staff || []).length}
+                  </span>
+                </div>
+                ${staffHtml}
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 space-y-1.5">
+              <div class="space-y-1">
+                <div class="flex justify-between items-center text-[11px] sm:text-xs">
+                  <span class="text-slate-500 font-semibold">Occupancy</span>
+                  <span class="font-bold text-slate-800 font-mono">
+                    <span id="occupancy-${center.id}">${occ}</span> / ${cap}
+                  </span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 sm:h-2 overflow-hidden shadow-inner">
+                  <div class="${barColor} h-full rounded-full transition-all duration-500" style="width: ${Math.min(percentage, 100)}%"></div>
+                </div>
+              </div>
+
+              <div class="flex justify-between items-center pt-0.5">
+                <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md font-bold text-[9px] sm:text-[10px] border ${textColor}">
+                  ${percentage}% • ${statusText}
+                </span>
+                <a href="/admin/evacuation-center/${center.id}"
+                  class="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline">
+                  View Details <i class="ph ph-arrow-right text-xs"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      listContainer.innerHTML = `<div id="adminCentersCardsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">${cardsHtml}</div>`;
+    }
+
+    function updateAdminCentersPanelList(centersList) {
+      if (!Array.isArray(centersList)) return;
+      window.currentAdminCenters = centersList;
+
+      const countEl = document.getElementById('adminCentersPanelCount');
+      if (countEl) countEl.innerText = centersList.length;
+
+      const badgeCountEl = document.getElementById('adminCentersPanelBadge');
+      if (badgeCountEl) badgeCountEl.innerHTML = `<span id="adminCentersPanelCount">${centersList.length}</span> Sites`;
+
+      const btnCountEl = document.getElementById('btnToggleCentersPanel');
+      if (btnCountEl) {
+        btnCountEl.innerHTML = `<i class="ph ph-buildings text-sm sm:text-base text-blue-600"></i> <span class="hidden sm:inline">Centers</span> (${centersList.length})`;
+      }
+
+      const dataEl = document.getElementById('centers-data');
+      if (dataEl) dataEl.textContent = JSON.stringify(centersList);
+
+      const searchInput = document.getElementById('adminCentersSearchInput');
+      const activeQuery = searchInput ? searchInput.value : '';
+      handleAdminCentersSearch(activeQuery);
+    }
+
+    function initEvacuationAdminMap() {
+      if (typeof google === 'undefined' || !google.maps) return;
+      if (adminMapInstance) return adminMapInstance;
+
+      const defaultCenter = { lat: 13.5135, lng: 123.3485 };
+      const map = window.createEvakWarMap(document.getElementById('evacMap'), {
+        center: defaultCenter,
+        zoom: 16
+      });
+
+      adminMapInstance = map;
+
+      // Render Evacuation Center Markers
+      let centersData = [];
+      try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
+      renderAdminCenterMarkers(centersData, map);
+
+      // Render pre-embedded active SOS alerts if present
+      if (Array.isArray(window.currentAdminSosAlerts) && window.currentAdminSosAlerts.length > 0) {
+        window.currentAdminSosAlerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+        if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
+      }
+
+      // Fetch active SOS alerts from database
+      fetch('/api/sos/active')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.alerts)) {
+            data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+            checkAdminUrlForSosFocus();
+          }
+        })
+        .catch(err => {
+          console.error("Error loading active SOS alerts:", err);
+          checkAdminUrlForSosFocus();
+        });
+
+      setTimeout(checkAdminUrlForSosFocus, 600);
+
+      // Real-time Socket.io Sync
+      if (typeof io !== 'undefined') {
+        const socket = window.__appSocket || (window.__appSocket = io());
+
+        socket.on('sos:new', (data) => {
+          if (data) addOrUpdateSosMarker(data, true);
+        });
+
+        socket.on('sos:update', (data) => {
+          if (data) addOrUpdateSosMarker(data, false);
+        });
+
+        socket.on('sos:update_status', (data) => {
+          if (data) {
+            const status = (data.status || '').toUpperCase();
+            if (status === 'RESOLVED' || status === 'CANCELLED') {
+              removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+              if (typeof window.dismissGlobalDistressBanner === 'function') {
+                window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
+              }
+            } else {
+              addOrUpdateSosMarker(data.alert || data, false);
+            }
+          }
+        });
+
+        socket.on('sos:cancel', (data) => {
+          if (data) {
+            removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+            if (typeof window.dismissGlobalDistressBanner === 'function') {
+              window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
+            }
+          }
+        });
+
+        socket.on('sos:resolve', (data) => {
+          if (data) {
+            removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+            if (typeof window.dismissGlobalDistressBanner === 'function') {
+              window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
+            }
+          }
+        });
+
+        socket.on('rescuer:location_update', (data) => {
+          if (data) addOrUpdateRescuerMarker(data);
+        });
+
+        socket.on('rescuer:location_cleared', (data) => {
+          if (data && data.sos_id) removeRescuerMarker(data.sos_id);
+        });
+
+        socket.on('center_updated', (data) => {
+          const occEl = document.getElementById('occupancy-' + data.centerId);
+          if (occEl) {
+            occEl.innerText = data.occupancy;
+            const evacEl = document.getElementById('evacuees-' + data.centerId);
+            if (evacEl) {
+              if (evacEl.innerHTML.includes('No residents')) {
+                evacEl.innerHTML = '<div class="max-h-24 overflow-y-auto pr-1 no-scrollbar space-y-1"></div>';
+              }
+              const listContainer = evacEl.querySelector('div');
+              if (listContainer) {
+                listContainer.insertAdjacentHTML('afterbegin', `<div class="flex items-center gap-1.5 animate-pulse text-green-600"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div><span class="text-xs font-bold">${data.newResident}</span></div>`);
+              }
+            }
+          }
+        });
+
+
+        async function fetchAndRefreshAdminCenters() {
+          try {
+            const res = await fetch('/api/centers/active');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers)) {
+              if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+              updateAdminCentersPanelList(data.centers);
+            }
+          } catch (e) {
+            console.warn('[AdminMap] Failed to refresh centers live:', e);
+          }
+        }
+
+        socket.on('center_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+            updateAdminCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshAdminCenters();
+          }
+        });
+
+        socket.on('ec_board_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+            updateAdminCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshAdminCenters();
+          }
+        });
+
+        socket.on('checkin:new', () => {
+          fetchAndRefreshAdminCenters();
+        });
+
+        socket.on('map_centers_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+            updateAdminCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshAdminCenters();
+          }
+        });
+      }
+    }
+
+    function initEvacuationAdminMaplibre() {
+      if (typeof maplibregl === 'undefined' || typeof window.createEvakWarMaplibreMap !== 'function') {
+        setTimeout(initEvacuationAdminMaplibre, 50);
+        return;
+      }
+      if (adminMapInstance) return adminMapInstance;
+
+      const defaultCenter = [123.3485, 13.5135];
+
+      // GIS sources upfront in MapLibre style for Frame-0 instant rendering
+      const initialSources = {
+        'admin-draw-preview': {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        },
+        'admin-saved-features': {
+          type: 'geojson',
+          data: adminGeoJsonFeatures
+        },
+        'admin-selected-feature': {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        }
+      };
+
+      const initialLayers = [
+        {
+          id: 'admin-draw-preview-polygon',
+          type: 'fill',
+          source: 'admin-draw-preview',
+          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'shapeType', 'boundary'], ['!=', 'shapeType', 'zone']],
+          paint: {
+            'fill-color': ['coalesce', ['get', 'fillColor'], '#ef4444'],
+            'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.25]
+          }
+        },
+        {
+          id: 'admin-draw-preview-boundary-line',
+          type: 'line',
+          source: 'admin-draw-preview',
+          filter: ['==', 'shapeType', 'boundary'],
+          paint: {
+            'line-color': '#f87171',
+            'line-width': 1.5,
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.85
+          }
+        },
+        {
+          id: 'admin-draw-preview-zone-line',
+          type: 'line',
+          source: 'admin-draw-preview',
+          filter: ['==', 'shapeType', 'zone'],
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 1.5,
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.95
+          }
+        },
+        {
+          id: 'admin-draw-preview-line',
+          type: 'line',
+          source: 'admin-draw-preview',
+          filter: ['all', ['!=', 'shapeType', 'boundary'], ['!=', 'shapeType', 'zone']],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], ['case', ['==', ['get', 'shapeType'], 'hazard'], '#dc2626', '#f97316']],
+            'line-width': 3.5,
+            'line-opacity': 0.95
+          }
+        },
+        {
+          id: 'admin-draw-preview-points',
+          type: 'circle',
+          source: 'admin-draw-preview',
+          filter: ['==', '$type', 'Point'],
+          paint: {
+            'circle-radius': 5,
+            'circle-color': ['case', ['==', ['get', 'shapeType'], 'boundary'], '#f87171', ['==', ['get', 'shapeType'], 'zone'], '#ffffff', '#3b82f6'],
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': ['case', ['==', ['get', 'shapeType'], 'zone'], '#0f172a', '#ffffff']
+          }
+        },
+        {
+          id: 'admin-saved-features-fill',
+          type: 'fill',
+          source: 'admin-saved-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+          paint: {
+            'fill-color': ['coalesce', ['get', 'fillColor'], ['case', ['==', ['get', 'type'], 'hazard'], '#ef4444', ['coalesce', ['get', 'color'], '#3b82f6']]],
+            'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.25]
+          }
+        },
+        {
+          id: 'admin-saved-features-line-hit',
+          type: 'line',
+          source: 'admin-saved-features',
+          paint: {
+            'line-color': '#000000',
+            'line-width': 24,
+            'line-opacity': 0.001
+          }
+        },
+        {
+          id: 'admin-saved-features-line',
+          type: 'line',
+          source: 'admin-saved-features',
+          filter: ['all', ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], ['case', ['==', ['get', 'type'], 'hazard'], '#dc2626', ['coalesce', ['get', 'color'], '#2563eb']]],
+            'line-width': ['coalesce', ['get', 'strokeWidth'], 3],
+            'line-opacity': 0.95
+          }
+        },
+        {
+          id: 'admin-boundary-dashed-line',
+          type: 'line',
+          source: 'admin-saved-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'boundary']],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], '#f87171'],
+            'line-width': ['coalesce', ['get', 'strokeWidth'], 1.5],
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.85
+          }
+        },
+        {
+          id: 'admin-zone-dashed-line',
+          type: 'line',
+          source: 'admin-saved-features',
+          filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'zone']],
+          paint: {
+            'line-color': ['coalesce', ['get', 'strokeColor'], '#ffffff'],
+            'line-width': ['coalesce', ['get', 'strokeWidth'], 1.5],
+            'line-dasharray': [3, 2],
+            'line-opacity': 0.95
+          }
+        },
+        {
+          id: 'admin-selected-feature-fill',
+          type: 'fill',
+          source: 'admin-selected-feature',
+          filter: ['==', '$type', 'Polygon'],
+          paint: {
+            'fill-color': '#2563eb',
+            'fill-opacity': 0.45
+          }
+        },
+        {
+          id: 'admin-selected-feature-line',
+          type: 'line',
+          source: 'admin-selected-feature',
+          paint: {
+            'line-color': '#2563eb',
+            'line-width': 7,
+            'line-opacity': 0.95
+          }
+        }
+      ];
+
+      const map = window.createEvakWarMaplibreMap('evacMap', {
+        center: defaultCenter,
+        zoom: 15.5,
+        initialSources: initialSources,
+        initialLayers: initialLayers,
+        initialBasemap: 'hybrid'
+      });
+      adminMapInstance = map;
+      window.adminMapInstance = map;
+
+
+
+      // Render Evacuation Site Markers immediately without waiting for tiles or load event
+      const activeCenters = (Array.isArray(initialAdminCenters) && initialAdminCenters.length > 0)
+        ? initialAdminCenters
+        : (() => {
+          try { return JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { return []; }
+        })();
+
+      if (Array.isArray(activeCenters) && activeCenters.length > 0) {
+        renderAdminCenterMarkers(activeCenters, map);
+        if (window.EvakWarDB && typeof window.EvakWarDB.saveMapData === 'function') {
+          window.EvakWarDB.saveMapData(activeCenters, adminGeoJsonFeatures);
+        }
+      } else if (window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+        window.EvakWarDB.getMapData().then(cached => {
+          if (cached && Array.isArray(cached.centers) && cached.centers.length > 0) {
+            renderAdminCenterMarkers(cached.centers, map);
+            updateAdminCentersPanelList(cached.centers);
+          }
+          if (cached && cached.mapFeatures && Array.isArray(cached.mapFeatures.features) && cached.mapFeatures.features.length > 0) {
+            adminGeoJsonFeatures = cached.mapFeatures;
+            const src = map.getSource('admin-saved-features');
+            if (src) src.setData(adminGeoJsonFeatures);
+          }
+        }).catch(err => console.warn('EvakWarDB offline fallback error:', err));
+      }
+
+      // Render pre-embedded active SOS alerts if present
+      if (Array.isArray(window.currentAdminSosAlerts) && window.currentAdminSosAlerts.length > 0) {
+        window.currentAdminSosAlerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+        if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
+      }
+
+      // Parallel non-blocking pre-fetch of active SOS and rescuers
+      Promise.all([
+        fetch('/api/sos/active').then(r => r.json()).catch(err => ({ success: false, error: err })),
+        fetch('/api/sos/rescuers/active').then(r => r.json()).catch(err => ({ success: false, error: err }))
+      ]).then(([sosData, rescuerData]) => {
+        if (sosData && sosData.success && Array.isArray(sosData.alerts)) {
+          sosData.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+        }
+        if (rescuerData && rescuerData.success && Array.isArray(rescuerData.rescuers)) {
+          rescuerData.rescuers.forEach(rescuer => addOrUpdateRescuerMarker(rescuer, false));
+        }
+        checkAdminUrlForSosFocus();
+      });
+
+      map.on('load', () => {
+        // Defensive layer integrity check
+        if (!map.getSource('admin-draw-preview')) {
+          map.addSource('admin-draw-preview', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+          map.addLayer({
+            id: 'admin-draw-preview-polygon',
+            type: 'fill',
+            source: 'admin-draw-preview',
+            filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'shapeType', 'boundary'], ['!=', 'shapeType', 'zone']],
+            paint: {
+              'fill-color': ['coalesce', ['get', 'fillColor'], '#ef4444'],
+              'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.25]
+            }
+          });
+          map.addLayer({
+            id: 'admin-draw-preview-boundary-line',
+            type: 'line',
+            source: 'admin-draw-preview',
+            filter: ['==', 'shapeType', 'boundary'],
+            paint: {
+              'line-color': '#f87171',
+              'line-width': 1.5,
+              'line-dasharray': [3, 2],
+              'line-opacity': 0.85
+            }
+          });
+          map.addLayer({
+            id: 'admin-draw-preview-zone-line',
+            type: 'line',
+            source: 'admin-draw-preview',
+            filter: ['==', 'shapeType', 'zone'],
+            paint: {
+              'line-color': '#ffffff',
+              'line-width': 1.5,
+              'line-dasharray': [3, 2],
+              'line-opacity': 0.95
+            }
+          });
+          map.addLayer({
+            id: 'admin-draw-preview-line',
+            type: 'line',
+            source: 'admin-draw-preview',
+            filter: ['all', ['!=', 'shapeType', 'boundary'], ['!=', 'shapeType', 'zone']],
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], ['case', ['==', ['get', 'shapeType'], 'hazard'], '#dc2626', '#f97316']],
+              'line-width': 3.5,
+              'line-opacity': 0.95
+            }
+          });
+          map.addLayer({
+            id: 'admin-draw-preview-points',
+            type: 'circle',
+            source: 'admin-draw-preview',
+            filter: ['==', '$type', 'Point'],
+            paint: {
+              'circle-radius': 5,
+              'circle-color': ['case', ['==', ['get', 'shapeType'], 'boundary'], '#f87171', ['==', ['get', 'shapeType'], 'zone'], '#ffffff', '#3b82f6'],
+              'circle-stroke-width': 1.5,
+              'circle-stroke-color': ['case', ['==', ['get', 'shapeType'], 'zone'], '#0f172a', '#ffffff']
+            }
+          });
+        }
+
+        if (!map.getSource('admin-saved-features')) {
+          map.addSource('admin-saved-features', {
+            type: 'geojson',
+            data: adminGeoJsonFeatures
+          });
+          map.addLayer({
+            id: 'admin-saved-features-fill',
+            type: 'fill',
+            source: 'admin-saved-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+            paint: {
+              'fill-color': ['coalesce', ['get', 'fillColor'], ['case', ['==', ['get', 'type'], 'hazard'], '#ef4444', ['coalesce', ['get', 'color'], '#3b82f6']]],
+              'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.25]
+            }
+          });
+          map.addLayer({
+            id: 'admin-saved-features-line-hit',
+            type: 'line',
+            source: 'admin-saved-features',
+            paint: {
+              'line-color': '#000000',
+              'line-width': 24,
+              'line-opacity': 0.001
+            }
+          });
+          map.addLayer({
+            id: 'admin-saved-features-line',
+            type: 'line',
+            source: 'admin-saved-features',
+            filter: ['all', ['!=', 'type', 'boundary'], ['!=', 'type', 'zone']],
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], ['case', ['==', ['get', 'type'], 'hazard'], '#dc2626', ['coalesce', ['get', 'color'], '#2563eb']]],
+              'line-width': ['coalesce', ['get', 'strokeWidth'], 3],
+              'line-opacity': 0.95
+            }
+          });
+          map.addLayer({
+            id: 'admin-boundary-dashed-line',
+            type: 'line',
+            source: 'admin-saved-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'boundary']],
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], '#f87171'],
+              'line-width': ['coalesce', ['get', 'strokeWidth'], 1.5],
+              'line-dasharray': [3, 2],
+              'line-opacity': 0.85
+            }
+          });
+          map.addLayer({
+            id: 'admin-zone-dashed-line',
+            type: 'line',
+            source: 'admin-saved-features',
+            filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'zone']],
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], '#ffffff'],
+              'line-width': ['coalesce', ['get', 'strokeWidth'], 1.5],
+              'line-dasharray': [3, 2],
+              'line-opacity': 0.95
+            }
+          });
+        }
+
+        if (!map.getSource('admin-selected-feature')) {
+          map.addSource('admin-selected-feature', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+          map.addLayer({
+            id: 'admin-selected-feature-fill',
+            type: 'fill',
+            source: 'admin-selected-feature',
+            filter: ['==', '$type', 'Polygon'],
+            paint: {
+              'fill-color': '#2563eb',
+              'fill-opacity': 0.45
+            }
+          });
+          map.addLayer({
+            id: 'admin-selected-feature-line',
+            type: 'line',
+            source: 'admin-selected-feature',
+            paint: {
+              'line-color': '#2563eb',
+              'line-width': 7,
+              'line-opacity': 0.95
+            }
+          });
+        }
+
+        let selectedFeaturePopup = null;
+        window.selectedFeaturePopup = selectedFeaturePopup;
+
+        function updateDeleteButtonState(isSelected, featureName) {
+          const btn = document.getElementById('btnDeleteSelectedDraw');
+          if (!btn) return;
+          if (isSelected) {
+            btn.classList.add('bg-rose-600', 'text-white', 'ring-2', 'ring-rose-400', 'animate-pulse');
+            btn.classList.remove('text-rose-600', 'hover:bg-rose-50');
+            btn.setAttribute('title', `Delete Selected ${featureName || 'Route/Zone'}`);
+          } else {
+            btn.classList.remove('bg-rose-600', 'text-white', 'ring-2', 'ring-rose-400', 'animate-pulse');
+            btn.classList.add('text-rose-600', 'hover:bg-rose-50');
+            btn.setAttribute('title', 'Delete Selected Route/Zone');
+          }
+        }
+        window.updateDeleteButtonState = updateDeleteButtonState;
+
+        // Feature Selection on Click (when not drawing)
+        function selectMaplibreFeature(featureIndex, clickLngLat) {
+          if (typeof featureIndex !== 'number' || featureIndex < 0 || !adminGeoJsonFeatures.features || !adminGeoJsonFeatures.features[featureIndex]) {
+            selectedMaplibreFeatureIndex = -1;
+            const selSrc = map.getSource('admin-selected-feature');
+            if (selSrc) selSrc.setData({ type: 'FeatureCollection', features: [] });
+            if (window.selectedFeaturePopup) {
+              window.selectedFeaturePopup.remove();
+              window.selectedFeaturePopup = null;
+            }
+            updateDeleteButtonState(false);
+            return;
+          }
+          selectedMaplibreFeatureIndex = featureIndex;
+          const feat = adminGeoJsonFeatures.features[featureIndex];
+          const selSrc = map.getSource('admin-selected-feature');
+          if (selSrc) {
+            selSrc.setData({ type: 'FeatureCollection', features: [feat] });
+          }
+          const isHazardFeat = (feat.properties && feat.properties.type === 'hazard');
+          const isBoundaryFeat = (feat.properties && feat.properties.type === 'boundary');
+          const isZoneFeat = (feat.properties && feat.properties.type === 'zone');
+
+          let featType = 'Evacuation Route';
+          let badgeBg = 'bg-amber-100 text-amber-600';
+          let badgeIcon = 'ph-path';
+          let subLabel = 'Marked Safe Corridor';
+          let subColor = 'text-amber-600';
+          let btnLabel = 'Delete Route';
+
+          if (isHazardFeat) {
+            featType = 'Hazard Zone';
+            badgeBg = 'bg-red-100 text-red-600';
+            badgeIcon = 'ph-warning-diamond';
+            subLabel = 'Restricted Danger Area';
+            subColor = 'text-red-600';
+            btnLabel = 'Delete Hazard Zone';
+          } else if (isBoundaryFeat) {
+            featType = 'Barangay Boundary';
+            badgeBg = 'bg-rose-100 text-rose-600';
+            badgeIcon = 'ph-bounding-box';
+            subLabel = 'Subtle Dashed Boundary (- - - -)';
+            subColor = 'text-rose-600';
+            btnLabel = 'Delete Boundary';
+          } else if (isZoneFeat) {
+            featType = 'Zone Boundary';
+            badgeBg = 'bg-blue-100 text-blue-600';
+            badgeIcon = 'ph-polygon';
+            subLabel = 'Barangay Zone';
+            subColor = 'text-blue-600';
+            btnLabel = 'Delete Zone';
+          }
+          const featName = (feat.properties && feat.properties.name) ? feat.properties.name : featType;
+          updateDeleteButtonState(true, featName);
+
+          if (clickLngLat && typeof maplibregl !== 'undefined') {
+            if (window.selectedFeaturePopup) window.selectedFeaturePopup.remove();
+
+            window.selectedFeaturePopup = new maplibregl.Popup({
+              className: 'compact-feature-popup',
+              closeButton: true,
+              closeOnClick: false,
+              offset: [0, -8]
+            })
+              .setLngLat(clickLngLat)
+              .setHTML(`
+                <div class="font-sans w-[220px] bg-white text-slate-800 p-3.5 overflow-hidden">
+                  <div class="flex items-center gap-2.5 pr-6 mb-3">
+                    <div class="w-8 h-8 rounded-xl ${badgeBg} flex items-center justify-center shrink-0 shadow-2xs">
+                      <i class="ph ${badgeIcon} text-base font-bold"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-xs font-extrabold text-slate-900 leading-tight truncate">${featName}</div>
+                      <div class="text-[10px] font-semibold ${subColor} mt-0.5">${subLabel}</div>
+                    </div>
+                  </div>
+                  <button type="button" onclick="event.stopPropagation(); deleteSelectedDraw()" class="w-full py-2 px-3 rounded-xl bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-red-600/20 transition-all cursor-pointer">
+                    <i class="ph ph-trash text-sm"></i>
+                    <span>${btnLabel}</span>
+                  </button>
+                </div>
+              `)
+              .addTo(map);
+          }
+        }
+        window.selectMaplibreFeature = selectMaplibreFeature;
+
+        function handleFeatureSelectionClick(e) {
+          if (currentDrawingMode) return;
+          if (!e.features || !e.features.length) return;
+          featureClickedJustNow = true;
+
+          const clicked = e.features[0];
+          const clickedId = (clicked.properties && clicked.properties.featureId) || clicked.id;
+          let idx = -1;
+
+          if (clickedId) {
+            idx = (adminGeoJsonFeatures.features || []).findIndex(f => {
+              return (f.properties && String(f.properties.featureId) === String(clickedId)) || (f.id && String(f.id) === String(clickedId));
+            });
+          }
+
+          if (idx === -1 && clicked.geometry && clicked.geometry.coordinates) {
+            const getFirstPt = (geom) => {
+              if (!geom || !geom.coordinates || !geom.coordinates.length) return null;
+              if (geom.type === 'Polygon') return geom.coordinates[0] && geom.coordinates[0][0];
+              if (geom.type === 'LineString') return geom.coordinates[0];
+              return null;
+            };
+            const cPt = getFirstPt(clicked.geometry);
+            if (cPt) {
+              idx = (adminGeoJsonFeatures.features || []).findIndex(f => {
+                if (!f || !f.geometry) return false;
+                const fPt = getFirstPt(f.geometry);
+                if (!fPt) return false;
+                return Math.abs(fPt[0] - cPt[0]) < 0.001 && Math.abs(fPt[1] - cPt[1]) < 0.001;
+              });
+            }
+          }
+
+          if (idx >= 0) {
+            selectMaplibreFeature(idx, e.lngLat);
+            if (e.originalEvent && typeof e.originalEvent.stopPropagation === 'function') e.originalEvent.stopPropagation();
+          }
+        }
+
+        map.on('click', 'admin-saved-features-line', handleFeatureSelectionClick);
+        map.on('click', 'admin-saved-features-line-hit', handleFeatureSelectionClick);
+        map.on('click', 'admin-saved-features-fill', handleFeatureSelectionClick);
+        map.on('click', 'admin-boundary-dashed-line', handleFeatureSelectionClick);
+        map.on('click', 'admin-zone-dashed-line', handleFeatureSelectionClick);
+        map.on('click', 'admin-selected-feature-line', handleFeatureSelectionClick);
+        map.on('click', 'admin-selected-feature-fill', handleFeatureSelectionClick);
+
+        ['admin-saved-features-line', 'admin-saved-features-line-hit', 'admin-saved-features-fill', 'admin-boundary-dashed-line', 'admin-zone-dashed-line', 'admin-selected-feature-line', 'admin-selected-feature-fill'].forEach(layerId => {
+          map.on('mouseenter', layerId, () => {
+            if (!currentDrawingMode) map.getCanvas().style.cursor = 'pointer';
+          });
+          map.on('mouseleave', layerId, () => {
+            if (!currentDrawingMode) map.getCanvas().style.cursor = '';
+          });
+        });
+
+        // Initialize zone badge markers on map if any zones exist
+        if (typeof window.updateZoneLabelsOnMap === 'function') {
+          window.updateZoneLabelsOnMap(map, adminGeoJsonFeatures);
+        }
+
+        // Fallback for offline IndexedDB if features were empty on page load
+        if ((!adminGeoJsonFeatures || !adminGeoJsonFeatures.features || adminGeoJsonFeatures.features.length === 0) &&
+          window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+          window.EvakWarDB.getMapData().then(cached => {
+            if (cached && cached.mapFeatures && Array.isArray(cached.mapFeatures.features) && cached.mapFeatures.features.length > 0) {
+              adminGeoJsonFeatures = cached.mapFeatures;
+              const src = map.getSource('admin-saved-features');
+              if (src) src.setData(adminGeoJsonFeatures);
+            }
+          }).catch(err => console.warn('EvakWarDB map features read error:', err));
+        }
+
+        checkAdminUrlForSosFocus();
+      });
+
+      // MapLibre click handler for interactive drawing
+      map.on('click', (e) => {
+        if (currentDrawingMode) {
+          const pt = [e.lngLat.lng, e.lngLat.lat];
+          activeDrawPoints.push(pt);
+          updateDrawingHudPoints();
+          updateMaplibreDrawPreview();
+          return;
+        }
+        if (featureClickedJustNow) {
+          featureClickedJustNow = false;
+          return;
+        }
+        // If clicked on empty space, deselect any selected feature
+        if (selectedMaplibreFeatureIndex >= 0) {
+          if (typeof window.selectMaplibreFeature === 'function') {
+            window.selectMaplibreFeature(-1);
+          }
+        }
+      });
+
+      map.on('dblclick', (e) => {
+        if (currentDrawingMode) {
+          if (e && typeof e.preventDefault === 'function') e.preventDefault();
+          finishActiveDrawing();
+        }
+      });
+
+      // Socket sync (deduplicated to prevent redundant listeners)
+      if (typeof io !== 'undefined' && !window.__adminEvacSocketInitialized) {
+        window.__adminEvacSocketInitialized = true;
+        const socket = window.__appSocket || (window.__appSocket = io());
+
+        socket.on('sos:new', (data) => {
+          if (data) addOrUpdateSosMarker(data, true);
+        });
+
+        socket.on('sos:update', (data) => {
+          if (data) addOrUpdateSosMarker(data, false);
+        });
+
+        socket.on('sos:update_status', (data) => {
+          if (data) {
+            const status = (data.status || '').toUpperCase();
+            if (status === 'RESOLVED' || status === 'CANCELLED') {
+              removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+              if (typeof window.dismissGlobalDistressBanner === 'function') {
+                window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
+              }
+            } else {
+              addOrUpdateSosMarker(data.alert || data, false);
+            }
+          }
+        });
+
+        socket.on('sos:cancel', (data) => {
+          if (data) {
+            removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+            if (typeof window.dismissGlobalDistressBanner === 'function') {
+              window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
+            }
+          }
+        });
+
+        socket.on('sos:resolve', (data) => {
+          if (data) {
+            removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+            if (typeof window.dismissGlobalDistressBanner === 'function') {
+              window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
+            }
+          }
+        });
+
+        socket.on('rescuer:location_update', (data) => {
+          if (data) addOrUpdateRescuerMarker(data);
+        });
+
+        socket.on('rescuer:location_cleared', (data) => {
+          if (data && data.sos_id) removeRescuerMarker(data.sos_id);
+        });
+
+        socket.on('center_updated', (data) => {
+          const occEl = document.getElementById('occupancy-' + data.centerId);
+          if (occEl) {
+            occEl.innerText = data.occupancy;
+            const evacEl = document.getElementById('evacuees-' + data.centerId);
+            if (evacEl) {
+              if (evacEl.innerHTML.includes('No residents')) {
+                evacEl.innerHTML = '<div class="max-h-24 overflow-y-auto pr-1 no-scrollbar space-y-1"></div>';
+              }
+              const listContainer = evacEl.querySelector('div');
+              if (listContainer) {
+                listContainer.insertAdjacentHTML('afterbegin', `<div class="flex items-center gap-1.5 animate-pulse text-green-600"><div class="w-1.5 h-1.5 rounded-full bg-green-500"></div><span class="text-xs font-bold">${data.newResident}</span></div>`);
+              }
+            }
+          }
+        });
+
+        socket.on('map_features_updated', (data) => {
+          if (currentDrawingMode) return;
+          if (typeof data === 'string') {
+            try { data = JSON.parse(data); } catch (e) { }
+          }
+          adminGeoJsonFeatures = data;
+          const src = map.getSource('admin-saved-features');
+          if (src) src.setData(adminGeoJsonFeatures);
+          if (typeof window.refreshTempShapesList === 'function') window.refreshTempShapesList();
+          if (typeof window.updateZoneLabelsOnMap === 'function') window.updateZoneLabelsOnMap(map, adminGeoJsonFeatures);
+        });
+
+        async function fetchAndRefreshAdminMaplibreCenters() {
+          try {
+            const res = await fetch('/api/centers/active');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers)) {
+              if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+              updateAdminCentersPanelList(data.centers);
+            }
+          } catch (e) {
+            console.warn('[AdminMap] Failed to refresh centers live:', e);
+          }
+        }
+
+        socket.on('center_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+            updateAdminCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshAdminMaplibreCenters();
+          }
+        });
+
+        socket.on('ec_board_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+            updateAdminCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshAdminMaplibreCenters();
+          }
+        });
+
+        socket.on('checkin:new', () => {
+          fetchAndRefreshAdminMaplibreCenters();
+        });
+
+        socket.on('map_centers_updated', (data) => {
+          if (data && Array.isArray(data.centers)) {
+            if (adminMapInstance) renderAdminCenterMarkers(data.centers, adminMapInstance);
+            updateAdminCentersPanelList(data.centers);
+          } else {
+            fetchAndRefreshAdminMaplibreCenters();
+          }
+        });
+      }
+
+      return map;
+    }
+
+    // Intercept Add/Edit/Delete forms with AJAX to avoid full-page reloads and duplicate Google Maps loading
+    document.addEventListener('DOMContentLoaded', () => {
+      const createForm = document.getElementById('createCenterForm');
+      if (createForm) {
+        createForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = createForm.querySelector('button[type="submit"]');
+          if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('opacity-50'); }
+
+          try {
+            const formData = new FormData(createForm);
+            const phone = (formData.get('contact_number') || '').trim();
+            if (phone && !/^09\d{9}$/.test(phone)) {
+              alert('Contact number must be an 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('opacity-50'); }
+              return;
+            }
+            const bodyData = new URLSearchParams(formData);
+
+            const res = await fetch(createForm.action, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: bodyData.toString()
+            });
+
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers)) {
+              renderAdminCenterMarkers(data.centers, adminMapInstance);
+              updateAdminCentersPanelList(data.centers);
+              closeCenterModal();
+              createForm.reset();
+            } else {
+              alert(data.error || 'Failed to create evacuation center.');
+            }
+          } catch (err) {
+            console.error('Error creating center:', err);
+            alert('An unexpected error occurred while saving the evacuation center.');
+          } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('opacity-50'); }
+          }
+        });
+      }
+
+      const editForm = document.getElementById('editCenterForm');
+      if (editForm) {
+        editForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = editForm.querySelector('button[type="submit"]');
+          if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('opacity-50'); }
+
+          try {
+            const formData = new FormData(editForm);
+            const phone = (formData.get('contact_number') || '').trim();
+            if (phone && !/^09\d{9}$/.test(phone)) {
+              alert('Contact number must be an 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('opacity-50'); }
+              return;
+            }
+            const bodyData = new URLSearchParams(formData);
+
+            const res = await fetch(editForm.action, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: bodyData.toString()
+            });
+
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers)) {
+              renderAdminCenterMarkers(data.centers, adminMapInstance);
+              updateAdminCentersPanelList(data.centers);
+              closeEditCenterModal();
+            } else {
+              alert(data.error || 'Failed to update evacuation center.');
+            }
+          } catch (err) {
+            console.error('Error updating center:', err);
+            alert('An unexpected error occurred while updating the evacuation center.');
+          } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('opacity-50'); }
+          }
+        });
+      }
+
+      const deleteForm = document.getElementById('deleteCenterForm');
+      if (deleteForm) {
+        deleteForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = deleteForm.querySelector('button[type="submit"]');
+          if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('opacity-50'); }
+
+          try {
+            const res = await fetch(deleteForm.action, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+              }
+            });
+
+            const data = await res.json();
+            if (data.success && Array.isArray(data.centers)) {
+              renderAdminCenterMarkers(data.centers, adminMapInstance);
+              updateAdminCentersPanelList(data.centers);
+              closeDeleteCenterModal();
+            } else {
+              alert(data.error || 'Failed to delete evacuation center.');
+            }
+          } catch (err) {
+            console.error('Error deleting center:', err);
+            alert('An unexpected error occurred while deleting the evacuation center.');
+          } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('opacity-50'); }
+          }
+        });
+      }
+    });
+
+    if (window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre') {
+      if (document.getElementById('evacMap')) {
+        initEvacuationAdminMaplibre();
+      } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initEvacuationAdminMaplibre);
+      } else {
+        initEvacuationAdminMaplibre();
+      }
+    } else {
+      whenGoogleMapsReady(initEvacuationAdminMap);
+    }
+  </script>
+
+  <%- include('../partials/footer') %>

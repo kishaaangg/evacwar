@@ -1,0 +1,1043 @@
+<%- include('../partials/header') %>
+
+  <style>
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 20px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 20px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: #94a3b8;
+    }
+
+  </style>
+
+  <div class="app-main-layout">
+    <%- include('../partials/sidebar') %>
+
+      <main class="app-content flex flex-col min-h-screen bg-slate-100/80 relative pb-44 lg:pb-16 overflow-x-hidden">
+        
+        <!-- Ambient background aura -->
+        <div class="absolute top-0 left-0 w-full h-72 bg-gradient-to-b from-blue-900/15 via-indigo-900/5 to-transparent pointer-events-none -z-10"></div>
+        <div class="absolute top-12 right-4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+        <div class="max-w-xl mx-auto w-full px-3.5 sm:px-6 py-4 sm:py-6 space-y-4 relative z-10">
+
+          <!-- TOP BAR WITH BACK BUTTON & TITLE -->
+          <div class="flex items-center justify-between px-1 mb-1">
+            <a href="/staff" class="w-10 h-10 rounded-full bg-white shadow-xs border border-slate-200/80 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-transform active:scale-95 profile-card">
+              <i class="ph ph-arrow-left text-lg font-bold"></i>
+            </a>
+            <h1 class="text-xl sm:text-2xl font-black font-heading text-slate-900 tracking-tight profile-text-dark" data-i18n="page_title_staff">Staff Profile</h1>
+            <div class="w-10 h-10"></div>
+          </div>
+
+          <!-- FEEDBACK NOTIFICATIONS -->
+          <% if (locals.statusMsg) { %>
+            <div class="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-fade-in">
+              <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                <i class="ph ph-check-circle text-xl text-emerald-600 shrink-0"></i>
+                <span><%= locals.statusMsg %></span>
+              </div>
+              <button onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 text-base"><i class="ph ph-x"></i></button>
+            </div>
+          <% } %>
+
+          <% if (locals.errorMsg) { %>
+            <div class="p-3.5 bg-red-50 border border-red-200 text-red-900 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-fade-in">
+              <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                <i class="ph ph-warning-circle text-xl text-red-600 shrink-0"></i>
+                <span><%= locals.errorMsg %></span>
+              </div>
+              <button onclick="this.parentElement.remove()" class="text-red-700 hover:text-red-950 text-base"><i class="ph ph-x"></i></button>
+            </div>
+          <% } %>
+
+          <!-- 1. STAFF PROFILE HERO CARD -->
+          <div class="profile-card bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/90 relative overflow-hidden transition-all hover:shadow-md">
+            
+            <form id="avatarUploadForm" action="/staff/profile" method="POST" enctype="multipart/form-data" class="hidden">
+              <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+              <input type="file" id="photo-upload-input" name="profile_photo" accept="image/*" onchange="previewAndSubmitAvatar(this)" />
+            </form>
+
+            <div class="flex items-center gap-3.5 sm:gap-4 min-w-0">
+              
+              <!-- Avatar Circle with Camera Overlay (Strictly Fixed 72px Dimensions) -->
+              <div class="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20" style="width: 72px; height: 72px; min-width: 72px; min-height: 72px; max-width: 72px; max-height: 72px;">
+                <div class="w-full h-full rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-md ring-2 ring-blue-200 flex items-center justify-center relative">
+                  <% 
+                    let rawProfilePhoto = (staff && staff.profile_photo) ? staff.profile_photo : (user && user.profile_photo ? user.profile_photo : null);
+                    let profilePhotoSrc = null;
+                    if (rawProfilePhoto) {
+                      profilePhotoSrc = (rawProfilePhoto.startsWith('http') || rawProfilePhoto.startsWith('/')) ? rawProfilePhoto : `/uploads/profiles/${rawProfilePhoto}`;
+                    }
+                  %>
+                  <% if (profilePhotoSrc) { %>
+                    <img loading="lazy" id="profile-avatar-display" src="<%= profilePhotoSrc %>" decoding="async" alt="<%= staff ? staff.full_name : user.name %>" class="w-full h-full object-cover rounded-full aspect-square block bg-white" onerror="this.style.display='none'; document.getElementById('profile-avatar-fallback').classList.remove('hidden');" />
+                    <div id="profile-avatar-fallback" class="w-full h-full rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xl hidden">
+                      <%= ((staff && staff.first_name) || user.name || 'S').charAt(0).toUpperCase() %>
+                    </div>
+                  <% } else { %>
+                    <div class="w-full h-full rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-2xl shadow-inner">
+                      <%= ((staff && staff.first_name) || user.name || 'S').charAt(0).toUpperCase() %>
+                    </div>
+                  <% } %>
+                </div>
+                
+                <label for="photo-upload-input" title="Upload new photo" class="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer shadow-md border-2 border-white transition-transform active:scale-90">
+                  <i class="ph ph-camera text-xs"></i>
+                </label>
+              </div>
+
+              <!-- Staff Information Details -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap mb-0.5">
+                  <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight truncate max-w-[200px] sm:max-w-xs profile-text-dark">
+                    <%= staff && staff.full_name ? staff.full_name : user.name %>
+                  </h2>
+                  <i class="ph ph-seal-check-fill text-blue-600 text-base shrink-0" title="Verified Staff Responder"></i>
+                </div>
+
+                <div class="flex items-center gap-1.5 flex-wrap text-xs text-slate-500 font-semibold mb-1.5 profile-text-muted">
+                  <span class="truncate"><%= staff && staff.occupation ? staff.occupation : 'Emergency Response Staff' %></span>
+                  <span>•</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200/80">
+                    <%= staff && staff.staff_type ? staff.staff_type : 'BOTH' %>
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap text-[11px] text-slate-600 profile-text-muted">
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 font-bold border border-slate-200/80 profile-sub-bg">
+                    <i class="ph ph-map-pin text-red-500"></i>
+                    <%= staff && staff.assigned_barangay ? ('Brgy. ' + staff.assigned_barangay) : 'Brgy. San Rafael' %>
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <%= staff && staff.status ? staff.status : 'ACTIVE' %>
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Manage Profile CTA Button -->
+            <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
+              <span class="text-xs text-slate-500 font-medium profile-text-muted truncate">
+                <i class="ph ph-shield-check text-blue-600 mr-1"></i>
+                <span data-i18n="verified_staff_account">Verified Staff Account</span>
+              </span>
+              <button type="button" onclick="openEditStaffModal()" class="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-extrabold text-xs transition-colors flex items-center gap-1.5 active:scale-95 shrink-0 border border-blue-200/70">
+                <i class="ph ph-pencil-simple text-sm"></i>
+                <span data-i18n="btn_manage_profile">Manage Profile</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- 2. SECTION: STAFF ACCOUNT -->
+          <div class="profile-section-card bg-white rounded-3xl p-2 shadow-xs border border-slate-200/90 space-y-1">
+            <div class="px-3.5 pt-2.5 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400" data-i18n="sec_staff_account">
+              STAFF ACCOUNT
+            </div>
+
+            <!-- Manage Profile Option -->
+            <button type="button" onclick="openEditStaffModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-user-gear text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_manage_staff_profile">Manage Staff Profile</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="sub_manage_staff_profile">Update name, occupation, contact number, and email</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+
+            <!-- Staff Identity Option -->
+            <button type="button" onclick="openStaffIdentityModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-identification-card text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_staff_identity">Staff Identity Information</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="sub_staff_identity">View staff role, user ID, and system credentials</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+          </div>
+
+          <!-- 3. SECTION: ASSIGNMENT & OPERATIONS -->
+          <div class="profile-section-card bg-white rounded-3xl p-2 shadow-xs border border-slate-200/90 space-y-1">
+            <div class="px-3.5 pt-2.5 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400" data-i18n="sec_assignment">
+              ASSIGNMENT & OPERATIONS
+            </div>
+
+            <!-- Assigned Evacuation Center -->
+            <button type="button" onclick="openStaffAssignmentModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-buildings text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_assigned_center">Assigned Evacuation Center</div>
+                  <div class="text-xs text-slate-500 font-semibold truncate profile-text-muted">
+                    <%= (staff && staff.assigned_centers && staff.assigned_centers.length > 0) ? staff.assigned_centers.map(c => c.name).join(' • ') : (staff && staff.assigned_center_name ? staff.assigned_center_name : 'San Rafael Evacuation Center') %>
+                  </div>
+                </div>
+              </div>
+              <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shrink-0" data-i18n="admin_assigned">Admin Assigned</span>
+            </button>
+
+            <!-- Operational Scope & Role -->
+            <button type="button" onclick="openStaffScopeModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-crosshair text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_staff_scope">Operational Scope & Role</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="all_operations">Evacuation & Rescue Operations</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+          </div>
+
+          <!-- 4. SECTION: APP SETTINGS -->
+          <div class="profile-section-card bg-white rounded-3xl p-2 shadow-xs border border-slate-200/90 space-y-1">
+            <div class="px-3.5 pt-2.5 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400" data-i18n="sec_app_settings">
+              APP SETTINGS
+            </div>
+
+            <!-- Language Modal Trigger -->
+            <button type="button" onclick="openLanguageModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-translate text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_language">Language Settings</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" id="current-language-label">English (Default)</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+
+            <!-- Install Application -->
+            <button type="button" onclick="window.EvakWarPWA ? window.EvakWarPWA.triggerInstall() : openInstallAppModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0 flex-1">
+                <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-download-simple text-xl"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark">
+                    <span data-i18n="row_install_app">Install Application</span>
+                  </div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted mt-0.5" data-i18n="sub_install_app">Install Evacwar on your phone or desktop for quick offline & emergency access</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 ml-2">
+                <span data-pwa-install-btn class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-600 text-white shadow-xs group-hover:bg-blue-700 transition-colors shrink-0">
+                  <i class="ph ph-download-simple"></i> <span data-i18n="btn_install">Install</span>
+                </span>
+                <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+              </div>
+            </button>
+          </div>
+
+          <!-- 5. SECTION: SECURITY -->
+          <div class="profile-section-card bg-white rounded-3xl p-2 shadow-xs border border-slate-200/90 space-y-1">
+            <div class="px-3.5 pt-2.5 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400" data-i18n="sec_security">
+              SECURITY
+            </div>
+
+            <!-- Change Password Modal Trigger -->
+            <button type="button" onclick="openChangePasswordModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-lock-key text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_change_password">Change Password</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="sub_change_password">Update your account login password securely</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+
+            <!-- Direct Logout Trigger -->
+            <a href="/logout" onclick="openLogoutModal(event)" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-red-50/70 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-sign-out text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-red-600" data-i18n="row_logout">Logout</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="sub_logout">Sign out of your account</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-red-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </a>
+          </div>
+
+          <!-- 6. SECTION: ABOUT -->
+          <div class="profile-section-card bg-white rounded-3xl p-2 shadow-xs border border-slate-200/90 space-y-1">
+            <div class="px-3.5 pt-2.5 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400" data-i18n="sec_about">
+              ABOUT
+            </div>
+
+            <!-- About Evacwar Modal Trigger -->
+            <button type="button" onclick="openAboutModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-info text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_about">About Evacwar</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="sub_about">Barangay disaster preparedness & SOS assistance system</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+
+            <!-- Responder Protocols & Privacy Trigger -->
+            <button type="button" onclick="openStaffProtocolsModal()" class="profile-row w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors text-left group">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <i class="ph ph-shield-check text-xl"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-800 profile-text-dark" data-i18n="row_protocols">Staff Protocols & Privacy</div>
+                  <div class="text-xs text-slate-400 truncate profile-text-muted" data-i18n="sub_protocols">Emergency responder conduct and data protection</div>
+                </div>
+              </div>
+              <i class="ph ph-caret-right text-slate-400 text-base shrink-0 group-hover:translate-x-0.5 transition-transform"></i>
+            </button>
+          </div>
+
+        </div>
+        <%- include('../partials/footer-visible') %>
+      </main>
+  </div>
+
+  <!-- ==================== MODALS (TOP-ALIGNED, LIGHT HEADERS, ZERO BOTTOM NAVBAR OVERLAP) ==================== -->
+
+  <!-- 1. MODAL: MANAGE STAFF PROFILE -->
+  <div id="modalEditStaffProfile" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalEditStaffProfile')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-user-gear text-blue-600 text-xl"></i>
+          <span data-i18n="btn_manage_profile">Manage Staff Profile</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalEditStaffProfile')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <form id="formEditStaffProfile" action="/staff/profile" method="POST" enctype="multipart/form-data" class="p-5 space-y-4">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+        <!-- Avatar Preview & Upload inside Modal -->
+        <div class="flex items-center gap-3.5 p-3 rounded-2xl bg-blue-50/60 border border-blue-100 profile-sub-bg">
+          <div class="relative w-14 h-14 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-xs shrink-0">
+            <img id="staffModalAvatarPreview" src="<%= profilePhotoSrc || '/images/default-avatar.svg' %>" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/images/default-avatar.svg';">
+          </div>
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1 profile-text-dark">Profile Photo</label>
+            <input type="file" name="profile_photo" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" onchange="previewModalAvatar(this, 'staffModalAvatarPreview')">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_first_name">First Name</label>
+            <input type="text" name="first_name" required class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" value="<%= staff ? (staff.first_name || '') : '' %>" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_middle_name">Middle Name (Optional)</label>
+            <input type="text" name="middle_name" class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" value="<%= staff ? (staff.middle_name || '') : '' %>" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_last_name">Last Name</label>
+            <input type="text" name="last_name" required class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" value="<%= staff ? (staff.last_name || '') : '' %>" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_occupation">Occupation / Position</label>
+            <input type="text" name="occupation" class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" value="<%= staff ? (staff.occupation || 'Emergency Response Staff') : 'Emergency Response Staff' %>" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_contact_number">Mobile Contact Number</label>
+            <input type="text" id="staff_edit_contact" name="contact_number" pattern="^(09|\+639|639)[0-9\s\-]{8,15}$" maxlength="15" class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" value="<%= (staff && staff.contact_number) ? String(staff.contact_number).replace(/[\s\-\(\)]/g, '') : '' %>" placeholder="09198821400" title="11-digit Philippine mobile number starting with 09" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_email">Email Address</label>
+            <input type="email" name="email" class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" value="<%= staff ? (staff.email || '') : (user ? (user.email || '') : '') %>" />
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-blue-50 border border-blue-200/80 text-xs text-blue-900 space-y-1">
+          <div class="font-bold flex items-center gap-1.5 text-blue-950">
+            <i class="ph ph-shield-check text-base text-blue-600"></i> Official Assignments (Admin Controlled)
+          </div>
+          <p class="text-blue-800/90 text-[11px]">
+            Assigned Evacuation Center, Staff Type (<%= staff && staff.staff_type ? staff.staff_type : 'BOTH' %>), and Duty Status are managed directly by the Barangay DRRM Administrator.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeModal('modalEditStaffProfile')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50" data-i18n="btn_cancel">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md active:scale-95 flex items-center gap-1.5">
+            <i class="ph ph-floppy-disk text-sm"></i>
+            <span data-i18n="btn_save_changes">Save Changes</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. MODAL: STAFF IDENTITY INFORMATION -->
+  <div id="modalStaffIdentity" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalStaffIdentity')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-identification-card text-indigo-600 text-xl"></i>
+          <span data-i18n="row_staff_identity">Staff Identity Information</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalStaffIdentity')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 profile-sub-bg">
+            <span class="text-slate-400 font-bold block mb-0.5">Staff ID</span>
+            <span class="font-black text-slate-900 text-sm profile-text-dark">#STF-<%= staff && staff.id ? String(staff.id).padStart(4, '0') : '0001' %></span>
+          </div>
+          <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 profile-sub-bg">
+            <span class="text-slate-400 font-bold block mb-0.5">Account Role</span>
+            <span class="font-black text-blue-700 text-sm capitalize"><%= user && user.role ? (user.role === 'staff' ? 'Barangay Staff' : user.role) : 'Barangay Staff' %></span>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2.5 text-xs profile-sub-bg">
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/60">
+            <span class="text-slate-500 font-bold" data-i18n="lbl_first_name">First Name</span>
+            <span class="font-black text-slate-900 profile-text-dark"><%= staff ? staff.first_name : 'Staff' %></span>
+          </div>
+          <% if (staff && staff.middle_name) { %>
+            <div class="flex justify-between items-center py-1 border-b border-slate-200/60">
+              <span class="text-slate-500 font-bold" data-i18n="lbl_middle_name">Middle Name</span>
+              <span class="font-black text-slate-900 profile-text-dark"><%= staff.middle_name %></span>
+            </div>
+          <% } %>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/60">
+            <span class="text-slate-500 font-bold" data-i18n="lbl_last_name">Last Name</span>
+            <span class="font-black text-slate-900 profile-text-dark"><%= staff ? staff.last_name : '' %></span>
+          </div>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/60">
+            <span class="text-slate-500 font-bold" data-i18n="lbl_occupation">Occupation</span>
+            <span class="font-black text-slate-900 profile-text-dark"><%= staff && staff.occupation ? staff.occupation : 'Emergency Response Staff' %></span>
+          </div>
+          <div class="flex justify-between items-center py-1 border-b border-slate-200/60">
+            <span class="text-slate-500 font-bold" data-i18n="lbl_contact_number">Contact Number</span>
+            <span class="font-black text-slate-900 profile-text-dark"><%= staff && staff.contact_number ? staff.contact_number : '0919-882-1400' %></span>
+          </div>
+          <div class="flex justify-between items-center py-1">
+            <span class="text-slate-500 font-bold" data-i18n="lbl_email">Email</span>
+            <span class="font-black text-slate-900 profile-text-dark"><%= staff && staff.email ? staff.email : (user ? user.email : 'N/A') %></span>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button type="button" onclick="closeModal('modalStaffIdentity')" class="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. MODAL: ASSIGNED EVACUATION CENTER -->
+  <div id="modalStaffAssignment" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalStaffAssignment')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-buildings text-teal-600 text-xl"></i>
+          <span data-i18n="row_assigned_center">Assigned Evacuation Center</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalStaffAssignment')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <% const myAssignedCenters = (staff && staff.assigned_centers && staff.assigned_centers.length > 0) ? staff.assigned_centers : [{ name: staff && staff.assigned_center_name ? staff.assigned_center_name : 'San Rafael Evacuation Center', address: staff && staff.assigned_center_address ? staff.assigned_center_address : 'Barangay San Rafael, Baao, Camarines Sur' }]; %>
+        <div class="space-y-2">
+          <% myAssignedCenters.forEach((c, idx) => { %>
+            <div class="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-teal-950 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="font-black text-sm text-teal-900"><%= c.name %></span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase <%= idx === 0 ? 'bg-teal-200 text-teal-900' : 'bg-teal-100 text-teal-800' %>"><%= idx === 0 ? 'Primary Center' : 'Assigned Site #' + (idx + 1) %></span>
+              </div>
+              <p class="text-teal-800 font-medium text-xs">
+                <i class="ph ph-map-pin mr-1 text-teal-600"></i>
+                <%= c.address || 'San Rafael, Baao, Camarines Sur' %>
+              </p>
+            </div>
+          <% }) %>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 profile-sub-bg">
+            <span class="text-slate-400 font-bold block mb-0.5">Barangay Jurisdiction</span>
+            <span class="font-black text-slate-900 text-sm profile-text-dark">San Rafael (Baao)</span>
+          </div>
+          <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 profile-sub-bg">
+            <span class="text-slate-400 font-bold block mb-0.5">Assigned Operations</span>
+            <span class="font-black text-blue-700 text-sm"><%= staff && staff.staff_type ? staff.staff_type : 'BOTH' %></span>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <a href="/staff/reports" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5">
+            <i class="ph ph-chart-bar text-sm"></i> View EC Information Board
+          </a>
+          <button type="button" onclick="closeModal('modalStaffAssignment')" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MODAL: OPERATIONAL SCOPE -->
+  <div id="modalStaffScope" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalStaffScope')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-crosshair text-blue-600 text-xl"></i>
+          <span data-i18n="row_staff_scope">Operational Scope & Role</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalStaffScope')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs">
+        <div class="p-3.5 rounded-2xl bg-blue-50 border border-blue-200/80 space-y-1.5">
+          <h4 class="font-black text-blue-950 text-sm flex items-center gap-2">
+            <i class="ph ph-qr-code text-blue-600 text-base"></i> Evacuation Intake & Masterlist
+          </h4>
+          <p class="text-blue-900/90 leading-relaxed text-[11px]">
+            Scan household QR passes, register walk-in evacuees, track individual evacuation statuses, and update live shelter occupancy.
+          </p>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-rose-50 border border-rose-200/80 space-y-1.5">
+          <h4 class="font-black text-rose-950 text-sm flex items-center gap-2">
+            <i class="ph ph-siren text-rose-600 text-base"></i> Search & Rescue Response
+          </h4>
+          <p class="text-rose-900/90 leading-relaxed text-[11px]">
+            Monitor real-time SOS distress alerts, view resident GPS coordinates on the emergency map, and dispatch response teams.
+          </p>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button type="button" onclick="closeModal('modalStaffScope')" class="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. MODAL: CHANGE PASSWORD -->
+  <div id="modalChangePassword" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalChangePassword')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-lock-key text-orange-600 text-xl"></i>
+          <span data-i18n="row_change_password">Change Password</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalChangePassword')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <form id="formStaffChangePassword" action="/staff/profile" method="POST" class="p-5 space-y-4">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_current_password">Current Password</label>
+          <input type="password" name="current_password" required class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" placeholder="••••••••" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_new_password">New Password (Min. 8 chars, letters & numbers)</label>
+          <input type="password" id="staff_new_password" name="new_password" required minlength="8" class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" placeholder="Min. 8 chars (letters & numbers)" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1" data-i18n="lbl_confirm_password">Confirm New Password</label>
+          <input type="password" id="staff_confirm_password" name="confirm_password" required minlength="8" class="form-control w-full text-sm font-semibold rounded-xl border border-slate-200 p-2.5" placeholder="Repeat new password" />
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeModal('modalChangePassword')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50" data-i18n="btn_cancel">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md active:scale-95 flex items-center gap-1.5">
+            <i class="ph ph-key text-sm"></i>
+            <span data-i18n="btn_update_password">Update Password</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. MODAL: LANGUAGE SETTINGS (SHARED CENTRALIZED ENGINE) -->
+  <div id="modalLanguage" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalLanguage')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-translate text-sky-600 text-xl"></i>
+          <span data-i18n="row_language">Language Settings</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalLanguage')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-2.5 text-xs">
+        <button type="button" id="lang-btn-en" onclick="chooseLanguage('en', 'English (Default)')" class="w-full p-3 rounded-2xl border border-blue-200 bg-blue-50 text-blue-900 font-bold flex items-center justify-between transition-colors">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🇺🇸</span>
+            <span>English (Default)</span>
+          </div>
+          <i class="ph ph-check-circle-fill text-blue-600 text-lg lang-check"></i>
+        </button>
+
+        <button type="button" id="lang-btn-tl" onclick="chooseLanguage('tl', 'Filipino / Tagalog')" class="w-full p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold flex items-center justify-between transition-colors profile-text-dark">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🇵🇭</span>
+            <span>Filipino / Tagalog</span>
+          </div>
+          <i class="ph ph-check-circle-fill text-blue-600 text-lg lang-check hidden"></i>
+        </button>
+
+
+
+        <div class="flex justify-end pt-3">
+          <button type="button" onclick="closeModal('modalLanguage')" class="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. MODAL: ABOUT Evacwar -->
+  <div id="modalAbout" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalAbout')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-info text-blue-600 text-xl"></i>
+          <span data-i18n="row_about">About Evacwar DRRM</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalAbout')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5 text-xs text-slate-600 profile-text-muted">
+        <p class="leading-relaxed">
+          <strong>Evacwar</strong> is an integrated Disaster Risk Reduction & Emergency Management System deployed for Barangay San Rafael, Municipality of Baao, Camarines Sur.
+        </p>
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2 profile-sub-bg">
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-slate-500">MDRRMO Baao Hotline</span>
+            <span class="font-black text-red-600">0919-882-1400</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-slate-500">Barangay Hall Desk</span>
+            <span class="font-black text-blue-700">0912-345-6789</span>
+          </div>
+        </div>
+        <div class="flex justify-end pt-2">
+          <button type="button" onclick="closeModal('modalAbout')" class="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. MODAL: STAFF PROTOCOLS & PRIVACY -->
+  <div id="modalStaffProtocols" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalStaffProtocols')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-shield-check text-blue-600 text-xl"></i>
+          <span data-i18n="row_protocols">Staff Protocols & Privacy</span>
+        </h3>
+        <button type="button" onclick="closeModal('modalStaffProtocols')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3 text-xs text-slate-600 profile-text-muted">
+        <div class="p-3.5 rounded-2xl bg-blue-50 border border-blue-200/80 text-blue-950 space-y-1">
+          <span class="font-bold block">1. Data Confidentiality & DSWD Standards</span>
+          <p class="text-[11px] text-blue-900/80 leading-relaxed">
+            All resident records, family demographic information, and vulnerability data gathered during evacuation intake are strictly confidential under RA 10173 (Data Privacy Act).
+          </p>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 text-slate-800 space-y-1 profile-sub-bg">
+          <span class="font-bold block profile-text-dark">2. Intake & Masterlist Fidelity</span>
+          <p class="text-[11px] text-slate-500 profile-text-muted leading-relaxed">
+            Only physically present evacuees should be marked as active in shelter check-in to ensure accurate relief pack distribution and EC board reporting.
+          </p>
+        </div>
+        <div class="flex justify-end pt-2">
+          <button type="button" onclick="closeModal('modalStaffProtocols')" class="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. MODAL: INSTALL APPLICATION -->
+  <div id="modalInstallApp" class="fixed inset-0 z-[120] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto pt-6 sm:pt-10 pb-36 px-3.5 flex justify-center items-start" onclick="if(event.target===this)closeModal('modalInstallApp')">
+    <div class="modal-content-card bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-scale-in">
+      <div class="px-5 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2 profile-text-dark">
+          <i class="ph ph-download-simple text-blue-600 text-xl"></i>
+          <span data-i18n="modal_install_title">Install Evacwar App</span>
+        </h3>
+        <button type="button" onclick="closeInstallAppModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors">
+          <i class="ph ph-x text-sm font-bold"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs text-slate-600 profile-text-muted">
+        <!-- Direct Install Action (Visible when prompt is active) -->
+        <div id="pwa-modal-direct-install-btn" class="hidden">
+          <button type="button" onclick="window.EvakWarPWA && window.EvakWarPWA.triggerInstall()" class="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer">
+            <i class="ph ph-download-simple text-base"></i>
+            <span data-i18n="btn_install_app">Install Evacwar to Device</span>
+          </button>
+          <div class="text-center text-[10px] text-slate-400 mt-1.5 profile-text-muted">Tap to install directly with one click</div>
+        </div>
+
+        <!-- Already Installed Banner -->
+        <div id="pwa-modal-installed-notice" class="hidden p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 space-y-1 profile-sub-bg">
+          <div class="flex items-center gap-2 font-bold text-xs">
+            <i class="ph ph-check-circle text-emerald-600 text-base"></i>
+            <span>Evacwar is Already Installed</span>
+          </div>
+          <p class="text-[11px] text-emerald-700/80 leading-relaxed">
+            This application is installed in standalone mode for fast emergency response and intake operations.
+          </p>
+        </div>
+
+        <!-- App Benefits Summary -->
+        <div class="flex items-center gap-3 bg-blue-50/70 p-3.5 rounded-2xl border border-blue-100 profile-sub-bg">
+          <div class="w-11 h-11 rounded-2xl bg-white p-1 shadow-xs shrink-0 flex items-center justify-center">
+            <img loading="lazy" src="/icons/icon-192x192.png" alt="Evacwar" class="w-full h-full object-contain" / decoding="async">
+          </div>
+          <div class="min-w-0">
+            <h4 class="font-extrabold text-slate-900 text-xs profile-text-dark">Emergency Responder PWA</h4>
+            <p class="text-[11px] text-slate-500 font-medium profile-text-muted">Direct desktop/mobile launch, offline intake caching & quick access</p>
+          </div>
+        </div>
+
+        <!-- Platform Tabs -->
+        <div>
+          <div class="text-[11px] font-bold text-slate-700 mb-1.5 profile-text-dark">Select your device guide:</div>
+          <div class="flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 gap-1">
+            <button type="button" id="pwa-tab-btn-android" onclick="window.EvakWarPWA && window.EvakWarPWA.setInstallModalTab('android')" class="flex-1 py-2 px-2.5 rounded-xl font-bold text-xs bg-blue-600 text-white shadow-xs transition-all">
+              <i class="ph ph-android-logo"></i> Android
+            </button>
+            <button type="button" id="pwa-tab-btn-ios" onclick="window.EvakWarPWA && window.EvakWarPWA.setInstallModalTab('ios')" class="flex-1 py-2 px-2.5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+              <i class="ph ph-apple-logo"></i> iPhone / iPad
+            </button>
+            <button type="button" id="pwa-tab-btn-desktop" onclick="window.EvakWarPWA && window.EvakWarPWA.setInstallModalTab('desktop')" class="flex-1 py-2 px-2.5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+              <i class="ph ph-laptop"></i> PC / Mac
+            </button>
+          </div>
+        </div>
+
+        <!-- Platform Instructions -->
+        <!-- Android Instructions -->
+        <div id="pwa-tab-content-android" class="space-y-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 profile-sub-bg">
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Tap the browser menu button (<i class="ph ph-dots-three-vertical font-bold"></i> three dots) in Chrome or Edge.
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Confirm by tapping <strong>"Install"</strong> to place Evacwar directly onto your home screen.
+            </div>
+          </div>
+        </div>
+
+        <!-- iOS Instructions -->
+        <div id="pwa-tab-content-ios" class="hidden space-y-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 profile-sub-bg">
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              In Safari, tap the <strong>Share</strong> button (<i class="ph ph-export font-bold"></i> square with arrow up) on the bottom toolbar.
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Scroll down and choose <strong>"Add to Home Screen"</strong> (<i class="ph ph-plus-square font-bold"></i>).
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Tap <strong>"Add"</strong> in the top-right corner to access Evacwar with a single tap.
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Instructions -->
+        <div id="pwa-tab-content-desktop" class="hidden space-y-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 profile-sub-bg">
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              In Chrome or Microsoft Edge, look at the right side of the address bar at the top.
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Click the <strong>Install Evacwar</strong> icon (<i class="ph ph-download-simple font-bold"></i> or computer monitor).
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+            <div class="text-[11px] font-medium text-slate-700 profile-text-dark">
+              Click <strong>"Install"</strong> to launch as a standalone desktop app that can be pinned to your taskbar.
+            </div>
+          </div>
+        </div>
+
+        <!-- Close Action -->
+        <div class="pt-2 flex justify-end">
+          <button type="button" onclick="closeInstallAppModal()" class="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors" data-i18n="btn_close">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC & HANDLERS -->
+  <script>
+    // Modal Management
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('hidden');
+        el.style.display = 'flex';
+        document.body.classList.add('overflow-hidden');
+      }
+    }
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+        document.body.classList.remove('overflow-hidden');
+      }
+    }
+
+    function openEditStaffModal() { openModal('modalEditStaffProfile'); }
+    function openStaffIdentityModal() { openModal('modalStaffIdentity'); }
+    function openStaffAssignmentModal() { openModal('modalStaffAssignment'); }
+    function openStaffScopeModal() { openModal('modalStaffScope'); }
+    function openChangePasswordModal() { openModal('modalChangePassword'); }
+    function openLanguageModal() { openModal('modalLanguage'); }
+    function openAboutModal() { openModal('modalAbout'); }
+    function openStaffProtocolsModal() { openModal('modalStaffProtocols'); }
+    function openInstallAppModal() {
+      if (window.EvakWarPWA && window.EvakWarPWA.openInstallModal) {
+        window.EvakWarPWA.openInstallModal();
+      } else {
+        openModal('modalInstallApp');
+      }
+    }
+    function closeInstallAppModal() {
+      if (window.EvakWarPWA && window.EvakWarPWA.closeInstallModal) {
+        window.EvakWarPWA.closeInstallModal();
+      } else {
+        closeModal('modalInstallApp');
+      }
+    }
+
+    // Live avatar preview in modal
+    function previewModalAvatar(input, targetId) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+          alert('Please select a valid image file.');
+          input.value = '';
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          alert('Image file size must be less than 10MB.');
+          input.value = '';
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const preview = document.getElementById(targetId);
+          if (preview) preview.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // Avatar Upload Trigger
+    function previewAndSubmitAvatar(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+          alert('Please select a valid image file.');
+          input.value = '';
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          alert('Image file size must be less than 10MB.');
+          input.value = '';
+          return;
+        }
+        document.getElementById('avatarUploadForm').submit();
+      }
+    }
+
+    // Shared Centralized Language Engine Trigger
+    function chooseLanguage(lang, label) {
+      if (window.setAppLanguage) {
+        window.setAppLanguage(lang, label);
+      }
+      closeModal('modalLanguage');
+    }
+
+    // Theme (Light / Dark) Toggle
+    function toggleDarkMode(isDark) {
+      const label = document.getElementById('theme-mode-label');
+      const icon = document.getElementById('theme-icon');
+      
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('Evacwar_theme', 'dark');
+        if (label) label.innerText = 'Dark Mode Active';
+        if (icon) icon.className = 'ph ph-sun text-xl text-amber-500';
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('Evacwar_theme', 'light');
+        if (label) label.innerText = 'Light Mode Active';
+        if (icon) icon.className = 'ph ph-moon-stars text-xl text-amber-600';
+      }
+    }
+
+    // Initialize Preferences on Load
+    document.addEventListener('DOMContentLoaded', () => {
+      // Theme
+      const savedTheme = localStorage.getItem('Evacwar_theme');
+      const toggleInput = document.getElementById('theme-toggle-input');
+      if (savedTheme === 'dark') {
+        if (toggleInput) toggleInput.checked = true;
+        toggleDarkMode(true);
+      } else {
+        if (toggleInput) toggleInput.checked = false;
+        toggleDarkMode(false);
+      }
+
+      // Shared Language
+      if (window.applyCurrentLanguage) {
+        window.applyCurrentLanguage();
+      }
+
+      // Sync PWA status badges
+      if (window.EvakWarPWA && window.EvakWarPWA.syncUI) {
+        window.EvakWarPWA.syncUI();
+      }
+
+      // Support auto-opening edit modal via query param ?openModal=editProfile
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('openModal') === 'editProfile' || urlParams.get('edit') === '1') {
+        openEditStaffModal();
+      }
+
+      // Validation for Staff Edit Profile Form
+      const formEditStaff = document.getElementById('formEditStaffProfile');
+      if (formEditStaff) {
+        formEditStaff.addEventListener('submit', function (e) {
+          let contact = (document.getElementById('staff_edit_contact')?.value || '').trim();
+          if (contact) {
+            contact = contact.replace(/[\s\-\(\)]/g, '');
+            if (contact.startsWith('+63')) contact = '0' + contact.slice(3);
+            if (contact.startsWith('63')) contact = '0' + contact.slice(2);
+            if (!/^09\d{9}$/.test(contact)) {
+              e.preventDefault();
+              alert('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g., 09123456789).');
+              document.getElementById('staff_edit_contact')?.focus();
+              return false;
+            }
+          }
+        });
+      }
+
+      // Validation for Staff Change Password Form
+      const formStaffPass = document.getElementById('formStaffChangePassword');
+      if (formStaffPass) {
+        formStaffPass.addEventListener('submit', function (e) {
+          const newPass = (document.getElementById('staff_new_password')?.value || '').trim();
+          const confPass = (document.getElementById('staff_confirm_password')?.value || '').trim();
+
+          if (newPass.length < 8 || !/[a-zA-Z]/.test(newPass) || !/[0-9]/.test(newPass)) {
+            e.preventDefault();
+            alert('Password must be at least 8 characters long and contain both letters and numbers.');
+            document.getElementById('staff_new_password')?.focus();
+            return false;
+          }
+
+          if (newPass !== confPass) {
+            e.preventDefault();
+            alert('New password and confirmation password do not match.');
+            document.getElementById('staff_confirm_password')?.focus();
+            return false;
+          }
+        });
+      }
+
+      // Close modal on escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          ['modalEditStaffProfile', 'modalStaffIdentity', 'modalStaffAssignment', 'modalStaffScope', 'modalChangePassword', 'modalLanguage', 'modalAbout', 'modalStaffProtocols', 'modalInstallApp'].forEach(id => {
+            closeModal(id);
+          });
+        }
+      });
+    });
+  </script>
+
+  <%- include('../partials/footer') %>

@@ -1,0 +1,98 @@
+<%- include('../partials/header') %>
+
+  <% const pagasaData=(locals.weather && locals.weather.pagasa) ? locals.weather.pagasa : {
+    warningType: '24-Hour Public Weather Forecast' , affectedArea: 'San Rafael, Baao & Camarines Sur' ,
+    issuedAt: 'Updated Today' ,
+    residentExplanation: 'Normal to localized rainy weather. Low-lying areas should monitor water levels during heavy downpours.'
+    , actionLevel: { level: 'MONITOR' , badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' , icon: 'ph-eye'
+    }, officialBulletinUrl: 'https://bagong.pagasa.dost.gov.ph/' }; %>
+
+    <div class="app-main-layout">
+      <%- include('../partials/sidebar') %>
+
+        <main
+          class="app-content h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] overflow-hidden relative !p-0 !m-0 flex flex-col font-sans bg-slate-900 text-white">
+
+          <!-- RADAR DISCLAIMER BAR -->
+          <div id="radarDisclaimer"
+            class="z-10 bg-amber-500/10 backdrop-blur-xs border-b border-amber-500/20 px-3 py-1.5 text-center text-[11px] font-semibold text-amber-200 shrink-0">
+            <span><i class="ph ph-info font-bold"></i> LIVE WEATHER MAP (Windy): Visual reference only — refer to
+              official PAGASA warnings for official guidance.</span>
+          </div>
+
+          <!-- Small Non-blocking Offline Badge -->
+          <div id="typhoonOfflineNotice"
+            class="hidden absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 text-amber-300 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold border border-amber-500/40 shadow-xl flex items-center gap-1.5 pointer-events-auto">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span>Offline</span>
+          </div>
+
+          <!-- Live Radar Tracker Full Screen Map Container -->
+          <div id="radarIframeContainer" class="relative flex-1 min-h-0 w-full z-0 flex flex-col bg-slate-900 mb-[66px] sm:mb-20 lg:mb-0">
+            <iframe id="windyIframe"
+              src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=5&overlay=wind&product=ecmwf&level=surface&lat=13.5102&lon=123.3470&detailLat=13.5102&detailLon=123.3470&detail=true&pressure=true"
+              width="100%" height="100%" frameborder="0" class="absolute inset-0 w-full h-full border-0"
+              style="max-width: 100%;"></iframe>
+
+            <!-- OFFLINE WEATHER FALLBACK CARD -->
+            <div id="offlineWeatherCard"
+              class="hidden absolute inset-0 z-10 p-4 sm:p-6 overflow-y-auto flex flex-col items-center justify-center bg-slate-900/95 text-slate-100">
+              <div
+                class="max-w-md w-full bg-slate-800/90 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2 text-blue-400 font-black text-sm">
+                    <i class="ph ph-cloud-rain text-2xl"></i>
+                    <span>
+                      <%= pagasaData.warningType %>
+                    </span>
+                  </div>
+                  <span
+                    class="px-2.5 py-1 rounded-full text-[11px] font-extrabold <%= pagasaData.actionLevel.badgeClass %>">
+                    <%= pagasaData.actionLevel.level %>
+                  </span>
+                </div>
+
+                <div class="border-t border-slate-700/60 pt-3">
+                  <p class="text-xs text-slate-400 font-semibold mb-1">Affected Area:</p>
+                  <p class="text-sm font-bold text-white">
+                    <%= pagasaData.affectedArea %>
+                  </p>
+                </div>
+
+                <div class="border-t border-slate-700/60 pt-3">
+                  <p class="text-xs text-slate-400 font-semibold mb-1">Resident Advisory:</p>
+                  <p class="text-xs text-slate-200 leading-relaxed">
+                    <%= pagasaData.residentExplanation %>
+                  </p>
+                </div>
+
+                <div
+                  class="border-t border-slate-700/60 pt-3 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Issued: <%= pagasaData.issuedAt %></span>
+                  <span class="inline-flex items-center gap-1 text-emerald-400 font-bold">
+                    <i class="ph ph-shield-check"></i> Cached Advisory
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function syncTyphoonOfflineState() {
+              const isOff = !navigator.onLine;
+              const offlineNotice = document.getElementById('typhoonOfflineNotice');
+              const offlineCard = document.getElementById('offlineWeatherCard');
+              const iframe = document.getElementById('windyIframe');
+              if (offlineNotice) offlineNotice.classList.toggle('hidden', !isOff);
+              if (offlineCard) offlineCard.classList.toggle('hidden', !isOff);
+              if (iframe) iframe.style.display = isOff ? 'none' : 'block';
+            }
+            window.addEventListener('online', syncTyphoonOfflineState);
+            window.addEventListener('offline', syncTyphoonOfflineState);
+            document.addEventListener('DOMContentLoaded', syncTyphoonOfflineState);
+          </script>
+
+        </main>
+    </div>
+
+    <%- include('../partials/footer') %>
