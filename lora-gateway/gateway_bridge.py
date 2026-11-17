@@ -60,6 +60,74 @@ HEARTBEAT_INTERVAL_SEC = 2.5
 
 interface = None
 seen_packet_ids = set()
+last_sensor_post_at = 0.0
+last_sensor_req_at = 0.0
+last_sensor_signature = None
+
+
+def extract_env_metrics(packet_or_node):
+    """Extracts (temp, humidity, pressure) from a Meshtastic telemetry packet or NodeDB entry."""
+    if not isinstance(packet_or_node, dict):
+        return None
+    env = packet_or_node.get("environmentMetrics")
+    if not env:
+        decoded = packet_or_node.get("decoded", {})
+        tel = decoded.get("telemetry", {})
+        if isinstance(tel, dict):
+            env = tel.get("environmentMetrics")
+    if not isinstance(env, dict):
+        return None
+
+    temp = env.get("temperature")
+    hum = env.get("relativeHumidity")
+    press = env.get("barometricPressure")
+    if temp is None and hum is None and press is None:
+        return None
+    return {
+        "temperature": round(float(temp), 2) if temp is not None else None,
+        "humidity": round(float(hum), 2) if hum is not None else None,
+        "pressure": round(float(press), 2) if press is not None else None,
+    }
+
+
+def push_sensor_reading(metrics, node_id="!0f778ab0", node_name="EvakWar Zone Relay 1 (REL1)", rssi=None, snr=None, hops=0, broadcast_lora=False):
+    global last_sensor_post_at, last_sensor_signature
+    if not metrics:
+        return
+    sig = (metrics.get("temperature"), metrics.get("humidity"), metrics.get("pressure"), node_id)
+    now = time.time()
+    # Post real sensor readings at most once every 50s (or immediately if values changed)
+    if sig == last_sensor_signature and (now - last_sensor_post_at) < 50.0:
+        return
+    if (now - last_sensor_post_at) < 15.0:
+        return
+
+    payload = {
+        "temperature": metrics.get("temperature"),
+        "humidity": metrics.get("humidity"),
+        "pressure": metrics.get("pressure"),
+        "nodeId": node_id,
+        "nodeName": node_name,
+        "sensorModel": "AHT20 + BMP280 (I2C)",
+        "hopsAway": hops,
+        "source": "LORA_AHT20_BMP280",
+        "broadcastLoRa": broadcast_lora,
+        "updatedAt": datetime.now().astimezone().isoformat(),
+    }
+    if rssi is not None:
+        payload["rssi"] = rssi
+    if snr is not None:
+        payload["snr"] = snr
+
+    res = http_post("/api/lora/weather-sensor", payload)
+    if res and res.get("success"):
+        last_sensor_post_at = now
+        last_sensor_signature = sig
+        print(
+            f"[Sensor AHT20+BMP280 {node_id}] Temp={metrics.get('temperature')}C "
+            f"Humidity={metrics.get('humidity')}% Pressure={metrics.get('pressure')}hPa",
+            flush=True
+        )
 
 
 def http_post(path, payload):
@@ -152,6 +220,12 @@ def on_receive(packet, interface):
         relay_node = packet.get("relayNode", None)
         hops_used = max(0, int(hop_start) - int(hop_limit))
 
+        env = extract_env_metrics(packet)
+        if env:
+            node_name = "EvakWar Zone Relay 1 (REL1)" if from_id.lower() == "!0f778ab0" else f"EvakWar Sensor Node ({from_id})"
+            push_sensor_reading(env, node_id=from_id, node_name=node_name, rssi=rssi, snr=snr, hops=hops_used, broadcast_lora=False)
+            return
+
         safe_preview = ""
         if text:
             safe_preview = "".join(c if 32 <= ord(c) <= 126 else "?" for c in text[:80])
@@ -204,8 +278,33 @@ def sync_mesh_nodes(iface):
             "lastHeard": n.get("lastHeard", int(time.time())),
             "online": True
         })
+        env = extract_env_metrics(n)
+        if env:
+            push_sensor_reading(
+                env,
+                node_id=node_id,
+                node_name=long_name,
+                rssi=n.get("rssi"),
+                snr=n.get("snr"),
+                hops=n.get("hopsAway", 0),
+                broadcast_lora=False
+            )
     if nodes_list:
         http_post("/api/lora/nodes/heartbeat", {"nodes": nodes_list})
+
+
+def poll_relay_sensor_telemetry(iface, my_id):
+    """Requests fresh AHT20+BMP280 environmentMetrics from REL1 (!0f778ab0) every 60s."""
+    global last_sensor_req_at
+    now = time.time()
+    if (now - last_sensor_req_at) < 60.0:
+        return
+    last_sensor_req_at = now
+    target_id = my_id if (my_id and my_id.lower() == "!0f778ab0") else "!0f778ab0"
+    try:
+        iface.sendTelemetry(destinationId=target_id, wantResponse=True, telemetryType="environment_metrics")
+    except Exception:
+        pass
 
 
 def process_outbound_queue(iface):
@@ -251,7 +350,7 @@ def main():
     print("  Mesh Nodes  : !d88b1a58 (HALL), !0f778ab0 (REL1), !f4e213d4 (RES1)")
     print("=" * 72)
 
-    for topic in ["meshtastic.receive", "meshtastic.receive.text", "meshtastic.receive.data"]:
+    for topic in ["meshtastic.receive", "meshtastic.receive.text", "meshtastic.receive.data", "meshtastic.receive.telemetry"]:
         try:
             pub.unsubscribe(on_receive, topic)
         except Exception:
@@ -281,6 +380,7 @@ def main():
                 ]
             })
             sync_mesh_nodes(interface)
+            poll_relay_sensor_telemetry(interface, my_id)
             last_heartbeat = time.time()
             while True:
                 if not getattr(interface, "isConnected", True):
@@ -289,6 +389,7 @@ def main():
                 process_outbound_queue(interface)
                 if now - last_heartbeat >= HEARTBEAT_INTERVAL_SEC:
                     sync_mesh_nodes(interface)
+                    poll_relay_sensor_telemetry(interface, my_id)
                     last_heartbeat = now
                 time.sleep(POLL_INTERVAL_SEC)
 

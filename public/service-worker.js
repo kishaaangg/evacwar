@@ -1027,32 +1027,35 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const title = data.title || '🚨 EMERGENCY ALERT — Evacwar';
+  const isWeatherUpdate = data.type === 'WEATHER_UPDATE' || data.noSiren === true;
+  const title = data.title || (isWeatherUpdate ? '🌤️ LoRa Weather Sensor Update' : '🚨 EMERGENCY ALERT — Evacwar');
   const severity = (data.severity || 'RED').toUpperCase();
   const alertId = data.alertId || data.id || Date.now();
-  const targetUrl = data.url || '/';
+  const targetUrl = data.url || (isWeatherUpdate ? '/typhoon' : '/');
 
-  console.log('[PUSH] Displaying notification for alert ID:', alertId);
+  console.log('[PUSH] Displaying notification for alert ID:', alertId, 'type:', data.type);
 
-  // Maximum urgency vibration pattern for disaster alert (wake-up pulse)
-  const emergencyVibration = [500, 150, 500, 150, 500, 250, 300, 100, 300, 100, 300, 250, 500, 150, 500];
+  // Use gentle vibration/quiet behavior for 2-hour weather updates (NO emergency siren/wake-up alarm)
+  const emergencyVibration = isWeatherUpdate
+    ? [120, 80, 120]
+    : [500, 150, 500, 150, 500, 250, 300, 100, 300, 100, 300, 250, 500, 150, 500];
 
   const options = {
     body: data.body || data.message || 'Emergency broadcast received in your barangay. Please check evacuation guidelines.',
     icon: data.icon || '/icons/icon-192x192.png',
     badge: data.badge || '/icons/icon-192x192.png',
     vibrate: emergencyVibration,
-    tag: `Evacwar-alert-${alertId}-${Date.now()}`,
-    renotify: true,
-    requireInteraction: true, // Emergency alerts stay on screen until user interacts
-    silent: false,            // Explicitly requests audible ringtone / chime from device OS
+    tag: isWeatherUpdate ? `Evacwar-weather-${alertId}` : `Evacwar-alert-${alertId}-${Date.now()}`,
+    renotify: !isWeatherUpdate,
+    requireInteraction: !isWeatherUpdate,
+    silent: Boolean(isWeatherUpdate),
     data: {
       url: targetUrl,
       alertId: alertId,
       severity: severity,
       type: data.type || 'EMERGENCY_ALERT',
-      // Full alert details used to re-open the in-app modal + siren after tap
-      alert: {
+      noSiren: isWeatherUpdate,
+      alert: isWeatherUpdate ? null : {
         id: alertId,
         title: title,
         message: data.message || data.body || '',
@@ -1062,13 +1065,12 @@ self.addEventListener('push', (event) => {
       }
     },
     actions: [
-      { action: 'open_alert', title: 'Open Evacwar' }
+      { action: isWeatherUpdate ? 'open_weather' : 'open_alert', title: isWeatherUpdate ? 'View Weather' : 'Open Evacwar' }
     ]
   };
 
   event.waitUntil(Promise.all([
-    // Store alert so the modal shows even if the user opens the app from its icon
-    savePendingAlert(options.data.alert),
+    isWeatherUpdate ? Promise.resolve() : savePendingAlert(options.data.alert),
     self.registration.showNotification(title, options).catch((err) => {
       console.warn('[PUSH] Fallback notification triggered:', err.message);
       return self.registration.showNotification(title, {
@@ -1088,36 +1090,49 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const targetPath = (event.notification.data && event.notification.data.url)
+  const rawTargetPath = (event.notification.data && event.notification.data.url)
     ? event.notification.data.url
     : '/';
+  const notifType = (event.notification.data && event.notification.data.type) || '';
+  const isWeatherNotif = notifType === 'WEATHER_UPDATE' || rawTargetPath.includes('/typhoon');
 
   const defaultUrl = self.location.origin;
-  const fullUrl = new URL(targetPath, defaultUrl).href;
+  const fullUrl = new URL(rawTargetPath, defaultUrl).href;
   const alertPayload = event.notification.data && event.notification.data.alert
     ? event.notification.data.alert
     : null;
 
   event.waitUntil(
-    // Persist first so a freshly opened window can pick up the alert on load
-    savePendingAlert(alertPayload)
+    // Persist emergency alerts only (never store siren alerts for weather updates)
+    (isWeatherNotif ? Promise.resolve() : savePendingAlert(alertPayload))
       .then(() => clients.matchAll({ type: 'window', includeUncontrolled: true }))
-      .then((windowClients) => {
-        // If an Evacwar window is already open, focus it and ask it to open the modal + siren
-        // (no navigation/reload, so audio already unlocked on that page keeps working)
+      .then(async (windowClients) => {
         for (let i = 0; i < windowClients.length; i++) {
           const client = windowClients[i];
           if (client.url && (client.url.startsWith(defaultUrl) || client.url.includes('evacwar-testing.onrender.com'))) {
-            if (alertPayload) {
+            if (isWeatherNotif) {
+              let roleDest = '/resident/typhoon?view=sensor';
+              try {
+                const u = new URL(client.url);
+                if (u.pathname.startsWith('/admin')) roleDest = '/admin/typhoon?view=sensor';
+                else if (u.pathname.startsWith('/staff')) roleDest = '/staff/typhoon?view=sensor';
+                else if (u.pathname.startsWith('/rescuer')) roleDest = '/rescuer/typhoon?view=sensor';
+              } catch (_) {}
+              const roleFullUrl = new URL(roleDest, defaultUrl).href;
+              if (typeof client.navigate === 'function') {
+                try { await client.navigate(roleFullUrl); } catch (_) {}
+              } else {
+                client.postMessage({ type: 'NAVIGATE_TO', url: roleDest });
+              }
+            } else if (alertPayload) {
               client.postMessage({ type: 'SHOW_EMERGENCY_ALERT', alert: alertPayload });
             }
             return client.focus();
           }
         }
 
-        // If no Evacwar window exists (app was completely closed), launch standalone window directly
         if (clients.openWindow) {
-          return clients.openWindow(fullUrl);
+          return clients.openWindow(isWeatherNotif ? new URL('/resident/typhoon?view=sensor', defaultUrl).href : fullUrl);
         }
       })
   );

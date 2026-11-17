@@ -1,0 +1,283 @@
+{
+  "current": {
+    "temperature": 177.6,
+    "humidity": 0,
+    "pressure": -176.37,
+    "heatIndex": 177.6,
+    "dewPoint": 46.6,
+    "heatCategory": "Extreme Danger Heat",
+    "condition": "Low Pressure / Possible Storm",
+    "advisoryLevel": "WATCH",
+    "guidance": "Barometric pressure dropped significantly. Expect possible heavy rain or squalls and monitor PAGASA updates.",
+    "pressureTrend": "Rapid Drop",
+    "pressureTrendCode": "RAPID_FALL",
+    "pressureDeltaHpa": -1205.05,
+    "nodeId": "!0f778ab0",
+    "nodeName": "EvakWar Zone Relay 1",
+    "sensorModel": "AHT20 + BMP280 (I2C)",
+    "rssi": null,
+    "snr": null,
+    "hopsAway": 0,
+    "source": "LORA_AHT20_BMP280",
+    "updatedAt": "2026-11-17T22:00:52.728251+08:00",
+    "timestampMs": 1794924052734
+  },
+  "history": [
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T22:00:52.728251+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T22:00:02.280994+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:59:11.441833+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:58:20.887451+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": 1286.89,
+      "heatIndex": 177.6,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-17T21:57:35.388500+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:57:10.196348+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:56:19.756678+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:55:29.376302+08:00"
+    },
+    {
+      "temperature": 29.73,
+      "humidity": 0,
+      "pressure": 1028.67,
+      "heatIndex": 29.7,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-17T21:55:13.229523+08:00"
+    },
+    {
+      "temperature": 29.73,
+      "humidity": 0,
+      "pressure": 1028.67,
+      "heatIndex": 29.7,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-17T21:54:22.336929+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:54:06.695031+08:00"
+    },
+    {
+      "temperature": 177.6,
+      "humidity": 0,
+      "pressure": -176.37,
+      "heatIndex": 177.6,
+      "condition": "Low Pressure / Possible Storm",
+      "updatedAt": "2026-11-17T21:53:15.052272+08:00"
+    },
+    {
+      "temperature": 29.46,
+      "humidity": 77.84,
+      "pressure": 1028.76,
+      "heatIndex": 35.5,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:52:13.263447+08:00"
+    },
+    {
+      "temperature": 29.52,
+      "humidity": 77.87,
+      "pressure": 1028.75,
+      "heatIndex": 35.7,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:51:11.335859+08:00"
+    },
+    {
+      "temperature": 29.63,
+      "humidity": 77.66,
+      "pressure": 1028.82,
+      "heatIndex": 36,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:50:10.198677+08:00"
+    },
+    {
+      "temperature": 29.59,
+      "humidity": 77.3,
+      "pressure": 1028.71,
+      "heatIndex": 35.8,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:49:09.050644+08:00"
+    },
+    {
+      "temperature": 29.59,
+      "humidity": 77.69,
+      "pressure": 1028.71,
+      "heatIndex": 35.9,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:48:06.644216+08:00"
+    },
+    {
+      "temperature": 29.56,
+      "humidity": 77.69,
+      "pressure": 1028.76,
+      "heatIndex": 35.8,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:47:03.758974+08:00"
+    },
+    {
+      "temperature": 29.57,
+      "humidity": 77.46,
+      "pressure": 1028.73,
+      "heatIndex": 35.7,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:45:50.916024+08:00"
+    },
+    {
+      "temperature": 29.57,
+      "humidity": 77.46,
+      "pressure": 1028.73,
+      "heatIndex": 35.7,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:44:58.711256+08:00"
+    },
+    {
+      "temperature": 29.71,
+      "humidity": 76.71,
+      "pressure": 1028.7,
+      "heatIndex": 35.9,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:43:35.675869"
+    },
+    {
+      "temperature": 29.79,
+      "humidity": 76.62,
+      "pressure": 1028.67,
+      "heatIndex": 36.1,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:42:35.545235"
+    },
+    {
+      "temperature": 30.09,
+      "humidity": 77.08,
+      "pressure": 1028.63,
+      "heatIndex": 37.1,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:41:45.788546"
+    },
+    {
+      "temperature": 30.13,
+      "humidity": 78.27,
+      "pressure": 1028.65,
+      "heatIndex": 37.6,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:41:35.425863"
+    },
+    {
+      "temperature": 29.91,
+      "humidity": 78.22,
+      "pressure": 1028.65,
+      "heatIndex": 36.9,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:41:21.683766"
+    },
+    {
+      "temperature": 29.89,
+      "humidity": 78.09,
+      "pressure": 1028.67,
+      "heatIndex": 36.8,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:40:15.752286"
+    },
+    {
+      "temperature": 29.83,
+      "humidity": 79.38,
+      "pressure": 1028.62,
+      "heatIndex": 37,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:39:34.881745"
+    },
+    {
+      "temperature": 29.65,
+      "humidity": 78.75,
+      "pressure": 1028.7,
+      "heatIndex": 36.3,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:38:34.788340"
+    },
+    {
+      "temperature": 29.7,
+      "humidity": 77.73,
+      "pressure": 1028.68,
+      "heatIndex": 36.2,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-17T21:37:12.559639"
+    }
+  ],
+  "latestWeatherAlert": {
+    "id": "wth_1794922510405",
+    "alertId": "wth_1794922510405",
+    "type": "WEATHER_UPDATE",
+    "silent": true,
+    "noSiren": true,
+    "title": "🌤️ 2-Hour LoRa Weather Sensor Update",
+    "message": "Fair / Partly Cloudy • Temp 29.7°C • Humidity 78% • Pressure 1028.6 hPa (Relay !0f778ab0)",
+    "condition": "Fair / Partly Cloudy",
+    "advisoryLevel": "NORMAL",
+    "guidance": "Local Relay sensor telemetry shows stable ambient weather across San Rafael.",
+    "temperature": 29.67,
+    "humidity": 77.69,
+    "pressure": 1028.57,
+    "heatIndex": 36.1,
+    "dewPoint": 25.4,
+    "pressureTrend": "Steady",
+    "nodeId": "!0f778ab0",
+    "url": "/typhoon",
+    "sent_at": "2026-11-17T13:35:10.405Z",
+    "timestampMs": 1794922510405,
+    "triggerSource": "MANUAL_TRIGGER"
+  },
+  "lastWeatherAlertAt": 1794922510407
+}

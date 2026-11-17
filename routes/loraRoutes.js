@@ -14,6 +14,14 @@ const weatherService = require('../utils/weatherService');
 const pagasaService = require('../utils/pagasaService');
 const gisCache = require('../utils/gisCache');
 const rescuerTracker = require('../utils/rescuerTracker');
+const loraWeatherHelper = require('../utils/loraWeatherHelper');
+const NotificationModel = require('../models/notificationModel');
+const pushService = require('../services/pushService');
+
+let ioInstance = null;
+function attachIo(io) {
+  ioInstance = io || null;
+}
 
 const processedMsgIds = new Map();
 const outboundLoRaQueue = [];
@@ -409,8 +417,109 @@ function parseEvwPacket(rawText) {
     };
   }
 
+  if (type === 'WTH' || type === 'WTH_ALT') {
+    const isAlert = type === 'WTH_ALT';
+    const rawId = isAlert ? (parts[2] || String(Date.now())).trim() : null;
+    const tsIdx = isAlert ? 3 : 2;
+    const rawTs = parts[tsIdx] ? Number(parts[tsIdx]) : 0;
+    const tsMs = rawTs > 0 ? (rawTs < 10000000000 ? rawTs * 1000 : rawTs) : Date.now();
+    const temperature = parts[tsIdx + 1] !== undefined ? parseFloat(parts[tsIdx + 1]) : null;
+    const humidity = parts[tsIdx + 2] !== undefined ? parseFloat(parts[tsIdx + 2]) : null;
+    const pressure = parts[tsIdx + 3] !== undefined ? parseFloat(parts[tsIdx + 3]) : null;
+    const nodeOrSummary = (parts.slice(tsIdx + 4).join('|') || '').trim();
+    return {
+      type,
+      command: isAlert ? 'WEATHER_ALERT' : 'WEATHER_TELEMETRY',
+      raw: trimmed,
+      alertId: rawId,
+      temperature: isFinite(temperature) ? temperature : null,
+      humidity: isFinite(humidity) ? humidity : null,
+      pressure: isFinite(pressure) ? pressure : null,
+      nodeId: (!isAlert && nodeOrSummary.startsWith('!')) ? nodeOrSummary : '!0f778ab0',
+      summary: isAlert ? nodeOrSummary : '',
+      timestamp: tsMs,
+      sent_at: new Date(tsMs).toISOString()
+    };
+  }
+
   return null;
 }
+
+let lastMeshWeatherTelemetryBroadcastAt = 0;
+
+function formatCompactWeatherPacket(reading) {
+  if (!reading) return null;
+  const tsSec = Math.floor((reading.timestampMs || Date.now()) / 1000);
+  const t = reading.temperature != null ? Number(reading.temperature).toFixed(1) : '0.0';
+  const h = reading.humidity != null ? Math.round(Number(reading.humidity)) : '0';
+  const p = reading.pressure != null ? Number(reading.pressure).toFixed(1) : '0.0';
+  const nid = String(reading.nodeId || '!0f778ab0').replace(/\|/g, '');
+  return `EVW|WTH|${tsSec}|${t}|${h}|${p}|${nid}`;
+}
+
+function formatCompactWeatherAlertPacket(weatherAlert) {
+  if (!weatherAlert) return null;
+  const id = String(weatherAlert.alertId || weatherAlert.id || Date.now()).slice(-8).replace(/\|/g, '');
+  const tsSec = Math.floor((weatherAlert.timestampMs || Date.now()) / 1000);
+  const t = weatherAlert.temperature != null ? Number(weatherAlert.temperature).toFixed(1) : '0.0';
+  const h = weatherAlert.humidity != null ? Math.round(Number(weatherAlert.humidity)) : '0';
+  const p = weatherAlert.pressure != null ? Number(weatherAlert.pressure).toFixed(1) : '0.0';
+  const summary = String(weatherAlert.condition || 'Weather Update').replace(/\|/g, '/').slice(0, 42);
+  return `EVW|WTH_ALT|${id}|${tsSec}|${t}|${h}|${p}|${summary}`;
+}
+
+async function dispatchWeatherSensorNotification(ioRef, sourceReason = 'AUTO_2H') {
+  const state = loraWeatherHelper.readState();
+  if (!state.current) return null;
+
+  const weatherAlert = loraWeatherHelper.buildWeatherAlertFromReading(state.current);
+  if (!weatherAlert) return null;
+  weatherAlert.triggerSource = sourceReason;
+
+  loraWeatherHelper.recordWeatherAlert(weatherAlert);
+
+  const activeIo = ioRef || ioInstance;
+  if (activeIo) {
+    activeIo.emit('weather:alert', weatherAlert);
+    activeIo.emit('lora:weather_update', state.current);
+    activeIo.emit('notification:new', {
+      type: 'weather',
+      title: weatherAlert.title,
+      message: weatherAlert.message,
+      url: '/typhoon',
+      created_at: weatherAlert.sent_at
+    });
+  }
+
+  // Queue compact LoRa RF weather notification (NO sirens - uses WTH_ALT frame)
+  const rfPkt = formatCompactWeatherAlertPacket(weatherAlert);
+  if (rfPkt) {
+    enqueueLoRaPacket(rfPkt, {
+      type: 'WEATHER_ALERT',
+      alertId: weatherAlert.id,
+      destinationId: '^all',
+      wantAck: false
+    });
+  }
+
+  try { NotificationModel.invalidateCache(); } catch (_) {}
+  pushService.sendWeatherNotificationPush(null, weatherAlert).catch(() => {});
+  return weatherAlert;
+}
+
+// Automatic 2-hour silent Weather Notification scheduler (checks every 60s)
+setInterval(() => {
+  try {
+    const state = loraWeatherHelper.readState();
+    if (!state.current) return;
+    const elapsed = Date.now() - (state.lastWeatherAlertAt || 0);
+    if (elapsed >= loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS) {
+      dispatchWeatherSensorNotification(ioInstance, 'AUTO_2H').catch((err) => {
+        console.warn('[LoRaWeather] 2-hour scheduler error:', err.message);
+      });
+    }
+  } catch (_) {}
+}, 60 * 1000);
 
 const parseEvakWarLoRaFrame = parseEvwPacket;
 
@@ -656,6 +765,95 @@ router.get('/latest-alert', async (_req, res) => {
 });
 
 // =========================================================================
+// WEATHER SENSOR TELEMETRY & 2-HOUR SILENT WEATHER NOTIFICATION ENDPOINTS
+// =========================================================================
+router.get('/weather-sensor', (_req, res) => {
+  const state = loraWeatherHelper.readState();
+  const nextAutoAlertAt = state.lastWeatherAlertAt
+    ? new Date(state.lastWeatherAlertAt + loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS).toISOString()
+    : null;
+  res.json({
+    success: true,
+    serverNowMs: Date.now(),
+    current: state.current,
+    history: state.history || [],
+    latestWeatherAlert: state.latestWeatherAlert || null,
+    lastWeatherAlertAt: state.lastWeatherAlertAt || 0,
+    nextAutoAlertAt,
+    autoIntervalMs: loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS
+  });
+});
+
+router.post('/weather-sensor', (req, res) => {
+  try {
+    if (req.io && !ioInstance) ioInstance = req.io;
+    const body = req.body || {};
+    const state = loraWeatherHelper.recordReading(body);
+    if (!state.current) {
+      return res.status(400).json({ success: false, message: 'No valid temperature, humidity, or pressure provided.' });
+    }
+
+    const activeIo = req.io || ioInstance;
+    if (activeIo) {
+      activeIo.emit('lora:weather_update', state.current);
+    }
+
+    // Periodically share compact weather telemetry packet onto 433.875 MHz mesh (every >= 3 min or explicit flag)
+    const now = Date.now();
+    if (body.broadcastLoRa === true || (now - lastMeshWeatherTelemetryBroadcastAt >= 3 * 60 * 1000)) {
+      const rfPkt = formatCompactWeatherPacket(state.current);
+      if (rfPkt) {
+        enqueueLoRaPacket(rfPkt, { type: 'WEATHER_TELEMETRY', destinationId: '^all', wantAck: false });
+        lastMeshWeatherTelemetryBroadcastAt = now;
+      }
+    }
+
+    // Trigger 2-hour notification automatically if >= 2 hours elapsed (or never sent yet and reading is live)
+    let autoTriggeredAlert = null;
+    if (!state.lastWeatherAlertAt || (now - state.lastWeatherAlertAt >= loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS)) {
+      dispatchWeatherSensorNotification(activeIo, 'AUTO_2H').catch(() => {});
+      autoTriggeredAlert = loraWeatherHelper.readState().latestWeatherAlert;
+    }
+
+    return res.json({
+      success: true,
+      current: state.current,
+      latestWeatherAlert: autoTriggeredAlert || state.latestWeatherAlert
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/latest-weather-alert', (_req, res) => {
+  try {
+    const state = loraWeatherHelper.readState();
+    return res.json({
+      success: true,
+      serverNowMs: Date.now(),
+      weatherAlert: state.latestWeatherAlert || null,
+      sensor: state.current || null
+    });
+  } catch (err) {
+    return res.json({ success: false, serverNowMs: Date.now(), weatherAlert: null });
+  }
+});
+
+router.post('/weather-sensor/notify', async (req, res) => {
+  try {
+    if (req.io && !ioInstance) ioInstance = req.io;
+    const state = loraWeatherHelper.readState();
+    if (!state.current) {
+      return res.status(404).json({ success: false, message: 'No AHT20+BMP280 Relay sensor telemetry recorded yet.' });
+    }
+    const weatherAlert = await dispatchWeatherSensorNotification(req.io || ioInstance, 'MANUAL_TRIGGER');
+    return res.json({ success: true, weatherAlert, current: state.current });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// =========================================================================
 // GET /api/lora/bootstrap & GET /api/lora/resident-sync
 // Offline-first seed data for the Capacitor Resident App in EBAKWAR_testing
 // =========================================================================
@@ -728,6 +926,7 @@ router.get(['/bootstrap', '/resident-sync'], async (req, res) => {
       recentAlerts: alertsResult || [],
       alerts: alertsResult || [],
       weather: weather || weatherService.getFallbackWeather(),
+      loraWeather: loraWeatherHelper.readState(),
       resident: residentProfile,
       familyMembers,
       members: familyMembers,
@@ -1015,6 +1214,24 @@ async function handleInboundLoRaPacket(req, res) {
       });
     }
 
+    if (parsed.type === 'WTH' || parsed.type === 'WTH_ALT') {
+      const updatedState = loraWeatherHelper.recordReading({
+        temperature: parsed.temperature,
+        humidity: parsed.humidity,
+        pressure: parsed.pressure,
+        nodeId: parsed.nodeId || senderNodeId || '!0f778ab0',
+        rssi,
+        snr,
+        hopsAway: hopsUsed,
+        source: 'LORA_RF_PACKET',
+        updatedAt: parsed.sent_at
+      });
+      if (req.io && updatedState.current) {
+        req.io.emit('lora:weather_update', updatedState.current);
+      }
+      return res.json({ success: true, parsed, weather: updatedState.current });
+    }
+
     return res.json({ success: true, parsed });
   } catch (err) {
     console.error('Error processing inbound LoRa packet:', err);
@@ -1161,6 +1378,7 @@ router.post('/test-broadcast', (req, res) => {
 
 module.exports = {
   router,
+  attachIo,
   enqueueLoRaPacket,
   queueOutboundPacket,
   queueOutboundSosAck,

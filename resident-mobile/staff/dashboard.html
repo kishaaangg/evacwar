@@ -4019,6 +4019,34 @@
                                 window.triggerEmergencyAlarm(data);
                               }
                             });
+
+                            socket.on('lora:weather_update', (reading) => {
+                              try {
+                                if (reading) {
+                                  localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(reading));
+                                  window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: reading }));
+                                }
+                              } catch (_) {}
+                            });
+
+                            socket.on('weather:alert', (weatherAlert) => {
+                              if (typeof window.showSilentWeatherNotification === 'function') {
+                                window.showSilentWeatherNotification(weatherAlert);
+                              }
+                            });
+                          }
+
+                          if (navigator.serviceWorker && !window.__evwSwNavBound) {
+                            window.__evwSwNavBound = true;
+                            navigator.serviceWorker.addEventListener('message', (ev) => {
+                              if (ev && ev.data && ev.data.type === 'NAVIGATE_TO' && ev.data.url) {
+                                if (typeof window.navigateToEvakWar === 'function') {
+                                  window.navigateToEvakWar(ev.data.url);
+                                } else {
+                                  window.location.href = ev.data.url;
+                                }
+                              }
+                            });
                           }
                         } catch (sErr) {
                           console.warn('Socket.IO connection note:', sErr);
@@ -4460,6 +4488,136 @@
                             }
                           }
                         });
+
+                        // Global Non-Siren 2-Hour LoRa Weather Sensor Notification (Clickable -> Weather Page)
+                        function resolveWeatherPageUrl() {
+                          let r = String(currentUserRole || localStorage.getItem('evw_user_role') || 'resident').toLowerCase();
+                          const staffType = String(window.userStaffType || '').toUpperCase();
+                          const p = (window.location.pathname || '').toLowerCase();
+                          if (r === 'admin' || p.startsWith('/admin')) return '/admin/typhoon?view=sensor';
+                          if (r === 'rescuer' || staffType === 'RESCUER' || p.startsWith('/rescuer')) return '/rescuer/typhoon?view=sensor';
+                          if (r === 'staff' || r === 'barangay_council' || p.startsWith('/staff')) return '/staff/typhoon?view=sensor';
+                          return '/resident/typhoon?view=sensor';
+                        }
+
+                        function openWeatherPageFromNotification() {
+                          const targetUrl = resolveWeatherPageUrl();
+                          if (typeof window.navigateToEvakWar === 'function' && (
+                            window.location.protocol === 'file:' ||
+                            window.location.hostname === 'localhost' ||
+                            window.location.pathname.startsWith('/resident-mobile')
+                          )) {
+                            window.navigateToEvakWar(targetUrl);
+                          } else {
+                            window.location.href = targetUrl;
+                          }
+                        }
+
+                        window.showSilentWeatherNotification = function (weatherAlert) {
+                          if (!weatherAlert) return;
+                          const alertId = String(weatherAlert.alertId || weatherAlert.id || ('wth_' + Date.now()));
+                          window.__seenWeatherNotifIds = window.__seenWeatherNotifIds || new Set();
+                          if (window.__seenWeatherNotifIds.has(alertId)) return;
+                          window.__seenWeatherNotifIds.add(alertId);
+
+                          const title = weatherAlert.title || '🌤️ 2-Hour LoRa Weather Update';
+                          const message = weatherAlert.message || 'New sensor reading from Relay !0f778ab0. Tap to view Weather page.';
+                          const targetUrl = resolveWeatherPageUrl();
+
+                          // Persist latest reading to localStorage so Weather page reflects it offline too
+                          try {
+                            if (weatherAlert.temperature != null || weatherAlert.humidity != null || weatherAlert.pressure != null) {
+                              localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(weatherAlert));
+                              window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: weatherAlert }));
+                            }
+                          } catch (_) {}
+
+                          // Add to Bell Notification Drawer
+                          if (typeof window.injectLoraNotificationToDrawer === 'function') {
+                            const now = new Date();
+                            window.injectLoraNotificationToDrawer({
+                              id: 'weather-' + alertId,
+                              category: 'broadcast',
+                              title: title,
+                              message: message,
+                              date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                              time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                              icon: 'ph-cloud-sun',
+                              color: weatherAlert.advisoryLevel === 'WATCH' ? 'amber' : 'blue',
+                              isActionRequired: false,
+                              actionUrl: targetUrl,
+                              actionLabel: 'Open Weather'
+                            });
+                          }
+
+                          // Native Android non-siren notification (only if not already posted directly by LoraMeshService)
+                          if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeWeatherNotification === 'function') {
+                            try {
+                              window.AndroidBleBridge.triggerNativeWeatherNotification(title, message, alertId);
+                            } catch (_) {}
+                          } else if ('Notification' in window && Notification.permission === 'granted') {
+                            try {
+                              const n = new Notification(title, {
+                                body: message,
+                                icon: '/icons/icon-192x192.png',
+                                silent: true,
+                                tag: 'evw-weather-' + alertId
+                              });
+                              n.onclick = () => {
+                                try { window.focus(); } catch (_) {}
+                                n.close();
+                                openWeatherPageFromNotification();
+                              };
+                            } catch (_) {}
+                          }
+
+                          // In-App Clickable Silent Toast Banner (redirects to Weather Page on click, zero siren)
+                          try {
+                            const oldToast = document.getElementById('evwSilentWeatherToast');
+                            if (oldToast) oldToast.remove();
+                            const toast = document.createElement('div');
+                            toast.id = 'evwSilentWeatherToast';
+                            toast.setAttribute('role', 'button');
+                            toast.style.cssText = 'position:fixed;top:72px;right:16px;left:16px;max-width:420px;margin:0 auto;z-index:2147483640;cursor:pointer;';
+                            toast.innerHTML = `
+                              <div class="bg-slate-900/95 hover:bg-slate-800 text-white border border-sky-400/50 rounded-2xl shadow-2xl p-3.5 flex items-start gap-3 transition-all backdrop-blur-md">
+                                <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center shrink-0 text-xl">
+                                  <i class="ph ph-cloud-sun"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-extrabold text-sky-300 truncate">${title}</span>
+                                    <button type="button" id="evwDismissWeatherToast" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded-lg" aria-label="Dismiss">✕</button>
+                                  </div>
+                                  <p class="text-[11.5px] text-slate-200 leading-snug mt-0.5">${message}</p>
+                                  <div class="text-[10.5px] font-bold text-sky-400 mt-1.5 flex items-center gap-1">
+                                    <span>Tap to view Sensor Weather</span>
+                                    <i class="ph ph-arrow-right"></i>
+                                  </div>
+                                </div>
+                              </div>
+                            `;
+                            document.body.appendChild(toast);
+                            const dismissBtn = toast.querySelector('#evwDismissWeatherToast');
+                            if (dismissBtn) {
+                              dismissBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                toast.remove();
+                              });
+                            }
+                            toast.addEventListener('click', () => {
+                              toast.remove();
+                              openWeatherPageFromNotification();
+                            });
+                            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 18000);
+                          } catch (_) {}
+                        };
+
+                        window.addEventListener('evakwar:lora-weather-alert', (ev) => {
+                          if (ev && ev.detail) {
+                            window.showSilentWeatherNotification(ev.detail);
+                          }
+                        });
                       })();
                     </script>
 
@@ -4757,7 +4915,7 @@
                 <div class="mt-3.5 sm:mt-4 z-20 max-w-[55%] xs:max-w-[58%] sm:max-w-[62%] md:max-w-[66%]">
                   <h1
                     class="text-lg xs:text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-xs">
-                    Good afternoon, Virgil! <span
+                    Good evening, Virgil! <span
                           class="inline-block text-lg xs:text-xl sm:text-2xl">👋</span>
                   </h1>
                   <p
@@ -4897,7 +5055,7 @@
                                         <div class="flex items-center gap-1 shrink-0">
                                           <span class="font-semibold text-slate-700 text-xs tracking-tight"
                                             id="weatherTime">
-                                            5:38 pm
+                                            9:44 pm
                                           </span>
                                           <button type="button" onclick="useMyLocationDashboard(this)"
                                             id="btnDashMyLocation"
@@ -4920,13 +5078,13 @@
                                           <div
                                             class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none"
                                             id="weatherTemp">
-                                            27°C
+                                            25°C
                                           </div>
                                           <div
                                             class="text-[11px] sm:text-xs font-semibold text-slate-600 mt-1 flex items-center gap-1"
                                             id="weatherRealFeelContainer">
                                             <span>Real feel <span id="weatherRealFeel" class="font-bold text-slate-800">
-                                                30°C
+                                                29°C
                                               </span></span>
                                           </div>
                                         </div>
@@ -4935,72 +5093,66 @@
                                         <div id="weatherVisualContainer"
                                           class="shrink-0 flex items-center justify-center select-none">
                                           
-                                            <!-- 3D Daytime Sun + Puffy Cloud + Raindrops -->
-                                            <svg viewBox="0 0 140 120"
-                                              class="w-20 h-16 sm:w-22 sm:h-18 drop-shadow-md select-none pointer-events-none"
-                                              fill="none" xmlns="http://www.w3.org/2000/svg">
-                                              <defs>
-                                                <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
-                                                  <stop offset="0%" stop-color="#FFF5A0" />
-                                                  <stop offset="30%" stop-color="#FFC800" />
-                                                  <stop offset="75%" stop-color="#FF8A00" />
-                                                  <stop offset="100%" stop-color="#FF5D00" />
-                                                </radialGradient>
-                                                <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%"
-                                                  height="140%">
-                                                  <feGaussianBlur stdDeviation="2" result="blur" />
-                                                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                                                </filter>
-                                                <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
-                                                  <stop offset="0%" stop-color="#FFFFFF" />
-                                                  <stop offset="45%" stop-color="#F2F8FD" />
-                                                  <stop offset="85%" stop-color="#C5DDFB" />
-                                                  <stop offset="100%" stop-color="#A5C9F7" />
-                                                </linearGradient>
-                                                <linearGradient id="dashDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                  <stop offset="0%" stop-color="#73D0FF" />
-                                                  <stop offset="100%" stop-color="#2196F3" />
-                                                </linearGradient>
-                                                <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%"
-                                                  height="145%">
-                                                  <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
-                                                    flood-opacity="0.22" />
-                                                </filter>
-                                              </defs>
-                                              <!-- Radiant 3D Sun Behind Cloud -->
-                                              <g transform="translate(88, 38)">
-                                                <g filter="url(#dashSunRayGlow)" opacity="0.95">
-                                                  <path
-                                                    d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
-                                                    fill="#FFA500" />
+                                              <!-- 3D Sun & Cloud Illustration -->
+                                              <svg viewBox="0 0 140 120"
+                                                class="w-20 h-16 sm:w-22 sm:h-18 drop-shadow-md select-none pointer-events-none"
+                                                fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <defs>
+                                                  <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
+                                                    <stop offset="0%" stop-color="#FFF5A0" />
+                                                    <stop offset="30%" stop-color="#FFC800" />
+                                                    <stop offset="75%" stop-color="#FF8A00" />
+                                                    <stop offset="100%" stop-color="#FF5D00" />
+                                                  </radialGradient>
+                                                  <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%"
+                                                    height="140%">
+                                                    <feGaussianBlur stdDeviation="2" result="blur" />
+                                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                                  </filter>
+                                                  <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%"
+                                                    y2="100%">
+                                                    <stop offset="0%" stop-color="#FFFFFF" />
+                                                    <stop offset="45%" stop-color="#F2F8FD" />
+                                                    <stop offset="85%" stop-color="#C5DDFB" />
+                                                    <stop offset="100%" stop-color="#A5C9F7" />
+                                                  </linearGradient>
+                                                  <linearGradient id="dashCloudWarmth" x1="80%" y1="10%" x2="20%"
+                                                    y2="90%">
+                                                    <stop offset="0%" stop-color="#FFE8A3" stop-opacity="0.6" />
+                                                    <stop offset="40%" stop-color="#FFD67A" stop-opacity="0.2" />
+                                                    <stop offset="100%" stop-color="#A5C9F7" stop-opacity="0" />
+                                                  </linearGradient>
+                                                  <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%"
+                                                    height="145%">
+                                                    <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
+                                                      flood-opacity="0.22" />
+                                                  </filter>
+                                                </defs>
+                                                <!-- 3D Sun Behind Cloud -->
+                                                <g transform="translate(88, 38)">
+                                                  <g filter="url(#dashSunRayGlow)" opacity="0.95">
+                                                    <path
+                                                      d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
+                                                      fill="#FFA500" />
+                                                  </g>
+                                                  <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
+                                                  <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
                                                 </g>
-                                                <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
-                                                <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
-                                              </g>
-                                              <!-- Puffy Cloud in front of Sun -->
-                                              <g filter="url(#dashCloudSoftShadow)">
-                                                <path
-                                                  d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z"
-                                                  fill="url(#dashCloudGrad)" />
-                                                <ellipse cx="58" cy="28" rx="18" ry="10" fill="#FFFFFF"
-                                                  opacity="0.65" />
-                                                <ellipse cx="98" cy="44" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
-                                              </g>
-                                              <!-- 3D Blue Raindrops Falling -->
-                                              <path
-                                                d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M54 95 C52 98 51 103 53 106 C54 108 57 108 58 106 C60 103 58 98 56 95 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M72 90 C70 93 69 98 71 101 C72 103 75 103 76 101 C78 98 76 93 74 90 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M88 95 C86 98 85 103 87 106 C88 108 91 108 92 106 C94 103 92 98 90 95 Z"
-                                                fill="url(#dashDropGrad)" />
-                                            </svg>
-                                            
+                                                <!-- 3D Volumetric Cloud -->
+                                                <g filter="url(#dashCloudSoftShadow)">
+                                                  <path
+                                                    d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z"
+                                                    fill="url(#dashCloudGrad)" />
+                                                  <path
+                                                    d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z"
+                                                    fill="url(#dashCloudWarmth)" />
+                                                  <ellipse cx="58" cy="36" rx="18" ry="10" fill="#FFFFFF"
+                                                    opacity="0.65" />
+                                                  <ellipse cx="98" cy="52" rx="14" ry="8" fill="#FFFFFF"
+                                                    opacity="0.55" />
+                                                </g>
+                                              </svg>
+                                              
                                         </div>
                                       </div>
 
@@ -5017,7 +5169,7 @@
                                             <div
                                               class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5">
                                               <span id="weatherWind">
-                                                18
+                                                10
                                               </span> km/h
                                             </div>
                                           </div>
@@ -5034,7 +5186,7 @@
                                             <div
                                               class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
                                               id="weatherTempPill">
-                                              27°C
+                                              25°C
                                             </div>
                                           </div>
                                         </div>
@@ -5050,7 +5202,7 @@
                                             <div
                                               class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5">
                                               <span id="weatherRain">
-                                                0.2
+                                                0
                                               </span> mm
                                             </div>
                                           </div>
@@ -5059,13 +5211,13 @@
 
                                       <!-- Hidden Telemetry Hooks -->
                                       <span id="weatherStatus" class="hidden">
-                                        Scattered Rain Showers
+                                        Clear Night
                                       </span>
                                       <span id="weatherHumidity" class="hidden">
-                                        89%
+                                        91%
                                       </span>
                                       <span id="weatherUpdated" class="hidden">
-                                        5:38 PM
+                                        9:44 PM
                                       </span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>

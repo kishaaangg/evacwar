@@ -215,18 +215,30 @@ public class MainActivity extends BridgeActivity {
         String navTo = intent.getStringExtra("navigate_to");
         if (navTo != null && !navTo.isEmpty()) {
             intent.removeExtra("navigate_to");
+            final String safeNavTo = navTo.replace("'", "");
             Runnable doNav = () -> {
                 try {
                     if (this.bridge != null && this.bridge.getWebView() != null) {
                         String js = "(function(){\n" +
                                     "  try {\n" +
+                                    "    var rawNav = '" + safeNavTo + "';\n" +
                                     "    var p = (window.location.pathname || '').toLowerCase();\n" +
-                                    "    if (!p.includes('/chat')) {\n" +
+                                    "    if (rawNav.indexOf('/typhoon') !== -1 || rawNav.indexOf('/weather') !== -1) {\n" +
+                                    "      var r = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
+                                    "      var rolePrefix = (r === 'staff' || r === 'barangay_council') ? '/staff' : (r === 'rescuer' ? '/rescuer' : '/resident');\n" +
+                                    "      var target = rolePrefix + '/typhoon?view=sensor';\n" +
                                     "      if (typeof window.navigateToEvakWar === 'function') {\n" +
-                                    "        window.navigateToEvakWar('" + navTo + "');\n" +
+                                    "        window.navigateToEvakWar(target);\n" +
                                     "      } else {\n" +
                                     "        var isCap = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
-                                    "        var dest = isCap ? '/resident/chat/index.html' : '" + navTo + "';\n" +
+                                    "        window.location.href = isCap ? (rolePrefix + '/typhoon/index.html?view=sensor') : target;\n" +
+                                    "      }\n" +
+                                    "    } else if (!p.includes('/chat')) {\n" +
+                                    "      if (typeof window.navigateToEvakWar === 'function') {\n" +
+                                    "        window.navigateToEvakWar(rawNav);\n" +
+                                    "      } else {\n" +
+                                    "        var isCap2 = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
+                                    "        var dest = isCap2 ? '/resident/chat/index.html' : rawNav;\n" +
                                     "        window.location.href = dest;\n" +
                                     "      }\n" +
                                     "    }\n" +
@@ -1401,6 +1413,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void showChatNotification(String msgId, String senderRole, String senderName, String text) {
             LoraMeshService.showChatNotificationStatic(MainActivity.this, msgId, senderRole, senderName, text);
+        }
+
+        @JavascriptInterface
+        public void triggerNativeWeatherNotification(String title, String body, String weatherId) {
+            LoraMeshService.showWeatherNotificationStatic(MainActivity.this, weatherId, title, body);
         }
 
         @JavascriptInterface

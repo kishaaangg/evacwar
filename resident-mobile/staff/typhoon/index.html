@@ -4019,6 +4019,34 @@
                                 window.triggerEmergencyAlarm(data);
                               }
                             });
+
+                            socket.on('lora:weather_update', (reading) => {
+                              try {
+                                if (reading) {
+                                  localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(reading));
+                                  window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: reading }));
+                                }
+                              } catch (_) {}
+                            });
+
+                            socket.on('weather:alert', (weatherAlert) => {
+                              if (typeof window.showSilentWeatherNotification === 'function') {
+                                window.showSilentWeatherNotification(weatherAlert);
+                              }
+                            });
+                          }
+
+                          if (navigator.serviceWorker && !window.__evwSwNavBound) {
+                            window.__evwSwNavBound = true;
+                            navigator.serviceWorker.addEventListener('message', (ev) => {
+                              if (ev && ev.data && ev.data.type === 'NAVIGATE_TO' && ev.data.url) {
+                                if (typeof window.navigateToEvakWar === 'function') {
+                                  window.navigateToEvakWar(ev.data.url);
+                                } else {
+                                  window.location.href = ev.data.url;
+                                }
+                              }
+                            });
                           }
                         } catch (sErr) {
                           console.warn('Socket.IO connection note:', sErr);
@@ -4460,6 +4488,136 @@
                             }
                           }
                         });
+
+                        // Global Non-Siren 2-Hour LoRa Weather Sensor Notification (Clickable -> Weather Page)
+                        function resolveWeatherPageUrl() {
+                          let r = String(currentUserRole || localStorage.getItem('evw_user_role') || 'resident').toLowerCase();
+                          const staffType = String(window.userStaffType || '').toUpperCase();
+                          const p = (window.location.pathname || '').toLowerCase();
+                          if (r === 'admin' || p.startsWith('/admin')) return '/admin/typhoon?view=sensor';
+                          if (r === 'rescuer' || staffType === 'RESCUER' || p.startsWith('/rescuer')) return '/rescuer/typhoon?view=sensor';
+                          if (r === 'staff' || r === 'barangay_council' || p.startsWith('/staff')) return '/staff/typhoon?view=sensor';
+                          return '/resident/typhoon?view=sensor';
+                        }
+
+                        function openWeatherPageFromNotification() {
+                          const targetUrl = resolveWeatherPageUrl();
+                          if (typeof window.navigateToEvakWar === 'function' && (
+                            window.location.protocol === 'file:' ||
+                            window.location.hostname === 'localhost' ||
+                            window.location.pathname.startsWith('/resident-mobile')
+                          )) {
+                            window.navigateToEvakWar(targetUrl);
+                          } else {
+                            window.location.href = targetUrl;
+                          }
+                        }
+
+                        window.showSilentWeatherNotification = function (weatherAlert) {
+                          if (!weatherAlert) return;
+                          const alertId = String(weatherAlert.alertId || weatherAlert.id || ('wth_' + Date.now()));
+                          window.__seenWeatherNotifIds = window.__seenWeatherNotifIds || new Set();
+                          if (window.__seenWeatherNotifIds.has(alertId)) return;
+                          window.__seenWeatherNotifIds.add(alertId);
+
+                          const title = weatherAlert.title || '🌤️ 2-Hour LoRa Weather Update';
+                          const message = weatherAlert.message || 'New sensor reading from Relay !0f778ab0. Tap to view Weather page.';
+                          const targetUrl = resolveWeatherPageUrl();
+
+                          // Persist latest reading to localStorage so Weather page reflects it offline too
+                          try {
+                            if (weatherAlert.temperature != null || weatherAlert.humidity != null || weatherAlert.pressure != null) {
+                              localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(weatherAlert));
+                              window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: weatherAlert }));
+                            }
+                          } catch (_) {}
+
+                          // Add to Bell Notification Drawer
+                          if (typeof window.injectLoraNotificationToDrawer === 'function') {
+                            const now = new Date();
+                            window.injectLoraNotificationToDrawer({
+                              id: 'weather-' + alertId,
+                              category: 'broadcast',
+                              title: title,
+                              message: message,
+                              date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                              time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                              icon: 'ph-cloud-sun',
+                              color: weatherAlert.advisoryLevel === 'WATCH' ? 'amber' : 'blue',
+                              isActionRequired: false,
+                              actionUrl: targetUrl,
+                              actionLabel: 'Open Weather'
+                            });
+                          }
+
+                          // Native Android non-siren notification (only if not already posted directly by LoraMeshService)
+                          if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeWeatherNotification === 'function') {
+                            try {
+                              window.AndroidBleBridge.triggerNativeWeatherNotification(title, message, alertId);
+                            } catch (_) {}
+                          } else if ('Notification' in window && Notification.permission === 'granted') {
+                            try {
+                              const n = new Notification(title, {
+                                body: message,
+                                icon: '/icons/icon-192x192.png',
+                                silent: true,
+                                tag: 'evw-weather-' + alertId
+                              });
+                              n.onclick = () => {
+                                try { window.focus(); } catch (_) {}
+                                n.close();
+                                openWeatherPageFromNotification();
+                              };
+                            } catch (_) {}
+                          }
+
+                          // In-App Clickable Silent Toast Banner (redirects to Weather Page on click, zero siren)
+                          try {
+                            const oldToast = document.getElementById('evwSilentWeatherToast');
+                            if (oldToast) oldToast.remove();
+                            const toast = document.createElement('div');
+                            toast.id = 'evwSilentWeatherToast';
+                            toast.setAttribute('role', 'button');
+                            toast.style.cssText = 'position:fixed;top:72px;right:16px;left:16px;max-width:420px;margin:0 auto;z-index:2147483640;cursor:pointer;';
+                            toast.innerHTML = `
+                              <div class="bg-slate-900/95 hover:bg-slate-800 text-white border border-sky-400/50 rounded-2xl shadow-2xl p-3.5 flex items-start gap-3 transition-all backdrop-blur-md">
+                                <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center shrink-0 text-xl">
+                                  <i class="ph ph-cloud-sun"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-extrabold text-sky-300 truncate">${title}</span>
+                                    <button type="button" id="evwDismissWeatherToast" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded-lg" aria-label="Dismiss">✕</button>
+                                  </div>
+                                  <p class="text-[11.5px] text-slate-200 leading-snug mt-0.5">${message}</p>
+                                  <div class="text-[10.5px] font-bold text-sky-400 mt-1.5 flex items-center gap-1">
+                                    <span>Tap to view Sensor Weather</span>
+                                    <i class="ph ph-arrow-right"></i>
+                                  </div>
+                                </div>
+                              </div>
+                            `;
+                            document.body.appendChild(toast);
+                            const dismissBtn = toast.querySelector('#evwDismissWeatherToast');
+                            if (dismissBtn) {
+                              dismissBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                toast.remove();
+                              });
+                            }
+                            toast.addEventListener('click', () => {
+                              toast.remove();
+                              openWeatherPageFromNotification();
+                            });
+                            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 18000);
+                          } catch (_) {}
+                        };
+
+                        window.addEventListener('evakwar:lora-weather-alert', (ev) => {
+                          if (ev && ev.detail) {
+                            window.showSilentWeatherNotification(ev.detail);
+                          }
+                        });
                       })();
                     </script>
 
@@ -4687,6 +4845,418 @@
 
         <main class="app-content h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] overflow-hidden relative !p-0 !m-0 flex flex-col font-sans bg-slate-900 text-white">
 
+          <!-- CLEAN WHITE SWITCHER BAR (PHONE USERS ONLY: Resident / Staff / Rescuer) -->
+<div class="z-20 bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 shrink-0 flex-wrap">
+  <div class="flex items-center gap-1.5">
+    <button type="button" id="btnSwitchWeatherViz" onclick="window.evwSwitchWeatherView('viz')"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-blue-600 text-white border-blue-600 shadow-xs transition-all cursor-pointer">
+      <i class="ph ph-globe-hemisphere-east"></i>
+      <span>Weather Visualization</span>
+    </button>
+    <button type="button" id="btnSwitchWeatherSensor" onclick="window.evwSwitchWeatherView('sensor')"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200 transition-all cursor-pointer">
+      <i class="ph ph-broadcast"></i>
+      <span>LoRa Sensor</span>
+      <span id="weatherToggleSensorTemp" class="ml-0.5 px-1.5 py-0.5 rounded-md bg-white text-blue-700 border border-slate-200 font-mono text-[10px]">--°C</span>
+    </button>
+  </div>
+  <span class="hidden sm:inline text-[11px] font-semibold text-slate-500">
+    Relay !0f778ab0 (AHT20 + BMP280)
+  </span>
+</div>
+
+          
+<!-- CLEAN WHITE LORA AHT20 + BMP280 SENSOR WEATHER PANEL -->
+<section id="loraSensorWeatherPane" data-inline-always="false" class="hidden w-full flex-1 min-h-0 overflow-y-auto bg-slate-50 text-slate-900 p-3 sm:p-5 pb-24 lg:pb-8 font-sans">
+  <div class="max-w-5xl mx-auto space-y-3.5">
+
+    <!-- Compact Header Bar -->
+    <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200/70 text-blue-600 flex items-center justify-center text-lg shrink-0">
+          <i class="ph ph-broadcast"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">LoRa Sensor Telemetry</h2>
+            <span id="lwsSourceBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Live</span>
+            </span>
+          </div>
+          <p class="text-[11px] font-mono text-slate-500 truncate" id="lwsHardwareMeta">
+            Node <span id="lwsNodeId">!0f778ab0</span> &bull; AHT20 + BMP280
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="text-right">
+          <div class="text-[10px] uppercase font-bold text-slate-400">Updated</div>
+          <div id="lwsUpdatedAt" class="text-xs font-mono font-bold text-slate-700">--</div>
+        </div>
+        <button type="button" onclick="window.evwRefreshSensorWeather(this)"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer">
+          <i class="ph ph-arrows-clockwise" id="lwsRefreshIcon"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Clean 4-Card Data Grid -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+      <!-- Temperature -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+          <span>Temperature</span>
+          <i class="ph ph-thermometer-hot text-orange-500 text-base"></i>
+        </div>
+        <div class="my-2 flex items-baseline gap-1">
+          <span id="lwsTempValue" class="text-2xl sm:text-3xl font-black font-mono text-slate-900">--</span>
+          <span class="text-sm font-bold text-slate-400">°C</span>
+        </div>
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Heat Index</span>
+          <span class="font-mono font-bold text-orange-600"><span id="lwsHeatIndexValue">-- °C</span></span>
+        </div>
+        <div class="text-[10px] font-semibold text-slate-400 mt-0.5 truncate" id="lwsHeatCategory">--</div>
+      </div>
+
+      <!-- Humidity -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+          <span>Humidity</span>
+          <i class="ph ph-drop-half-bottom text-cyan-500 text-base"></i>
+        </div>
+        <div class="my-2 flex items-baseline gap-1">
+          <span id="lwsHumidityValue" class="text-2xl sm:text-3xl font-black font-mono text-slate-900">--</span>
+          <span class="text-sm font-bold text-slate-400">%</span>
+        </div>
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Dew Point</span>
+          <span id="lwsDewPointValue" class="font-mono font-bold text-cyan-700">-- °C</span>
+        </div>
+        <div class="text-[10px] font-semibold text-slate-400 mt-0.5 truncate" id="lwsHumidityLevel">--</div>
+      </div>
+
+      <!-- Barometric Pressure -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+          <span>Pressure</span>
+          <i class="ph ph-gauge text-indigo-500 text-base"></i>
+        </div>
+        <div class="my-2 flex items-baseline gap-1">
+          <span id="lwsPressureValue" class="text-2xl sm:text-3xl font-black font-mono text-slate-900">--</span>
+          <span class="text-sm font-bold text-slate-400">hPa</span>
+        </div>
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Trend</span>
+          <span id="lwsPressureTrend" class="font-bold text-indigo-700">--</span>
+        </div>
+        <div class="text-[10px] font-semibold text-slate-400 mt-0.5 truncate" id="lwsPressureStatus">--</div>
+      </div>
+
+      <!-- Condition & RF Link -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+          <span>Condition</span>
+          <span id="lwsAdvisoryBadge" class="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">NORMAL</span>
+        </div>
+        <div class="my-2">
+          <div id="lwsConditionTitle" class="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">--</div>
+        </div>
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Signal</span>
+          <span id="lwsRssi" class="font-mono font-bold text-slate-700">--</span>
+        </div>
+        <div class="text-[10px] font-mono text-slate-400 mt-0.5 truncate" id="lwsSnrHops">--</div>
+      </div>
+
+    </div>
+
+    <!-- Real Sensor Readings Log Table -->
+    <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs">
+      <div class="flex items-center justify-between mb-2.5">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+          <i class="ph ph-clock-counter-clockwise text-blue-600 text-base"></i> Recent Sensor Logs
+        </span>
+        <span class="text-[11px] font-semibold text-slate-400" id="lwsHistoryCount">0 logs</span>
+      </div>
+      <div class="overflow-x-auto max-h-60 overflow-y-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+              <th class="py-2 pr-3">Time</th>
+              <th class="py-2 pr-3">Temp</th>
+              <th class="py-2 pr-3">Heat Idx</th>
+              <th class="py-2 pr-3">Humidity</th>
+              <th class="py-2 pr-3">Pressure</th>
+              <th class="py-2">Condition</th>
+            </tr>
+          </thead>
+          <tbody id="lwsHistoryBody" class="divide-y divide-slate-100 text-slate-700 font-mono">
+            <tr>
+              <td colspan="6" class="py-5 text-center text-slate-400 font-sans">Waiting for live sensor telemetry...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+  (function () {
+    'use strict';
+
+    function computeClientHeatIndex(tempC, humidity) {
+      if (tempC == null || humidity == null || !isFinite(tempC) || !isFinite(humidity)) return null;
+      const t = Number(tempC);
+      const rh = Math.max(0, Math.min(100, Number(humidity)));
+      if (t < 27 || rh < 40) return Number(t.toFixed(1));
+      const tf = (t * 9) / 5 + 32;
+      let hiF =
+        -42.379 + 2.04901523 * tf + 10.14333127 * rh - 0.22475541 * tf * rh -
+        0.00683783 * tf * tf - 0.05481717 * rh * rh + 0.00122874 * tf * tf * rh +
+        0.00085282 * tf * rh * rh - 0.00000199 * tf * tf * rh * rh;
+      if (rh < 13 && tf >= 80 && tf <= 112) {
+        hiF -= ((13 - rh) / 4) * Math.sqrt((17 - Math.abs(tf - 95)) / 17);
+      } else if (rh > 85 && tf >= 80 && tf <= 87) {
+        hiF += ((rh - 85) / 10) * ((87 - tf) / 5);
+      }
+      return Number((((hiF - 32) * 5) / 9).toFixed(1));
+    }
+
+    function computeClientDewPoint(tempC, humidity) {
+      if (tempC == null || humidity == null || !isFinite(tempC) || !isFinite(humidity)) return null;
+      const t = Number(tempC);
+      const rh = Math.max(1, Math.min(100, Number(humidity)));
+      const a = 17.625, b = 243.04;
+      const gamma = Math.log(rh / 100) + (a * t) / (b + t);
+      return Number(((b * gamma) / (a - gamma)).toFixed(1));
+    }
+
+    function enrichSensorReading(raw, history = []) {
+      if (!raw) return null;
+      const t = raw.temperature != null ? Number(raw.temperature) : null;
+      const rh = raw.humidity != null ? Number(raw.humidity) : null;
+      const p = raw.pressure != null ? Number(raw.pressure) : null;
+      const hi = raw.heatIndex != null ? Number(raw.heatIndex) : computeClientHeatIndex(t, rh);
+      const dp = raw.dewPoint != null ? Number(raw.dewPoint) : computeClientDewPoint(t, rh);
+
+      let heatCategory = raw.heatCategory || 'Normal';
+      if (!raw.heatCategory && hi != null) {
+        if (hi >= 52) heatCategory = 'Extreme Danger';
+        else if (hi >= 42) heatCategory = 'Danger Heat';
+        else if (hi >= 33) heatCategory = 'Extreme Caution';
+        else if (hi >= 27) heatCategory = 'Caution Warmth';
+      }
+
+      let pressureTrend = raw.pressureTrend || 'Steady';
+      if (!raw.pressureTrend && p != null && history.length > 1) {
+        const ref = history[history.length - 1];
+        if (ref && ref.pressure != null) {
+          const delta = p - Number(ref.pressure);
+          if (delta <= -3.0) pressureTrend = 'Rapid Drop';
+          else if (delta <= -1.0) pressureTrend = 'Falling';
+          else if (delta >= 1.5) pressureTrend = 'Rising';
+        }
+      }
+
+      let condition = raw.condition || 'Fair / Partly Cloudy';
+      let advisoryLevel = raw.advisoryLevel || 'NORMAL';
+      if (!raw.condition && p != null) {
+        if (p < 1002 || pressureTrend === 'Rapid Drop') {
+          condition = 'Low Pressure / Storm Watch';
+          advisoryLevel = 'WATCH';
+        } else if (p < 1008 || (rh != null && rh >= 86)) {
+          condition = 'Rain Showers Likely';
+          advisoryLevel = 'CAUTION';
+        } else if (rh != null && rh >= 80) {
+          condition = 'Warm & Humid';
+          advisoryLevel = (hi != null && hi >= 33) ? 'CAUTION' : 'NORMAL';
+        } else if (p >= 1015) {
+          condition = 'Clear / Fair Skies';
+        }
+      }
+
+      return { ...raw, temperature: t, humidity: rh, pressure: p, heatIndex: hi, dewPoint: dp, heatCategory, pressureTrend, condition, advisoryLevel };
+    }
+
+    function fmtManila(val) {
+      if (!val) return '--';
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return '--';
+      return d.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+      });
+    }
+
+    function renderSensorDashboard(payload) {
+      const state = payload || {};
+      let rawCurrent = state.current || null;
+      let hist = Array.isArray(state.history) ? state.history : null;
+
+      if (!rawCurrent) {
+        try { rawCurrent = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
+      }
+      if (!hist) {
+        try { hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]') || []; } catch (_) { hist = []; }
+      }
+
+      const r = enrichSensorReading(rawCurrent, hist);
+      const pillTempEl = document.getElementById('weatherToggleSensorTemp');
+      if (pillTempEl) {
+        pillTempEl.textContent = (r && r.temperature != null) ? `${Number(r.temperature).toFixed(1)}°C` : '--°C';
+      }
+      if (!r) return;
+
+      const setTxt = (id, txt) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = txt;
+      };
+
+      setTxt('lwsTempValue', r.temperature != null ? Number(r.temperature).toFixed(1) : '--');
+      setTxt('lwsHeatIndexValue', r.heatIndex != null ? `${Number(r.heatIndex).toFixed(1)} °C` : '-- °C');
+      setTxt('lwsHeatCategory', r.heatCategory || 'Normal');
+
+      setTxt('lwsHumidityValue', r.humidity != null ? Number(r.humidity).toFixed(1) : '--');
+      setTxt('lwsDewPointValue', r.dewPoint != null ? `${Number(r.dewPoint).toFixed(1)} °C` : '-- °C');
+      const humLvl = r.humidity == null ? '--' : (r.humidity >= 80 ? 'Humid' : (r.humidity >= 55 ? 'Moderate' : 'Comfortable'));
+      setTxt('lwsHumidityLevel', humLvl);
+
+      setTxt('lwsPressureValue', r.pressure != null ? Number(r.pressure).toFixed(1) : '--');
+      setTxt('lwsPressureTrend', r.pressureTrend || 'Steady');
+      const pStat = r.pressure == null ? '--' : (r.pressure < 1005 ? 'Low Pressure' : (r.pressure > 1018 ? 'High / Fair' : 'Normal'));
+      setTxt('lwsPressureStatus', pStat);
+
+      setTxt('lwsConditionTitle', r.condition || 'Fair / Partly Cloudy');
+      setTxt('lwsUpdatedAt', fmtManila(r.updatedAt || r.timestampMs));
+      setTxt('lwsNodeId', r.nodeId || '!0f778ab0');
+      setTxt('lwsRssi', r.rssi != null ? `${r.rssi} dBm` : (navigator.onLine ? 'Gateway Live' : 'LoRa RF'));
+      setTxt('lwsSnrHops', r.snr != null ? `SNR ${r.snr} dB • ${r.hopsAway || 0} hop` : '433.875 MHz');
+
+      const advBadge = document.getElementById('lwsAdvisoryBadge');
+      if (advBadge) {
+        advBadge.textContent = r.advisoryLevel || 'NORMAL';
+        advBadge.className = 'px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase border ' +
+          (r.advisoryLevel === 'WATCH'
+            ? 'bg-red-50 text-red-700 border-red-200'
+            : (r.advisoryLevel === 'CAUTION'
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200'));
+      }
+
+      const srcBadge = document.getElementById('lwsSourceBadge');
+      if (srcBadge) {
+        const isOfflineLora = !navigator.onLine || String(r.source || '').includes('BLE') || String(r.source || '').includes('RF');
+        srcBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${isOfflineLora ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse"></span><span>${isOfflineLora ? 'LoRa RF' : 'Live'}</span>`;
+      }
+
+      const body = document.getElementById('lwsHistoryBody');
+      const countEl = document.getElementById('lwsHistoryCount');
+      if (countEl) countEl.textContent = `${hist.length} logs`;
+      if (body) {
+        if (hist.length === 0) {
+          body.innerHTML = `<tr><td colspan="6" class="py-5 text-center text-slate-400 font-sans">No hardware sensor logs yet.</td></tr>`;
+        } else {
+          body.innerHTML = hist.slice(0, 20).map((item) => {
+            const itemEn = enrichSensorReading(item, []);
+            return `
+              <tr class="hover:bg-slate-50">
+                <td class="py-2 pr-3 text-[11px] text-slate-500 whitespace-nowrap">${fmtManila(itemEn.updatedAt || itemEn.timestampMs)}</td>
+                <td class="py-2 pr-3 font-bold text-slate-900">${itemEn.temperature != null ? itemEn.temperature.toFixed(1) + '°C' : '--'}</td>
+                <td class="py-2 pr-3 text-orange-600 font-semibold">${itemEn.heatIndex != null ? itemEn.heatIndex.toFixed(1) + '°C' : '--'}</td>
+                <td class="py-2 pr-3 text-cyan-700 font-semibold">${itemEn.humidity != null ? Math.round(itemEn.humidity) + '%' : '--'}</td>
+                <td class="py-2 pr-3 text-indigo-700 font-semibold">${itemEn.pressure != null ? itemEn.pressure.toFixed(1) + ' hPa' : '--'}</td>
+                <td class="py-2 font-sans text-slate-700">${itemEn.condition || '--'}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    window.evwSwitchWeatherView = function (mode) {
+      const sensorPane = document.getElementById('loraSensorWeatherPane');
+      if (sensorPane && sensorPane.getAttribute('data-inline-always') === 'true') {
+        renderSensorDashboard();
+        return;
+      }
+
+      const target = mode === 'sensor' ? 'sensor' : 'viz';
+      const vizPane = document.getElementById('weatherVisualizationPane');
+      const btnViz = document.getElementById('btnSwitchWeatherViz');
+      const btnSensor = document.getElementById('btnSwitchWeatherSensor');
+
+      if (vizPane) vizPane.classList.toggle('hidden', target === 'sensor');
+      if (sensorPane) sensorPane.classList.toggle('hidden', target !== 'sensor');
+
+      if (btnViz && btnSensor) {
+        const activeCls = 'bg-blue-600 text-white border-blue-600 shadow-xs';
+        const inactiveCls = 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200';
+        btnViz.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ' + (target === 'viz' ? activeCls : inactiveCls);
+        btnSensor.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ' + (target === 'sensor' ? activeCls : inactiveCls);
+      }
+
+      if (target === 'sensor') {
+        renderSensorDashboard();
+      }
+    };
+
+    window.evwRefreshSensorWeather = async function (btn) {
+      const icon = document.getElementById('lwsRefreshIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.disabled = true;
+      try {
+        if (navigator.onLine) {
+          const base = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
+          const apiBase = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && window.location.hostname !== 'localhost'
+            ? ''
+            : (base || 'https://evacwar.onrender.com');
+          const res = await fetch(`${apiBase}/api/lora/weather-sensor`, { cache: 'no-store' });
+          const data = await res.json();
+          if (data && data.success) {
+            if (data.current) localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(data.current));
+            if (Array.isArray(data.history)) localStorage.setItem('evw_lora_sensor_history', JSON.stringify(data.history));
+            renderSensorDashboard(data);
+          }
+        } else {
+          renderSensorDashboard();
+        }
+      } catch (_) {
+        renderSensorDashboard();
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    window.addEventListener('evakwar:lora-weather', (ev) => {
+      if (ev && ev.detail) {
+        renderSensorDashboard({ current: ev.detail });
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const sensorPane = document.getElementById('loraSensorWeatherPane');
+      const isInlineAlways = sensorPane && sensorPane.getAttribute('data-inline-always') === 'true';
+      if (!isInlineAlways) {
+        const params = new URLSearchParams(window.location.search || '');
+        window.evwSwitchWeatherView(params.get('view') === 'sensor' ? 'sensor' : 'viz');
+      }
+      window.evwRefreshSensorWeather();
+      setInterval(() => {
+        if (navigator.onLine) window.evwRefreshSensorWeather();
+      }, 20000);
+    });
+  })();
+</script>
+
+
+          <div id="weatherVisualizationPane" class="relative flex-1 min-h-0 flex flex-col overflow-hidden">
           <!-- RADAR DISCLAIMER BAR -->
             <div
               class="z-10 bg-amber-500/10 backdrop-blur-xs border-b border-amber-500/20 px-3 py-1.5 text-center text-[11px] font-semibold text-amber-200 shrink-0">
@@ -4702,6 +5272,7 @@
                 width="100%" height="100%" frameborder="0" class="absolute inset-0 w-full h-full border-0"
                 style="max-width: 100%;"></iframe>
             </div>
+          </div>
 
         </main>
     </div>

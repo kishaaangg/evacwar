@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const loraWeatherHelper = require('../utils/loraWeatherHelper');
 
 const notifCache = new Map();
 const NOTIF_CACHE_TTL = 15000; // 15 seconds
@@ -265,6 +266,35 @@ const NotificationModel = {
           }
         });
       }
+
+      // 5. Latest 2-Hour LoRa Relay Weather Sensor Update (All Roles, redirects to Weather page)
+      try {
+        const weatherState = loraWeatherHelper.readState();
+        const wAlt = weatherState && weatherState.latestWeatherAlert;
+        if (wAlt) {
+          const dt = new Date(wAlt.sent_at || wAlt.timestampMs || Date.now());
+          const weatherUrl = role === 'admin'
+            ? '/admin/typhoon?view=sensor'
+            : (isRescuer
+              ? '/rescuer/typhoon?view=sensor'
+              : ((role === 'staff' || role === 'barangay_council') ? '/staff/typhoon?view=sensor' : '/resident/typhoon?view=sensor'));
+          items.push({
+            id: `weather-${wAlt.id}`,
+            type: 'weather',
+            category: 'broadcast',
+            icon: 'ph-cloud-sun',
+            color: wAlt.advisoryLevel === 'WATCH' ? 'amber' : 'blue',
+            title: wAlt.title || '🌤️ LoRa Weather Sensor Update',
+            message: wAlt.message,
+            date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' }),
+            time: dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }),
+            timestamp: wAlt.timestampMs || dt.getTime(),
+            isActionRequired: false,
+            actionUrl: weatherUrl,
+            actionLabel: 'Open Weather'
+          });
+        }
+      } catch (_) {}
 
       // Sort all items: actionable items first (pending verifications & active SOS), then by timestamp descending
       items.sort((a, b) => {

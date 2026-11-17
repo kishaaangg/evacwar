@@ -1038,8 +1038,17 @@
     const cleanHref = rawHref.split('?')[0].split('#')[0];
     const queryOrHash = rawHref.slice(cleanHref.length);
 
+    const storedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
     let targetPath = null;
-    if (cleanHref.includes('/chat')) {
+    if (cleanHref.includes('/typhoon') || cleanHref.includes('/weather')) {
+      if (cleanHref.startsWith('/staff') || storedRole === 'staff' || storedRole === 'barangay_council') {
+        targetPath = `${prefix}/staff/typhoon/index.html`;
+      } else if (cleanHref.startsWith('/rescuer') || storedRole === 'rescuer') {
+        targetPath = `${prefix}/rescuer/typhoon/index.html`;
+      } else {
+        targetPath = `${prefix}/resident/typhoon/index.html`;
+      }
+    } else if (cleanHref.includes('/chat')) {
       targetPath = `${prefix}/resident/chat/index.html`;
     } else if (cleanHref.includes('/sos')) {
       targetPath = `${prefix}/resident/sos/index.html`;

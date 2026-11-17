@@ -91,11 +91,16 @@ public class LoraMeshService extends Service {
 
     private static final int SERVICE_NOTIFICATION_ID   = 4331;
     private static final int EMERGENCY_NOTIFICATION_ID = 4339;
+    private static final int WEATHER_NOTIFICATION_ID   = 4345;
     private static final int CHAT_NOTIFICATION_ID      = 8800;
     private static final String SERVICE_CHANNEL_ID           = "lora-mesh-service-channel";
     private static final String EMERGENCY_RED_CHANNEL_ID     = "evw_emergency_red_v4";
     private static final String EMERGENCY_OTHER_CHANNEL_ID   = "evw_emergency_other_v5";
+    private static final String WEATHER_CHANNEL_ID           = "evw_weather_sensor_v1";
     private static final String CHAT_CHANNEL_ID              = "chat-messages-channel";
+
+    private static volatile String lastWeatherAlertId = null;
+    private final AtomicBoolean wifiWeatherInitialPollDone = new AtomicBoolean(false);
 
     // Chat deduplication and self-notification filter
     private static final Set<String> locallySentMsgIds = Collections.synchronizedSet(new HashSet<>());
@@ -757,6 +762,11 @@ public class LoraMeshService extends Service {
                 handleIncomingEvwPacket(evw);
                 return;
             }
+            String protoWeatherPkt = tryExtractEnvironmentTelemetryAsEvw(data);
+            if (protoWeatherPkt != null) {
+                handleIncomingEvwPacket(protoWeatherPkt);
+                return;
+            }
             StringBuilder ascii = new StringBuilder();
             for (byte b : data) {
                 int c = b & 0xFF;
@@ -849,7 +859,262 @@ public class LoraMeshService extends Service {
                 // Trigger standard EvakWar notification
                 showChatNotificationStatic(LoraMeshService.this, msgId, sRole, sName, text);
             } catch (Exception ignored) {}
+        } else if (packet.startsWith("EVW|WTH_ALT|")) {
+            // EVW|WTH_ALT|id|tsSec|temp|hum|press|summary -> Notify only, NO SIREN, tap opens Weather page
+            try {
+                String[] parts = packet.split("\\|");
+                String wId = parts.length > 2 ? parts[2].trim() : String.valueOf(System.currentTimeMillis());
+                String temp = parts.length > 4 ? parts[4].trim() : "--";
+                String hum = parts.length > 5 ? parts[5].trim() : "--";
+                String press = parts.length > 6 ? parts[6].trim() : "--";
+                String summary = parts.length > 7 ? parts[7].trim() : "Local Sensor Weather Update";
+                String body = summary + " • Temp " + temp + "°C • Humidity " + hum + "% • Pressure " + press + " hPa";
+                showWeatherNotificationStatic(LoraMeshService.this, wId, "🌤️ 2-Hour LoRa Weather Update", body);
+            } catch (Exception ignored) {}
         }
+    }
+
+    /**
+     * Minimal Meshtastic FromRadio -> MeshPacket -> Data(portnum=67 TELEMETRY_APP) -> EnvironmentMetrics decoder.
+     * Synthesizes an EVW|WTH|... packet so foreground JS & offline cache update even without internet.
+     */
+    private String tryExtractEnvironmentTelemetryAsEvw(byte[] data) {
+        if (data == null || data.length < 10) return null;
+        try {
+            byte[] packetBytes = findLengthDelimitedField(data, 0, data.length, 2); // FromRadio.packet (fn=2)
+            if (packetBytes == null) return null;
+
+            long fromNodeNum = readFixed32Field(packetBytes, 1); // MeshPacket.from (fn=1)
+            byte[] decodedBytes = findLengthDelimitedField(packetBytes, 0, packetBytes.length, 4); // MeshPacket.decoded (fn=4)
+            if (decodedBytes == null) return null;
+
+            long portnum = readVarintField(decodedBytes, 1); // Data.portnum (fn=1)
+            if (portnum != 67L) return null; // 67 = PortNum.TELEMETRY_APP
+
+            byte[] payloadBytes = findLengthDelimitedField(decodedBytes, 0, decodedBytes.length, 2); // Data.payload (fn=2)
+            if (payloadBytes == null) return null;
+
+            long telTime = readFixed32Field(payloadBytes, 1); // Telemetry.time (fn=1)
+            byte[] envBytes = findLengthDelimitedField(payloadBytes, 0, payloadBytes.length, 3); // Telemetry.environment_metrics (fn=3)
+            if (envBytes == null) return null;
+
+            Float temp = readFloatField(envBytes, 1);
+            Float hum = readFloatField(envBytes, 2);
+            Float press = readFloatField(envBytes, 3);
+            if (temp == null && hum == null && press == null) return null;
+
+            long tsSec = telTime > 1600000000L ? telTime : (System.currentTimeMillis() / 1000L);
+            String nodeId = fromNodeNum != 0 ? String.format(Locale.US, "!%08x", fromNodeNum & 0xFFFFFFFFL) : "!0f778ab0";
+            String tStr = temp != null ? String.format(Locale.US, "%.2f", temp) : "0";
+            String hStr = hum != null ? String.format(Locale.US, "%.1f", hum) : "0";
+            String pStr = press != null ? String.format(Locale.US, "%.2f", press) : "0";
+            return "EVW|WTH|" + tsSec + "|" + tStr + "|" + hStr + "|" + pStr + "|" + nodeId;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private byte[] findLengthDelimitedField(byte[] buf, int start, int end, int targetFn) {
+        int pos = start;
+        while (pos < end) {
+            long[] tagRes = readProtoVarint(buf, pos, end);
+            if (tagRes == null) break;
+            long tag = tagRes[0];
+            pos = (int) tagRes[1];
+            int fn = (int) (tag >>> 3);
+            int wt = (int) (tag & 0x7L);
+            if (wt == 0) {
+                long[] v = readProtoVarint(buf, pos, end);
+                if (v == null) break;
+                pos = (int) v[1];
+            } else if (wt == 1) {
+                pos += 8;
+            } else if (wt == 2) {
+                long[] lRes = readProtoVarint(buf, pos, end);
+                if (lRes == null) break;
+                int slen = (int) lRes[0];
+                pos = (int) lRes[1];
+                if (slen < 0 || pos + slen > end) break;
+                if (fn == targetFn) {
+                    byte[] slice = new byte[slen];
+                    System.arraycopy(buf, pos, slice, 0, slen);
+                    return slice;
+                }
+                pos += slen;
+            } else if (wt == 5) {
+                pos += 4;
+            } else {
+                break;
+            }
+        }
+        return null;
+    }
+
+    private long readVarintField(byte[] buf, int targetFn) {
+        int pos = 0, end = buf.length;
+        while (pos < end) {
+            long[] tagRes = readProtoVarint(buf, pos, end);
+            if (tagRes == null) break;
+            long tag = tagRes[0];
+            pos = (int) tagRes[1];
+            int fn = (int) (tag >>> 3);
+            int wt = (int) (tag & 0x7L);
+            if (wt == 0) {
+                long[] v = readProtoVarint(buf, pos, end);
+                if (v == null) break;
+                pos = (int) v[1];
+                if (fn == targetFn) return v[0];
+            } else if (wt == 1) {
+                pos += 8;
+            } else if (wt == 2) {
+                long[] lRes = readProtoVarint(buf, pos, end);
+                if (lRes == null) break;
+                pos = (int) lRes[1] + (int) lRes[0];
+            } else if (wt == 5) {
+                pos += 4;
+            } else {
+                break;
+            }
+        }
+        return 0L;
+    }
+
+    private long readFixed32Field(byte[] buf, int targetFn) {
+        int pos = 0, end = buf.length;
+        while (pos < end) {
+            long[] tagRes = readProtoVarint(buf, pos, end);
+            if (tagRes == null) break;
+            long tag = tagRes[0];
+            pos = (int) tagRes[1];
+            int fn = (int) (tag >>> 3);
+            int wt = (int) (tag & 0x7L);
+            if (wt == 0) {
+                long[] v = readProtoVarint(buf, pos, end);
+                if (v == null) break;
+                pos = (int) v[1];
+            } else if (wt == 1) {
+                pos += 8;
+            } else if (wt == 2) {
+                long[] lRes = readProtoVarint(buf, pos, end);
+                if (lRes == null) break;
+                pos = (int) lRes[1] + (int) lRes[0];
+            } else if (wt == 5) {
+                if (pos + 4 > end) break;
+                if (fn == targetFn) {
+                    return ((buf[pos] & 0xFFL)) |
+                           ((buf[pos + 1] & 0xFFL) << 8) |
+                           ((buf[pos + 2] & 0xFFL) << 16) |
+                           ((buf[pos + 3] & 0xFFL) << 24);
+                }
+                pos += 4;
+            } else {
+                break;
+            }
+        }
+        return 0L;
+    }
+
+    private Float readFloatField(byte[] buf, int targetFn) {
+        int pos = 0, end = buf.length;
+        while (pos < end) {
+            long[] tagRes = readProtoVarint(buf, pos, end);
+            if (tagRes == null) break;
+            long tag = tagRes[0];
+            pos = (int) tagRes[1];
+            int fn = (int) (tag >>> 3);
+            int wt = (int) (tag & 0x7L);
+            if (wt == 0) {
+                long[] v = readProtoVarint(buf, pos, end);
+                if (v == null) break;
+                pos = (int) v[1];
+            } else if (wt == 1) {
+                pos += 8;
+            } else if (wt == 2) {
+                long[] lRes = readProtoVarint(buf, pos, end);
+                if (lRes == null) break;
+                pos = (int) lRes[1] + (int) lRes[0];
+            } else if (wt == 5) {
+                if (pos + 4 > end) break;
+                if (fn == targetFn) {
+                    int bits = (buf[pos] & 0xFF) |
+                               ((buf[pos + 1] & 0xFF) << 8) |
+                               ((buf[pos + 2] & 0xFF) << 16) |
+                               ((buf[pos + 3] & 0xFF) << 24);
+                    return Float.intBitsToFloat(bits);
+                }
+                pos += 4;
+            } else {
+                break;
+            }
+        }
+        return null;
+    }
+
+    private long[] readProtoVarint(byte[] buf, int pos, int end) {
+        long res = 0;
+        int shift = 0;
+        while (pos < end) {
+            int b = buf[pos++] & 0xFF;
+            res |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) return new long[]{res, pos};
+            shift += 7;
+            if (shift > 63) return null;
+        }
+        return null;
+    }
+
+    public static void showWeatherNotificationStatic(Context context, String weatherId, String title, String body) {
+        if (context == null) return;
+        String cleanId = (weatherId != null && !weatherId.trim().isEmpty()) ? weatherId.trim() : String.valueOf(System.currentTimeMillis());
+        if (cleanId.equals(lastWeatherAlertId) || mutedAlertKeys.contains("WTH_" + cleanId)) {
+            return;
+        }
+        lastWeatherAlertId = cleanId;
+        mutedAlertKeys.add("WTH_" + cleanId);
+
+        try {
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(WEATHER_CHANNEL_ID) == null) {
+                NotificationChannel weatherChannel = new NotificationChannel(
+                        WEATHER_CHANNEL_ID,
+                        "EvakWar LoRa Weather Sensor Updates",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                );
+                weatherChannel.setDescription("Periodic 2-hour weather sensor notifications without emergency sirens");
+                weatherChannel.enableVibration(false);
+                weatherChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                nm.createNotificationChannel(weatherChannel);
+            }
+
+            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (launchIntent == null) {
+                launchIntent = new Intent(context, MainActivity.class);
+            }
+            launchIntent.setAction(Intent.ACTION_MAIN);
+            launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            launchIntent.putExtra("navigate_to", "/typhoon?view=sensor");
+            launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                piFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getActivity(context, 205, launchIntent, piFlags);
+
+            String notifTitle = (title != null && !title.isEmpty()) ? title : "🌤️ 2-Hour LoRa Weather Update";
+            String notifBody = (body != null && !body.isEmpty()) ? body : "Tap to view live Relay weather sensor telemetry.";
+
+            NotificationCompat.Builder nb = new NotificationCompat.Builder(context, WEATHER_CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_menu_compass)
+                    .setContentTitle(notifTitle)
+                    .setContentText(notifBody)
+                    .setStyle(new NotificationCompat.BigTextStyle().setBigContentTitle(notifTitle).bigText(notifBody))
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setAutoCancel(true)
+                    .setContentIntent(pi);
+
+            nm.notify(WEATHER_NOTIFICATION_ID, nb.build());
+        } catch (Exception ignored) {}
     }
 
     public static void showChatNotificationStatic(Context context, String msgId, String sRole, String sName, String text) {
@@ -1069,6 +1334,17 @@ public class LoraMeshService extends Service {
             chatChannel.setVibrationPattern(new long[]{0, 150, 100, 150});
             chatChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(chatChannel);
+
+            // 4. 2-Hour LoRa Weather Sensor Channel (Normal notification only, ZERO siren)
+            NotificationChannel weatherChannel = new NotificationChannel(
+                    WEATHER_CHANNEL_ID,
+                    "EvakWar LoRa Weather Sensor Updates",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            weatherChannel.setDescription("Periodic 2-hour weather sensor notifications without emergency sirens");
+            weatherChannel.enableVibration(false);
+            weatherChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            nm.createNotificationChannel(weatherChannel);
         }
     }
 
@@ -1366,6 +1642,7 @@ public class LoraMeshService extends Service {
         wifiExecutor.scheduleWithFixedDelay(() -> {
             try {
                 pollLatestAlertOverWifi();
+                pollLatestWeatherAlertOverWifi();
                 pollLatestChatOverWifi();
             } catch (Throwable t) {
                 // Ignore to keep resilient
@@ -1532,6 +1809,47 @@ public class LoraMeshService extends Service {
 
         } catch (Exception e) {
             Log.w("LoraMeshService", "Error parsing Wi-Fi alert JSON: " + e.getMessage());
+        }
+    }
+
+    private void pollLatestWeatherAlertOverWifi() {
+        if (!isNetworkConnected()) return;
+        String baseUrl = configuredServerUrl;
+        if (baseUrl == null || baseUrl.isEmpty()) baseUrl = "https://evacwar.onrender.com";
+        baseUrl = baseUrl.replaceAll("/+$", "");
+        HttpURLConnection conn = null;
+        try {
+            URL u = new URL(baseUrl + "/api/lora/latest-weather-alert");
+            conn = (HttpURLConnection) u.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(3500);
+            conn.setReadTimeout(3500);
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(conn.getInputStream()), StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+                JSONObject root = new JSONObject(sb.toString());
+                if (!root.optBoolean("success", false) || root.isNull("weatherAlert")) return;
+                JSONObject w = root.getJSONObject("weatherAlert");
+                String wId = w.optString("alertId", w.optString("id", "")).trim();
+                if (wId.isEmpty()) return;
+                long ts = w.optLong("timestampMs", 0);
+                long refNow = root.optLong("serverNowMs", System.currentTimeMillis());
+                if (!wifiWeatherInitialPollDone.get()) {
+                    wifiWeatherInitialPollDone.set(true);
+                    if (ts > 0 && (refNow - ts > 600_000L)) {
+                        lastWeatherAlertId = wId;
+                        return;
+                    }
+                }
+                showWeatherNotificationStatic(LoraMeshService.this, wId, w.optString("title", "🌤️ 2-Hour LoRa Weather Update"), w.optString("message", ""));
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (conn != null) { try { conn.disconnect(); } catch (Exception ignored) {} }
         }
     }
 

@@ -5,7 +5,7 @@
 
       <main
         class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-12 overflow-x-hidden font-body transition-colors duration-200">
-        <div class="w-full max-w-[1800px] mx-auto p-2 sm:p-3 lg:p-4 space-y-3 font-sans">
+        <div id="weatherVisualizationPane" class="w-full max-w-[1800px] mx-auto p-2 sm:p-3 lg:p-4 space-y-3 font-sans">
 
           <% const wObj=locals.weather || {}; const temp=(wObj.temperature !=null) ? Number(wObj.temperature) : 26.6;
             const roundedTemp=Math.round(temp); const apparentTemp=(wObj.apparent_temperature !=null) ?
@@ -371,6 +371,7 @@
 
 
         </div>
+        <%- include('../partials/lora-weather-sensor-panel') %>
       </main>
   </div>
 

@@ -1,0 +1,19 @@
+<!-- CLEAN WHITE SWITCHER BAR (PHONE USERS ONLY: Resident / Staff / Rescuer) -->
+<div class="z-20 bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 shrink-0 flex-wrap">
+  <div class="flex items-center gap-1.5">
+    <button type="button" id="btnSwitchWeatherViz" onclick="window.evwSwitchWeatherView('viz')"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-blue-600 text-white border-blue-600 shadow-xs transition-all cursor-pointer">
+      <i class="ph ph-globe-hemisphere-east"></i>
+      <span>Weather Visualization</span>
+    </button>
+    <button type="button" id="btnSwitchWeatherSensor" onclick="window.evwSwitchWeatherView('sensor')"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200 transition-all cursor-pointer">
+      <i class="ph ph-broadcast"></i>
+      <span>LoRa Sensor</span>
+      <span id="weatherToggleSensorTemp" class="ml-0.5 px-1.5 py-0.5 rounded-md bg-white text-blue-700 border border-slate-200 font-mono text-[10px]">--°C</span>
+    </button>
+  </div>
+  <span class="hidden sm:inline text-[11px] font-semibold text-slate-500">
+    Relay !0f778ab0 (AHT20 + BMP280)
+  </span>
+</div>

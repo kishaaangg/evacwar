@@ -156,6 +156,99 @@
     return result.length >= 8 ? result : null;
   }
 
+  // Minimal protobuf reader for Meshtastic FromRadio -> MeshPacket -> Data (portnum=67) -> Telemetry -> EnvironmentMetrics
+  function readProtoFields(bytes) {
+    const fields = [];
+    if (!bytes || !bytes.length) return fields;
+    let pos = 0;
+    const len = bytes.length;
+    const readVarint = () => {
+      let res = 0;
+      let shift = 0;
+      while (pos < len) {
+        const b = bytes[pos++];
+        res |= (b & 0x7f) << shift;
+        if ((b & 0x80) === 0) return res >>> 0;
+        shift += 7;
+        if (shift > 35) break;
+      }
+      return res >>> 0;
+    };
+    while (pos < len) {
+      const tag = readVarint();
+      if (!tag) break;
+      const fn = tag >>> 3;
+      const wt = tag & 0x7;
+      if (wt === 0) {
+        fields.push({ fn, wt, val: readVarint() });
+      } else if (wt === 1) {
+        if (pos + 8 > len) break;
+        pos += 8;
+      } else if (wt === 2) {
+        const slen = readVarint();
+        if (pos + slen > len) break;
+        fields.push({ fn, wt, val: bytes.subarray(pos, pos + slen) });
+        pos += slen;
+      } else if (wt === 5) {
+        if (pos + 4 > len) break;
+        const dv = new DataView(bytes.buffer, bytes.byteOffset + pos, 4);
+        fields.push({ fn, wt, u32: dv.getUint32(0, true), f32: dv.getFloat32(0, true) });
+        pos += 4;
+      } else {
+        break;
+      }
+    }
+    return fields;
+  }
+
+  function extractEnvironmentTelemetryFromBytes(bytes) {
+    try {
+      const fromRadioFields = readProtoFields(bytes);
+      const pktField = fromRadioFields.find(f => f.fn === 2 && f.wt === 2);
+      if (!pktField) return null;
+
+      const pktFields = readProtoFields(pktField.val);
+      const fromField = pktFields.find(f => f.fn === 1 && f.wt === 5);
+      const decField = pktFields.find(f => f.fn === 4 && f.wt === 2);
+      if (!decField) return null;
+
+      const dataFields = readProtoFields(decField.val);
+      const portField = dataFields.find(f => f.fn === 1 && f.wt === 0);
+      const payField = dataFields.find(f => f.fn === 2 && f.wt === 2);
+      if (!portField || portField.val !== 67 || !payField) return null; // 67 = TELEMETRY_APP
+
+      const telFields = readProtoFields(payField.val);
+      const timeField = telFields.find(f => f.fn === 1 && f.wt === 5);
+      const envField = telFields.find(f => f.fn === 3 && f.wt === 2);
+      if (!envField) return null;
+
+      const envFields = readProtoFields(envField.val);
+      const tF = envFields.find(f => f.fn === 1 && f.wt === 5);
+      const hF = envFields.find(f => f.fn === 2 && f.wt === 5);
+      const pF = envFields.find(f => f.fn === 3 && f.wt === 5);
+
+      const temperature = tF && isFinite(tF.f32) ? Number(tF.f32.toFixed(2)) : null;
+      const humidity = hF && isFinite(hF.f32) ? Number(hF.f32.toFixed(2)) : null;
+      const pressure = pF && isFinite(pF.f32) ? Number(pF.f32.toFixed(2)) : null;
+      if (temperature === null && humidity === null && pressure === null) return null;
+
+      const nodeId = fromField ? ('!' + fromField.u32.toString(16).padStart(8, '0')) : '!0f778ab0';
+      const tsMs = (timeField && timeField.u32 > 1600000000) ? (timeField.u32 * 1000) : Date.now();
+      return {
+        type: 'WTH',
+        nodeId,
+        temperature,
+        humidity,
+        pressure,
+        timestamp: tsMs,
+        sent_at: new Date(tsMs).toISOString(),
+        source: 'LORA_TELEMETRY_RF'
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
   /**
    * Parses an `EVW|...` packet into a structured JavaScript object
    */
@@ -262,6 +355,31 @@
         created_at: new Date(timestamp).toISOString(),
         source: 'LORA_433MHZ',
         transport: 'LORA_433MHZ'
+      };
+    }
+
+    if (type === 'WTH' || type === 'WTH_ALT') {
+      const isAlert = type === 'WTH_ALT';
+      const alertId = isAlert ? (parts[2] || String(Date.now())).trim() : null;
+      const tsIdx = isAlert ? 3 : 2;
+      const rawTs = parts[tsIdx] ? Number(parts[tsIdx]) : 0;
+      const timestamp = rawTs > 0 ? (rawTs < 10000000000 ? rawTs * 1000 : rawTs) : Date.now();
+      const temperature = parts[tsIdx + 1] !== undefined ? parseFloat(parts[tsIdx + 1]) : null;
+      const humidity = parts[tsIdx + 2] !== undefined ? parseFloat(parts[tsIdx + 2]) : null;
+      const pressure = parts[tsIdx + 3] !== undefined ? parseFloat(parts[tsIdx + 3]) : null;
+      const extra = (parts.slice(tsIdx + 4).join('|') || '').replace(/[\x00-\x1F\x7F-\x9F].*$/, '').trim();
+      return {
+        type,
+        raw: trimmed,
+        alertId,
+        temperature: isFinite(temperature) ? temperature : null,
+        humidity: isFinite(humidity) ? humidity : null,
+        pressure: isFinite(pressure) ? pressure : null,
+        nodeId: (!isAlert && extra.startsWith('!')) ? extra : '!0f778ab0',
+        summary: isAlert ? extra : '',
+        timestamp,
+        sent_at: new Date(timestamp).toISOString(),
+        source: 'LORA_433MHZ'
       };
     }
 
@@ -436,6 +554,12 @@
           this.handleIncomingRawPacket(detail.packet, 'BLE');
           this.nativeBleAsciiBuffer = '';
           return;
+        }
+        if (detail.telemetryJson) {
+          try {
+            const telObj = typeof detail.telemetryJson === 'string' ? JSON.parse(detail.telemetryJson) : detail.telemetryJson;
+            this._handleWeatherTelemetryObject(telObj, 'BLE', Boolean(telObj && telObj.isAlert));
+          } catch (_) {}
         }
         if (detail.ascii) {
           this.nativeBleAsciiBuffer += detail.ascii;
@@ -693,6 +817,62 @@
         }
 
         this.emit('alert', alertObj);
+      } else if (parsed.type === 'WTH' || parsed.type === 'WTH_ALT') {
+        this._handleWeatherTelemetryObject(parsed, sourceTransport || 'LORA_433MHZ', parsed.type === 'WTH_ALT');
+      }
+    }
+
+    _handleWeatherTelemetryObject(parsed, sourceTransport, isAlert = false) {
+      if (!parsed || (parsed.temperature == null && parsed.humidity == null && parsed.pressure == null)) return;
+      const tsMs = parsed.timestamp || Date.now();
+      const weatherObj = {
+        temperature: parsed.temperature != null ? Number(Number(parsed.temperature).toFixed(2)) : null,
+        humidity: parsed.humidity != null ? Number(Number(parsed.humidity).toFixed(2)) : null,
+        pressure: parsed.pressure != null ? Number(Number(parsed.pressure).toFixed(2)) : null,
+        nodeId: parsed.nodeId || '!0f778ab0',
+        nodeName: parsed.nodeName || 'EvakWar Zone Relay 1 (REL1)',
+        sensorModel: 'AHT20 + BMP280 (I2C)',
+        summary: parsed.summary || '',
+        source: sourceTransport || parsed.source || 'LORA_433MHZ',
+        updatedAt: parsed.sent_at || new Date(tsMs).toISOString(),
+        timestampMs: tsMs
+      };
+
+      try {
+        localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(weatherObj));
+        let hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]');
+        if (!Array.isArray(hist)) hist = [];
+        const top = hist[0];
+        if (!top || Math.abs((top.timestampMs || 0) - tsMs) > 45000 || top.temperature !== weatherObj.temperature || top.pressure !== weatherObj.pressure) {
+          hist.unshift(weatherObj);
+          localStorage.setItem('evw_lora_sensor_history', JSON.stringify(hist.slice(0, 72)));
+        }
+      } catch (_) {}
+
+      try {
+        window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: weatherObj }));
+      } catch (_) {}
+      this.emit('weather', weatherObj);
+
+      if (isAlert) {
+        const alertId = String(parsed.alertId || tsMs);
+        this._processedWeatherAlertIds = this._processedWeatherAlertIds || new Set();
+        if (this._processedWeatherAlertIds.has(alertId)) return;
+        this._processedWeatherAlertIds.add(alertId);
+
+        const alertObj = {
+          ...weatherObj,
+          id: alertId,
+          alertId,
+          noSiren: true,
+          url: '/typhoon',
+          title: '🌤️ 2-Hour LoRa Weather Sensor Update',
+          message: `${weatherObj.summary ? weatherObj.summary + ' • ' : ''}Temp ${weatherObj.temperature != null ? weatherObj.temperature.toFixed(1) + '°C' : '--'} • Humidity ${weatherObj.humidity != null ? Math.round(weatherObj.humidity) + '%' : '--'} • Pressure ${weatherObj.pressure != null ? weatherObj.pressure.toFixed(1) + ' hPa' : '--'} (Relay ${weatherObj.nodeId})`
+        };
+        try {
+          window.dispatchEvent(new CustomEvent('evakwar:lora-weather-alert', { detail: alertObj }));
+        } catch (_) {}
+        this.emit('weatherAlert', alertObj);
       }
     }
 
@@ -1391,6 +1571,8 @@
           if (bytes.length === 0) break;
           const evw = extractEvwStringFromBytes(bytes);
           if (evw) this.handleIncomingRawPacket(evw, 'BLE');
+          const envTel = extractEnvironmentTelemetryFromBytes(bytes);
+          if (envTel) this._handleWeatherTelemetryObject(envTel, 'BLE', false);
         } catch (e) {
           break;
         }
@@ -1406,6 +1588,8 @@
           const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
           const evw = extractEvwStringFromBytes(bytes);
           if (evw) this.handleIncomingRawPacket(evw, 'BLE');
+          const envTel = extractEnvironmentTelemetryFromBytes(bytes);
+          if (envTel) this._handleWeatherTelemetryObject(envTel, 'BLE', false);
         } catch (e) {
           break;
         }

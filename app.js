@@ -666,6 +666,7 @@ const io = new Server(server, {
     credentials: true
   }
 });
+try { require("./routes/loraRoutes").attachIo(io); } catch (_) {}
 io.use((socket, next) => {
   sessionMiddleware(socket.request, {}, () => {
     const sess = socket.request && socket.request.session;

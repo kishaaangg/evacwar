@@ -4090,6 +4090,34 @@
                                 window.triggerEmergencyAlarm(data);
                               }
                             });
+
+                            socket.on('lora:weather_update', (reading) => {
+                              try {
+                                if (reading) {
+                                  localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(reading));
+                                  window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: reading }));
+                                }
+                              } catch (_) {}
+                            });
+
+                            socket.on('weather:alert', (weatherAlert) => {
+                              if (typeof window.showSilentWeatherNotification === 'function') {
+                                window.showSilentWeatherNotification(weatherAlert);
+                              }
+                            });
+                          }
+
+                          if (navigator.serviceWorker && !window.__evwSwNavBound) {
+                            window.__evwSwNavBound = true;
+                            navigator.serviceWorker.addEventListener('message', (ev) => {
+                              if (ev && ev.data && ev.data.type === 'NAVIGATE_TO' && ev.data.url) {
+                                if (typeof window.navigateToEvakWar === 'function') {
+                                  window.navigateToEvakWar(ev.data.url);
+                                } else {
+                                  window.location.href = ev.data.url;
+                                }
+                              }
+                            });
                           }
                         } catch (sErr) {
                           console.warn('Socket.IO connection note:', sErr);
@@ -4529,6 +4557,136 @@
                                 actionLabel: 'View SOS on Map'
                               });
                             }
+                          }
+                        });
+
+                        // Global Non-Siren 2-Hour LoRa Weather Sensor Notification (Clickable -> Weather Page)
+                        function resolveWeatherPageUrl() {
+                          let r = String(currentUserRole || localStorage.getItem('evw_user_role') || 'resident').toLowerCase();
+                          const staffType = String(window.userStaffType || '').toUpperCase();
+                          const p = (window.location.pathname || '').toLowerCase();
+                          if (r === 'admin' || p.startsWith('/admin')) return '/admin/typhoon?view=sensor';
+                          if (r === 'rescuer' || staffType === 'RESCUER' || p.startsWith('/rescuer')) return '/rescuer/typhoon?view=sensor';
+                          if (r === 'staff' || r === 'barangay_council' || p.startsWith('/staff')) return '/staff/typhoon?view=sensor';
+                          return '/resident/typhoon?view=sensor';
+                        }
+
+                        function openWeatherPageFromNotification() {
+                          const targetUrl = resolveWeatherPageUrl();
+                          if (typeof window.navigateToEvakWar === 'function' && (
+                            window.location.protocol === 'file:' ||
+                            window.location.hostname === 'localhost' ||
+                            window.location.pathname.startsWith('/resident-mobile')
+                          )) {
+                            window.navigateToEvakWar(targetUrl);
+                          } else {
+                            window.location.href = targetUrl;
+                          }
+                        }
+
+                        window.showSilentWeatherNotification = function (weatherAlert) {
+                          if (!weatherAlert) return;
+                          const alertId = String(weatherAlert.alertId || weatherAlert.id || ('wth_' + Date.now()));
+                          window.__seenWeatherNotifIds = window.__seenWeatherNotifIds || new Set();
+                          if (window.__seenWeatherNotifIds.has(alertId)) return;
+                          window.__seenWeatherNotifIds.add(alertId);
+
+                          const title = weatherAlert.title || '🌤️ 2-Hour LoRa Weather Update';
+                          const message = weatherAlert.message || 'New sensor reading from Relay !0f778ab0. Tap to view Weather page.';
+                          const targetUrl = resolveWeatherPageUrl();
+
+                          // Persist latest reading to localStorage so Weather page reflects it offline too
+                          try {
+                            if (weatherAlert.temperature != null || weatherAlert.humidity != null || weatherAlert.pressure != null) {
+                              localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(weatherAlert));
+                              window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: weatherAlert }));
+                            }
+                          } catch (_) {}
+
+                          // Add to Bell Notification Drawer
+                          if (typeof window.injectLoraNotificationToDrawer === 'function') {
+                            const now = new Date();
+                            window.injectLoraNotificationToDrawer({
+                              id: 'weather-' + alertId,
+                              category: 'broadcast',
+                              title: title,
+                              message: message,
+                              date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                              time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                              icon: 'ph-cloud-sun',
+                              color: weatherAlert.advisoryLevel === 'WATCH' ? 'amber' : 'blue',
+                              isActionRequired: false,
+                              actionUrl: targetUrl,
+                              actionLabel: 'Open Weather'
+                            });
+                          }
+
+                          // Native Android non-siren notification (only if not already posted directly by LoraMeshService)
+                          if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeWeatherNotification === 'function') {
+                            try {
+                              window.AndroidBleBridge.triggerNativeWeatherNotification(title, message, alertId);
+                            } catch (_) {}
+                          } else if ('Notification' in window && Notification.permission === 'granted') {
+                            try {
+                              const n = new Notification(title, {
+                                body: message,
+                                icon: '/icons/icon-192x192.png',
+                                silent: true,
+                                tag: 'evw-weather-' + alertId
+                              });
+                              n.onclick = () => {
+                                try { window.focus(); } catch (_) {}
+                                n.close();
+                                openWeatherPageFromNotification();
+                              };
+                            } catch (_) {}
+                          }
+
+                          // In-App Clickable Silent Toast Banner (redirects to Weather Page on click, zero siren)
+                          try {
+                            const oldToast = document.getElementById('evwSilentWeatherToast');
+                            if (oldToast) oldToast.remove();
+                            const toast = document.createElement('div');
+                            toast.id = 'evwSilentWeatherToast';
+                            toast.setAttribute('role', 'button');
+                            toast.style.cssText = 'position:fixed;top:72px;right:16px;left:16px;max-width:420px;margin:0 auto;z-index:2147483640;cursor:pointer;';
+                            toast.innerHTML = `
+                              <div class="bg-slate-900/95 hover:bg-slate-800 text-white border border-sky-400/50 rounded-2xl shadow-2xl p-3.5 flex items-start gap-3 transition-all backdrop-blur-md">
+                                <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center shrink-0 text-xl">
+                                  <i class="ph ph-cloud-sun"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                  <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-extrabold text-sky-300 truncate">${title}</span>
+                                    <button type="button" id="evwDismissWeatherToast" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded-lg" aria-label="Dismiss">✕</button>
+                                  </div>
+                                  <p class="text-[11.5px] text-slate-200 leading-snug mt-0.5">${message}</p>
+                                  <div class="text-[10.5px] font-bold text-sky-400 mt-1.5 flex items-center gap-1">
+                                    <span>Tap to view Sensor Weather</span>
+                                    <i class="ph ph-arrow-right"></i>
+                                  </div>
+                                </div>
+                              </div>
+                            `;
+                            document.body.appendChild(toast);
+                            const dismissBtn = toast.querySelector('#evwDismissWeatherToast');
+                            if (dismissBtn) {
+                              dismissBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                toast.remove();
+                              });
+                            }
+                            toast.addEventListener('click', () => {
+                              toast.remove();
+                              openWeatherPageFromNotification();
+                            });
+                            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 18000);
+                          } catch (_) {}
+                        };
+
+                        window.addEventListener('evakwar:lora-weather-alert', (ev) => {
+                          if (ev && ev.detail) {
+                            window.showSilentWeatherNotification(ev.detail);
                           }
                         });
                       })();
