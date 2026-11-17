@@ -540,6 +540,10 @@ async function buildCapacitorApp() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1329">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EvakWar">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <title>Sign In - EvakWar Mobile</title>
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="/css/google-fonts.css">
@@ -1108,7 +1112,9 @@ async function buildCapacitorApp() {
 
             if (res.ok && data && data.success) {
               const role = data.role || (data.staff ? (data.staff.staff_type === 'RESCUER' ? 'rescuer' : 'staff') : 'resident');
-              const targetUrl = data.redirectUrl || (role === 'rescuer' ? '/rescuer/dashboard/index.html' : (role === 'staff' ? '/staff/dashboard/index.html' : '/resident/dashboard/index.html'));
+              const basePref = window.location.pathname.startsWith('/resident-mobile') ? '/resident-mobile' : '';
+              const rawTarget = data.redirectUrl || (role === 'rescuer' ? '/rescuer/dashboard/index.html' : (role === 'staff' ? '/staff/dashboard/index.html' : '/resident/dashboard/index.html'));
+              const targetUrl = (basePref && !rawTarget.startsWith(basePref)) ? (basePref + rawTarget) : rawTarget;
 
               try {
                 localStorage.setItem('evw_cached_email', email);
@@ -1159,7 +1165,8 @@ async function buildCapacitorApp() {
 
             if (isPasswordValid) {
               const role = foundStaff.staff_type === 'RESCUER' ? 'rescuer' : 'staff';
-              const targetUrl = role === 'rescuer' ? '/rescuer/dashboard/index.html' : '/staff/dashboard/index.html';
+              const basePref = window.location.pathname.startsWith('/resident-mobile') ? '/resident-mobile' : '';
+              const targetUrl = basePref + (role === 'rescuer' ? '/rescuer/dashboard/index.html' : '/staff/dashboard/index.html');
               try {
                 localStorage.setItem('evw_cached_email', foundStaff.email || email);
                 localStorage.setItem('evw_user_role', role);
@@ -1207,8 +1214,9 @@ async function buildCapacitorApp() {
                 localStorage.removeItem('evacwar_logged_out');
               } catch (_) {}
 
+              const basePref = window.location.pathname.startsWith('/resident-mobile') ? '/resident-mobile' : '';
               submitBtn.textContent = 'Verified (Offline Mode)! Opening...';
-              setTimeout(() => window.location.replace('/resident/dashboard/index.html'), 300);
+              setTimeout(() => window.location.replace(basePref + '/resident/dashboard/index.html'), 300);
               return;
             } else {
               showError('Incorrect password (Offline verification).');
@@ -1228,8 +1236,9 @@ async function buildCapacitorApp() {
             if (computedHash.toLowerCase() === storedHash.toLowerCase()) {
               localStorage.setItem('evw_user_role', 'resident');
               localStorage.removeItem('evacwar_logged_out');
+              const basePref = window.location.pathname.startsWith('/resident-mobile') ? '/resident-mobile' : '';
               submitBtn.textContent = 'Verified (Offline Mode)...';
-              setTimeout(() => window.location.replace('/resident/dashboard/index.html'), 300);
+              setTimeout(() => window.location.replace(basePref + '/resident/dashboard/index.html'), 300);
               return;
             }
           }
@@ -1375,7 +1384,8 @@ async function buildCapacitorApp() {
         }
       } catch (_) {}
       setTimeout(function () {
-        window.location.replace('/login/index.html');
+        var basePref = window.location.pathname.indexOf('/resident-mobile') === 0 ? '/resident-mobile' : '';
+        window.location.replace(basePref + '/login/index.html');
       }, 350);
     })();
   </script>

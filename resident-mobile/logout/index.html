@@ -40,7 +40,8 @@
         }
       } catch (_) {}
       setTimeout(function () {
-        window.location.replace('/login/index.html');
+        var basePref = window.location.pathname.indexOf('/resident-mobile') === 0 ? '/resident-mobile' : '';
+        window.location.replace(basePref + '/login/index.html');
       }, 350);
     })();
   </script>

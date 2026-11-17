@@ -220,11 +220,13 @@
     setTimeout(pollLatestBroadcastAlert, 1200);
   }
 
-  // 0. Auth guard for the static bundle
-  const isStaticBundle = isCapacitorRuntime && global.location.port !== '8080' && (global.location.hostname === 'localhost' || global.location.protocol === 'capacitor:' || global.location.protocol === 'file:');
+  // 0. Auth guard for the static bundle (Capacitor APK or /resident-mobile iOS Web App)
+  const isMobileWebPrefix = global.location.pathname.startsWith('/resident-mobile');
+  const mobileBasePrefix = isMobileWebPrefix ? '/resident-mobile' : '';
+  const isStaticBundle = isMobileWebPrefix || (isCapacitorRuntime && global.location.port !== '8080' && (global.location.hostname === 'localhost' || global.location.protocol === 'capacitor:' || global.location.protocol === 'file:'));
   if (isStaticBundle) {
     const p = global.location.pathname;
-    const onAuthPage = /^\/(login|logout|register)(\/|\.html|$)/.test(p);
+    const onAuthPage = /\/(login|logout|register)(\/|\.html|$)/.test(p);
     let loggedOut = false;
     try {
       const hasSession = Boolean(localStorage.getItem('evw_cached_resident') || localStorage.getItem('evw_cached_staff'));
@@ -232,17 +234,20 @@
     } catch (_) {}
     if (loggedOut && !onAuthPage) {
       document.documentElement.style.display = 'none';
-      global.location.replace('/login/index.html');
+      global.location.replace(mobileBasePrefix + '/login/index.html');
       return;
     }
     // If logged in and viewing login page, forward to active role dashboard
     if (!loggedOut && onAuthPage && p.includes('/login')) {
       const uRole = localStorage.getItem('evw_user_role') || '';
       if (uRole === 'rescuer') {
-        global.location.replace('/rescuer/dashboard/index.html');
+        global.location.replace(mobileBasePrefix + '/rescuer/dashboard/index.html');
         return;
       } else if (uRole === 'staff') {
-        global.location.replace('/staff/dashboard/index.html');
+        global.location.replace(mobileBasePrefix + '/staff/dashboard/index.html');
+        return;
+      } else {
+        global.location.replace(mobileBasePrefix + '/resident/dashboard/index.html');
         return;
       }
     }

@@ -53,12 +53,16 @@
       </p>
 
       <!-- Primary CTA Button -->
-      <div class="mt-7 flex flex-wrap items-center justify-center gap-3.5">
-        <a href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk"
+      <div class="mt-7 flex flex-col items-center justify-center gap-2.5">
+        <a id="downloadAppBtn" href="/evakwar-resident-v2.apk" download="evakwar-resident-v2.apk"
           class="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-blue-600/35 transition-all active:scale-[0.98]">
-          <i class="ph ph-android-logo text-xl"></i>
-          <span>Download App</span>
+          <i id="downloadAppIcon" class="ph ph-android-logo text-xl"></i>
+          <span id="downloadAppLabel">Download App</span>
           <i class="ph ph-download-simple text-lg"></i>
+        </a>
+        <a href="/resident-mobile/login/index.html"
+          class="text-xs font-semibold text-blue-300/90 hover:text-white underline underline-offset-4 transition-colors">
+          Using an iPhone / iOS? Open Mobile Web App
         </a>
       </div>
 
@@ -129,6 +133,19 @@
         if (urlParams.has('registered') || urlParams.has('success')) {
           const successBox = document.getElementById('registerSuccess');
           if (successBox) successBox.classList.remove('hidden');
+        }
+
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isIOS) {
+          const dlBtn = document.getElementById('downloadAppBtn');
+          const dlIcon = document.getElementById('downloadAppIcon');
+          if (dlBtn) {
+            dlBtn.href = '/resident-mobile/login/index.html';
+            dlBtn.removeAttribute('download');
+          }
+          if (dlIcon) {
+            dlIcon.className = 'ph ph-apple-logo text-xl';
+          }
         }
 
         function updateClock() {
