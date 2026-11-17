@@ -1711,9 +1711,8 @@
             }, 2100);
           }
 
-          // Dual-path redundancy: if the phone ALSO has Wi-Fi/LAN connectivity right now,
-          // mirror the packet to the local server in the background (deduplicated by msgId on server).
-          if (navigator.onLine) {
+          // Dual-path redundancy (SOS / ACK only - never Wi-Fi mirror for LoRa-only chat)
+          if (!metadata.loraOnly && navigator.onLine) {
             const bgUrl = (this.serverUrl || window.location.origin).replace(/\/$/, '');
             if (bgUrl.startsWith('http')) {
               fetch(`${bgUrl}/api/lora/inbound-sos`, {
@@ -1782,7 +1781,10 @@
         return { success: true, transport: 'USB_SERIAL', packet: rawEvwPacket };
       }
 
-      // 5. Try Wi-Fi / Barangay Hall Gateway / Local Serial COM3 Relay
+      // 5. Try Wi-Fi / Barangay Hall Gateway / Local Serial COM3 Relay (disabled when loraOnly is true)
+      if (metadata && metadata.loraOnly) {
+        throw new Error('LoRa Mesh Chat requires a connected LoRa device (Bluetooth or USB-OTG). Wi-Fi sending is disabled.');
+      }
       const targetUrl = (this.serverUrl || window.location.origin).replace(/\/$/, '');
       try {
         const resp = await fetch(`${targetUrl}/api/lora/inbound-sos`, {
@@ -1922,6 +1924,15 @@
         raw: rawPacket
       };
 
+      const txRes = await this.sendPacket(rawPacket, {
+        loraOnly: true,
+        msgId: id,
+        senderRole: cleanRole,
+        senderName: cleanName,
+        nodeId: resolvedNode,
+        text: cleanText
+      });
+
       try {
         let stored = JSON.parse(localStorage.getItem('evw_lora_chat_messages') || '[]');
         if (!Array.isArray(stored)) stored = [];
@@ -1931,14 +1942,6 @@
           localStorage.setItem('evw_lora_chat_messages', JSON.stringify(stored));
         }
       } catch (_) {}
-
-      const txRes = await this.sendPacket(rawPacket, {
-        msgId: id,
-        senderRole: cleanRole,
-        senderName: cleanName,
-        nodeId: resolvedNode,
-        text: cleanText
-      });
 
       return {
         ...txRes,

@@ -269,23 +269,30 @@
                   </div>
                 </a>
 
-                <!-- 4. Typhoon Live Tracker -->
-                <a href="/resident/typhoon"
+                <!-- 4. LoRa Mesh Chat (Offline Only) -->
+                <a href="/resident/chat"
                   class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-purple-50 border-2 border-purple-300 hover:border-purple-600 shadow-sm hover:shadow-lg hover:shadow-purple-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
                   <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
-                    <h3
-                      class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-purple-600 transition-colors">
-                      TYPHOON
-                    </h3>
+                    <div class="flex items-center gap-1.5">
+                      <h3
+                        class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-purple-600 transition-colors">
+                        LORA CHAT
+                      </h3>
+                      <span class="chat-nav-red-dot hidden w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse shrink-0"></span>
+                    </div>
                     <p
                       class="text-[10px] sm:text-sm md:text-base text-slate-600 font-bold mt-0.5 sm:mt-1 leading-tight">
-                      Live Monitoring
+                      Off-Grid Mesh
                     </p>
                   </div>
                   <div
                     class="w-16 h-16 sm:w-28 sm:h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center relative z-10">
-                    <img loading="lazy" src="/illustrations/storm.svg" alt="Typhoon Weather Vector"
-                      class="w-full h-full object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-300" / decoding="async">
+                    <div class="w-14 h-14 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform duration-300 relative">
+                      <i class="ph ph-chats-circle text-3xl sm:text-5xl md:text-6xl"></i>
+                      <span class="absolute -top-1.5 -right-1.5 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-md border-2 border-white">
+                        <i class="ph ph-broadcast text-xs sm:text-base font-bold"></i>
+                      </span>
+                    </div>
                   </div>
                 </a>
 

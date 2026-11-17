@@ -74,15 +74,12 @@
             </a>
           </div>
 
-          <!-- 4. LoRa Mesh Chat (Replaces Typhoon on bottom navbar) -->
-          <% const isResChat = (typeof page !== 'undefined' && page && (page.title === 'LoRa Mesh Chat' || page.title === 'Chat' || page.title === 'Community LoRa Chat')); %>
-          <a href="/resident/chat"
-            class="resident-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors <%= isResChat ? 'text-red-600 font-extrabold' : 'text-slate-400 hover:text-red-600' %>">
-            <div class="relative inline-flex items-center justify-center">
-              <span class="chat-nav-red-dot hidden absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse z-10"></span>
-              <i class="ph <%= isResChat ? 'ph-chats-circle-fill' : 'ph-chats-circle' %> text-2xl sm:text-[26px] mb-0.5 <%= isResChat ? 'text-red-600' : 'text-slate-400' %>"></i>
-            </div>
-            <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isResChat ? 'text-red-600' : 'text-slate-400' %>">Chat</span>
+          <!-- 4. Typhoon Monitoring (Brought back to bottom navbar) -->
+          <% const isTyphoon = (typeof page !== 'undefined' && page && (page.title === 'Typhoon Monitoring' || page.title === 'Typhoon' || page.title === 'Weather & Typhoon')); %>
+          <a href="/resident/typhoon"
+            class="resident-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors <%= isTyphoon ? 'text-red-600 font-extrabold' : 'text-slate-400 hover:text-red-600' %>">
+            <i class="ph <%= isTyphoon ? 'ph-cloud-lightning-fill' : 'ph-cloud-lightning' %> text-2xl sm:text-[26px] mb-0.5 <%= isTyphoon ? 'text-red-600' : 'text-slate-400' %>"></i>
+            <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isTyphoon ? 'text-red-600' : 'text-slate-400' %>" data-i18n="nav_typhoon">Typhoon</span>
           </a>
 
           <!-- 5. Profile -->
@@ -117,15 +114,12 @@
                 <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isStaffDashboard ? 'text-red-600' : 'text-slate-400' %>">Dashboard</span>
               </a>
 
-              <!-- 2. LoRa Mesh Chat -->
-              <% const isRescuerChat = (typeof page !== 'undefined' && page && (page.title === 'LoRa Mesh Chat' || page.title === 'Chat' || page.title === 'Rescuer LoRa Chat')); %>
-              <a href="/rescuer/chat"
-                class="staff-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors <%= isRescuerChat ? 'text-red-600 font-extrabold' : 'text-slate-400 hover:text-red-600' %>">
-                <div class="relative inline-flex items-center justify-center">
-                <span class="chat-nav-red-dot hidden absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse z-10"></span>
-                <i class="ph <%= isRescuerChat ? 'ph-chats-circle-fill' : 'ph-chats-circle' %> text-2xl sm:text-[26px] mb-0.5 <%= isRescuerChat ? 'text-red-600' : 'text-slate-400' %>"></i>
-              </div>
-                <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isRescuerChat ? 'text-red-600' : 'text-slate-400' %>">Chat</span>
+              <!-- 2. Typhoon Monitoring -->
+              <% const isRescuerTyphoon = (typeof page !== 'undefined' && page && (page.title === 'Typhoon Monitoring' || page.title === 'Rescuer Typhoon & Weather Radar' || page.title === 'Typhoon')); %>
+              <a href="/rescuer/typhoon"
+                class="staff-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors <%= isRescuerTyphoon ? 'text-red-600 font-extrabold' : 'text-slate-400 hover:text-red-600' %>">
+                <i class="ph <%= isRescuerTyphoon ? 'ph-cloud-lightning-fill' : 'ph-cloud-lightning' %> text-2xl sm:text-[26px] mb-0.5 <%= isRescuerTyphoon ? 'text-red-600' : 'text-slate-400' %>"></i>
+                <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isRescuerTyphoon ? 'text-red-600' : 'text-slate-400' %>">Typhoon</span>
               </a>
 
               <!-- 3. Raised Red/Rose Tactical Map Button (Middle Red Circle) -->
@@ -173,15 +167,12 @@
                 <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isStaffDashboard ? 'text-blue-600' : 'text-slate-400' %>" data-i18n="nav_dashboard">Dashboard</span>
               </a>
 
-              <!-- 2. LoRa Mesh Chat (Replaces Map on bottom navbar only; Map remains on Dashboard shortcuts & sidebar) -->
-              <% const isStaffChat = (typeof page !== 'undefined' && page && (page.title === 'LoRa Mesh Chat' || page.title === 'Chat' || page.title === 'Staff LoRa Chat')); %>
-              <a href="/staff/chat"
-                class="staff-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors <%= isStaffChat ? 'text-blue-600 font-extrabold' : 'text-slate-400 hover:text-blue-600' %>">
-                <div class="relative inline-flex items-center justify-center">
-                <span class="chat-nav-red-dot hidden absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse z-10"></span>
-                <i class="ph <%= isStaffChat ? 'ph-chats-circle-fill' : 'ph-chats-circle' %> text-2xl sm:text-[26px] mb-0.5 <%= isStaffChat ? 'text-blue-600' : 'text-slate-400' %>"></i>
-              </div>
-                <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isStaffChat ? 'text-blue-600' : 'text-slate-400' %>">Chat</span>
+              <!-- 2. Typhoon Monitoring -->
+              <% const isStaffTyphoon = (typeof page !== 'undefined' && page && (page.title === 'Typhoon Monitoring' || page.title === 'Typhoon' || page.title === 'Weather & Typhoon')); %>
+              <a href="/staff/typhoon"
+                class="staff-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors <%= isStaffTyphoon ? 'text-blue-600 font-extrabold' : 'text-slate-400 hover:text-blue-600' %>">
+                <i class="ph <%= isStaffTyphoon ? 'ph-cloud-lightning-fill' : 'ph-cloud-lightning' %> text-2xl sm:text-[26px] mb-0.5 <%= isStaffTyphoon ? 'text-blue-600' : 'text-slate-400' %>"></i>
+                <span class="text-[10px] sm:text-[11px] font-bold leading-tight <%= isStaffTyphoon ? 'text-blue-600' : 'text-slate-400' %>" data-i18n="nav_typhoon">Typhoon</span>
               </a>
 
               <!-- 3. Raised QR Scanner Button (Middle Blue Circle) -->

@@ -4712,16 +4712,16 @@
 
       <!-- Live Transport Status Pill & Optional LoRa Connect button -->
       <div class="flex items-center gap-1.5 shrink-0">
-        <span id="chatTransportStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span id="chatTransportStatusText">Online (Data / Wi-Fi)</span>
+        <span id="chatTransportStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="chatTransportStatusText">LoRa Required</span>
         </span>
         
           <button type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
             class="p-1 sm:px-2 sm:py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white border border-white/15 text-[10px] font-bold flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
-            title="LoRa Hardware Options">
+            title="Connect LoRa Hardware">
             <i class="ph ph-broadcast text-xs text-blue-300"></i>
-            <span class="hidden sm:inline">LoRa</span>
+            <span class="hidden sm:inline">Connect LoRa</span>
           </button>
         
       </div>
@@ -4734,13 +4734,27 @@
     <!-- Subheader with Sync -->
     <div class="px-3 py-1.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between text-[10.5px] text-slate-600 shrink-0">
       <div class="flex items-center gap-1.5 truncate">
-        <i class="ph ph-broadcast text-blue-600 text-xs"></i>
-        <span class="font-semibold text-slate-700 truncate">Off-Grid LoRa Mesh &amp; Wi-Fi Channel</span>
+        <i class="ph ph-broadcast text-purple-600 text-xs"></i>
+        <span class="font-semibold text-slate-700 truncate">Off-Grid LoRa Radio Only (433.875 MHz)</span>
       </div>
       <button type="button" id="btnRefreshLoraChat" class="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer shrink-0">
         <i class="ph ph-arrows-clockwise text-xs"></i>
         <span>Sync</span>
       </button>
+    </div>
+
+    <!-- LoRa-Only Warning Banner (shown whenever LoRa hardware is not connected) -->
+    <div id="loraOnlyWarningBanner" class="px-3 py-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2 text-[11px] text-amber-900 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <i class="ph ph-warning-circle text-amber-600 text-base shrink-0"></i>
+        <span class="font-semibold leading-snug">LoRa Mesh Chat works over LoRa radio only (Wi-Fi sending is disabled). Connect your LoRa node to chat.</span>
+      </div>
+      
+        <button type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
+          class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] shrink-0 cursor-pointer active:scale-95 transition-all">
+          Connect LoRa
+        </button>
+      
     </div>
 
     <!-- Scrollable Message Bubble List -->
@@ -4775,7 +4789,7 @@
         id="loraChatInput" data-offline-enabled="true" data-lora-chat="true"
         maxlength="140"
         autocomplete="off"
-        placeholder="Type a message (Wi-Fi / LoRa)..."
+        placeholder="Send via 433.875 MHz LoRa only..."
         class="flex-1 rounded-2xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 sm:py-3 text-[15px] sm:text-base text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all leading-normal min-h-[46px] sm:min-h-[50px]"
       />
       <button
@@ -4934,48 +4948,32 @@
       const lora = window.evakwarLoraClient;
       const isNativeBle = Boolean(typeof window !== 'undefined' && window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
       const isBleOrUsb = isNativeBle || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
-      const isOnline = Boolean(navigator.onLine);
+      const warnBanner = document.getElementById('loraOnlyWarningBanner');
 
       if (SERVER_ROLE === 'Admin') {
-        const isGwConnected = Boolean(window._adminGatewayConnected);
+        const isGwConnected = Boolean(window._adminGatewayConnected) || isBleOrUsb;
+        if (warnBanner) warnBanner.classList.toggle('hidden', isGwConnected);
         if (transportTextEl) {
-          if (isOnline && isGwConnected) {
-            transportTextEl.textContent = 'Wi-Fi + LoRa Gateway';
-          } else if (isOnline) {
-            transportTextEl.textContent = 'Online (Wi-Fi)';
-          } else if (isGwConnected) {
-            transportTextEl.textContent = 'LoRa Gateway (COM3)';
-          } else {
-            transportTextEl.textContent = 'Offline (No Link)';
-          }
+          transportTextEl.textContent = isGwConnected ? 'LoRa Gateway (COM3)' : 'LoRa Required (No COM3)';
         }
         if (transportBadgeEl) {
-          if (isOnline || isGwConnected) {
-            transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1';
-          } else {
-            transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1';
-          }
+          transportBadgeEl.className = isGwConnected
+            ? 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1'
+            : 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1';
         }
         return;
       }
 
-      if (isBleOrUsb && isOnline) {
-        if (transportTextEl) transportTextEl.textContent = 'Online + LoRa BLE';
-        if (transportBadgeEl) {
-          transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1';
-        }
-      } else if (isBleOrUsb) {
-        if (transportTextEl) transportTextEl.textContent = 'LoRa Mesh (BLE)';
-        if (transportBadgeEl) {
-          transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/40 flex items-center gap-1';
-        }
-      } else if (isOnline) {
-        if (transportTextEl) transportTextEl.textContent = 'Online (Data / Wi-Fi)';
+      if (warnBanner) warnBanner.classList.toggle('hidden', isBleOrUsb);
+
+      if (isBleOrUsb) {
+        const modeLabel = (lora && lora.transport === 'USB_SERIAL') ? 'LoRa USB Active' : 'LoRa Mesh (BLE)';
+        if (transportTextEl) transportTextEl.textContent = modeLabel;
         if (transportBadgeEl) {
           transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1';
         }
       } else {
-        if (transportTextEl) transportTextEl.textContent = 'Offline (No Link)';
+        if (transportTextEl) transportTextEl.textContent = 'LoRa Required';
         if (transportBadgeEl) {
           transportBadgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1';
         }
@@ -5343,38 +5341,30 @@
 
     function handleSendMessage(rawText, existingMsgId = null) {
       const cleanText = String(rawText || '').trim();
-      if (!cleanText) return;
+      if (!cleanText) return false;
 
       resolveActiveIdentity();
       const lora = window.evakwarLoraClient;
       const isNativeBle = Boolean(typeof window !== 'undefined' && window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
       const isLoraConnected = isNativeBle || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
-      const isOnline = Boolean(navigator.onLine);
-      const isLocalhost = Boolean(
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname === '0.0.0.0'
-      );
       const isAdminRole = Boolean(SERVER_ROLE === 'Admin');
       const isGatewayActive = Boolean(window._adminGatewayConnected);
-      const canLoRa = isLoraConnected || (isAdminRole && (isGatewayActive || isLocalhost));
+      const canLoRa = isLoraConnected || (isAdminRole && isGatewayActive);
 
-      // 1. Strict User Requirement:
-      // - Online on Wi-Fi -> Transport is WIFI ("Wi-Fi / Internet")
-      // - Offline with LoRa -> Transport is LORA_433MHZ ("433.875 MHz LoRa")
-      // - Offline without LoRa -> Message is NOT SENT (Red "Not Sent", failed status)
-      let initialTransport = 'WIFI';
-      let willSendOverLoRa = false;
-      let willSendOverWifi = false;
-
-      if (isOnline) {
-        initialTransport = 'WIFI';
-        willSendOverWifi = true;
-      } else if (canLoRa) {
-        initialTransport = 'LORA_433MHZ';
-        willSendOverLoRa = true;
-      } else {
-        initialTransport = 'OFFLINE';
+      // STRICTLY LORA ONLY: Do NOT allow sending over Wi-Fi/internet without LoRa hardware!
+      if (!canLoRa) {
+        const msg = isAdminRole
+          ? 'LoRa Mesh Chat works via LoRa hardware only (Wi-Fi sending disabled). Connect the COM3 Hall LoRa Gateway first.'
+          : 'LoRa Mesh Chat works via LoRa only and cannot send over Wi-Fi. Please connect your LoRa device via Bluetooth or USB-OTG.';
+        if (typeof window.EvacWarToast === 'function') {
+          window.EvacWarToast(msg, 'warning');
+        } else {
+          alert(msg);
+        }
+        if (!isAdminRole && typeof window.openLoraHardwarePicker === 'function') {
+          window.openLoraHardwarePicker();
+        }
+        return false;
       }
 
       const msgId = existingMsgId || (String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 90 + 10)));
@@ -5392,8 +5382,8 @@
         timestamp: nowMs,
         sent_at: nowIso,
         created_at: nowIso,
-        transport: initialTransport,
-        status: (initialTransport === 'OFFLINE') ? 'failed' : 'pending'
+        transport: 'LORA_433MHZ',
+        status: 'pending'
       };
 
       // Instant optimistic rendering in 0ms
@@ -5410,24 +5400,10 @@
         try { window.AndroidBleBridge.markMessageSentBySelf(msgId); } catch (_) {}
       }
 
-      // Offline without LoRa -> Fail immediately with red status and toast
-      if (initialTransport === 'OFFLINE') {
-        newMsg.status = 'failed';
-        newMsg.transport = 'OFFLINE';
-        const el = document.getElementById(`chat_msg_${msgId}`);
-        if (el) updateMessageStatusInDom(el, newMsg);
-        saveLocalCachedMessages(cached);
-        if (typeof window.EvacWarToast === 'function') {
-          window.EvacWarToast('Message not sent. You are offline without LoRa connection.', 'warning');
-        }
-        return;
-      }
-
       const tasks = [];
 
-      // A. 433.875 MHz RF LoRa Transmission (Direct radio mesh)
-      // Broadcast over radio whenever LoRa is connected (as primary offline OR mesh redundancy)
-      if (willSendOverLoRa || (isLoraConnected && !isAdminRole)) {
+      // A. 433.875 MHz RF LoRa Transmission (Direct radio mesh ONLY)
+      if (isLoraConnected) {
         if (lora && typeof lora.sendChatMessage === 'function') {
           tasks.push(
             lora.sendChatMessage({
@@ -5436,12 +5412,15 @@
               senderName: currentName,
               text: cleanText
             }).then(() => {
-              if (willSendOverLoRa) {
-                newMsg.transport = 'LORA_433MHZ';
-                newMsg.status = 'sent';
-              }
+              newMsg.transport = 'LORA_433MHZ';
+              newMsg.status = 'sent';
             }).catch(rfErr => {
-              console.warn('[LoRaChat] RF transmit note:', rfErr.message);
+              console.warn('[LoRaChat] RF transmit error:', rfErr.message);
+              newMsg.transport = 'OFFLINE';
+              newMsg.status = 'failed';
+              if (typeof window.EvacWarToast === 'function') {
+                window.EvacWarToast(rfErr.message || 'LoRa transmission failed. Check your LoRa connection.', 'warning');
+              }
             })
           );
         } else if (isNativeBle && typeof window.AndroidBleBridge.writeHex === 'function') {
@@ -5454,30 +5433,21 @@
               const protoBytes = encodeMeshtasticTextToRadio(rawPacket);
               window.AndroidBleBridge.writeHex(bytesToHex(protoBytes));
             }
-            if (willSendOverLoRa) {
-              newMsg.transport = 'LORA_433MHZ';
-              newMsg.status = 'sent';
-            }
-          } catch (_e) {}
+            newMsg.transport = 'LORA_433MHZ';
+            newMsg.status = 'sent';
+          } catch (_e) {
+            newMsg.transport = 'OFFLINE';
+            newMsg.status = 'failed';
+          }
         }
-      }
-
-      // If we are strictly in offline LoRa mode, mark sent immediately
-      if (willSendOverLoRa) {
-        newMsg.transport = 'LORA_433MHZ';
-        newMsg.status = 'sent';
-      }
-
-      // B. Wi-Fi / Local Server POST (Works over Wi-Fi network OR on localhost Admin Gateway)
-      if (willSendOverWifi || (isAdminRole && isLocalhost)) {
+      } else if (isAdminRole && isGatewayActive) {
+        // Admin Hall Gateway COM3 LoRa transmission
         const hallBase = getHallServerUrl();
         const primaryUrl = (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase)
           ? `${hallBase}/api/lora/chat`
           : '/api/lora/chat';
-
-        const isOfflineLoraAdmin = Boolean(isAdminRole && !isOnline);
-        const doSend = (url) => {
-          return fetch(url, {
+        tasks.push(
+          fetch(primaryUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -5485,79 +5455,24 @@
               senderRole: currentRole,
               senderName: currentName,
               text: cleanText,
-              viaLoRa: Boolean(willSendOverLoRa || isOfflineLoraAdmin),
-              isOfflineLora: Boolean(willSendOverLoRa || isOfflineLoraAdmin)
+              viaLoRa: true,
+              isOfflineLora: true
             })
-          });
-        };
-
-        tasks.push(
-          doSend(primaryUrl)
-            .catch(err => {
-              if (isAdminRole || isLocalhost) {
-                return doSend('http://127.0.0.1:8080/api/lora/chat');
-              }
-              throw err;
-            })
-            .then(async res => {
-              if (res.ok) {
-                const resData = await res.json().catch(() => null);
-                if (resData && resData.chatMessage) {
-                  const srv = resData.chatMessage;
-                  newMsg.seq = srv.seq || newMsg.seq;
-                  newMsg.timestamp = srv.timestamp || newMsg.timestamp;
-                  newMsg.created_at = srv.created_at || newMsg.created_at;
-                  newMsg.sent_at = srv.sent_at || newMsg.sent_at;
-                  newMsg.transport = (srv.transport === 'LORA_433MHZ' || willSendOverLoRa || isOfflineLoraAdmin) ? 'LORA_433MHZ' : 'WIFI';
-                  newMsg.status = 'sent';
-                } else {
-                  newMsg.transport = (willSendOverLoRa || isOfflineLoraAdmin) ? 'LORA_433MHZ' : 'WIFI';
-                  newMsg.status = 'sent';
-                }
-              } else {
-                throw new Error('Server returned HTTP ' + res.status);
-              }
-            })
-            .catch(postErr => {
-              console.warn('[LoRaChat] Wi-Fi server unreachable:', postErr.message);
-              // AUTOMATIC HYBRID LORA FALLBACK:
-              // If Wi-Fi server could not be reached, but LoRa hardware is connected:
-              if (isLoraConnected) {
-                // Ensure message is transmitted over LoRa radio RF
-                if (!willSendOverLoRa && isNativeBle && typeof window.AndroidBleBridge.writeHex === 'function') {
-                  try {
-                    const senderNodeId = (window.loraMesh && typeof window.loraMesh.getResolvedNodeId === 'function')
-                      ? window.loraMesh.getResolvedNodeId(currentRole)
-                      : ((currentRole.toLowerCase().includes('admin')) ? '!d88b1a58' : '');
-                    const rawPacket = `EVW|MSG|${msgId}|${currentRole}|${currentName}|${senderNodeId}|${Math.floor(Date.now() / 1000)}|${cleanText}`;
-                    if (typeof encodeMeshtasticTextToRadio === 'function') {
-                      const protoBytes = encodeMeshtasticTextToRadio(rawPacket);
-                      window.AndroidBleBridge.writeHex(bytesToHex(protoBytes));
-                    }
-                  } catch (_e) {}
-                }
-                newMsg.transport = 'LORA_433MHZ';
-                newMsg.status = 'sent';
-                if (typeof window.EvacWarToast === 'function') {
-                  window.EvacWarToast('Wi-Fi gateway unreachable. Sent over 433.875 MHz LoRa Mesh.', 'info');
-                }
-              } else if (!willSendOverLoRa) {
-                newMsg.transport = 'OFFLINE';
-                newMsg.status = 'failed';
-                if (typeof window.EvacWarToast === 'function') {
-                  window.EvacWarToast('Could not reach EvakWar Gateway. Connect to LoRa or check Wi-Fi.', 'warning');
-                }
-              }
-            })
+          }).then(async res => {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const resData = await res.json().catch(() => null);
+            if (resData && resData.chatMessage) {
+              const srv = resData.chatMessage;
+              newMsg.seq = srv.seq || newMsg.seq;
+              newMsg.timestamp = srv.timestamp || newMsg.timestamp;
+            }
+            newMsg.transport = 'LORA_433MHZ';
+            newMsg.status = 'sent';
+          }).catch(() => {
+            newMsg.transport = 'OFFLINE';
+            newMsg.status = 'failed';
+          })
         );
-
-        // Direct Socket emit for real-time LAN speed
-        try {
-          const socket = window.__appSocket || window.evakwarAlertSocket || (typeof io !== 'undefined' ? io() : null);
-          if (socket && socket.connected) {
-            socket.emit('lora:chat:outbound', newMsg);
-          }
-        } catch (_) {}
       }
 
       Promise.allSettled(tasks).then(() => {
@@ -5567,6 +5482,7 @@
         if (idx >= 0) cached[idx] = newMsg;
         saveLocalCachedMessages(cached);
       });
+      return true;
     }
 
     function retryMessage(msg) {
@@ -5580,8 +5496,10 @@
       if (!chatInputEl) return;
       const val = chatInputEl.value;
       if (!val || !val.trim()) return;
-      chatInputEl.value = '';
-      handleSendMessage(val);
+      const sent = handleSendMessage(val);
+      if (sent) {
+        chatInputEl.value = '';
+      }
     }
 
     if (chatFormEl) {
@@ -5725,15 +5643,12 @@ bindChatSocket();
                 <span class="text-[10px] sm:text-[11px] font-bold leading-tight text-slate-400">Dashboard</span>
               </a>
 
-              <!-- 2. LoRa Mesh Chat -->
+              <!-- 2. Typhoon Monitoring -->
               
-              <a href="/rescuer/chat/index.html"
-                class="staff-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors text-red-600 font-extrabold">
-                <div class="relative inline-flex items-center justify-center">
-                <span class="chat-nav-red-dot hidden absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse z-10"></span>
-                <i class="ph ph-chats-circle-fill text-2xl sm:text-[26px] mb-0.5 text-red-600"></i>
-              </div>
-                <span class="text-[10px] sm:text-[11px] font-bold leading-tight text-red-600">Chat</span>
+              <a href="/rescuer/typhoon/index.html"
+                class="staff-nav-tab relative flex flex-col items-center justify-center h-full text-center transition-colors text-slate-400 hover:text-red-600">
+                <i class="ph ph-cloud-lightning text-2xl sm:text-[26px] mb-0.5 text-slate-400"></i>
+                <span class="text-[10px] sm:text-[11px] font-bold leading-tight text-slate-400">Typhoon</span>
               </a>
 
               <!-- 3. Raised Red/Rose Tactical Map Button (Middle Red Circle) -->
