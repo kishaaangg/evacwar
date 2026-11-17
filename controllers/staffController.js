@@ -2487,12 +2487,29 @@ exports.sendBroadcast = async (req, res) => {
   console.log(`Sender ID: ${req.session.userId}`);
   console.log(`Target users:`, targetData.targetUserIds || 'ALL');
 
+  // 2b. Queue 433.875 MHz LoRa Mesh Alert & update /api/lora/latest-alert for all mobile phones
+  try {
+    const loraRoutes = require('../routes/loraRoutes');
+    if (loraRoutes && typeof loraRoutes.queueOutboundAlertBroadcast === 'function') {
+      loraRoutes.queueOutboundAlertBroadcast({
+        id: String(alertId || Date.now()).slice(-7),
+        title: title,
+        message: message,
+        severity: upperSeverity,
+        barangay: userBarangay || 'ALL',
+        evacCenter: 'San Rafael Evacuation Center'
+      });
+    }
+  } catch (_e) {}
+
   // 3. Socket.IO In-App Emergency Broadcast (INDEPENDENT OF SMS)
   let inAppStatus = 'FAILED';
   try {
     if (req.io) {
+      const aidStr = String(alertId || Date.now()).slice(-7);
       const alertPayload = {
-        id: alertId || Date.now(),
+        id: aidStr,
+        alertId: aidStr,
         sender_id: req.session.userId,
         title: title,
         message: message,
@@ -2500,7 +2517,8 @@ exports.sendBroadcast = async (req, res) => {
         target_audience: target_audience.toUpperCase(),
         barangay: userBarangay,
         target_user_ids: targetData.targetUserIds || null,
-        sent_at: new Date().toISOString()
+        sent_at: new Date().toISOString(),
+        timestampMs: Date.now()
       };
 
       req.io.emit('emergency:alert', alertPayload);

@@ -33,6 +33,14 @@
         localStorage.removeItem('evw_user_role');
         localStorage.removeItem('evw_cached_email');
         localStorage.removeItem('evw_cached_members');
+        localStorage.removeItem('evw_user_full_name');
+        localStorage.removeItem('evw_muted_alert_ids');
+        localStorage.removeItem('Evacwar_lora_notifications');
+        localStorage.removeItem('Evacwar_read_notif_ids');
+        localStorage.removeItem('evw_last_triggered_alert_id');
+        if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setActiveUser === 'function') {
+          try { window.AndroidBleBridge.setActiveUser('', 'Resident'); } catch (_) {}
+        }
         sessionStorage.clear();
         var base = (localStorage.getItem('evw_server_url') || '').replace(new RegExp('/+$'), '');
         if (base && navigator.onLine) {

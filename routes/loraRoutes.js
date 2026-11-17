@@ -550,14 +550,17 @@ router.post(['/heartbeat', '/nodes/heartbeat'], (req, res) => {
 // POST /api/lora/resident-status (REAL-TIME RESIDENT BLE PAIRING SYNC)
 // =========================================================================
 router.post('/resident-status', (req, res) => {
-  const { nodeId, bleMac, deviceName, paired, online, rssi, transport } = req.body || {};
-  // Always update the primary Resident Node (!f4e213d4) so BLE MAC addresses don't create duplicate rows
-  const targetId = '!f4e213d4';
+  const { nodeId, bleMac, deviceName, paired, online, rssi, transport, residentName, userId } = req.body || {};
+  const sessionName = (req.session && req.session.userName) ? String(req.session.userName).trim() : '';
+  const safeName = String(residentName || sessionName || deviceName || 'Connected LoRa Node').trim();
+  const targetId = (nodeId && String(nodeId).startsWith('!'))
+    ? String(nodeId).trim().toLowerCase()
+    : '!f4e213d4';
   const isPaired = Boolean(paired);
   const prev = meshNodes.get(targetId) || {
     nodeId: targetId,
-    shortName: 'RES1',
-    longName: 'Sinfuego Laurence Resident',
+    shortName: targetId === '!f4e213d4' ? 'RES1' : targetId.slice(-4).toUpperCase(),
+    longName: safeName,
     role: 'RESIDENT',
     zone: 'Zone 1 / Resident Mobile Node',
     freq: '433.875 MHz',
@@ -568,6 +571,8 @@ router.post('/resident-status', (req, res) => {
 
   meshNodes.set(targetId, {
     ...prev,
+    userId: userId || (req.session && req.session.userId) || prev.userId || null,
+    longName: (residentName || sessionName) ? safeName : prev.longName,
     paired: isPaired,
     online: isPaired || prev.online,
     bleMac: bleMac || (nodeId && String(nodeId).includes(':') ? nodeId : prev.bleMac),
@@ -612,14 +617,25 @@ router.post('/tx-ack', (req, res) => {
 // =========================================================================
 router.get('/latest-alert', async (_req, res) => {
   try {
+    const serverNowMs = Date.now();
     if (latestBroadcastAlert) {
-      return res.json({ success: true, alert: latestBroadcastAlert });
+      return res.json({
+        success: true,
+        serverNowMs,
+        alert: {
+          ...latestBroadcastAlert,
+          timestampMs: latestBroadcastAlert.timestampMs || serverNowMs
+        }
+      });
     }
     const recent = await Alert.findAllWithSender(1).catch(() => []);
     if (recent && recent.length > 0) {
       const a = recent[0];
+      const sentIso = a.sent_at || a.created_at || new Date().toISOString();
+      const parsedMs = new Date(sentIso).getTime();
       return res.json({
         success: true,
+        serverNowMs,
         alert: {
           id: String(a.id),
           alertId: String(a.id),
@@ -628,13 +644,14 @@ router.get('/latest-alert', async (_req, res) => {
           severity: (a.severity || 'RED').toUpperCase(),
           barangay: a.barangay || 'San Rafael',
           evacCenter: 'San Rafael Evacuation Center',
-          sent_at: a.sent_at || a.created_at || new Date().toISOString()
+          sent_at: sentIso,
+          timestampMs: (!isNaN(parsedMs) && parsedMs > 0) ? parsedMs : serverNowMs
         }
       });
     }
-    return res.json({ success: true, alert: null });
+    return res.json({ success: true, serverNowMs, alert: null });
   } catch (err) {
-    return res.json({ success: false, alert: null });
+    return res.json({ success: false, serverNowMs: Date.now(), alert: null });
   }
 });
 

@@ -56,6 +56,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -1109,7 +1110,7 @@ public class LoraMeshService extends Service {
 
         boolean isBle = bleConnected.get();
         String title = isBle ? "🛡️ EvakWar LoRa Mesh Guard" : "🛡️ EvakWar Emergency Guard";
-        String nm = (deviceName != null && !deviceName.isEmpty()) ? deviceName : (activeBleName != null ? activeBleName : "RES1 (!f4e213d4)");
+        String nm = (deviceName != null && !deviceName.isEmpty()) ? deviceName : (activeBleName != null ? activeBleName : "EvakWar LoRa Node");
         String body = isBle
                 ? "Connected: " + nm + " • 433.875 MHz Active"
                 : "Active Emergency Monitor • Monitoring Wi-Fi & LoRa for Disaster Alerts";
@@ -1478,12 +1479,16 @@ public class LoraMeshService extends Service {
             if (timestampMs == 0 && !sentAt.isEmpty()) {
                 try {
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
+                    if (sentAt.endsWith("Z")) {
+                        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+                    }
                     Date d = sdf.parse(sentAt);
                     if (d != null) timestampMs = d.getTime();
                 } catch (Exception ignored) {}
             }
 
-            long now = System.currentTimeMillis();
+            // Use serverNowMs from API so phones with wrong dates/timezones still receive all live alerts
+            long refNow = root.optLong("serverNowMs", System.currentTimeMillis());
 
             String title = alert.optString("title", "EMERGENCY ALERT").trim();
             String message = alert.optString("message", "Proceed to nearest safe evacuation center.").trim();
@@ -1492,12 +1497,12 @@ public class LoraMeshService extends Service {
 
             String alertKey = alertId + "|" + title + "|" + message;
 
-            // Initial bootstrap: on cold app launch, if alert is historical (> 90 seconds old), record it and don't blare sirens
+            // Initial bootstrap: on cold app launch, ignore alerts older than 10 minutes on server clock
             if (!wifiInitialPollDone.get()) {
                 wifiInitialPollDone.set(true);
-                if (timestampMs > 0 && (now - timestampMs > 90_000)) {
+                if (timestampMs > 0 && (refNow - timestampMs > 600_000L)) {
                     lastAlertedId = alertId;
-                    return; // Ignore historical alert
+                    return; // Ignore old historical alert
                 }
             }
 

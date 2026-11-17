@@ -182,9 +182,7 @@ public class MainActivity extends BridgeActivity {
         }
 
         createEmergencyNotificationChannel();
-        requestNotificationPermissionIfNeeded();
-        ensureLocationPermissionsAndPrompt();
-        ensureCameraPermissionIfNeeded();
+        requestAllStartupPermissions();
 
         // Start 24/7 Foreground Emergency Guard (Wi-Fi + LoRa Monitor)
         LoraMeshService.startServiceGuard(this);
@@ -381,31 +379,26 @@ public class MainActivity extends BridgeActivity {
 
     private static final int REQ_LOCATION_PERMS = 9435;
     private static final int REQ_CHECK_LOCATION_SETTINGS = 9436;
+    private static final int REQ_STARTUP_PERMS = 9438;
 
-    private void requestNotificationPermissionIfNeeded() {
+    private void requestAllStartupPermissions() {
+        List<String> perms = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9434);
+                perms.add(Manifest.permission.POST_NOTIFICATIONS);
             }
         }
-    }
-
-    private void ensureCameraPermissionIfNeeded() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 9437);
-        }
-    }
-
-    private void ensureLocationPermissionsAndPrompt() {
-        List<String> perms = new ArrayList<>();
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             perms.add(Manifest.permission.ACCESS_FINE_LOCATION);
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             perms.add(Manifest.permission.ACCESS_COARSE_LOCATION);
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            perms.add(Manifest.permission.CAMERA);
+        }
         if (!perms.isEmpty()) {
-            ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), REQ_LOCATION_PERMS);
+            ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), REQ_STARTUP_PERMS);
         } else {
             promptEnableLocationIfDisabled();
         }
@@ -496,7 +489,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_LOCATION_PERMS) {
+        if (requestCode == REQ_LOCATION_PERMS || requestCode == REQ_STARTUP_PERMS) {
             promptEnableLocationIfDisabled();
         }
     }

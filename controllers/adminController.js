@@ -1520,19 +1520,27 @@ exports.sendBroadcast = async (req, res) => {
     console.error("[AdminBroadcast] LoRa Queue error:", loraErr);
   }
 
-  // 2. In-App Emergency Broadcast via Socket.IO
+  // 2. In-App Emergency Broadcast via Socket.IO & invalidate notification cache immediately
+  try {
+    const NotificationModel = require('../models/notificationModel');
+    NotificationModel.invalidateCache();
+  } catch (_e) {}
+
   let inAppStatus = 'FAILED';
   try {
     if (req.io) {
+      const normalizedBarangay = (barangay && String(barangay).toLowerCase() !== 'all' && String(barangay).trim() !== '') ? barangay.trim() : null;
       const alertPayload = {
         id: fallbackAlertId,
+        alertId: fallbackAlertId,
         sender_id: senderId,
         title: title,
         message: message,
         severity: upperSeverity,
         target_audience: target_audience.toUpperCase(),
-        barangay: barangay === 'all' ? null : barangay,
-        sent_at: new Date().toISOString()
+        barangay: normalizedBarangay,
+        sent_at: new Date().toISOString(),
+        timestampMs: Date.now()
       };
       req.io.emit('emergency:alert', alertPayload);
       req.io.emit('alert:broadcast', alertPayload);
@@ -1553,6 +1561,7 @@ exports.sendBroadcast = async (req, res) => {
         selectedIds: selectedArray
       }).catch(() => ({ totalRecipients: 0, validPhoneCount: 0, recipientPhones: [], targetUserIds: [] }));
 
+      const normalizedBarangayDb = (barangay && String(barangay).toLowerCase() !== 'all' && String(barangay).trim() !== '') ? barangay.trim() : null;
       const dbAlertId = await Alert.create({
         sender_id: senderId,
         title: title,
@@ -1560,7 +1569,7 @@ exports.sendBroadcast = async (req, res) => {
         severity: upperSeverity,
         broadcast_type: 'LORA_MESH',
         target_audience: target_audience.toUpperCase(),
-        barangay: barangay === 'all' ? null : barangay,
+        barangay: normalizedBarangayDb,
         recipient_count: targetData.totalRecipients || 0,
         valid_phone_count: (targetData.recipientPhones && targetData.recipientPhones.length) || 0,
         status: 'TRANSMITTED_LORA',
@@ -1574,13 +1583,19 @@ exports.sendBroadcast = async (req, res) => {
 
       if (dbAlertId) alertId = dbAlertId;
 
+      try {
+        const NotificationModel = require('../models/notificationModel');
+        NotificationModel.invalidateCache();
+        if (req.io) req.io.emit('notification:new', { id: alertId, title });
+      } catch (_e) {}
+
       // Web Push in background
       pushService.sendEmergencyPush(null, {
         id: alertId,
         title: title,
         message: message,
         severity: upperSeverity,
-        barangay: barangay || null,
+        barangay: normalizedBarangayDb,
         url: '/'
       }).catch(() => {});
     } catch (_) {}

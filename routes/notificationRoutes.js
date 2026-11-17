@@ -8,9 +8,10 @@ router.use(noCache);
 // GET /api/notifications - Return real-time notifications for central header panel
 router.get('/', async (req, res) => {
   try {
+    const mobileRole = req.headers['x-evakwar-mobile-role'] ? String(req.headers['x-evakwar-mobile-role']).trim().toLowerCase() : null;
     const sessionRole = (req.session && (req.session.role || req.session.userRole)) || (res.locals.user && res.locals.user.role !== 'guest' ? res.locals.user.role : null);
-    const userRole = req.query.role || sessionRole || 'resident';
-    const userId = (req.session && req.session.userId) || (res.locals.user && res.locals.user.id);
+    const userRole = mobileRole || req.query.role || sessionRole || 'resident';
+    const userId = Number(req.headers['x-evakwar-mobile-user-id'] || 0) || (req.session && req.session.userId) || (res.locals.user && res.locals.user.id);
     let barangay = req.query.barangay || (res.locals.user && res.locals.user.assigned_barangay);
 
     if (!barangay && userId) {
@@ -22,7 +23,7 @@ router.get('/', async (req, res) => {
     }
     if (!barangay) barangay = 'San Rafael';
 
-    let staffType = (req.session && req.session.staffType) || (res.locals.staff && res.locals.staff.staff_type) || (res.locals.user && res.locals.user.staff_type) || req.query.staff_type || null;
+    let staffType = req.headers['x-evakwar-mobile-staff-type'] || (req.session && req.session.staffType) || (res.locals.staff && res.locals.staff.staff_type) || (res.locals.user && res.locals.user.staff_type) || req.query.staff_type || null;
     if (!staffType && userRole === 'rescuer') staffType = 'RESCUER';
 
     const notifications = await NotificationModel.getAll(userRole, barangay, staffType);

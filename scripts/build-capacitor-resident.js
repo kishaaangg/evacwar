@@ -1099,6 +1099,13 @@ async function buildCapacitorApp() {
               const targetUrl = (basePref && !rawTarget.startsWith(basePref)) ? (basePref + rawTarget) : rawTarget;
 
               try {
+                const prevEmail = (localStorage.getItem('evw_cached_email') || '').toLowerCase();
+                if (prevEmail && prevEmail !== email) {
+                  localStorage.removeItem('evw_muted_alert_ids');
+                  localStorage.removeItem('Evacwar_lora_notifications');
+                  localStorage.removeItem('Evacwar_read_notif_ids');
+                  localStorage.removeItem('evw_last_triggered_alert_id');
+                }
                 localStorage.removeItem('evw_cached_staff');
                 localStorage.removeItem('evw_cached_resident');
                 localStorage.removeItem('evw_cached_members');
@@ -1107,6 +1114,13 @@ async function buildCapacitorApp() {
                 if (data.staff) localStorage.setItem('evw_cached_staff', JSON.stringify(data.staff));
                 if (data.resident) localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
                 localStorage.setItem('evw_cached_members', JSON.stringify(Array.isArray(data.members) ? data.members : []));
+                const fullNameNow = (data.staff && (data.staff.full_name || data.staff.name)) || (data.resident && (data.resident.full_name || data.resident.name)) || '';
+                if (fullNameNow) {
+                  localStorage.setItem('evw_user_full_name', fullNameNow);
+                  if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setActiveUser === 'function') {
+                    try { window.AndroidBleBridge.setActiveUser(fullNameNow, role); } catch (_) {}
+                  }
+                }
                 if (data.offlineAuth) {
                   localStorage.setItem('evw_offline_salt', data.offlineAuth.salt);
                   localStorage.setItem('evw_offline_hash', data.offlineAuth.hash);
@@ -1362,6 +1376,14 @@ async function buildCapacitorApp() {
         localStorage.removeItem('evw_user_role');
         localStorage.removeItem('evw_cached_email');
         localStorage.removeItem('evw_cached_members');
+        localStorage.removeItem('evw_user_full_name');
+        localStorage.removeItem('evw_muted_alert_ids');
+        localStorage.removeItem('Evacwar_lora_notifications');
+        localStorage.removeItem('Evacwar_read_notif_ids');
+        localStorage.removeItem('evw_last_triggered_alert_id');
+        if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setActiveUser === 'function') {
+          try { window.AndroidBleBridge.setActiveUser('', 'Resident'); } catch (_) {}
+        }
         sessionStorage.clear();
         var base = (localStorage.getItem('evw_server_url') || '').replace(new RegExp('/+$'), '');
         if (base && navigator.onLine) {

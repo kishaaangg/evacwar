@@ -2743,8 +2743,23 @@
           }
 
           try {
-            const currentRole = '<%= (typeof user !== "undefined" && user && user.role) ? user.role : ((typeof locals !== "undefined" && locals.user && locals.user.role) ? locals.user.role : ((typeof role !== "undefined" && role) ? role : "guest")) %>';
-            const currentStaffType = '<%= (locals.staff && locals.staff.staff_type) || (locals.user && locals.user.staff_type) || "" %>';
+            let currentRole = '<%= (typeof user !== "undefined" && user && user.role) ? user.role : ((typeof locals !== "undefined" && locals.user && locals.user.role) ? locals.user.role : ((typeof role !== "undefined" && role) ? role : "guest")) %>';
+            let currentStaffType = '<%= (locals.staff && locals.staff.staff_type) || (locals.user && locals.user.staff_type) || "" %>';
+            try {
+              const cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+              const cachedRes = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
+              const storedRole = localStorage.getItem('evw_user_role');
+              if (storedRole === 'rescuer') {
+                currentRole = 'rescuer';
+                currentStaffType = 'RESCUER';
+              } else if (storedRole === 'staff' && cachedStaff) {
+                currentRole = 'staff';
+                currentStaffType = cachedStaff.staff_type || 'EVACUATION';
+              } else if (storedRole === 'resident' && cachedRes) {
+                currentRole = 'resident';
+                currentStaffType = '';
+              }
+            } catch (_) {}
             const res = await fetch(`/api/notifications?role=${encodeURIComponent(currentRole)}&staff_type=${encodeURIComponent(currentStaffType)}`);
             if (!res.ok) return;
             const data = await res.json();
@@ -2898,23 +2913,74 @@
           fetchNotifications();
 
           if (typeof io !== 'undefined') {
-            const socket = window.__appSocket || io();
-            window.__appSocket = socket;
-            const currentUserId = "<%= (locals.user && locals.user.id) ? locals.user.id : (locals.resident && locals.resident.user_id ? locals.resident.user_id : (locals.staff && locals.staff.userId ? locals.staff.userId : '')) %>";
-            const role = "<%= (locals.user && locals.user.role) ? locals.user.role : 'guest' %>";
-            const staffType = "<%= (locals.staff && locals.staff.staff_type) || (locals.user && locals.user.staff_type) || '' %>";
+            let currentUserId = "<%= (locals.user && locals.user.id) ? locals.user.id : (locals.resident && locals.resident.user_id ? locals.resident.user_id : (locals.staff && locals.staff.userId ? locals.staff.userId : '')) %>";
+            let role = "<%= (locals.user && locals.user.role) ? locals.user.role : 'guest' %>";
+            let staffType = "<%= (locals.staff && locals.staff.staff_type) || (locals.user && locals.user.staff_type) || '' %>";
+            let resolvedFullName = '';
+
+            try {
+              const cachedRes = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
+              const cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+              const storedRole = localStorage.getItem('evw_user_role');
+              if (storedRole === 'rescuer' || (storedRole === 'staff' && cachedStaff)) {
+                if (cachedStaff) {
+                  currentUserId = String(cachedStaff.userId || cachedStaff.user_id || cachedStaff.id || currentUserId || '');
+                  role = storedRole === 'rescuer' ? 'rescuer' : 'staff';
+                  staffType = cachedStaff.staff_type || (storedRole === 'rescuer' ? 'RESCUER' : 'EVACUATION');
+                  resolvedFullName = cachedStaff.full_name || cachedStaff.name || '';
+                }
+              } else if (cachedRes && (cachedRes.user_id || cachedRes.id)) {
+                currentUserId = String(cachedRes.user_id || cachedRes.id);
+                role = 'resident';
+                staffType = '';
+                resolvedFullName = cachedRes.full_name || cachedRes.name || `${cachedRes.first_name || ''} ${cachedRes.last_name || ''}`.trim();
+              }
+              if (resolvedFullName) {
+                localStorage.setItem('evw_user_full_name', resolvedFullName);
+                if (window.AndroidBleBridge && typeof window.AndroidBleBridge.setActiveUser === 'function') {
+                  try { window.AndroidBleBridge.setActiveUser(resolvedFullName, role); } catch (_) {}
+                }
+              }
+            } catch (_) {}
+
             window.currentUserId = currentUserId;
             window.userRole = role;
             window.userStaffType = staffType;
 
+            const isMobileBundle = Boolean(
+              (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+              window.location.pathname.startsWith('/resident-mobile') ||
+              window.location.protocol === 'file:' ||
+              window.location.protocol === 'capacitor:' ||
+              window.location.hostname === 'localhost'
+            );
+            const savedSrv = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
+            const socketOrigin = isMobileBundle
+              ? ((savedSrv && savedSrv.startsWith('http') && !savedSrv.includes('192.168.') && !savedSrv.includes('localhost')) ? savedSrv : 'https://evacwar.onrender.com')
+              : window.location.origin;
+
+            const socket = (window.__appSocket && window.__appSocket._evwTarget === socketOrigin)
+              ? window.__appSocket
+              : io(socketOrigin, {
+                  transports: ['websocket', 'polling'],
+                  reconnectionAttempts: 15,
+                  timeout: 5000,
+                  auth: { userId: currentUserId, role: role, staffType: staffType, userName: resolvedFullName }
+                });
+            socket._evwTarget = socketOrigin;
+            window.__appSocket = socket;
+
             function announceOnline() {
-              if (currentUserId) {
+              if (currentUserId && Number(currentUserId) > 0) {
                 socket.emit('user:online', { userId: currentUserId, role: role });
               }
             }
 
             if (socket.connected) announceOnline();
             socket.on('connect', announceOnline);
+            socket.on('notification:new', () => { try { fetchNotifications(); } catch (_) {} });
+            socket.on('emergency:alert', (d) => { try { fetchNotifications(); if (typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
+            socket.on('alert:broadcast', (d) => { try { fetchNotifications(); if (d && d.title && typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
 
             const isEvacuationStaff = (role === 'staff' || role === 'barangay_council') && staffType === 'EVACUATION';
             const isRescuerOrAdmin = (role === 'admin' || role === 'rescuer' || staffType === 'RESCUER' || window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/rescuer') || ((role === 'staff' || role === 'barangay_council') && !isEvacuationStaff));
@@ -3268,6 +3334,14 @@
                     // Browser Back/Forward Cache (bfcache) & History Guard:
                     // If page is restored from bfcache or back navigation after logout, immediately force redirect to /login
                     window.addEventListener('pageshow', function (event) {
+                      const isMobilePath = window.location.pathname.startsWith('/resident-mobile');
+                      const isNativeCap = Boolean(
+                        (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                        window.location.protocol === 'file:' ||
+                        window.location.protocol === 'capacitor:'
+                      );
+                      const loginTarget = isMobilePath ? '/resident-mobile/login/index.html' : (isNativeCap ? '/login/index.html' : '/login');
+
                       const perfEntries = (window.performance && typeof window.performance.getEntriesByType === 'function')
                         ? window.performance.getEntriesByType('navigation')
                         : [];
@@ -3278,23 +3352,23 @@
                       // Check 1: User explicitly logged out in this browser
                       if (localStorage.getItem('evacwar_logged_out') === 'true') {
                         document.documentElement.style.display = 'none';
-                        window.location.replace('/login');
+                        window.location.replace(loginTarget);
                         return;
                       }
 
-                      // Check 2: Page restored via Back/Forward button — verify session with server
-                      if (isBackForward) {
+                      // Check 2: Page restored via Back/Forward button — verify session with server (skip for static bundle)
+                      if (isBackForward && !isMobilePath && !isNativeCap) {
                         fetch('/auth/check', { method: 'GET', cache: 'no-store' })
                           .then((r) => r.json())
                           .then((data) => {
                             if (!data || !data.authenticated) {
                               document.documentElement.style.display = 'none';
-                              window.location.replace('/login');
+                              window.location.replace(loginTarget);
                             }
                           })
                           .catch(() => {
                             document.documentElement.style.display = 'none';
-                            window.location.replace('/login');
+                            window.location.replace(loginTarget);
                           });
                       }
                     });
@@ -3487,26 +3561,30 @@
                         }
 
                         window.playEmergencyAlertSound = function () {
-                          // Check if running inside the Native Android App:
+                          // Check if running inside the Native Android App (with Java STREAM_ALARM siren):
                           const isNativeApp = Boolean(
                             (typeof window !== 'undefined' && window.AndroidBleBridge) ||
                             (typeof window !== 'undefined' && window.AndroidSettingsBridge) ||
                             (typeof window !== 'undefined' && window.AndroidUsbSerialBridge) ||
-                            (typeof window !== 'undefined' && window.Capacitor) ||
-                            (typeof window !== 'undefined' && window.location && (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.port === ''))
+                            (typeof window !== 'undefined' && window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                            (typeof window !== 'undefined' && window.location && (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:'))
                           );
                           // In native app, native Java STREAM_ALARM siren is ALREADY playing seamlessly!
-                          // Strictly DO NOT play any WebAudio or MP3 inside the native app:
                           if (isNativeApp) {
                             return;
                           }
 
-                          // Web browser fallback only (single audio sound, no overlapping synth):
+                          // Web browser / iOS Web App audio siren (with WebAudio synthesizer fallback):
                           try {
                             const audio = getAlertAudio();
                             audio.currentTime = 0;
-                            audio.play().catch(() => {});
-                          } catch (_) {}
+                            const p = audio.play();
+                            if (p && typeof p.catch === 'function') {
+                              p.catch(() => { try { startWebAudioSiren(); } catch (_) {} });
+                            }
+                          } catch (_) {
+                            try { startWebAudioSiren(); } catch (_) {}
+                          }
                         };
 
                         window.stopEmergencyAlertSound = function () {
@@ -3610,9 +3688,16 @@
                         window.triggerEmergencyAlarm = function (alertData) {
                           if (!alertData) return;
 
+                          // Resolve effective user role dynamically (so mobile app staff/rescuers/residents all work)
+                          let effectiveRole = currentUserRole;
+                          try {
+                            const storedRole = localStorage.getItem('evw_user_role');
+                            if (storedRole) effectiveRole = storedRole;
+                          } catch (_) {}
+
                           // Do NOT play resident emergency siren on Admin or Staff Broadcast sender console
                           const pathNow = window.location.pathname || '';
-                          if (currentUserRole === 'admin' || pathNow.startsWith('/admin') || pathNow.startsWith('/staff/broadcast')) {
+                          if (effectiveRole === 'admin' || pathNow.startsWith('/admin') || pathNow.startsWith('/staff/broadcast')) {
                             if (typeof window.updateSystemAlertBanner === 'function') {
                               window.updateSystemAlertBanner(alertData);
                             }
@@ -3622,6 +3707,7 @@
                           window.__currentActiveAlertData = alertData;
 
                           const alertIdStr = String(alertData.alertId || alertData.id || '').trim();
+                          const alarmKey = alertIdStr || String(alertData.title || '') + '_' + String(alertData.sent_at || Date.now());
                           let mutedArr = [];
                           try {
                             mutedArr = JSON.parse(localStorage.getItem('evw_muted_alert_ids') || '[]');
@@ -3648,7 +3734,7 @@
                           if (alertIdStr && window.__evwCurrentPlayingSirenId === alertIdStr) {
                             return;
                           }
-                          window.__evwCurrentPlayingSirenId = alertIdStr;
+                          window.__evwCurrentPlayingSirenId = alertIdStr || alarmKey;
 
                           console.log('[EvakWar] 🚨 MASTER EMERGENCY ALARM TRIGGERED:', alertData);
 
@@ -3713,15 +3799,14 @@
                             }
                           }
 
-                          // Step C: Play Emergency Siren Tone
+                          // Step C: Play Emergency Siren Tone (for Web / iOS Web App; Native Android already plays STREAM_ALARM via Java)
                           const isNativeAppEnv = Boolean(
                             (typeof window !== 'undefined' && window.AndroidBleBridge) ||
                             (typeof window !== 'undefined' && window.AndroidSettingsBridge) ||
                             (typeof window !== 'undefined' && window.AndroidUsbSerialBridge) ||
-                            (typeof window !== 'undefined' && window.Capacitor) ||
-                            (typeof window !== 'undefined' && window.location && (window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.port === ''))
+                            (typeof window !== 'undefined' && window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                            (typeof window !== 'undefined' && window.location && (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:'))
                           );
-                          // If in native Android app, the single siren from outside the app continues playing!
                           if (!isNativeAppEnv) {
                             window.playEmergencyAlertSound();
                           }
@@ -3738,6 +3823,7 @@
                           if (typeof window.injectLoraNotificationToDrawer === 'function') {
                             const now = new Date();
                             const sevUp = String(alertData.severity || 'RED').toUpperCase();
+                            const mapUrl = effectiveRole === 'rescuer' ? '/rescuer/map' : (effectiveRole === 'staff' ? '/staff/map' : '/resident/evacuation');
                             window.injectLoraNotificationToDrawer({
                               id: 'alert_notif_' + alarmKey,
                               category: 'broadcast',
@@ -3748,7 +3834,7 @@
                               icon: 'ph-broadcast',
                               color: sevUp === 'RED' ? 'red' : 'amber',
                               isActionRequired: true,
-                              actionUrl: '/resident/evacuation',
+                              actionUrl: mapUrl,
                               actionLabel: 'View Evacuation Map'
                             });
                           }
@@ -3966,21 +4052,33 @@
                           document.addEventListener(evt, unlockAudioOnGesture, { capture: true, passive: true });
                         });
 
-                        // ---- 6. Socket.IO Real-Time Network Listener (With Capacitor Mobile LAN Fallback) ----
-                        const SERVER_ORIGIN = (window.Capacitor && window.Capacitor.isNativePlatform())
-                          ? (localStorage.getItem('evw_server_url') || 'https://evacwar.onrender.com')
+                        // ---- 6. Socket.IO Real-Time Network Listener (Cloud + Mobile Web + Native Android) ----
+                        const isMobileAppOrigin = Boolean(
+                          (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                          window.location.protocol === 'file:' ||
+                          window.location.protocol === 'capacitor:' ||
+                          window.location.hostname === 'localhost' ||
+                          window.location.pathname.startsWith('/resident-mobile')
+                        );
+                        let savedSocketOrigin = '';
+                        try { savedSocketOrigin = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, ''); } catch (_) {}
+                        const SERVER_ORIGIN = isMobileAppOrigin
+                          ? ((savedSocketOrigin && savedSocketOrigin.startsWith('http') && !savedSocketOrigin.includes('192.168.') && !savedSocketOrigin.includes('localhost')) ? savedSocketOrigin : 'https://evacwar.onrender.com')
                           : window.location.origin;
 
-                        let socket = null;
+                        let socket = (window.__appSocket && window.__appSocket._evwTarget === SERVER_ORIGIN) ? window.__appSocket : null;
                         try {
-                          if (typeof io !== 'undefined') {
+                          if (!socket && typeof io !== 'undefined') {
                             socket = io(SERVER_ORIGIN, {
                               transports: ['websocket', 'polling'],
-                              reconnectionAttempts: 10,
+                              reconnectionAttempts: 15,
                               timeout: 5000
                             });
+                            socket._evwTarget = SERVER_ORIGIN;
                             window.__appSocket = socket;
-
+                          }
+                          if (socket && !socket._evwAlertBound) {
+                            socket._evwAlertBound = true;
                             socket.on('emergency:alert', (data) => {
                               console.log('[Socket.IO] Received emergency:alert:', data);
                               window.triggerEmergencyAlarm(data);

@@ -150,6 +150,7 @@ const NotificationModel = {
             const [rows] = await db.execute(`
               SELECT * FROM alerts
               WHERE barangay IS NULL 
+                 OR TRIM(barangay) = ''
                  OR UPPER(barangay) = 'ALL' 
                  OR UPPER(barangay) = 'SAN RAFAEL' 
                  OR UPPER(barangay) = UPPER(?) 

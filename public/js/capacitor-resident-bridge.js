@@ -168,16 +168,16 @@
   async function pollLatestBroadcastAlert() {
     if (!navigator.onLine || isPollingAlert) return;
     const p = global.location.pathname || '';
-    if (/^\/(login|logout|admin)(\/|\.html|$)/.test(p)) return;
+    if (/\/(login|logout|register|admin)(\/|\.html|$)/.test(p)) return;
 
     isPollingAlert = true;
     try {
       const hallBase = getHallServerUrl();
       const ctrl = new AbortController();
-      const tId = setTimeout(() => ctrl.abort(), 2200);
+      const tId = setTimeout(() => ctrl.abort(), 2800);
       const res = await fetch(`${hallBase}/api/lora/latest-alert`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
+        headers: Object.assign({ 'Accept': 'application/json' }, getMobileAuthHeaders()),
         signal: ctrl.signal
       });
       clearTimeout(tId);
@@ -193,11 +193,13 @@
             return;
           }
 
-          const sentMs = alert.timestampMs || (alert.sent_at ? new Date(alert.sent_at).getTime() : 0);
-          const ageMs = sentMs ? (Date.now() - sentMs) : 0;
+          // Compare server timestamp against serverNowMs so mismatched phone clocks never block alerts
+          const refNowMs = Number(data.serverNowMs) || Date.now();
+          const sentMs = Number(alert.timestampMs) || (alert.sent_at ? new Date(alert.sent_at).getTime() : refNowMs);
+          const ageMs = (sentMs && !isNaN(sentMs)) ? (refNowMs - sentMs) : 0;
 
-          // If alert is fresh (broadcast within the last 15 minutes) and not yet presented this session
-          if (global.__lastTriggeredAlertId !== alertIdStr && ageMs >= -60000 && ageMs < 15 * 60 * 1000) {
+          // Trigger if broadcast within the last 30 minutes on server clock and not yet presented
+          if (global.__lastTriggeredAlertId !== alertIdStr && ageMs >= -120000 && ageMs < 30 * 60 * 1000) {
             global.__lastTriggeredAlertId = alertIdStr;
             if (typeof global.triggerEmergencyAlarm === 'function') {
               global.triggerEmergencyAlarm(alert);
@@ -212,9 +214,12 @@
   }
 
   if (isCapacitorRuntime) {
-    if (!localStorage.getItem('evw_server_url') || localStorage.getItem('evw_server_url').startsWith('http://192.168.')) {
-      try { localStorage.setItem('evw_server_url', DEFAULT_HALL_SERVER); } catch (_) {}
-    }
+    try {
+      const savedUrl = localStorage.getItem('evw_server_url') || '';
+      if (!savedUrl || savedUrl.startsWith('http://192.168.') || savedUrl.startsWith('http://10.')) {
+        localStorage.setItem('evw_server_url', DEFAULT_HALL_SERVER);
+      }
+    } catch (_) {}
     setTimeout(probeAndSetServerUrl, 300);
     setInterval(pollLatestBroadcastAlert, 2500);
     setTimeout(pollLatestBroadcastAlert, 1200);
@@ -286,6 +291,12 @@
       global.currentUserId = String(resident.user_id || resident.id);
     }
     const fullName = resident.full_name || resident.name || (resident.first_name ? `${resident.first_name} ${resident.last_name || ''}`.trim() : 'Resident');
+    try {
+      localStorage.setItem('evw_user_full_name', fullName);
+      if (global.AndroidBleBridge && typeof global.AndroidBleBridge.setActiveUser === 'function') {
+        global.AndroidBleBridge.setActiveUser(fullName, 'Resident');
+      }
+    } catch (_) {}
     const firstName = resident.first_name || (fullName ? fullName.split(' ')[0] : 'Resident');
     const lastName = resident.last_name || '';
     const email = resident.email || localStorage.getItem('evw_cached_email') || '';
@@ -416,6 +427,12 @@
     global.__evwRole = isRescuer ? 'rescuer' : 'staff';
 
     const fullName = staff.full_name || staff.name || (staff.first_name ? `${staff.first_name} ${staff.last_name || ''}`.trim() : (isRescuer ? 'Emergency Rescuer' : 'Evacuation Staff'));
+    try {
+      localStorage.setItem('evw_user_full_name', fullName);
+      if (global.AndroidBleBridge && typeof global.AndroidBleBridge.setActiveUser === 'function') {
+        global.AndroidBleBridge.setActiveUser(fullName, isRescuer ? 'Rescuer' : 'Staff');
+      }
+    } catch (_) {}
     const firstName = staff.first_name || (fullName ? fullName.split(' ')[0] : 'Staff');
     const lastName = staff.last_name || '';
     const email = staff.email || localStorage.getItem('evw_cached_email') || '';

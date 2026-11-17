@@ -311,8 +311,8 @@
       this.mode = localStorage.getItem('evw_lora_mode') || 'AUTO'; // BLE, USB, WIFI, AUTO
       this.connected = false;
       this.transport = 'DISCONNECTED'; // 'BLE', 'USB_SERIAL', 'WIFI_GATEWAY', 'DISCONNECTED'
-      this.deviceName = localStorage.getItem('evw_lora_device_name') || 'RES1 (!f4e213d4)';
-      this.deviceId = localStorage.getItem('evw_lora_device_id') || '!f4e213d4';
+      this.deviceName = localStorage.getItem('evw_lora_device_name') || 'EvakWar LoRa Node';
+      this.deviceId = localStorage.getItem('evw_lora_device_id') || '';
       this.serverUrl = localStorage.getItem('evw_server_url') || window.location.origin;
 
       // BLE handles
@@ -560,13 +560,29 @@
       // Synchronize pairing status with server when online
       if (navigator.onLine) {
         try {
+          let activeName = '';
+          let activeUserId = null;
+          try {
+            activeName = localStorage.getItem('evw_user_full_name') || '';
+            const cRes = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
+            const cStf = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+            if (cStf) {
+              activeUserId = cStf.userId || cStf.user_id || cStf.id;
+              if (!activeName) activeName = cStf.full_name || cStf.name || '';
+            } else if (cRes) {
+              activeUserId = cRes.user_id || cRes.id;
+              if (!activeName) activeName = cRes.full_name || cRes.name || '';
+            }
+          } catch (_) {}
           fetch('/api/lora/resident-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              nodeId: '!f4e213d4',
+              nodeId: this.getResolvedNodeId() || '!f4e213d4',
               bleMac: this.bleDeviceId || this.deviceId,
               deviceName: this.deviceName,
+              residentName: activeName || undefined,
+              userId: activeUserId || undefined,
               paired: Boolean(connected),
               online: Boolean(connected),
               transport: transport,
