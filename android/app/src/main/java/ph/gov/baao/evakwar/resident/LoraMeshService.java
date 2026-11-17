@@ -243,7 +243,13 @@ public class LoraMeshService extends Service {
             SharedPreferences prefs = getSharedPreferences("evakwar_prefs", Context.MODE_PRIVATE);
             String savedUrl = prefs.getString("server_url", null);
             if (savedUrl != null && !savedUrl.trim().isEmpty()) {
-                configuredServerUrl = savedUrl.trim().replaceAll("/+$", "");
+                String cleanSaved = savedUrl.trim().replaceAll("/+$", "");
+                if (cleanSaved.startsWith("http://192.168.") || cleanSaved.startsWith("http://10.")) {
+                    configuredServerUrl = "https://evacwar.onrender.com";
+                    prefs.edit().putString("server_url", configuredServerUrl).apply();
+                } else {
+                    configuredServerUrl = cleanSaved;
+                }
             }
         } catch (Exception ignored) {}
 

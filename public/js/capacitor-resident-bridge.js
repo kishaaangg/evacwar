@@ -79,6 +79,38 @@
     return current;
   }
 
+  function getMobileSocketAuth() {
+    try {
+      const p = global.location.pathname || '';
+      const isStaffOrRescuerPage = p.includes('/staff') || p.includes('/rescuer');
+      const rawStaff = localStorage.getItem('evw_cached_staff');
+      const rawRes = localStorage.getItem('evw_cached_resident');
+      const u = isStaffOrRescuerPage
+        ? (rawStaff ? JSON.parse(rawStaff) : (rawRes ? JSON.parse(rawRes) : null))
+        : (rawRes ? JSON.parse(rawRes) : (rawStaff ? JSON.parse(rawStaff) : null));
+      if (!u) return {};
+      const userId = u.user_id || u.userId || u.id || null;
+      const role = u.role || (u.staff_type ? 'staff' : 'resident');
+      const residentId = u.resident_id || (role === 'resident' ? u.id : null);
+      const staffType = u.staff_type || '';
+      const userName = u.full_name || u.name || (u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : '');
+      return { userId, role, residentId, staffType, userName };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function getMobileAuthHeaders() {
+    const auth = getMobileSocketAuth();
+    const hdrs = {};
+    if (auth.userId) hdrs['X-Evakwar-Mobile-User-Id'] = String(auth.userId);
+    if (auth.role) hdrs['X-Evakwar-Mobile-Role'] = String(auth.role);
+    if (auth.residentId) hdrs['X-Evakwar-Mobile-Resident-Id'] = String(auth.residentId);
+    if (auth.staffType) hdrs['X-Evakwar-Mobile-Staff-Type'] = String(auth.staffType);
+    if (auth.userName) hdrs['X-Evakwar-Mobile-Name'] = String(auth.userName);
+    return hdrs;
+  }
+
   function ensureLiveSocketConnected(serverUrl) {
     if (!isCapacitorRuntime || typeof global.io !== 'function') return;
     try {
@@ -92,7 +124,8 @@
       const sock = global.io(target, {
         transports: ['websocket', 'polling'],
         reconnectionAttempts: 15,
-        timeout: 5000
+        timeout: 5000,
+        auth: getMobileSocketAuth()
       });
       sock._evwTarget = target;
       global.__appSocket = sock;
@@ -820,11 +853,13 @@
         }
       }
 
-      // If running inside Capacitor native WebView, rewrite `/api/...`, `/staff/...`, and `/rescuer/...` to Hall Server
-      if ((urlStr.startsWith('/api/') || urlStr.startsWith('/staff/') || urlStr.startsWith('/rescuer/')) && global.location.port !== '8080') {
+      // If running inside Capacitor native WebView, rewrite `/api/...`, `/staff/...`, `/rescuer/...`, and `/resident/...` to Hall Server with mobile auth headers
+      if ((urlStr.startsWith('/api/') || urlStr.startsWith('/staff/') || urlStr.startsWith('/rescuer/') || urlStr.startsWith('/resident/')) && global.location.port !== '8080') {
         const hallBase = getHallServerUrl();
+        const mergedOpts = Object.assign({ credentials: 'include' }, options || {});
+        mergedOpts.headers = Object.assign({}, getMobileAuthHeaders(), (options && options.headers) ? options.headers : {});
         try {
-          return await origFetch.call(global, hallBase + urlStr, Object.assign({ credentials: 'include' }, options));
+          return await origFetch.call(global, hallBase + urlStr, mergedOpts);
         } catch (err) {
           if (urlStr.includes('/api/centers/active') && Array.isArray(global.OFFLINE_CENTERS)) {
             return new Response(JSON.stringify({ success: true, centers: global.OFFLINE_CENTERS }), {
@@ -840,18 +875,27 @@
     };
   }
 
-  // 6. Patch io() in Capacitor so Socket.IO connects to the Barangay Hall Server when on LAN Wi-Fi
-  document.addEventListener('DOMContentLoaded', () => {
-    if (isCapacitorRuntime && global.location.port !== '8080' && typeof global.io === 'function') {
+  // 6. Patch io() in Capacitor so Socket.IO connects to the Cloud / Barangay Hall Server with mobile auth
+  function patchGlobalIo() {
+    if (isCapacitorRuntime && global.location.port !== '8080' && typeof global.io === 'function' && !global.io._evwPatched) {
       const origIo = global.io;
-      global.io = function (uri, opts) {
+      const wrappedIo = function (uri, opts) {
+        const authPayload = getMobileSocketAuth();
         if (!uri || typeof uri === 'object') {
-          return origIo(getHallServerUrl(), Object.assign({ reconnectionAttempts: 5, timeout: 4000 }, uri || {}));
+          const baseOpts = Object.assign({ reconnectionAttempts: 10, timeout: 5000, auth: authPayload }, uri || {});
+          baseOpts.auth = Object.assign({}, authPayload, (uri && uri.auth) ? uri.auth : {});
+          return origIo(getHallServerUrl(), baseOpts);
         }
-        return origIo(uri, opts);
+        const mergedOpts = Object.assign({ auth: authPayload }, opts || {});
+        mergedOpts.auth = Object.assign({}, authPayload, (opts && opts.auth) ? opts.auth : {});
+        return origIo(uri, mergedOpts);
       };
+      wrappedIo._evwPatched = true;
+      global.io = wrappedIo;
     }
-  });
+  }
+  patchGlobalIo();
+  document.addEventListener('DOMContentLoaded', patchGlobalIo);
 
     // 7b. Global programmatic navigation helper for Android native notifications & intents
   global.navigateToEvakWar = function (rawHref) {

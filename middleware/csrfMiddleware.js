@@ -43,6 +43,9 @@ const CSRF_EXEMPT_PREFIXES = [
 ];
 
 function isExempt(req) {
+  if (req && req.headers && req.headers['x-evakwar-mobile-user-id']) {
+    return true;
+  }
   const url = (req.originalUrl || req.url || '').split('?')[0];
   return CSRF_EXEMPT_PREFIXES.some(prefix => url.startsWith(prefix));
 }

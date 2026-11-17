@@ -91,12 +91,12 @@ app.use((req, res, next) => {
   ].join('; ');
   res.setHeader('Content-Security-Policy', cspHeader);
 
-  if (req.url.startsWith('/api/lora') || req.url.startsWith('/api/mobile') || req.url.startsWith('/api/') || req.url.startsWith('/resident-mobile') || req.url.startsWith('/register') || req.url.startsWith('/login')) {
+  if (req.url.startsWith('/api/') || req.url.startsWith('/staff/') || req.url.startsWith('/rescuer/') || req.url.startsWith('/resident/') || req.url.startsWith('/resident-mobile') || req.url.startsWith('/register') || req.url.startsWith('/login') || req.url.startsWith('/logout')) {
     const reqOrigin = req.headers.origin;
     res.setHeader('Access-Control-Allow-Origin', reqOrigin || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, Accept, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, X-XSRF-Token, Accept, X-Requested-With, X-Evakwar-Mobile-User-Id, X-Evakwar-Mobile-Role, X-Evakwar-Mobile-Resident-Id, X-Evakwar-Mobile-Staff-Type, X-Evakwar-Mobile-Name');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(204);
     }
@@ -603,6 +603,26 @@ const sessionMiddleware = session({
 });
 
 app.use(sessionMiddleware);
+
+// Restore authenticated session context for Capacitor Android WebView requests where cross-origin cookies are blocked
+app.use((req, _res, next) => {
+  if (req.session && !req.session.userId) {
+    const mobileUserId = Number(req.headers['x-evakwar-mobile-user-id'] || 0);
+    const mobileRole = String(req.headers['x-evakwar-mobile-role'] || '').trim().toLowerCase();
+    const mobileResId = Number(req.headers['x-evakwar-mobile-resident-id'] || 0);
+    const mobileStaffType = String(req.headers['x-evakwar-mobile-staff-type'] || '').trim();
+    const mobileName = String(req.headers['x-evakwar-mobile-name'] || '').trim();
+    if (mobileUserId > 0 && ['resident', 'staff', 'rescuer', 'barangay_council'].includes(mobileRole)) {
+      req.session.userId = mobileUserId;
+      req.session.role = mobileRole === 'rescuer' ? 'staff' : mobileRole;
+      if (mobileResId > 0) req.session.residentId = mobileResId;
+      if (mobileStaffType) req.session.staffType = mobileStaffType;
+      if (mobileName) req.session.userName = mobileName;
+    }
+  }
+  next();
+});
+
 const csrfMiddleware = require("./middleware/csrfMiddleware");
 app.use(csrfMiddleware);
 
@@ -647,7 +667,26 @@ const io = new Server(server, {
   }
 });
 io.use((socket, next) => {
-  sessionMiddleware(socket.request, {}, next);
+  sessionMiddleware(socket.request, {}, () => {
+    const sess = socket.request && socket.request.session;
+    if (sess && !sess.userId) {
+      const auth = (socket.handshake && socket.handshake.auth) || {};
+      const hdrs = (socket.handshake && socket.handshake.headers) || {};
+      const mUserId = Number(auth.userId || hdrs['x-evakwar-mobile-user-id'] || 0);
+      const mRole = String(auth.role || hdrs['x-evakwar-mobile-role'] || '').trim().toLowerCase();
+      const mResId = Number(auth.residentId || hdrs['x-evakwar-mobile-resident-id'] || 0);
+      const mStaffType = String(auth.staffType || hdrs['x-evakwar-mobile-staff-type'] || '').trim();
+      const mName = String(auth.userName || hdrs['x-evakwar-mobile-name'] || '').trim();
+      if (mUserId > 0 && ['resident', 'staff', 'rescuer', 'barangay_council'].includes(mRole)) {
+        sess.userId = mUserId;
+        sess.role = mRole === 'rescuer' ? 'staff' : mRole;
+        if (mResId > 0) sess.residentId = mResId;
+        if (mStaffType) sess.staffType = mStaffType;
+        if (mName) sess.userName = mName;
+      }
+    }
+    next();
+  });
 });
 onlineTracker.setIo(io);
 autoCheckout.startScheduler(io, 60 * 1000);
