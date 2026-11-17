@@ -105,19 +105,17 @@
                   </span>
                 </div>
                 
-                <p class="text-xs text-slate-500 font-medium truncate mb-1.5 profile-text-muted">
+                <p id="profileEmailSubtext" class="text-xs text-slate-500 font-medium truncate mb-1.5 profile-text-muted">
                   <%= user.email || ((resident && resident.contact_number) || (locals.resident && locals.resident.contact_number) ? ((resident && resident.contact_number) || locals.resident.contact_number) : 'Registered Resident') %>
                 </p>
 
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200/70 profile-sub-bg profile-text-dark">
-                    <i class="ph ph-map-pin text-blue-600"></i> <%= ((resident && resident.barangay) || (locals.resident && locals.resident.barangay)) ? ('Brgy. ' + ((resident && resident.barangay) || locals.resident.barangay)) : 'San Rafael' %>
+                    <i class="ph ph-map-pin text-blue-600"></i> <span id="profileBarangayBadgeText"><%= ((resident && resident.barangay) || (locals.resident && locals.resident.barangay)) ? ('Brgy. ' + ((resident && resident.barangay) || locals.resident.barangay)) : 'San Rafael' %></span>
                   </span>
-                  <% if ((resident && resident.contact_number) || (locals.resident && locals.resident.contact_number)) { %>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200/70 profile-sub-bg profile-text-dark">
-                      <i class="ph ph-phone text-emerald-600"></i> <%= (resident && resident.contact_number) || locals.resident.contact_number %>
-                    </span>
-                  <% } %>
+                  <span id="profileContactBadge" class="<%= ((resident && resident.contact_number) || (locals.resident && locals.resident.contact_number)) ? 'inline-flex' : 'hidden' %> items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200/70 profile-sub-bg profile-text-dark">
+                    <i class="ph ph-phone text-emerald-600"></i> <span id="profileContactBadgeText"><%= (resident && resident.contact_number) || (locals.resident && locals.resident.contact_number) || '' %></span>
+                  </span>
                 </div>
               </div>
 

@@ -226,10 +226,10 @@
               } catch (_e) {}
 
               const resolvedResName = (cachedResident && (cachedResident.name || (cachedResident.first_name ? `${cachedResident.first_name} ${cachedResident.last_name || ''}`.trim() : null)))
-                || ((sosUserData.name && sosUserData.name !== 'Resident') ? sosUserData.name : 'Laurence Sinfuego');
+                || ((sosUserData.name && sosUserData.name !== 'Resident') ? sosUserData.name : 'Resident');
               const residentId = (cachedResident && (cachedResident.resident_id || cachedResident.id))
-                || ((sosUserData.id && sosUserData.id > 1) ? sosUserData.id : ((sosUserData.resident_id && sosUserData.resident_id > 1) ? sosUserData.resident_id : 22));
-              const currentUserId = (cachedResident && cachedResident.user_id) || sosUserData.user_id || 3;
+                || (sosUserData.id || sosUserData.resident_id || null);
+              const currentUserId = (cachedResident && (cachedResident.user_id || cachedResident.id)) || sosUserData.user_id || null;
               const residentName = resolvedResName;
               const residentPhoto = (cachedResident && cachedResident.profile_photo) || sosUserData.profile_photo || null;
 

@@ -42,7 +42,7 @@
 
   <!-- Global Synchronous User Context for PWA & Offline Support -->
   <script>
-    window.currentUserId = "3";
+    window.currentUserId = "1";
     window.userRole = "resident";
     window.userStaffType = "";
   </script>
@@ -233,7 +233,7 @@
     })();
 
     window.Evacwar_USER = {
-      id: "3",
+      id: "1",
       role: "resident",
       isAuthenticated: "true" === 'true'
     };
@@ -2878,7 +2878,7 @@
           if (typeof io !== 'undefined') {
             const socket = window.__appSocket || io();
             window.__appSocket = socket;
-            const currentUserId = "3";
+            const currentUserId = "1";
             const role = "resident";
             const staffType = "";
             window.currentUserId = currentUserId;
@@ -4481,20 +4481,15 @@
           <div class="mb-3.5 rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-3.5 border border-white/[0.08] shadow-sm backdrop-blur-xs">
             <div class="flex items-center gap-3">
               
-                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-800 ring-2 ring-blue-500/30 overflow-hidden shadow-inner">
-                  <img loading="lazy" src="/uploads/profiles/profile_3_1788763856113_7d1d8f30.png" decoding="async" alt="Profile"
-                    class="h-full w-full object-cover"
-                    onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
-                  <div class="hidden flex h-full w-full items-center justify-center bg-slate-800 text-blue-300">
-                    <i class="ph ph-user text-2xl"></i>
-                  </div>
+                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-1 ring-white/15 text-blue-300 shadow-inner">
+                  <i class="ph ph-user text-2xl"></i>
                   <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
                 </div>
               
               <div class="min-w-0 flex-1">
                 <div class="text-[11px] font-medium text-slate-400 leading-none mb-1">Welcome back,</div>
-                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Laurence Sinfuego">
-                  Laurence Sinfuego
+                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Resident">
+                  Resident
                 </div>
                 <div class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/20">
                   <span class="h-1.5 w-1.5 rounded-full bg-blue-400"></span>
@@ -4608,7 +4603,7 @@
           <div class="text-[10px] text-slate-300 truncate mt-0.5">
             <span class="text-slate-400">Sender:</span>
             <span id="chatIdentityBadgeText" class="font-bold text-emerald-300">
-              Resident | Laurence Sinfuego
+              Resident | Resident
             </span>
           </div>
         </div>
@@ -4698,7 +4693,7 @@
 <script>
   (function () {
     const SERVER_ROLE = "Resident";
-    const SERVER_NAME = "Laurence Sinfuego";
+    const SERVER_NAME = "Resident";
 
     const messagesListEl = document.getElementById('loraChatMessagesList');
     const chatFormEl = document.getElementById('loraChatForm');

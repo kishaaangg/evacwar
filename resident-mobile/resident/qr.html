@@ -42,7 +42,7 @@
 
   <!-- Global Synchronous User Context for PWA & Offline Support -->
   <script>
-    window.currentUserId = "3";
+    window.currentUserId = "1";
     window.userRole = "resident";
     window.userStaffType = "";
   </script>
@@ -233,7 +233,7 @@
     })();
 
     window.Evacwar_USER = {
-      id: "3",
+      id: "1",
       role: "resident",
       isAuthenticated: "true" === 'true'
     };
@@ -2878,7 +2878,7 @@
           if (typeof io !== 'undefined') {
             const socket = window.__appSocket || io();
             window.__appSocket = socket;
-            const currentUserId = "3";
+            const currentUserId = "1";
             const role = "resident";
             const staffType = "";
             window.currentUserId = currentUserId;
@@ -4507,20 +4507,15 @@
           <div class="mb-3.5 rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-3.5 border border-white/[0.08] shadow-sm backdrop-blur-xs">
             <div class="flex items-center gap-3">
               
-                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-800 ring-2 ring-blue-500/30 overflow-hidden shadow-inner">
-                  <img loading="lazy" src="/uploads/profiles/profile_3_1788763856113_7d1d8f30.png" decoding="async" alt="Profile"
-                    class="h-full w-full object-cover"
-                    onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
-                  <div class="hidden flex h-full w-full items-center justify-center bg-slate-800 text-blue-300">
-                    <i class="ph ph-user text-2xl"></i>
-                  </div>
+                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-1 ring-white/15 text-blue-300 shadow-inner">
+                  <i class="ph ph-user text-2xl"></i>
                   <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
                 </div>
               
               <div class="min-w-0 flex-1">
                 <div class="text-[11px] font-medium text-slate-400 leading-none mb-1">Welcome back,</div>
-                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Laurence Sinfuego">
-                  Laurence Sinfuego
+                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Resident">
+                  Resident
                 </div>
                 <div class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/20">
                   <span class="h-1.5 w-1.5 rounded-full bg-blue-400"></span>
@@ -4633,7 +4628,7 @@
                         
                         <div class="w-[170px] h-[170px] sm:w-[240px] sm:h-[240px] bg-gradient-to-br from-slate-100 to-slate-200/80 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-inner mb-3 sm:mb-4 relative group cursor-pointer border border-slate-200/60"
                             onclick="openQrModal()" title="Tap to enlarge QR code">
-                            <img loading="lazy" src="data:image/png;base64,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" decoding="async"
+                            <img loading="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWgAAAFoCAYAAAB65WHVAAAAAklEQVR4AewaftIAAAg+SURBVO3B0alluxEFwDXNyUOBKC5FobgUiCIZDwwYf/hnH8x2v0tV/fr9RwBopwJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALT0yZfG3OFd96x0NubON+5ZeWrMnbfcs/KGMXeeumflG2Pu8K57Vp6qANBSBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpU9edM8Kf42509mYOz/NPStvGXPnqXtWOrtnhb/G3HlDBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaOmTf4Axd7q6Z6WzMXe6G3OnszF33jDmzlP3rHQ25k5n96x0VgGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEufwP/IPSvfGHPnDWPudHbPCvynCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWvoE/kfG3PnGPStPjbnzlntW3jDmzlP3rPBzVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0NIn/wD3rNDfPStvuWflqTF3vjHmzhvuWflp7lnhexUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClT1405g7/DPesPDXmzjfuWXlqzJ2n7ln5xpg7T92z8tSYO0/ds/KWMXd4VwWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC198qV7Vvi5xtx56p6Vb4y509k9Kz/NPSv0VwGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEu/fv+RL4y589Q9K98Yc4fknpWfaMydn+aelc7G3CG5Z6WzCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0NInX7pnhe/ds/LUmDtvuWflp7lnpbMxd566Z+Ub96w8NebOU/esdDbmzjfuWXlDBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALf36/Ue+MObOU/esvGXMHZJ7Vr4x5s5T96y8Zcwd3nXPSmdj7nR2z8pTFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKVP+L+4Z+WpMXeeGnOnuzF3nrpn5S1j7pCMufPUPSvfGHPnqXtWfpoKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBa+vX7j3xhzJ233LPS1Zg7b7ln5akxd95yzwp/jbnz1D0rT42585Z7Vp4ac4e/7ll5qgJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJY+edE9K98Yc+epe1Y6u2flqTF3nrpn5Rtj7jw15s437ll5asydt9yz8tQ9K0+NufPUPStvGXPnqXtW3jLmzlvuWXlDBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaOkT/i/G3OnsnpWnxtx5yz0rT425840xd95wz8pTY+58456Vn+aelafG3PnGmDtP3bPyVAWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC19wr+NufOWe1aeGnOns3tW3jLmzlvuWXlqzJ033LPylntWnhpz5xv3rJBUAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQ0ic/1Jg7T92z8tSYO98Yc6ezMXeeumels3tWvjHmzhvG3OF7Y+78NBUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALT06/cf4ccac+cb96w8NebON+5ZIRlz56l7Vjobc+ct96z8NBUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClT7405g7vumflqXtW3nLPyjfG3HnDPSv8NebOU/esdDbmTmf3rDxVAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJAS5+86J4V/hpz5w1j7rzlnpW33LPyljF3nrpnpbN7Vjq7Z6WzMXfeUAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEuf/AOMudPVPSv8NebOT3TPylNj7rxhzJ2faMwdkgoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANDSJ/Bf3LPS2Zg7nd2z8oYxd95yz8pTY+58456VN4y501kFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtfQL/xZg7b7ln5al7Vp4ac6ezMXfecs/KU2PuPHXPSmf3rHxjzJ03VABoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0NIn/wD3rPCde1beMubOW8bcecs9K0+NudPZmDtvGHPnG/eskFQAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWPnnRmDu8a8wd/rpn5Rtj7rzhnpW3jLnz1D0rnY2589NUAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQ0q/ffwSAdioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGjpX0MXetHtwfYHAAAAAElFTkSuQmCC" decoding="async"
                                 alt="Household QR Code"
                                 class="w-full h-full object-cover rounded-xl sm:rounded-2xl bg-white p-2 group-hover:opacity-90 transition-opacity shadow-xs" />
                             <div
@@ -4643,27 +4638,27 @@
                         </div>
                         
 
-                        <h2 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mb-1">
-                            Sinfuego Family
+                        <h2 id="qrFamilyTitle" class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mb-1">
+                            Family Pass
                         </h2>
 
                         <div class="flex items-center justify-center gap-1.5 sm:gap-2 mb-3.5 sm:mb-5 flex-wrap">
                             <span
                                 class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] sm:text-xs font-bold border border-blue-200/60">
                                 <i class="ph ph-users text-sm sm:text-base text-blue-600"></i>
-                                3 Members Registered
+                                <span id="qrMembersRegisteredCount">1</span> Members Registered
                             </span>
                             <span
                                 class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-slate-100 text-slate-700 border-slate-200 text-[11px] sm:text-xs font-bold border">
                                 <i
                                     class="ph ph-clock text-amber-600 text-sm"></i>
-                                Evacuated: 0 / 1 members
+                                <span id="qrEvacuatedRatioText">Evacuated: 0 / 1 members</span>
                             </span>
                             
-                                <span
+                                <span id="qrBarangayBadge"
                                     class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] sm:text-xs font-bold border border-slate-200">
                                     <i class="ph ph-map-pin text-red-500 text-sm"></i>
-                                    San Rafael
+                                    <span id="qrBarangayText">San Rafael</span>
                                 </span>
                             
                         </div>
@@ -4685,7 +4680,7 @@
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-1.5 flex-wrap">
                                         <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Family Members</h3>
-                                        <span
+                                        <span id="qrTotalHouseholdBadge"
                                             class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
                                             1 Total
                                         </span>
@@ -4714,10 +4709,7 @@
                                         <div
                                             class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-inner border border-blue-200 overflow-hidden relative">
                                             
-                                                <img loading="lazy" src="/uploads/profiles/profile_3_1788763856113_7d1d8f30.png" decoding="async"
-                                                    alt="Laurence" class="w-full h-full object-cover"
-                                                    onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
-                                                <span class="hidden text-xl">
+                                                <span class="text-xl">
                                                     👨
                                                 </span>
                                             
@@ -4726,9 +4718,9 @@
                                         <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-1.5 flex-wrap">
                                                 <h4 class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">
-                                                    Laurence
-                                                    Payadi 
-                                                    Sinfuego
+                                                    Resident
+                                                    
+                                                    
                                                 </h4>
                                                 <span
                                                     class="text-[9px] sm:text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-2xs inline-flex items-center gap-1 shrink-0">
@@ -4736,7 +4728,7 @@
                                                 </span>
                                             </div>
                                             <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">
-                                                Male • 21 yrs
+                                                Male
                                             </div>
                                         </div>
                                     </div>
@@ -5151,7 +5143,7 @@
                 </div>
                 
                 
-                <img loading="lazy" src="data:image/png;base64,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" decoding="async"
+                <img loading="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWgAAAFoCAYAAAB65WHVAAAAAklEQVR4AewaftIAAAg+SURBVO3B0alluxEFwDXNyUOBKC5FobgUiCIZDwwYf/hnH8x2v0tV/fr9RwBopwJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALT0yZfG3OFd96x0NubON+5ZeWrMnbfcs/KGMXeeumflG2Pu8K57Vp6qANBSBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpU9edM8Kf42509mYOz/NPStvGXPnqXtWOrtnhb/G3HlDBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaOmTf4Axd7q6Z6WzMXe6G3OnszF33jDmzlP3rHQ25k5n96x0VgGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEufwP/IPSvfGHPnDWPudHbPCvynCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWvoE/kfG3PnGPStPjbnzlntW3jDmzlP3rPBzVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0NIn/wD3rNDfPStvuWflqTF3vjHmzhvuWflp7lnhexUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClT1405g7/DPesPDXmzjfuWXlqzJ2n7ln5xpg7T92z8tSYO0/ds/KWMXd4VwWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC198qV7Vvi5xtx56p6Vb4y509k9Kz/NPSv0VwGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEu/fv+RL4y589Q9K98Yc4fknpWfaMydn+aelc7G3CG5Z6WzCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0NInX7pnhe/ds/LUmDtvuWflp7lnpbMxd566Z+Ub96w8NebOU/esdDbmzjfuWXlDBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALf36/Ue+MObOU/esvGXMHZJ7Vr4x5s5T96y8Zcwd3nXPSmdj7nR2z8pTFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKVP+L+4Z+WpMXeeGnOnuzF3nrpn5S1j7pCMufPUPSvfGHPnqXtWfpoKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBa+vX7j3xhzJ233LPS1Zg7b7ln5akxd95yzwp/jbnz1D0rT42585Z7Vp4ac4e/7ll5qgJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJY+edE9K98Yc+epe1Y6u2flqTF3nrpn5Rtj7jw15s437ll5asydt9yz8tQ9K0+NufPUPStvGXPnqXtW3jLmzlvuWXlDBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaOkT/i/G3OnsnpWnxtx5yz0rT425840xd95wz8pTY+58456Vn+aelafG3PnGmDtP3bPyVAWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC19wr+NufOWe1aeGnOns3tW3jLmzlvuWXlqzJ033LPylntWnhpz5xv3rJBUAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQ0ic/1Jg7T92z8tSYO98Yc6ezMXeeumels3tWvjHmzhvG3OF7Y+78NBUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALT06/cf4ccac+cb96w8NebON+5ZIRlz56l7Vjobc+ct96z8NBUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClT7405g7vumflqXtW3nLPyjfG3HnDPSv8NebOU/esdDbmTmf3rDxVAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJAS5+86J4V/hpz5w1j7rzlnpW33LPyljF3nrpnpbN7Vjq7Z6WzMXfeUAGgpQoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEuf/AOMudPVPSv8NebOT3TPylNj7rxhzJ2faMwdkgoALVUAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANDSJ/Bf3LPS2Zg7nd2z8oYxd95yz8pTY+58456VN4y501kFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtfQL/xZg7b7ln5al7Vp4ac6ezMXfecs/KU2PuPHXPSmf3rHxjzJ03VABoqQJASxUAWqoA0FIFgJYqALRUAaClCgAtVQBoqQJASxUAWqoA0NIn/wD3rPCde1beMubOW8bcecs9K0+NudPZmDtvGHPnG/eskFQAaKkCQEsVAFqqANBSBYCWKgC0VAGgpQoALVUAaKkCQEsVAFqqANBSBYCWPnnRmDu8a8wd/rpn5Rtj7rzhnpW3jLnz1D0rnY2589NUAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGipAkBLFQBaqgDQ0q/ffwSAdioAtFQBoKUKAC1VAGipAkBLFQBaqgDQUgWAlioAtFQBoKUKAC1VAGjpX0MXetHtwfYHAAAAAElFTkSuQmCC" decoding="async"
                     alt="Enlarged QR Code"
                     class="w-[250px] h-[250px] sm:w-[360px] sm:h-[360px] max-w-[75vw] max-h-[75vw] object-cover rounded-2xl" />
                 

@@ -171,7 +171,8 @@ router.post('/api/mobile/login', async (req, res) => {
       : null;
 
     const userContext = {
-      id: resident ? (resident.user_id || user.id) : user.id,
+      id: resident ? resident.id : user.id,
+      user_id: user.id,
       resident_id: resident ? resident.id : 0,
       name: fullName,
       full_name: fullName,
@@ -200,7 +201,7 @@ router.post('/api/mobile/login', async (req, res) => {
       emergency_contact_phone: resident ? (resident.emergency_contact_phone || '') : '',
       profile_photo: resolvedPhoto,
       qr_code_uuid: resident ? (resident.qr_code_uuid || `evw-resident-${resident.id}`) : `evw-user-${user.id}`,
-      approval_status: 'APPROVED'
+      approval_status: approvalStatus
     };
 
     // Initialize express session so subsequent requests with credentials: 'include' work seamlessly
@@ -231,6 +232,76 @@ router.post('/api/mobile/login', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/mobile/login:', err);
     return res.status(500).json({ success: false, message: 'Server error during mobile authentication.' });
+  }
+});
+
+// =========================================================================
+// GET /api/mobile/me
+// Fetches the authenticated mobile resident's latest profile & family members
+// =========================================================================
+router.get('/api/mobile/me', async (req, res) => {
+  try {
+    const userId = Number((req.session && req.session.userId) || req.headers['x-evakwar-mobile-user-id'] || 0);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated.' });
+    }
+    const [uRows] = await db.query('SELECT id, email, role, is_verified FROM users WHERE id = ? LIMIT 1', [userId]);
+    if (!uRows || uRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const user = uRows[0];
+    const [rRows] = await db.query('SELECT * FROM residents WHERE user_id = ? LIMIT 1', [user.id]);
+    const resident = rRows && rRows[0] ? rRows[0] : null;
+    if (!resident) {
+      return res.json({ success: true, resident: null, members: [] });
+    }
+    const [members] = await db.query('SELECT * FROM household_members WHERE resident_id = ? ORDER BY id ASC', [resident.id]);
+    const fullName = `${resident.first_name || ''} ${resident.last_name || ''}`.trim() || 'Resident';
+    const resolvedPhoto = resident.profile_photo
+      ? (resident.profile_photo.startsWith('http') || resident.profile_photo.startsWith('/')
+        ? resident.profile_photo
+        : `/uploads/profiles/${resident.profile_photo}`)
+      : null;
+    return res.json({
+      success: true,
+      resident: {
+        id: resident.id,
+        user_id: user.id,
+        resident_id: resident.id,
+        name: fullName,
+        full_name: fullName,
+        first_name: resident.first_name || 'Resident',
+        middle_name: resident.middle_name || '',
+        last_name: resident.last_name || '',
+        email: user.email,
+        role: 'resident',
+        contact_number: resident.contact_number || '',
+        barangay: resident.barangay || 'San Rafael',
+        home_address: resident.home_address || '',
+        sex: resident.sex || 'Male',
+        birthdate: resident.birthdate || null,
+        age: resident.age || 0,
+        family_size: resident.family_size || 1,
+        vulnerability: resident.vulnerability || 'NONE',
+        has_special_needs: Boolean(resident.has_special_needs),
+        is_4ps: Boolean(resident.is_4ps),
+        is_pregnant: Boolean(resident.is_pregnant),
+        is_lactating: Boolean(resident.is_lactating),
+        is_pwd: Boolean(resident.is_pwd),
+        is_single_head: Boolean(resident.is_single_head),
+        has_serious_illness: Boolean(resident.has_serious_illness),
+        serious_illness_details: resident.serious_illness_details || '',
+        emergency_contact_name: resident.emergency_contact_name || '',
+        emergency_contact_phone: resident.emergency_contact_phone || '',
+        profile_photo: resolvedPhoto,
+        qr_code_uuid: resident.qr_code_uuid || `evw-resident-${resident.id}`,
+        approval_status: resident.approval_status || (user.is_verified ? 'APPROVED' : 'PENDING')
+      },
+      members: members || []
+    });
+  } catch (err) {
+    console.error('Error in GET /api/mobile/me:', err);
+    return res.status(500).json({ success: false, message: 'Server error loading profile.' });
   }
 });
 

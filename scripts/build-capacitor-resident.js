@@ -230,54 +230,36 @@ async function buildCapacitorApp() {
     });
 
     console.log(`[Build Capacitor Native App] Loaded ${allResidentsData.length} residents, ${actualMembers.length} members, and ${allStaffData.length} staff/rescuers from MySQL.`);
-
-    // Set Laurence Sinfuego as default resident template context
-    const defaultAccount = allResidentsData.find(a => a.user_id === 3 || a.email.includes('laurence')) || allResidentsData[0];
-    if (defaultAccount) {
-      resident = { ...defaultAccount };
-      userRow = {
-        id: defaultAccount.user_id,
-        name: defaultAccount.full_name,
-        email: defaultAccount.email,
-        role: 'resident'
-      };
-      members = defaultAccount.members || [];
-    }
   } catch (err) {
     console.warn('[Build Capacitor Native App] DB fetch warning:', err.message);
   }
 
-  if (!resident) {
-    resident = {
-      id: 22,
-      user_id: 3,
-      first_name: 'Laurence',
-      middle_name: '',
-      last_name: 'Sinfuego',
-      contact_number: '09123456789',
-      home_address: 'Zone 1, Barangay San Rafael',
-      barangay: 'San Rafael',
-      sex: 'Male',
-      age: 22,
-      vulnerability: 'None',
-      family_size: 1,
-      approval_status: 'APPROVED',
-      qr_code_uuid: 'evw-san-rafael-resident',
-      profile_photo: null
-    };
-    userRow = {
-      id: 3,
-      name: 'Laurence Sinfuego',
-      email: 'laurencesinfuego@gmail.com',
-      role: 'resident'
-    };
-    members = [];
-  }
-
-  if (!resident.qr_code_uuid) {
-    resident.qr_code_uuid = `evw-resident-${resident.id || 22}`;
-  }
-  resident.approval_status = 'APPROVED';
+  // Always compile static mobile templates with a neutral generic placeholder
+  // so no real resident's personal or family info ever leaks into another user's session.
+  resident = {
+    id: 0,
+    user_id: 0,
+    first_name: 'Resident',
+    middle_name: '',
+    last_name: '',
+    contact_number: '',
+    home_address: '',
+    barangay: 'San Rafael',
+    sex: 'Male',
+    age: '',
+    vulnerability: 'NONE',
+    family_size: 1,
+    approval_status: 'APPROVED',
+    qr_code_uuid: 'evw-resident-pending',
+    profile_photo: null
+  };
+  userRow = {
+    id: 0,
+    name: 'Resident',
+    email: '',
+    role: 'resident'
+  };
+  members = [];
 
   let qrDataUrl = null;
   try {
@@ -1117,11 +1099,14 @@ async function buildCapacitorApp() {
               const targetUrl = (basePref && !rawTarget.startsWith(basePref)) ? (basePref + rawTarget) : rawTarget;
 
               try {
+                localStorage.removeItem('evw_cached_staff');
+                localStorage.removeItem('evw_cached_resident');
+                localStorage.removeItem('evw_cached_members');
                 localStorage.setItem('evw_cached_email', email);
                 localStorage.setItem('evw_user_role', role);
                 if (data.staff) localStorage.setItem('evw_cached_staff', JSON.stringify(data.staff));
                 if (data.resident) localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
-                if (data.members) localStorage.setItem('evw_cached_members', JSON.stringify(data.members));
+                localStorage.setItem('evw_cached_members', JSON.stringify(Array.isArray(data.members) ? data.members : []));
                 if (data.offlineAuth) {
                   localStorage.setItem('evw_offline_salt', data.offlineAuth.salt);
                   localStorage.setItem('evw_offline_hash', data.offlineAuth.hash);

@@ -166,7 +166,7 @@
       <div class="avatar-circle" id="ownerInitial">L</div>
       <div style="flex: 1; min-width: 0;">
         <div style="font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase;" id="ownerRoleLabel">Account Active</div>
-        <div id="ownerName" style="font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Laurence Sinfuego</div>
+        <div id="ownerName" style="font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Resident</div>
       </div>
     </div>
 
@@ -328,8 +328,8 @@
         'http://10.0.2.2:8080'
       ];
 
-      const DEFAULT_EMAIL = "laurencesinfuego@gmail.com";
-      const DEFAULT_NAME = "Laurence Sinfuego";
+      const DEFAULT_EMAIL = "resident@sanrafael.gov.ph";
+      const DEFAULT_NAME = "Resident";
       const DEFAULT_SALT = "1b5dc65549135310918a292e167b95e2";
       const DEFAULT_HASH = "e9b9e35cc8269ac32bb61f3154b8cce89860ffd0e999bac98eafb2cf0603f366";
 
@@ -581,11 +581,14 @@
               const targetUrl = (basePref && !rawTarget.startsWith(basePref)) ? (basePref + rawTarget) : rawTarget;
 
               try {
+                localStorage.removeItem('evw_cached_staff');
+                localStorage.removeItem('evw_cached_resident');
+                localStorage.removeItem('evw_cached_members');
                 localStorage.setItem('evw_cached_email', email);
                 localStorage.setItem('evw_user_role', role);
                 if (data.staff) localStorage.setItem('evw_cached_staff', JSON.stringify(data.staff));
                 if (data.resident) localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
-                if (data.members) localStorage.setItem('evw_cached_members', JSON.stringify(data.members));
+                localStorage.setItem('evw_cached_members', JSON.stringify(Array.isArray(data.members) ? data.members : []));
                 if (data.offlineAuth) {
                   localStorage.setItem('evw_offline_salt', data.offlineAuth.salt);
                   localStorage.setItem('evw_offline_hash', data.offlineAuth.hash);

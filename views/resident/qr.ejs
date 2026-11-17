@@ -106,27 +106,27 @@
                         </div>
                         <% } %>
 
-                        <h2 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mb-1">
-                            <%= resident ? resident.last_name + ' Family' : 'Family Pass' %>
+                        <h2 id="qrFamilyTitle" class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mb-1">
+                            <%= (resident && resident.last_name) ? resident.last_name + ' Family' : 'Family Pass' %>
                         </h2>
 
                         <div class="flex items-center justify-center gap-1.5 sm:gap-2 mb-3.5 sm:mb-5 flex-wrap">
                             <span
                                 class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] sm:text-xs font-bold border border-blue-200/60">
                                 <i class="ph ph-users text-sm sm:text-base text-blue-600"></i>
-                                <%= resident ? resident.family_size : 0 %> Members Registered
+                                <span id="qrMembersRegisteredCount"><%= resident ? resident.family_size : 0 %></span> Members Registered
                             </span>
                             <span
                                 class="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full <%= (locals.evacuatedCount && locals.evacuatedCount > 0) ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-200' %> text-[11px] sm:text-xs font-bold border">
                                 <i
                                     class="ph <%= (locals.evacuatedCount && locals.evacuatedCount > 0) ? 'ph-check-circle text-emerald-600' : 'ph-clock text-amber-600' %> text-sm"></i>
-                                Evacuated: <%= locals.evacuatedCount || 0 %> / <%= locals.totalHouseholdCount || 1 %> members
+                                <span id="qrEvacuatedRatioText">Evacuated: <%= locals.evacuatedCount || 0 %> / <%= locals.totalHouseholdCount || 1 %> members</span>
                             </span>
                             <% if (resident && resident.barangay) { %>
-                                <span
+                                <span id="qrBarangayBadge"
                                     class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] sm:text-xs font-bold border border-slate-200">
                                     <i class="ph ph-map-pin text-red-500 text-sm"></i>
-                                    <%= resident.barangay %>
+                                    <span id="qrBarangayText"><%= resident.barangay %></span>
                                 </span>
                             <% } %>
                         </div>
@@ -148,7 +148,7 @@
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-1.5 flex-wrap">
                                         <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Family Members</h3>
-                                        <span
+                                        <span id="qrTotalHouseholdBadge"
                                             class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
                                             <%= (locals.members ? locals.members.length : 0) + (locals.resident ? 1 : 0) %> Total
                                         </span>

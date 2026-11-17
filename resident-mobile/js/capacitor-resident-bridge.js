@@ -306,24 +306,57 @@
     document.querySelectorAll('#residentUserAvatarInitial, .resident-avatar-initial').forEach(el => {
       el.textContent = initial;
     });
-    document.querySelectorAll('#profileEmailDisplay, #ownerEmail, #displayEmail').forEach(el => {
-      el.textContent = email;
+    document.querySelectorAll('#profileEmailDisplay, #ownerEmail, #displayEmail, #profileEmailSubtext').forEach(el => {
+      el.textContent = email || contact || 'Registered Resident';
     });
-    document.querySelectorAll('#profilePhoneDisplay, .resident-contact-display, #displayContact').forEach(el => {
+    document.querySelectorAll('#profilePhoneDisplay, .resident-contact-display, #displayContact, #profileContactBadgeText').forEach(el => {
       el.textContent = contact;
     });
+    const contactBadge = document.getElementById('profileContactBadge');
+    if (contactBadge) {
+      contactBadge.className = contact
+        ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200/70 profile-sub-bg profile-text-dark'
+        : 'hidden';
+    }
     document.querySelectorAll('#profileAddressDisplay, .resident-address-display, #displayAddress').forEach(el => {
       el.textContent = address;
     });
-    document.querySelectorAll('#profileBarangayDisplay, #displayBarangay').forEach(el => {
+    document.querySelectorAll('#profileBarangayDisplay, #displayBarangay, #qrBarangayText').forEach(el => {
       el.textContent = barangay;
     });
-    document.querySelectorAll('#profileFamilySizeDisplay, #displayFamilySize').forEach(el => {
+    document.querySelectorAll('#profileBarangayBadgeText').forEach(el => {
+      el.textContent = 'Brgy. ' + barangay;
+    });
+    document.querySelectorAll('#profileFamilySizeDisplay, #displayFamilySize, #qrMembersRegisteredCount').forEach(el => {
       el.textContent = familySize;
     });
     document.querySelectorAll('#profilePassId, .resident-uuid-display').forEach(el => {
       el.textContent = uuid;
     });
+    const qrFamTitle = document.getElementById('qrFamilyTitle');
+    if (qrFamTitle) {
+      qrFamTitle.textContent = lastName ? `${lastName} Family` : `${firstName} Family Pass`;
+    }
+
+    // Profile Avatar Photo vs Initial Fallback
+    const avatarDisplay = document.getElementById('profile-avatar-display');
+    const avatarFallback = document.getElementById('profile-avatar-fallback');
+    if (resident.profile_photo) {
+      const pSrc = (resident.profile_photo.startsWith('http') || resident.profile_photo.startsWith('data:') || resident.profile_photo.startsWith('/'))
+        ? resident.profile_photo
+        : `/uploads/profiles/${resident.profile_photo}`;
+      if (avatarDisplay) {
+        avatarDisplay.src = pSrc;
+        avatarDisplay.style.display = 'block';
+      }
+      if (avatarFallback) avatarFallback.classList.add('hidden');
+    } else {
+      if (avatarDisplay) avatarDisplay.style.display = 'none';
+      if (avatarFallback) {
+        avatarFallback.textContent = initial;
+        avatarFallback.classList.remove('hidden');
+      }
+    }
 
     // Populate Settings / Edit Profile Form inputs if present on page
     const setVal = (id, val) => {
@@ -431,36 +464,89 @@
 
   // 3. Dynamic Household Members List Hydrator for /resident/qr
   function hydrateCachedMembersList() {
+    let resident = null;
     let members = [];
     try {
+      resident = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
       members = JSON.parse(localStorage.getItem('evw_cached_members') || '[]');
     } catch (_) {}
+    if (!Array.isArray(members)) members = [];
 
-    const membersCountEls = document.querySelectorAll('#membersCountDisplay, .members-count-badge');
-    membersCountEls.forEach(el => {
+    const totalCount = members.length + (resident ? 1 : 0);
+    document.querySelectorAll('#membersCountDisplay, .members-count-badge').forEach(el => {
       el.textContent = members.length;
     });
+    const totalBadge = document.getElementById('qrTotalHouseholdBadge');
+    if (totalBadge) {
+      totalBadge.textContent = `${totalCount} Total`;
+    }
+    const evacRatioEl = document.getElementById('qrEvacuatedRatioText');
+    if (evacRatioEl) {
+      evacRatioEl.textContent = `Evacuated: 0 / ${totalCount} members`;
+    }
 
-    const membersContainer = document.getElementById('membersListContainer');
+    const membersContainer = document.getElementById('membersList') || document.getElementById('membersListContainer');
     if (!membersContainer) return;
 
+    const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let html = '';
+
+    // Household Head Card for the logged-in resident
+    if (resident) {
+      const headName = `${resident.first_name || ''} ${resident.middle_name ? resident.middle_name + ' ' : ''}${resident.last_name || ''}`.trim() || resident.full_name || 'Resident';
+      const headSex = resident.sex || 'Male';
+      const headAge = resident.age ? ` • ${resident.age} yrs` : '';
+      const headPhoto = resident.profile_photo
+        ? ((resident.profile_photo.startsWith('http') || resident.profile_photo.startsWith('data:') || resident.profile_photo.startsWith('/'))
+          ? resident.profile_photo
+          : `/uploads/profiles/${resident.profile_photo}`)
+        : null;
+
+      html += `
+        <div class="bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 rounded-2xl p-3 sm:p-4 shadow-xs border border-blue-200/90 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md hover:border-blue-400 transition-all">
+          <div class="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-bl-full pointer-events-none"></div>
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-inner border border-blue-200 overflow-hidden relative">
+              ${headPhoto
+                ? `<img loading="lazy" src="${esc(headPhoto)}" decoding="async" alt="${esc(headName)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" /><span class="hidden text-xl">${headSex === 'Female' ? '👩' : '👨'}</span>`
+                : `<span class="text-xl">${headSex === 'Female' ? '👩' : '👨'}</span>`}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <h4 class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">${esc(headName)}</h4>
+                <span class="text-[9px] sm:text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-2xs inline-flex items-center gap-1 shrink-0">
+                  <i class="ph ph-crown-simple text-xs"></i> Household Head
+                </span>
+              </div>
+              <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">${esc(headSex)}${esc(headAge)}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-blue-100/60 text-[10px] sm:text-xs">
+            ${resident.evacuation_status === 'CHECKED_IN'
+              ? `<span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1"><i class="ph ph-check-circle text-xs"></i> CHECKED IN</span>`
+              : `<span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1"><i class="ph ph-clock text-xs"></i> NOT EVACUATED</span>`}
+          </div>
+        </div>
+      `;
+    }
+
     if (members.length === 0) {
-      membersContainer.innerHTML = `
+      html += `
         <div class="p-6 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
           <i class="ph ph-users text-3xl text-slate-400 mb-1"></i>
           <p class="text-xs font-bold text-slate-600">No additional family members registered yet.</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">Tap "+ Add Family Member" above to register dependents.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Tap "ADD MEMBER" above to register dependents.</p>
         </div>
       `;
+      membersContainer.innerHTML = html;
       return;
     }
 
-    let html = '';
     members.forEach(member => {
       const mName = `${member.first_name || ''} ${member.middle_name ? member.middle_name + ' ' : ''}${member.last_name || ''}`.trim() || 'Family Member';
       const mRel = member.relation || 'Dependent';
       const mSex = member.sex || 'Male';
-      const mAge = member.age !== null && member.age !== undefined ? `${member.age} yrs` : '';
+      const mAge = member.age !== null && member.age !== undefined && member.age !== '' ? `${member.age} yrs` : '';
 
       html += `
         <div class="bg-white rounded-2xl p-3 sm:p-4 shadow-xs border border-slate-200/80 flex flex-col gap-2 group hover:shadow-md transition-all">
@@ -471,13 +557,13 @@
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <h4 class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">${mName}</h4>
-                  <span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">${mRel}</span>
+                  <h4 class="font-black text-slate-900 text-xs sm:text-sm tracking-tight truncate">${esc(mName)}</h4>
+                  <span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">${esc(mRel)}</span>
                 </div>
-                <div class="text-[10px] text-slate-500 font-semibold mt-0.5">${mSex} ${mAge ? '• ' + mAge : ''}</div>
+                <div class="text-[10px] text-slate-500 font-semibold mt-0.5">${esc(mSex)} ${mAge ? '• ' + esc(mAge) : ''}</div>
               </div>
             </div>
-            <button type="button" onclick="window.deleteOfflineMember(${member.id || 0})" class="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center border border-rose-200 cursor-pointer active:scale-95" title="Remove Member">
+            <button type="button" onclick="window.deleteOfflineMember && window.deleteOfflineMember(${Number(member.id || 0)})" class="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center border border-rose-200 cursor-pointer active:scale-95" title="Remove Member">
               <i class="ph ph-trash text-sm"></i>
             </button>
           </div>
@@ -485,6 +571,31 @@
       `;
     });
     membersContainer.innerHTML = html;
+  }
+
+  // Background server sync for logged-in mobile resident so profile & family members stay fresh
+  async function syncMobileProfileFromServer() {
+    if (!isStaticBundle || !navigator.onLine) return;
+    const role = localStorage.getItem('evw_user_role') || '';
+    if (role && role !== 'resident') return;
+    if (!localStorage.getItem('evw_cached_resident')) return;
+    try {
+      const res = await origFetch.call(global, getHallServerUrl() + '/api/mobile/me', {
+        method: 'GET',
+        credentials: 'include',
+        headers: getMobileAuthHeaders()
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success && data.resident) {
+        localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
+        localStorage.setItem('evw_cached_members', JSON.stringify(Array.isArray(data.members) ? data.members : []));
+        hydrateCachedResidentProfile();
+      }
+    } catch (_) {}
+  }
+  if (isStaticBundle) {
+    setTimeout(syncMobileProfileFromServer, 600);
   }
 
   // 4. Offline & Online Form Submission Interceptor for Profile & Household Members
