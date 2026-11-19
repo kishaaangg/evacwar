@@ -362,6 +362,9 @@
 
       if (target === 'sensor') {
         renderSensorDashboard();
+        if (window.evakwarLoraClient && typeof window.evakwarLoraClient.requestRelayWeatherTelemetry === 'function') {
+          window.evakwarLoraClient.requestRelayWeatherTelemetry().catch(() => {});
+        }
       }
     };
 
@@ -370,6 +373,12 @@
       if (icon) icon.classList.add('animate-spin');
       if (btn) btn.disabled = true;
       try {
+        // 1. If a local LoRa node is paired via Bluetooth BLE or USB-OTG, actively poll the outdoor Relay (!0f778ab0) over 433.875 MHz RF
+        if (window.evakwarLoraClient && typeof window.evakwarLoraClient.requestRelayWeatherTelemetry === 'function') {
+          window.evakwarLoraClient.requestRelayWeatherTelemetry().catch(() => {});
+        }
+
+        // 2. Also fetch latest synced outdoor Relay reading from server when online
         if (navigator.onLine) {
           const base = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
           const apiBase = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && window.location.hostname !== 'localhost'
@@ -378,9 +387,18 @@
           const res = await fetch(`${apiBase}/api/lora/weather-sensor`, { cache: 'no-store' });
           const data = await res.json();
           if (data && data.success) {
-            if (data.current) localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(data.current));
-            if (Array.isArray(data.history)) localStorage.setItem('evw_lora_sensor_history', JSON.stringify(data.history));
-            renderSensorDashboard(data);
+            // Only overwrite localStorage current if server has a newer reading than our direct RF packet
+            let localCur = null;
+            try { localCur = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
+            const serverTs = (data.current && data.current.timestampMs) || 0;
+            const localTs = (localCur && localCur.timestampMs) || 0;
+            if (data.current && serverTs >= localTs) {
+              localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(data.current));
+            }
+            if (Array.isArray(data.history) && data.history.length > 0) {
+              localStorage.setItem('evw_lora_sensor_history', JSON.stringify(data.history));
+            }
+            renderSensorDashboard(localTs > serverTs ? { current: localCur, history: data.history } : data);
           }
         } else {
           renderSensorDashboard();

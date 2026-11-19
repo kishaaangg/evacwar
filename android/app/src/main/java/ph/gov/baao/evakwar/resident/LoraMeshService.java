@@ -47,6 +47,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -688,7 +689,55 @@ public class LoraMeshService extends Service {
             scheduleFromRadioDrain(gatt, 180);
             mainHandler.removeCallbacks(fromRadioPollRunnable);
             mainHandler.postDelayed(fromRadioPollRunnable, 1400);
+            scheduleRelayTelemetryPoll(gatt, 3200);
         }, 120);
+    }
+
+    /**
+     * Periodically writes a 24-byte ToRadio TELEMETRY_APP request addressed to the outdoor Relay (!0f778ab0 = 0x0f778ab0)
+     * so any BLE-connected phone (Resident, Staff, Rescuer, or Admin) pulls live outdoor AHT20 + BMP280 readings over 433.875 MHz RF.
+     */
+    private void scheduleRelayTelemetryPoll(final BluetoothGatt gatt, long delayMs) {
+        mainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (activeBleGatt != gatt || !bleConnected.get() || charToRadio == null) return;
+                if (!txWritePending) {
+                    try {
+                        int pktId = (int) ((System.currentTimeMillis() & 0x7FFFFFFFL) | 1);
+                        byte[] req = new byte[]{
+                                0x0a, 0x16,
+                                0x15, (byte) 0xb0, (byte) 0x8a, 0x77, 0x0f, // to = 0x0f778ab0 (!0f778ab0)
+                                0x22, 0x08, 0x08, 0x43, 0x12, 0x02, 0x1a, 0x00, 0x18, 0x01, // Data { portnum=67, payload=[0x1a,0x00], want_response=true }
+                                0x35,
+                                (byte) (pktId & 0xFF),
+                                (byte) ((pktId >> 8) & 0xFF),
+                                (byte) ((pktId >> 16) & 0xFF),
+                                (byte) ((pktId >> 24) & 0xFF),
+                                0x48, 0x03 // hop_limit = 3
+                        };
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            int r = gatt.writeCharacteristic(charToRadio, req, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                            if (r != BluetoothStatusCodes.SUCCESS) {
+                                gatt.writeCharacteristic(charToRadio, req, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+                            }
+                        } else {
+                            charToRadio.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                            charToRadio.setValue(req);
+                            if (!gatt.writeCharacteristic(charToRadio)) {
+                                charToRadio.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+                                charToRadio.setValue(req);
+                                gatt.writeCharacteristic(charToRadio);
+                            }
+                        }
+                        scheduleFromRadioDrain(gatt, 2400);
+                    } catch (Exception ignored) {}
+                }
+                if (activeBleGatt == gatt && bleConnected.get()) {
+                    mainHandler.postDelayed(this, 60000L);
+                }
+            }
+        }, delayMs);
     }
 
     private void enableFromNumNotificationsAndWake(BluetoothGatt gatt) {
@@ -901,17 +950,82 @@ public class LoraMeshService extends Service {
             Float temp = readFloatField(envBytes, 1);
             Float hum = readFloatField(envBytes, 2);
             Float press = readFloatField(envBytes, 3);
-            if (temp == null && hum == null && press == null) return null;
 
-            long tsSec = telTime > 1600000000L ? telTime : (System.currentTimeMillis() / 1000L);
+            // Filter out loose-wire I2C glitch values (e.g. 177.6°C, 0% RH, -176.4 hPa)
+            Float validTemp = (temp != null && !Float.isNaN(temp) && temp >= -10.0f && temp <= 65.0f) ? temp : null;
+            Float validHum = (hum != null && !Float.isNaN(hum) && hum >= 1.0f && hum <= 100.0f) ? hum : null;
+            Float validPress = (press != null && !Float.isNaN(press) && press >= 850.0f && press <= 1100.0f) ? press : null;
+            if (validTemp == null && validHum == null && validPress == null) return null;
+
+            long tsSec = System.currentTimeMillis() / 1000L;
             String nodeId = fromNodeNum != 0 ? String.format(Locale.US, "!%08x", fromNodeNum & 0xFFFFFFFFL) : "!0f778ab0";
-            String tStr = temp != null ? String.format(Locale.US, "%.2f", temp) : "0";
-            String hStr = hum != null ? String.format(Locale.US, "%.1f", hum) : "0";
-            String pStr = press != null ? String.format(Locale.US, "%.2f", press) : "0";
+            String tStr = validTemp != null ? String.format(Locale.US, "%.2f", validTemp) : "";
+            String hStr = validHum != null ? String.format(Locale.US, "%.1f", validHum) : "";
+            String pStr = validPress != null ? String.format(Locale.US, "%.2f", validPress) : "";
+
+            forwardOutdoorRelayTelemetryToServerAsync(nodeId, validTemp, validHum, validPress);
             return "EVW|WTH|" + tsSec + "|" + tStr + "|" + hStr + "|" + pStr + "|" + nodeId;
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private long lastRelayServerForwardMs = 0L;
+
+    /**
+     * Crowd-syncs outdoor Relay sensor readings received over 433.875 MHz RF to the EvakWar server
+     * whenever the phone has Wi-Fi or mobile data, so Admin, Residents, Staff, and Rescuers all see live outdoor Relay telemetry.
+     */
+    private void forwardOutdoorRelayTelemetryToServerAsync(final String nodeId, final Float temp, final Float hum, final Float press) {
+        if (!isNetworkConnected()) return;
+        long now = System.currentTimeMillis();
+        if (now - lastRelayServerForwardMs < 15000L) return;
+        lastRelayServerForwardMs = now;
+
+        new Thread(() -> {
+            String[] targets = new String[]{
+                    (configuredServerUrl != null && !configuredServerUrl.isEmpty()) ? configuredServerUrl.replaceAll("/+$", "") : "https://evacwar.onrender.com",
+                    "https://evacwar.onrender.com"
+            };
+            Set<String> uniqueUrls = new HashSet<>();
+            for (String t : targets) {
+                if (t != null && t.startsWith("http")) uniqueUrls.add(t);
+            }
+            for (String baseUrl : uniqueUrls) {
+                HttpURLConnection conn = null;
+                try {
+                    JSONObject body = new JSONObject();
+                    if (temp != null) body.put("temperature", Math.round(temp * 100.0) / 100.0);
+                    if (hum != null) body.put("humidity", Math.round(hum * 100.0) / 100.0);
+                    if (press != null) body.put("pressure", Math.round(press * 100.0) / 100.0);
+                    body.put("nodeId", nodeId != null ? nodeId : "!0f778ab0");
+                    body.put("nodeName", "EvakWar Zone Relay 1 (REL1)");
+                    body.put("sensorModel", "AHT20 + BMP280 (I2C)");
+                    body.put("source", "ANDROID_BLE_LORA_RF_FORWARD");
+                    body.put("forwardedByDevice", activeBleName != null ? activeBleName : "ANDROID_BLE_NODE");
+
+                    byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+                    URL u = new URL(baseUrl + "/api/lora/weather-sensor");
+                    conn = (HttpURLConnection) u.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(4500);
+                    conn.setReadTimeout(4500);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                    conn.setRequestProperty("Accept", "application/json");
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(payload);
+                        os.flush();
+                    }
+                    conn.getResponseCode();
+                } catch (Exception ignored) {
+                } finally {
+                    if (conn != null) {
+                        try { conn.disconnect(); } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }).start();
     }
 
     private byte[] findLengthDelimitedField(byte[] buf, int start, int end, int targetFn) {
