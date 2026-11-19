@@ -297,12 +297,24 @@
     const parts = trimmed.split('|');
     const type = parts[1];
 
+    if (type === 'CAN') {
+      return {
+        type: 'SOS',
+        command: 'CANCEL_SOS',
+        statusCode: 'CAN',
+        raw: trimmed,
+        sosId: parts[2] || null,
+        residentId: parts[3] ? Number(parts[3]) : null
+      };
+    }
+
     if (type === 'SOS') {
       const coords = (parts[4] || '13.51024,123.34701,10').split(',');
       return {
         type: 'SOS',
         raw: trimmed,
         msgId: parts[2] || String(Date.now()),
+        sosId: parts[2] || String(Date.now()),
         residentId: parts[3] ? Number(parts[3]) : null,
         latitude: parseFloat(coords[0]) || 13.51024,
         longitude: parseFloat(coords[1]) || 123.34701,
@@ -1748,6 +1760,10 @@
           const name = device.name || 'EvakWar BLE Node';
 
           device.addEventListener('gattserverdisconnected', () => {
+            if (this.webBleDrainInterval) {
+              clearInterval(this.webBleDrainInterval);
+              this.webBleDrainInterval = null;
+            }
             this.setStatus(false, 'DISCONNECTED', `${name} (Disconnected)`);
           });
 
@@ -1759,12 +1775,22 @@
 
           await this.webBleToRadio.writeValue(encodeWantConfigToRadio());
 
-          await this.webBleFromNum.startNotifications();
-          this.webBleFromNum.addEventListener('characteristicvaluechanged', async () => {
-            await this.drainWebBleFromRadio();
-          });
+          try {
+            await this.webBleFromNum.startNotifications();
+            this.webBleFromNum.addEventListener('characteristicvaluechanged', async () => {
+              await this.drainWebBleFromRadio();
+            });
+          } catch (notifErr) {
+            console.warn('[LoRaMeshClient] WebBLE FromNum notification note:', notifErr);
+          }
 
           await this.drainWebBleFromRadio();
+
+          // Continuous fallback polling every 1.2s so Windows Chrome WebBLE never misses incoming SOS / MSG / WTH packets
+          if (this.webBleDrainInterval) clearInterval(this.webBleDrainInterval);
+          this.webBleDrainInterval = setInterval(() => {
+            this.drainWebBleFromRadio();
+          }, 1200);
 
           this.setStatus(true, 'BLE', name);
           return { success: true, transport: 'BLE', deviceName: name };
@@ -1800,19 +1826,24 @@
     }
 
     async drainWebBleFromRadio() {
-      if (!this.webBleFromRadio) return;
-      for (let i = 0; i < 15; i++) {
-        try {
-          const view = await this.webBleFromRadio.readValue();
-          if (!view || view.byteLength === 0) break;
-          const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-          const evw = extractEvwStringFromBytes(bytes);
-          if (evw) this.handleIncomingRawPacket(evw, 'BLE');
-          const envTel = extractEnvironmentTelemetryFromBytes(bytes);
-          if (envTel) this._handleWeatherTelemetryObject(envTel, 'BLE', false);
-        } catch (e) {
-          break;
+      if (!this.webBleFromRadio || this._drainingWebBle) return;
+      this._drainingWebBle = true;
+      try {
+        for (let i = 0; i < 20; i++) {
+          try {
+            const view = await this.webBleFromRadio.readValue();
+            if (!view || view.byteLength === 0) break;
+            const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+            const evw = extractEvwStringFromBytes(bytes);
+            if (evw) this.handleIncomingRawPacket(evw, 'BLE');
+            const envTel = extractEnvironmentTelemetryFromBytes(bytes);
+            if (envTel) this._handleWeatherTelemetryObject(envTel, 'BLE', false);
+          } catch (e) {
+            break;
+          }
         }
+      } finally {
+        this._drainingWebBle = false;
       }
     }
 
