@@ -3706,6 +3706,31 @@
       });
 
       // Socket sync (deduplicated to prevent redundant listeners)
+      // Also restore any offline LoRa SOS alerts cached in localStorage + listen for live direct BLE/USB LoRa SOS packets
+      if (!window.__adminEvacLoraSosListenerBound) {
+        window.__adminEvacLoraSosListenerBound = true;
+        window.addEventListener('evakwar:lora-sos', (ev) => {
+          const data = ev && ev.detail;
+          if (!data) return;
+          const st = String(data.status || '').toUpperCase();
+          if (st === 'CANCELLED' || st === 'RESOLVED') {
+            removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+          } else {
+            addOrUpdateSosMarker(data, true);
+          }
+        });
+      }
+      try {
+        const offlineSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+        if (Array.isArray(offlineSos)) {
+          offlineSos.forEach(alert => {
+            if (alert && alert.status !== 'CANCELLED' && alert.status !== 'RESOLVED') {
+              addOrUpdateSosMarker(alert, false);
+            }
+          });
+        }
+      } catch (_) {}
+
       if (typeof io !== 'undefined' && !window.__adminEvacSocketInitialized) {
         window.__adminEvacSocketInitialized = true;
         const socket = window.__appSocket || (window.__appSocket = io());

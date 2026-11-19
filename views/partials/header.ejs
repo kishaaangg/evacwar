@@ -4593,9 +4593,13 @@
                               ? '/admin/evacuation'
                               : ((window.location.pathname || '').includes('/staff') ? '/staff/map' : '/rescuer/map');
 
-                            // Trigger Admin/Staff global distress banner if present
-                            if (typeof window.showGlobalDistressBanner === 'function' && normalizedSos.status !== 'CANCELLED') {
-                              try { window.showGlobalDistressBanner(normalizedSos); } catch (_) {}
+                            // Trigger Admin/Staff global distress pop-up notification banner + chime
+                            if (normalizedSos.status === 'CANCELLED') {
+                              if (typeof window.dismissGlobalDistressBanner === 'function') {
+                                try { window.dismissGlobalDistressBanner(normalizedSos.id, normalizedSos.resident_id); } catch (_) {}
+                              }
+                            } else if (typeof window.showGlobalDistressNotification === 'function') {
+                              try { window.showGlobalDistressNotification(normalizedSos); } catch (_) {}
                             }
 
                             // Sound emergency tone if siren available
