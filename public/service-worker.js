@@ -4,7 +4,7 @@
    Safe, non-invasive caching strategy with strict safety rules for emergency data.
    ========================================================================== */
 
-const CACHE_NAME = 'Evacwar-static-v101';
+const CACHE_NAME = 'Evacwar-static-v102';
 
 // 1x1 transparent PNG buffer for graceful offline tile fallback without 408 console errors
 const EMPTY_TILE_PNG = new Uint8Array([
@@ -96,8 +96,6 @@ const NETWORK_ONLY_PATTERNS = [
   /\/login/i,
   /\/register/i,
   /\/logout/i,
-  /\/admin\/broadcast/i,
-  /\/staff\/broadcast/i,
   /open-meteo\.com/i,
   /windy\.com/i,
   /youtube\.com/i,

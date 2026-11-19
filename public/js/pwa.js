@@ -23,13 +23,8 @@
      -------------------------------------------------------------------------- */
   
   function isResidentNativeOrPortal() {
-    const p = (window.location.pathname || '').toLowerCase();
-    const role = (window.userRole || '').toLowerCase();
     return Boolean(
-      (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
-      role === 'resident' ||
-      p.startsWith('/resident') ||
-      document.getElementById('btnHeaderLoraBle')
+      window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
     );
   }
 
@@ -89,6 +84,7 @@
               '/admin/staff',
               '/admin/typhoon',
               '/admin/broadcast',
+              '/admin/chat',
               '/admin/reports',
               '/admin/settings'
             ];
