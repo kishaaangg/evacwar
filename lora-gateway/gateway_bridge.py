@@ -83,10 +83,27 @@ def extract_env_metrics(packet_or_node):
     press = env.get("barometricPressure")
     if temp is None and hum is None and press is None:
         return None
+
+    t_val = round(float(temp), 2) if temp is not None else None
+    h_val = round(float(hum), 2) if hum is not None else None
+    p_val = round(float(press), 2) if press is not None else None
+
+    # Detect disconnected/loose I2C bus reads (BMP280 raw 0xFFFFFF -> 177.6C / -176.4hPa, AHT20 -> 0% RH)
+    t_ok = (t_val is not None) and (-10.0 <= t_val <= 65.0)
+    h_ok = (h_val is not None) and (1.0 <= h_val <= 100.0)
+    p_ok = (p_val is not None) and (850.0 <= p_val <= 1100.0)
+    if not t_ok and not h_ok and not p_ok:
+        print(
+            f"[Sensor I2C Warning] Ignored corrupted I2C read (Temp={t_val}C, Hum={h_val}%, Press={p_val}hPa). "
+            "Check SDA(D21)/SCL(D22)/3V3/GND jumper wires and press EN on Relay!",
+            flush=True
+        )
+        return None
+
     return {
-        "temperature": round(float(temp), 2) if temp is not None else None,
-        "humidity": round(float(hum), 2) if hum is not None else None,
-        "pressure": round(float(press), 2) if press is not None else None,
+        "temperature": t_val if t_ok else None,
+        "humidity": h_val if h_ok else None,
+        "pressure": p_val if p_ok else None,
     }
 
 

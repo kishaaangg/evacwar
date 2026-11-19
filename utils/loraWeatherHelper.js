@@ -151,13 +151,31 @@ function saveState(state) {
   }
 }
 
+function isValidTemperature(t) {
+  return t !== null && isFinite(t) && t >= -10 && t <= 65;
+}
+
+function isValidHumidity(h) {
+  return h !== null && isFinite(h) && h >= 1 && h <= 100;
+}
+
+function isValidPressure(p) {
+  return p !== null && isFinite(p) && p >= 850 && p <= 1100;
+}
+
 function recordReading(payload = {}) {
   const state = readState();
-  const temp = payload.temperature != null ? Number(Number(payload.temperature).toFixed(2)) : null;
-  const hum = payload.humidity != null ? Number(Number(payload.humidity).toFixed(2)) : (payload.relativeHumidity != null ? Number(Number(payload.relativeHumidity).toFixed(2)) : null);
-  const press = payload.pressure != null ? Number(Number(payload.pressure).toFixed(2)) : (payload.barometricPressure != null ? Number(Number(payload.barometricPressure).toFixed(2)) : null);
+  const rawTemp = payload.temperature != null ? Number(Number(payload.temperature).toFixed(2)) : null;
+  const rawHum = payload.humidity != null ? Number(Number(payload.humidity).toFixed(2)) : (payload.relativeHumidity != null ? Number(Number(payload.relativeHumidity).toFixed(2)) : null);
+  const rawPress = payload.pressure != null ? Number(Number(payload.pressure).toFixed(2)) : (payload.barometricPressure != null ? Number(Number(payload.barometricPressure).toFixed(2)) : null);
 
-  if (temp === null && hum === null && press === null) {
+  const prev = state.current || {};
+  const temp = isValidTemperature(rawTemp) ? rawTemp : (isValidTemperature(prev.temperature) ? prev.temperature : null);
+  const hum = isValidHumidity(rawHum) ? rawHum : (isValidHumidity(prev.humidity) ? prev.humidity : null);
+  const press = isValidPressure(rawPress) ? rawPress : (isValidPressure(prev.pressure) ? prev.pressure : null);
+
+  // If the incoming packet had no valid sensor channels at all (e.g. loose I2C jumper reading 177.6C / -176hPa / 0%), ignore it
+  if (!isValidTemperature(rawTemp) && !isValidHumidity(rawHum) && !isValidPressure(rawPress)) {
     return state;
   }
 
