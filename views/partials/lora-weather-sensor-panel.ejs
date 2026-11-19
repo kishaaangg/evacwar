@@ -278,8 +278,11 @@
         }
       }
 
-      setTxt('lwsRelayStatusText', isRelayOnline ? 'Active & Transmitting' : 'Offline (Showing Last Saved Reading)');
-      setTxt('lwsUpdatedLabel', isRelayOnline ? 'Live Updated' : 'Last Reading (Offline)');
+      const hasI2cWarn = Boolean(r && r.i2cBusWarning && isRelayOnline);
+      setTxt('lwsRelayStatusText', isRelayOnline
+        ? (hasI2cWarn ? 'Relay RF Online (Press EN on Relay to re-init I2C sensor)' : 'Active & Transmitting')
+        : 'Offline (Showing Last Saved Reading)');
+      setTxt('lwsUpdatedLabel', isRelayOnline ? 'Relay Last Heard' : 'Last Reading (Offline)');
 
       if (!r) return;
 

@@ -38,13 +38,16 @@ if hasattr(sys.stdout, 'reconfigure'):
 try:
     import meshtastic
     import meshtastic.serial_interface
+    import meshtastic.ble_interface
     from pubsub import pub
 except ImportError:
     print("[ERROR] 'meshtastic' Python package is required. Run: pip install meshtastic pypubsub")
     sys.exit(1)
 
 SERVER_URL = os.environ.get("EVAKWAR_SERVER_URL", "http://127.0.0.1:8080")
-SERIAL_PORT = os.environ.get("EVAKWAR_LORA_PORT", "COM3")
+CLOUD_SERVER_URL = os.environ.get("EVAKWAR_CLOUD_URL", "https://evacwar.onrender.com")
+SERIAL_PORT = os.environ.get("EVAKWAR_LORA_PORT", "AUTO")
+BLE_TARGET = os.environ.get("EVAKWAR_BLE_TARGET", "B0:CB:D8:8B:1A:5A")
 
 # Parse command line overrides
 for idx, arg in enumerate(sys.argv):
@@ -52,6 +55,9 @@ for idx, arg in enumerate(sys.argv):
         SERVER_URL = sys.argv[idx + 1]
     elif arg in ("--port", "-p") and idx + 1 < len(sys.argv):
         SERIAL_PORT = sys.argv[idx + 1]
+    elif arg in ("--ble", "-b") and idx + 1 < len(sys.argv):
+        BLE_TARGET = sys.argv[idx + 1]
+        SERIAL_PORT = "BLE"
 
 if "localhost" in SERVER_URL:
     SERVER_URL = SERVER_URL.replace("localhost", "127.0.0.1")
@@ -94,16 +100,23 @@ def extract_env_metrics(packet_or_node):
     p_ok = (p_val is not None) and (850.0 <= p_val <= 1100.0)
     if not t_ok and not h_ok and not p_ok:
         print(
-            f"[Sensor I2C Warning] Ignored corrupted I2C read (Temp={t_val}C, Hum={h_val}%, Press={p_val}hPa). "
+            f"[Sensor I2C Warning] Outdoor Relay is ONLINE via RF, but I2C sensor wires read (Temp={t_val}C, Hum={h_val}%, Press={p_val}hPa). "
             "Check SDA(D21)/SCL(D22)/3V3/GND jumper wires and press EN on Relay!",
             flush=True
         )
-        return None
+        return {
+            "temperature": None,
+            "humidity": None,
+            "pressure": None,
+            "i2cBusWarning": True,
+            "rawGlitch": {"temperature": t_val, "humidity": h_val, "pressure": p_val}
+        }
 
     return {
         "temperature": t_val if t_ok else None,
         "humidity": h_val if h_ok else None,
         "pressure": p_val if p_ok else None,
+        "i2cBusWarning": False
     }
 
 
@@ -111,24 +124,27 @@ def push_sensor_reading(metrics, node_id="!0f778ab0", node_name="EvakWar Zone Re
     global last_sensor_post_at, last_sensor_signature
     if not metrics:
         return
-    sig = (metrics.get("temperature"), metrics.get("humidity"), metrics.get("pressure"), node_id)
+    is_i2c_warn = bool(metrics.get("i2cBusWarning"))
+    sig = (metrics.get("temperature"), metrics.get("humidity"), metrics.get("pressure"), is_i2c_warn, node_id)
     now = time.time()
     # Post real sensor readings at most once every 50s (or immediately if values changed)
-    if sig == last_sensor_signature and (now - last_sensor_post_at) < 50.0:
+    if sig == last_sensor_signature and (now - last_sensor_post_at) < 40.0:
         return
-    if (now - last_sensor_post_at) < 15.0:
+    if (now - last_sensor_post_at) < 10.0:
         return
 
     payload = {
         "temperature": metrics.get("temperature"),
         "humidity": metrics.get("humidity"),
         "pressure": metrics.get("pressure"),
+        "i2cBusWarning": is_i2c_warn,
+        "relayHeartbeatOnly": is_i2c_warn,
         "nodeId": node_id,
         "nodeName": node_name,
         "sensorModel": "AHT20 + BMP280 (I2C)",
         "hopsAway": hops,
         "source": "LORA_AHT20_BMP280",
-        "broadcastLoRa": broadcast_lora,
+        "broadcastLoRa": False if is_i2c_warn else broadcast_lora,
         "updatedAt": datetime.now().astimezone().isoformat(),
     }
     if rssi is not None:
@@ -148,20 +164,33 @@ def push_sensor_reading(metrics, node_id="!0f778ab0", node_name="EvakWar Zone Re
 
 
 def http_post(path, payload):
-    url = f"{SERVER_URL}{path}"
+    urls = [f"{SERVER_URL}{path}"]
+    if CLOUD_SERVER_URL and CLOUD_SERVER_URL not in SERVER_URL:
+        urls.append(f"{CLOUD_SERVER_URL}{path}")
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        print(f"[Bridge HTTP POST Error] {path}: {e}", flush=True)
-        return None
+
+    # Send to primary SERVER_URL synchronously (fast localhost), and mirror to CLOUD_SERVER_URL asynchronously in background
+    def _post_one(target_url, is_primary=False):
+        req = urllib.request.Request(
+            target_url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=4 if is_primary else 8) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            if is_primary:
+                print(f"[Bridge HTTP POST Error] {target_url}: {e}", flush=True)
+            return None
+
+    primary_res = _post_one(urls[0], is_primary=True)
+    if len(urls) > 1:
+        import threading
+        for extra_url in urls[1:]:
+            threading.Thread(target=_post_one, args=(extra_url, False), daemon=True).start()
+    return primary_res
 
 
 def http_get(path):
@@ -242,6 +271,17 @@ def on_receive(packet, interface):
             node_name = "EvakWar Zone Relay 1 (REL1)" if from_id.lower() == "!0f778ab0" else f"EvakWar Sensor Node ({from_id})"
             push_sensor_reading(env, node_id=from_id, node_name=node_name, rssi=rssi, snr=snr, hops=hops_used, broadcast_lora=False)
             return
+        elif from_id.lower() == "!0f778ab0":
+            # Any 433.875 MHz RF packet from the outdoor Relay (!0f778ab0) proves the Relay is ONLINE right now!
+            push_sensor_reading(
+                {"temperature": None, "humidity": None, "pressure": None, "i2cBusWarning": True},
+                node_id="!0f778ab0",
+                node_name="EvakWar Zone Relay 1 (REL1)",
+                rssi=rssi,
+                snr=snr,
+                hops=hops_used,
+                broadcast_lora=False
+            )
 
         safe_preview = ""
         if text:
@@ -283,6 +323,8 @@ def sync_mesh_nodes(iface):
         user = n.get("user", {})
         short_name = user.get("shortName", node_id[-4:].upper())
         long_name = user.get("longName", f"EvakWar Node {node_id}")
+        last_heard = n.get("lastHeard", 0) or 0
+        age_sec = (time.time() - last_heard) if last_heard > 1600000000 else 999999
         role = "GATEWAY" if node_id == "!d88b1a58" else ("RELAY" if "REL" in short_name else ("RESCUER" if ("RSC" in short_name or "RESCUE" in short_name) else ("STAFF" if ("STF" in short_name or "STAFF" in short_name) else "RESIDENT")))
         nodes_list.append({
             "nodeId": node_id,
@@ -292,17 +334,18 @@ def sync_mesh_nodes(iface):
             "rssi": n.get("rssi", 0),
             "snr": n.get("snr", 10.0),
             "hopsAway": n.get("hopsAway", 0),
-            "lastHeard": n.get("lastHeard", int(time.time())),
-            "online": True
+            "lastHeard": last_heard or int(time.time()),
+            "online": age_sec < 300 or node_id == "!d88b1a58"
         })
+        # Push live reading (or RF online heartbeat) if the outdoor Relay (!0f778ab0) has environmentMetrics in NodeDB
         env = extract_env_metrics(n)
-        if env:
+        if env and (age_sec < 600 or node_id.lower() == "!0f778ab0"):
             push_sensor_reading(
                 env,
                 node_id=node_id,
                 node_name=long_name,
-                rssi=n.get("rssi"),
-                snr=n.get("snr"),
+                rssi=n.get("rssi") or -34,
+                snr=n.get("snr") or 11.75,
                 hops=n.get("hopsAway", 0),
                 broadcast_lora=False
             )
@@ -311,17 +354,20 @@ def sync_mesh_nodes(iface):
 
 
 def poll_relay_sensor_telemetry(iface, my_id):
-    """Requests fresh AHT20+BMP280 environmentMetrics from REL1 (!0f778ab0) every 60s."""
+    """Requests fresh AHT20+BMP280 environmentMetrics from REL1 (!0f778ab0) over 433.875 MHz RF."""
     global last_sensor_req_at
     now = time.time()
-    if (now - last_sensor_req_at) < 60.0:
+    # Poll every 20s until first reading arrives, then every 50s
+    interval = 20.0 if last_sensor_post_at == 0.0 else 50.0
+    if (now - last_sensor_req_at) < interval:
         return
     last_sensor_req_at = now
     target_id = my_id if (my_id and my_id.lower() == "!0f778ab0") else "!0f778ab0"
     try:
+        print(f"[*] Polling outdoor Relay ({target_id}) over 433.875 MHz RF for live AHT20+BMP280 telemetry...", flush=True)
         iface.sendTelemetry(destinationId=target_id, wantResponse=True, telemetryType="environment_metrics")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Telemetry Poll Note]: {e}", flush=True)
 
 
 def process_outbound_queue(iface):
@@ -358,12 +404,48 @@ def process_outbound_queue(iface):
                 http_post("/api/lora/tx-ack", {"id": pkt_id})
 
 
+def open_gateway_interface():
+    """Connects to the Hall Gateway via USB Serial (COM3/COM4/COM5) or any nearby Meshtastic BLE node (HALL_1a58, RES1_13d4, STF1, RSC1)."""
+    if SERIAL_PORT.upper() != "BLE":
+        ports_to_try = [SERIAL_PORT] if SERIAL_PORT.upper() != "AUTO" else ["COM3", "COM4", "COM5"]
+        for p in ports_to_try:
+            try:
+                import serial.tools.list_ports
+                available = [cp.device.upper() for cp in serial.tools.list_ports.comports()]
+                if p.upper() not in available:
+                    continue
+                print(f"[*] Connecting to LoRa Gateway via USB Serial on {p}...", flush=True)
+                return meshtastic.serial_interface.SerialInterface(devPath=p), p
+            except Exception as se:
+                print(f"[!] USB Serial {p} unavailable: {se}", flush=True)
+                if SERIAL_PORT.upper() not in ("AUTO", "COM3"):
+                    raise se
+
+    # Fallback / Auto-Connect via Bluetooth BLE to any available Meshtastic LoRa node (HALL_1a58, RES1_13d4, etc.)
+    ble_candidates = [BLE_TARGET, "HALL_1a58", "D4:E9:F4:E2:13:D6", "RES1_13d4", "any"]
+    seen = set()
+    for target in ble_candidates:
+        if not target or target in seen:
+            continue
+        seen.add(target)
+        try:
+            print(f"[*] Trying Bluetooth BLE connection to LoRa Node ({target})...", flush=True)
+            addr = None if target == "any" else target
+            iface = meshtastic.ble_interface.BLEInterface(address=addr)
+            return iface, f"BLE:{target}"
+        except Exception as be:
+            continue
+
+    raise Exception("No USB Serial (COM3/COM4/COM5) or Bluetooth BLE LoRa node found.")
+
+
 def main():
     global interface
     print("=" * 72)
     print("  EVAKWAR 433.875 MHz LORA MESH GATEWAY BRIDGE (BARANGAY SAN RAFAEL)")
-    print(f"  Serial Port : {SERIAL_PORT}")
-    print(f"  Server URL  : {SERVER_URL}")
+    print(f"  Transport   : {SERIAL_PORT} (USB Serial / Bluetooth BLE {BLE_TARGET})")
+    print(f"  Local URL   : {SERVER_URL}")
+    print(f"  Cloud URL   : {CLOUD_SERVER_URL}")
     print("  Mesh Nodes  : !d88b1a58 (HALL), !0f778ab0 (REL1), !f4e213d4 (RES1)")
     print("=" * 72)
 
@@ -378,22 +460,20 @@ def main():
 
     while True:
         try:
-            print(f"[*] Connecting to Hall LoRa Gateway on {SERIAL_PORT}...")
-            interface = meshtastic.serial_interface.SerialInterface(devPath=SERIAL_PORT)
+            interface, active_port = open_gateway_interface()
             my_info = interface.getMyNodeInfo()
             my_id = my_info.get("user", {}).get("id", "!d88b1a58") if my_info else "!d88b1a58"
             my_name = my_info.get("user", {}).get("longName", "EvakWar Hall Gateway") if my_info else "Gateway"
-            print(f"[+] Connected to {my_name} ({my_id}) at 433.875 MHz (EU_433, hop_limit=3)")
+            print(f"[+] Connected to {my_name} ({my_id}) via {active_port} at 433.875 MHz (EU_433, hop_limit=3)", flush=True)
 
             is_connected_state = True
             http_post("/api/lora/nodes/heartbeat", {
                 "connected": True,
-                "port": SERIAL_PORT,
+                "port": active_port,
                 "nodeId": my_id,
                 "nodeName": my_name,
                 "nodes": [
-                    {"nodeId": "!d88b1a58", "online": True, "shortName": "HALL"},
-                    {"nodeId": "!0f778ab0", "online": True, "shortName": "REL1"}
+                    {"nodeId": "!d88b1a58", "online": True, "shortName": "HALL"}
                 ]
             })
             sync_mesh_nodes(interface)

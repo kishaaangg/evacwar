@@ -170,14 +170,36 @@ function recordReading(payload = {}) {
   const rawPress = payload.pressure != null ? Number(Number(payload.pressure).toFixed(2)) : (payload.barometricPressure != null ? Number(Number(payload.barometricPressure).toFixed(2)) : null);
 
   const prev = state.current || {};
+  const hasValidIncomingSensor = isValidTemperature(rawTemp) || isValidHumidity(rawHum) || isValidPressure(rawPress);
+
+  // If the incoming packet is from the live outdoor Relay (!0f778ab0) over 433.875 MHz RF, but all I2C channels
+  // returned out-of-range (e.g. 177.6°C / -176.4 hPa / 0% because an I2C jumper wire was bumped),
+  // STILL mark the Relay RF heartbeat online with today's live timestamp & RSSI/SNR while keeping the last valid temp/hum/press!
+  if (!hasValidIncomingSensor) {
+    if (payload.relayHeartbeatOnly || payload.i2cBusWarning || payload.rssi !== undefined) {
+      const hbNowIso = payload.updatedAt || new Date().toISOString();
+      const hbNowMs = new Date(hbNowIso).getTime() || Date.now();
+      state.current = {
+        ...prev,
+        nodeId: String(payload.nodeId || prev.nodeId || '!0f778ab0').toLowerCase(),
+        nodeName: payload.nodeName || prev.nodeName || 'EvakWar Zone Relay 1 (REL1)',
+        sensorModel: payload.sensorModel || prev.sensorModel || 'AHT20 + BMP280 (I2C)',
+        rssi: payload.rssi !== undefined ? Number(payload.rssi) : (prev.rssi || -34),
+        snr: payload.snr !== undefined ? Number(payload.snr) : (prev.snr || 11.5),
+        hopsAway: payload.hopsAway !== undefined ? Number(payload.hopsAway) : (prev.hopsAway || 0),
+        i2cBusWarning: true,
+        lastValidReadingAt: prev.lastValidReadingAt || prev.updatedAt || null,
+        updatedAt: hbNowIso,
+        timestampMs: hbNowMs
+      };
+      saveState(state);
+    }
+    return state;
+  }
+
   const temp = isValidTemperature(rawTemp) ? rawTemp : (isValidTemperature(prev.temperature) ? prev.temperature : null);
   const hum = isValidHumidity(rawHum) ? rawHum : (isValidHumidity(prev.humidity) ? prev.humidity : null);
   const press = isValidPressure(rawPress) ? rawPress : (isValidPressure(prev.pressure) ? prev.pressure : null);
-
-  // If the incoming packet had no valid sensor channels at all (e.g. loose I2C jumper reading 177.6C / -176hPa / 0%), ignore it
-  if (!isValidTemperature(rawTemp) && !isValidHumidity(rawHum) && !isValidPressure(rawPress)) {
-    return state;
-  }
 
   const trend = computePressureTrend(press, state.history);
   const derived = deriveWeatherSummary(temp, hum, press, trend);
@@ -204,6 +226,8 @@ function recordReading(payload = {}) {
     rssi: payload.rssi !== undefined ? Number(payload.rssi) : null,
     snr: payload.snr !== undefined ? Number(payload.snr) : null,
     hopsAway: payload.hopsAway !== undefined ? Number(payload.hopsAway) : 0,
+    i2cBusWarning: false,
+    lastValidReadingAt: updatedAt,
     source: payload.source || 'LORA_AHT20_BMP280',
     updatedAt,
     timestampMs

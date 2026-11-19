@@ -981,9 +981,11 @@
       const validTemp = (rawTemp !== null && isFinite(rawTemp) && rawTemp >= -10 && rawTemp <= 65) ? Number(rawTemp.toFixed(2)) : null;
       const validHum = (rawHum !== null && isFinite(rawHum) && rawHum >= 1 && rawHum <= 100) ? Number(rawHum.toFixed(2)) : null;
       const validPress = (rawPress !== null && isFinite(rawPress) && rawPress >= 850 && rawPress <= 1100) ? Number(rawPress.toFixed(2)) : null;
+      const isI2cWarning = Boolean(validTemp === null && validHum === null && validPress === null);
 
-      if (validTemp === null && validHum === null && validPress === null) {
-        console.warn('[LoRaMeshClient] Ignored out-of-range I2C sensor glitch:', parsed);
+      let prevCached = null;
+      try { prevCached = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
+      if (isI2cWarning && !parsed.rssi && !parsed.nodeId) {
         return;
       }
 
@@ -993,12 +995,14 @@
       const tsMs = (isFinite(rawTs) && Math.abs(nowMs - rawTs) < 3600000) ? rawTs : nowMs;
 
       const weatherObj = {
-        temperature: validTemp,
-        humidity: validHum,
-        pressure: validPress,
+        temperature: validTemp !== null ? validTemp : (prevCached && prevCached.temperature != null ? prevCached.temperature : null),
+        humidity: validHum !== null ? validHum : (prevCached && prevCached.humidity != null ? prevCached.humidity : null),
+        pressure: validPress !== null ? validPress : (prevCached && prevCached.pressure != null ? prevCached.pressure : null),
         rssi: (parsed.rssi != null && isFinite(Number(parsed.rssi))) ? Number(parsed.rssi) : null,
         snr: (parsed.snr != null && isFinite(Number(parsed.snr))) ? Number(parsed.snr) : null,
         hopsAway: (parsed.hopsAway != null && isFinite(Number(parsed.hopsAway))) ? Number(parsed.hopsAway) : 0,
+        i2cBusWarning: isI2cWarning,
+        relayHeartbeatOnly: isI2cWarning,
         nodeId: parsed.nodeId || '!0f778ab0',
         nodeName: parsed.nodeName || 'EvakWar Zone Relay 1 (REL1)',
         sensorModel: 'AHT20 + BMP280 (I2C)',
@@ -1012,12 +1016,14 @@
 
       try {
         localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(weatherObj));
-        let hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]');
-        if (!Array.isArray(hist)) hist = [];
-        const top = hist[0];
-        if (!top || Math.abs((top.timestampMs || 0) - tsMs) > 45000 || top.temperature !== weatherObj.temperature || top.pressure !== weatherObj.pressure) {
-          hist.unshift(weatherObj);
-          localStorage.setItem('evw_lora_sensor_history', JSON.stringify(hist.slice(0, 72)));
+        if (!isI2cWarning) {
+          let hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]');
+          if (!Array.isArray(hist)) hist = [];
+          const top = hist[0];
+          if (!top || Math.abs((top.timestampMs || 0) - tsMs) > 45000 || top.temperature !== weatherObj.temperature || top.pressure !== weatherObj.pressure) {
+            hist.unshift(weatherObj);
+            localStorage.setItem('evw_lora_sensor_history', JSON.stringify(hist.slice(0, 72)));
+          }
         }
       } catch (_) {}
 
@@ -1036,9 +1042,11 @@
           this._lastWeatherServerTemp = weatherObj.temperature;
           this._lastWeatherServerPress = weatherObj.pressure;
           const syncPayload = JSON.stringify({
-            temperature: weatherObj.temperature,
-            humidity: weatherObj.humidity,
-            pressure: weatherObj.pressure,
+            temperature: validTemp,
+            humidity: validHum,
+            pressure: validPress,
+            i2cBusWarning: isI2cWarning,
+            relayHeartbeatOnly: isI2cWarning,
             rssi: weatherObj.rssi,
             snr: weatherObj.snr,
             hopsAway: weatherObj.hopsAway,
