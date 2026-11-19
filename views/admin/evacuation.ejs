@@ -2984,6 +2984,29 @@
 
       setTimeout(checkAdminUrlForSosFocus, 600);
 
+      // Load any offline LoRa SOS alerts cached in localStorage + listen for live direct BLE/USB LoRa SOS packets
+      try {
+        const offlineSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+        if (Array.isArray(offlineSos)) {
+          offlineSos.forEach(alert => {
+            if (alert && alert.status !== 'CANCELLED' && alert.status !== 'RESOLVED') {
+              addOrUpdateSosMarker(alert, false);
+            }
+          });
+        }
+      } catch (_) {}
+
+      window.addEventListener('evakwar:lora-sos', (ev) => {
+        const data = ev && ev.detail;
+        if (!data) return;
+        const st = String(data.status || '').toUpperCase();
+        if (st === 'CANCELLED' || st === 'RESOLVED') {
+          removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+        } else {
+          addOrUpdateSosMarker(data, true);
+        }
+      });
+
       // Real-time Socket.io Sync
       if (typeof io !== 'undefined') {
         const socket = window.__appSocket || (window.__appSocket = io());

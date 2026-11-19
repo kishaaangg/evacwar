@@ -4167,52 +4167,80 @@
                           const modalLabel = document.getElementById('modalActiveTransportLabel');
                           const banner = document.getElementById('offlineLoraNotificationBanner');
                           const isOnline = Boolean(navigator.onLine);
+                          const liveLora = st || window.evakwarLoraClient || {};
+                          const hasDirectLora = Boolean(liveLora && liveLora.connected && (liveLora.transport === 'BLE' || liveLora.transport === 'USB_SERIAL'));
 
-                          // A. Admin PC Gateway Check (USB Serial / COM3)
+                          // A. Admin PC Gateway Check (Direct WebBLE / WebSerial OR Backend Gateway Bridge)
                           if (currentUserRole === 'admin') {
-                            fetch('/api/lora/status')
-                              .then(r => r.json())
-                              .then(data => {
-                                const gwConnected = Boolean(data && data.gateway && data.gateway.connected);
-                                window._adminGatewayConnected = gwConnected;
-                                if (modalLabel) {
-                                  if (gwConnected && isOnline) {
-                                    modalLabel.textContent = 'Wi-Fi (Online) + LoRa Gateway (COM3)';
-                                  } else if (gwConnected) {
-                                    modalLabel.textContent = 'LoRa Gateway COM3 (Wi-Fi Offline)';
-                                  } else if (isOnline) {
-                                    modalLabel.textContent = 'Wi-Fi / Internet (Online)';
-                                  } else {
-                                    modalLabel.textContent = 'Offline (No Connection)';
-                                  }
+                            const applyAdminUi = (gwConnected) => {
+                              window._adminGatewayConnected = Boolean(gwConnected || hasDirectLora);
+                              const anyLora = Boolean(gwConnected || hasDirectLora);
+                              const directName = liveLora.deviceName || (liveLora.transport === 'USB_SERIAL' ? 'USB Serial Node' : 'LoRa BLE Node');
+                              if (modalLabel) {
+                                if (hasDirectLora && isOnline) {
+                                  modalLabel.textContent = `Wi-Fi (Online) + Direct LoRa ${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} (${directName})`;
+                                } else if (hasDirectLora) {
+                                  modalLabel.textContent = `Direct LoRa ${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} (${directName}) - Off-Grid`;
+                                } else if (gwConnected && isOnline) {
+                                  modalLabel.textContent = 'Wi-Fi (Online) + LoRa Gateway Bridge';
+                                } else if (gwConnected) {
+                                  modalLabel.textContent = 'LoRa Gateway Bridge (Wi-Fi Offline)';
+                                } else if (isOnline) {
+                                  modalLabel.textContent = 'Wi-Fi / Internet (Online)';
+                                } else {
+                                  modalLabel.textContent = 'Offline (No Connection)';
                                 }
-                                if (btn && icon) {
-                                  if (isOnline) {
-                                    icon.className = 'ph ph-wifi-high text-base sm:text-lg text-emerald-400';
-                                    btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                    btn.title = gwConnected ? 'Online (Wi-Fi) • ESP LoRa Gateway Active (COM3)' : 'Online (Wi-Fi / Internet)';
-                                    if (txt) txt.textContent = 'ONLINE';
-                                  } else if (gwConnected) {
-                                    icon.className = 'ph ph-plugs text-base sm:text-lg text-cyan-400';
-                                    btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-400/50 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                    btn.title = 'LoRa Gateway Active (COM3) • Wi-Fi Offline';
-                                    if (txt) txt.textContent = 'USB COM3';
-                                  } else {
-                                    icon.className = 'ph ph-warning text-base sm:text-lg text-amber-400 animate-pulse';
-                                    btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 shadow-xs transition-all active:scale-95 cursor-pointer animate-pulse';
-                                    btn.title = 'Offline (No Internet & No LoRa Gateway). Plug ESP LoRa via USB.';
-                                    if (txt) txt.textContent = 'OFFLINE (NO LORA)';
-                                  }
+                              }
+                              if (btn && icon) {
+                                if (hasDirectLora && liveLora.transport === 'BLE') {
+                                  icon.className = 'ph ph-bluetooth text-base sm:text-lg text-emerald-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-indigo-950 hover:bg-indigo-900 text-emerald-300 border border-emerald-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = `LoRa BLE Connected: ${directName}${isOnline ? ' + Online' : ' (Off-Grid)'}`;
+                                  if (txt) txt.textContent = 'LORA BLE';
+                                } else if (hasDirectLora && liveLora.transport === 'USB_SERIAL') {
+                                  icon.className = 'ph ph-plugs text-base sm:text-lg text-cyan-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = `LoRa USB Connected: ${directName}${isOnline ? ' + Online' : ' (Off-Grid)'}`;
+                                  if (txt) txt.textContent = 'LORA USB';
+                                } else if (gwConnected) {
+                                  icon.className = 'ph ph-broadcast text-base sm:text-lg text-emerald-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = isOnline ? 'Online + LoRa Gateway Bridge Active (433.875 MHz)' : 'LoRa Gateway Bridge Active (Off-Grid)';
+                                  if (txt) txt.textContent = 'LORA GW';
+                                } else if (isOnline) {
+                                  icon.className = 'ph ph-wifi-high text-base sm:text-lg text-emerald-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = 'Online (Wi-Fi / Internet) — Click to connect LoRa Node';
+                                  if (txt) txt.textContent = 'ONLINE';
+                                } else {
+                                  icon.className = 'ph ph-warning text-base sm:text-lg text-amber-400 animate-pulse';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 shadow-xs transition-all active:scale-95 cursor-pointer animate-pulse';
+                                  btn.title = 'Offline (No Internet & No LoRa Node). Click to connect LoRa via Bluetooth or USB.';
+                                  if (txt) txt.textContent = 'OFFLINE (NO LORA)';
                                 }
-                                if (banner) {
-                                  if (!isOnline && !gwConnected && !window._offlineBannerDismissed) {
-                                    banner.classList.remove('hidden');
-                                  } else {
-                                    banner.classList.add('hidden');
-                                  }
+                              }
+                              if (banner) {
+                                if (!isOnline && !anyLora && !window._offlineBannerDismissed) {
+                                  banner.classList.remove('hidden');
+                                } else {
+                                  banner.classList.add('hidden');
                                 }
-                              })
-                              .catch(() => {});
+                              }
+                            };
+
+                            // Apply direct BLE/USB state immediately (even when offline!)
+                            applyAdminUi(Boolean(window._lastAdminGwConnected));
+
+                            if (isOnline) {
+                              fetch('/api/lora/status')
+                                .then(r => r.json())
+                                .then(data => {
+                                  const gwConnected = Boolean(data && data.gateway && data.gateway.connected);
+                                  window._lastAdminGwConnected = gwConnected;
+                                  applyAdminUi(gwConnected);
+                                })
+                                .catch(() => applyAdminUi(false));
+                            }
                             return;
                           }
 
@@ -4507,34 +4535,75 @@
                           if (!sosPacket) return;
                           console.log('[LoRa Mesh] 🚨 Inbound Resident SOS Packet received:', sosPacket);
 
+                          // Normalize fields so both Admin, Staff, and Rescuer maps/banners render it cleanly offline
+                          const normalizedSos = {
+                            id: sosPacket.sosId || sosPacket.msgId || ('lora_' + Date.now()),
+                            sos_id: sosPacket.sosId || sosPacket.msgId || ('lora_' + Date.now()),
+                            resident_id: sosPacket.residentId || sosPacket.resident_id || 0,
+                            name: sosPacket.name || sosPacket.residentName || sosPacket.sender || 'Resident in Distress',
+                            resident_name: sosPacket.name || sosPacket.residentName || sosPacket.sender || 'Resident in Distress',
+                            latitude: Number(sosPacket.latitude) || 13.51024,
+                            longitude: Number(sosPacket.longitude) || 123.34701,
+                            accuracy: Number(sosPacket.accuracy) || 15,
+                            status: (sosPacket.statusCode === 'CAN' || sosPacket.command === 'CANCEL_SOS') ? 'CANCELLED' : 'ACTIVE',
+                            barangay: sosPacket.barangay || sosPacket.zone || 'San Rafael (433.875 MHz LoRa)',
+                            sos_type: sosPacket.sos_type || sosPacket.emergencyType || 'Emergency SOS',
+                            via: 'LORA_MESH_433MHZ',
+                            created_at: new Date().toISOString()
+                          };
+
+                          // Persist offline SOS list in localStorage so navigating to /admin/evacuation offline still displays it!
+                          try {
+                            let storedSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+                            if (!Array.isArray(storedSos)) storedSos = [];
+                            if (normalizedSos.status === 'CANCELLED') {
+                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id) && String(a.resident_id) !== String(normalizedSos.resident_id));
+                            } else {
+                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id));
+                              storedSos.unshift(normalizedSos);
+                            }
+                            localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(storedSos.slice(0, 30)));
+                          } catch (_) {}
+
                           // Forward to window event so tactical maps and dashboards react immediately
                           try {
-                            window.dispatchEvent(new CustomEvent('evakwar:lora-sos', { detail: sosPacket }));
+                            window.dispatchEvent(new CustomEvent('evakwar:lora-sos', { detail: normalizedSos }));
                           } catch (_) {}
 
                           // Also notify socket listeners locally if socket is active
                           if (window.appSocket && typeof window.appSocket.emit === 'function') {
-                            window.appSocket.emit('sos:incoming_mesh', sosPacket);
+                            window.appSocket.emit('sos:incoming_mesh', normalizedSos);
                           }
 
-                          // If Rescuer or Staff account, notify with high priority audio and notification
-                          const isStaffOrRescuer = Boolean(
-                            (window.__evwRole && (window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
+                          // If Admin, Rescuer, or Staff account, notify with high priority audio, distress banner, and notification drawer
+                          const isAdminOrStaffOrRescuer = Boolean(
+                            currentUserRole === 'admin' ||
+                            currentUserRole === 'staff' ||
+                            currentUserRole === 'rescuer' ||
+                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
                             localStorage.getItem('evw_cached_staff') ||
-                            (window.location.pathname && (window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
+                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
                           );
 
-                          if (isStaffOrRescuer) {
-                            const residentName = sosPacket.residentName || sosPacket.sender || 'Resident in Distress';
-                            const zone = sosPacket.zone || sosPacket.barangay || 'San Rafael';
-                            const emType = sosPacket.emergencyType || 'EMERGENCY';
+                          if (isAdminOrStaffOrRescuer) {
+                            const residentName = normalizedSos.name;
+                            const zone = normalizedSos.barangay;
+                            const emType = normalizedSos.sos_type;
+                            const mapUrl = (currentUserRole === 'admin' || (window.location.pathname || '').includes('/admin'))
+                              ? '/admin/evacuation'
+                              : ((window.location.pathname || '').includes('/staff') ? '/staff/map' : '/rescuer/map');
+
+                            // Trigger Admin/Staff global distress banner if present
+                            if (typeof window.showGlobalDistressBanner === 'function' && normalizedSos.status !== 'CANCELLED') {
+                              try { window.showGlobalDistressBanner(normalizedSos); } catch (_) {}
+                            }
 
                             // Sound emergency tone if siren available
-                            if (typeof window.triggerEmergencyAlarm === 'function') {
+                            if (typeof window.triggerEmergencyAlarm === 'function' && normalizedSos.status !== 'CANCELLED') {
                               window.triggerEmergencyAlarm({
-                                id: 'lora_sos_' + (sosPacket.sosId || Date.now()),
+                                id: 'lora_sos_' + normalizedSos.id,
                                 title: `🚨 RESIDENT SOS: ${residentName.toUpperCase()}`,
-                                message: `Distress signal received over 433.875 MHz LoRa Mesh from ${zone}. Type: ${emType}. Coordinates: ${sosPacket.latitude || 'GPS'}, ${sosPacket.longitude || 'GPS'}.`,
+                                message: `Distress signal received over 433.875 MHz LoRa Mesh from ${zone}. Type: ${emType}. Coordinates: ${normalizedSos.latitude.toFixed(5)}, ${normalizedSos.longitude.toFixed(5)}.`,
                                 severity: 'RED',
                                 isSos: true
                               });
@@ -4544,7 +4613,7 @@
                             if (typeof window.injectLoraNotificationToDrawer === 'function') {
                               const now = new Date();
                               window.injectLoraNotificationToDrawer({
-                                id: 'lora_sos_' + (sosPacket.sosId || Date.now()),
+                                id: 'lora_sos_' + normalizedSos.id,
                                 category: 'sos',
                                 title: `🚨 [LoRa 433MHz] Resident SOS: ${residentName}`,
                                 message: `SOS distress beacon active at ${zone} (${emType}). Tap to open tactical map.`,
@@ -4553,7 +4622,7 @@
                                 icon: 'ph-siren',
                                 color: 'red',
                                 isActionRequired: true,
-                                actionUrl: '/rescuer/map',
+                                actionUrl: mapUrl,
                                 actionLabel: 'View SOS on Map'
                               });
                             }
