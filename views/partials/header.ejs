@@ -902,10 +902,45 @@
 
     if (typeof window.handleSosLifecycleBtn !== 'function') {
       window.handleSosLifecycleBtn = async function (btnEl) {
+        if (!btnEl) return;
         const sosId = btnEl.getAttribute('data-sos-id');
         const nextStatus = btnEl.getAttribute('data-next-status');
         if (!sosId || !nextStatus) return;
         btnEl.disabled = true; btnEl.classList.add('opacity-50');
+
+        const clearLocalLoraSos = () => {
+          try {
+            let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+            if (Array.isArray(stored)) {
+              stored = stored.filter(a => String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
+              localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
+            }
+          } catch (_) {}
+          if (typeof window.dismissGlobalDistressBanner === 'function') {
+            window.dismissGlobalDistressBanner(sosId, null);
+          }
+          if (typeof removeSosMarker === 'function') {
+            removeSosMarker(sosId);
+          }
+          if (Array.isArray(window.currentAdminSosAlerts)) {
+            window.currentAdminSosAlerts = window.currentAdminSosAlerts.filter(a => String(a.id || a.sos_id) !== String(sosId));
+            if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
+          }
+          // Broadcast LoRa ACK back to Resident over 433.875 MHz RF if a LoRa node is connected
+          if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
+            const ackPkt = `EVW|ACK|${sosId}|0|${nextStatus}|Hall Command`;
+            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          }
+        };
+
+        // If offline or this is a pure LoRa mesh SOS (not yet in SQL DB), update locally & broadcast LoRa ACK
+        const isPureLoraId = String(sosId).startsWith('lora_') || !navigator.onLine;
+        if (isPureLoraId && (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED')) {
+          clearLocalLoraSos();
+          if (typeof showSosToast === 'function') showSosToast(`LoRa SOS marked as ${nextStatus}!`, 'success');
+          return;
+        }
+
         try {
           const res = await fetch('/api/sos/status', {
             method: 'POST',
@@ -914,13 +949,20 @@
           });
           const data = await res.json();
           if (data.success) {
+            if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') clearLocalLoraSos();
             if (typeof showSosToast === 'function') showSosToast(data.message || 'Status updated!', 'success');
             if (typeof addOrUpdateSosMarker === 'function' && data.alert) {
               addOrUpdateSosMarker(data.alert, false, true);
-            } else {
+            } else if (nextStatus !== 'RESOLVED' && nextStatus !== 'CANCELLED') {
               setTimeout(() => window.location.reload(), 600);
             }
           } else {
+            // If server says "SOS alert not found" (e.g. direct LoRa SOS that didn't hit SQL DB), still resolve it cleanly!
+            if ((nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') && String(data.message || data.error || '').toLowerCase().includes('not found')) {
+              clearLocalLoraSos();
+              if (typeof showSosToast === 'function') showSosToast(`LoRa SOS marked as ${nextStatus}!`, 'success');
+              return;
+            }
             if (typeof showSosToast === 'function') showSosToast(data.message || 'This SOS has already been assigned to another rescuer.', 'error');
             if (typeof addOrUpdateSosMarker === 'function' && data.alert) {
               addOrUpdateSosMarker(data.alert, false, true);
@@ -931,6 +973,11 @@
             btnEl.disabled = false; btnEl.classList.remove('opacity-50');
           }
         } catch (err) {
+          if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') {
+            clearLocalLoraSos();
+            if (typeof showSosToast === 'function') showSosToast(`Offline LoRa SOS marked as ${nextStatus}!`, 'success');
+            return;
+          }
           if (typeof showSosToast === 'function') showSosToast('Network error updating status', 'error');
           btnEl.disabled = false; btnEl.classList.remove('opacity-50');
         }
@@ -2912,7 +2959,7 @@
         document.addEventListener('DOMContentLoaded', () => {
           fetchNotifications();
 
-          if (typeof io !== 'undefined') {
+          {
             let currentUserId = "<%= (locals.user && locals.user.id) ? locals.user.id : (locals.resident && locals.resident.user_id ? locals.resident.user_id : (locals.staff && locals.staff.userId ? locals.staff.userId : '')) %>";
             let role = "<%= (locals.user && locals.user.role) ? locals.user.role : 'guest' %>";
             let staffType = "<%= (locals.staff && locals.staff.staff_type) || (locals.user && locals.user.staff_type) || '' %>";
@@ -2947,41 +2994,7 @@
             window.userRole = role;
             window.userStaffType = staffType;
 
-            const isMobileBundle = Boolean(
-              (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
-              window.location.pathname.startsWith('/resident-mobile') ||
-              window.location.protocol === 'file:' ||
-              window.location.protocol === 'capacitor:' ||
-              window.location.hostname === 'localhost'
-            );
-            const savedSrv = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
-            const socketOrigin = isMobileBundle
-              ? ((savedSrv && savedSrv.startsWith('http') && !savedSrv.includes('192.168.') && !savedSrv.includes('localhost')) ? savedSrv : 'https://evacwar.onrender.com')
-              : window.location.origin;
-
-            const socket = (window.__appSocket && window.__appSocket._evwTarget === socketOrigin)
-              ? window.__appSocket
-              : io(socketOrigin, {
-                  transports: ['websocket', 'polling'],
-                  reconnectionAttempts: 15,
-                  timeout: 5000,
-                  auth: { userId: currentUserId, role: role, staffType: staffType, userName: resolvedFullName }
-                });
-            socket._evwTarget = socketOrigin;
-            window.__appSocket = socket;
-
-            function announceOnline() {
-              if (currentUserId && Number(currentUserId) > 0) {
-                socket.emit('user:online', { userId: currentUserId, role: role });
-              }
-            }
-
-            if (socket.connected) announceOnline();
-            socket.on('connect', announceOnline);
-            socket.on('notification:new', () => { try { fetchNotifications(); } catch (_) {} });
-            socket.on('emergency:alert', (d) => { try { fetchNotifications(); if (typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
-            socket.on('alert:broadcast', (d) => { try { fetchNotifications(); if (d && d.title && typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
-
+            // ALWAYS define global distress banner + chime BEFORE Socket.IO check so 100% offline LoRa SOS works!
             const isEvacuationStaff = (role === 'staff' || role === 'barangay_council') && staffType === 'EVACUATION';
             const isRescuerOrAdmin = (role === 'admin' || role === 'rescuer' || staffType === 'RESCUER' || window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/rescuer') || ((role === 'staff' || role === 'barangay_council') && !isEvacuationStaff));
 
@@ -3112,6 +3125,45 @@
                   window.dismissGlobalDistressBanner(sosId, resId);
                 }, 25000);
               };
+            }
+
+            if (typeof io !== 'undefined') {
+              const isMobileBundle = Boolean(
+                (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                window.location.pathname.startsWith('/resident-mobile') ||
+                window.location.protocol === 'file:' ||
+                window.location.protocol === 'capacitor:' ||
+                window.location.hostname === 'localhost'
+              );
+              const savedSrv = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
+              const socketOrigin = isMobileBundle
+                ? ((savedSrv && savedSrv.startsWith('http') && !savedSrv.includes('192.168.') && !savedSrv.includes('localhost')) ? savedSrv : 'https://evacwar.onrender.com')
+                : window.location.origin;
+
+              const socket = (window.__appSocket && window.__appSocket._evwTarget === socketOrigin)
+                ? window.__appSocket
+                : io(socketOrigin, {
+                    transports: ['websocket', 'polling'],
+                    reconnectionAttempts: 15,
+                    timeout: 5000,
+                    auth: { userId: currentUserId, role: role, staffType: staffType, userName: resolvedFullName }
+                  });
+              socket._evwTarget = socketOrigin;
+              window.__appSocket = socket;
+
+              function announceOnline() {
+                if (currentUserId && Number(currentUserId) > 0) {
+                  socket.emit('user:online', { userId: currentUserId, role: role });
+                }
+              }
+
+              if (socket.connected) announceOnline();
+              socket.on('connect', announceOnline);
+              socket.on('notification:new', () => { try { fetchNotifications(); } catch (_) {} });
+              socket.on('emergency:alert', (d) => { try { fetchNotifications(); if (typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
+              socket.on('alert:broadcast', (d) => { try { fetchNotifications(); if (d && d.title && typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
+
+              if (isRescuerOrAdmin) {
 
               socket.on('sos:new', (data) => {
                 fetchNotifications();
@@ -3169,6 +3221,7 @@
                 fetchNotifications();
               }
             });
+            }
           }
 
           document.addEventListener('click', (e) => {

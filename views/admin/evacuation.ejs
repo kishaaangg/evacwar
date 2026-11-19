@@ -1712,6 +1712,26 @@
     // Emergency SOS Resolution & Marker Logic
     window.resolveSosAlert = async function (sosId) {
       if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
+      const clearOfflineSos = () => {
+        try {
+          let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+          if (Array.isArray(stored)) {
+            stored = stored.filter(a => String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
+            localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
+          }
+        } catch (_) {}
+        removeSosMarker(sosId);
+        if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, null);
+        window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => String(a.id || a.sos_id) !== String(sosId));
+        if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
+        if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
+          window.evakwarLoraClient.sendPacket(`EVW|ACK|${sosId}|0|RESOLVED|Hall Command`, { loraOnly: true }).catch(() => {});
+        }
+      };
+      if (!navigator.onLine || String(sosId).startsWith('lora_')) {
+        clearOfflineSos();
+        return;
+      }
       try {
         const res = await fetch('/api/sos/resolve', {
           method: 'POST',
@@ -1719,11 +1739,11 @@
           body: JSON.stringify({ id: sosId })
         });
         const data = await res.json();
-        if (data.success) {
-          removeSosMarker(sosId);
+        if (data.success || String(data.error || data.message || '').toLowerCase().includes('not found')) {
+          clearOfflineSos();
         }
       } catch (err) {
-        console.error("Error resolving SOS alert:", err);
+        clearOfflineSos();
       }
     };
 
@@ -2461,6 +2481,26 @@
     window.resolveSosAlertFromAdmin = async function (sosId) {
       if (!sosId) return;
       if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
+      const clearOfflineSos = () => {
+        try {
+          let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+          if (Array.isArray(stored)) {
+            stored = stored.filter(a => String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
+            localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
+          }
+        } catch (_) {}
+        removeSosMarker(sosId);
+        if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, null);
+        window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => String(a.id || a.sos_id) !== String(sosId));
+        updateAdminSosPanelList();
+        if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
+          window.evakwarLoraClient.sendPacket(`EVW|ACK|${sosId}|0|RESOLVED|Hall Command`, { loraOnly: true }).catch(() => {});
+        }
+      };
+      if (!navigator.onLine || String(sosId).startsWith('lora_')) {
+        clearOfflineSos();
+        return;
+      }
       try {
         const res = await fetch('/api/sos/resolve', {
           method: 'POST',
@@ -2468,16 +2508,13 @@
           body: JSON.stringify({ id: sosId })
         });
         const data = await res.json();
-        if (data.success) {
-          removeSosMarker(sosId);
-          window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => (a.id || a.sos_id) != sosId);
-          updateAdminSosPanelList();
+        if (data.success || String(data.error || data.message || '').toLowerCase().includes('not found')) {
+          clearOfflineSos();
         } else {
           alert(data.error || 'Failed to resolve SOS alert.');
         }
       } catch (err) {
-        console.error('Error resolving SOS alert:', err);
-        alert('Network error resolving SOS alert.');
+        clearOfflineSos();
       }
     };
 
