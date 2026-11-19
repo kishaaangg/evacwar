@@ -4273,7 +4273,13 @@
                                 }
                               }
                               if (banner) {
-                                if (!isOnline && !anyLora && !window._offlineBannerDismissed) {
+                                // Only show offline LoRa warning banner if NOT currently auto-reconnecting a saved BLE/USB session
+                                let hasRecentLoraSession = false;
+                                try {
+                                  const s = JSON.parse(localStorage.getItem('evw_lora_connected_session') || 'null');
+                                  hasRecentLoraSession = Boolean(s && s.connected && (Date.now() - (s.ts || 0) < 12 * 60 * 60 * 1000));
+                                } catch (_) {}
+                                if (!isOnline && !anyLora && !window._offlineBannerDismissed && !hasRecentLoraSession) {
                                   banner.classList.remove('hidden');
                                 } else {
                                   banner.classList.add('hidden');

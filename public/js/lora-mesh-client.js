@@ -516,6 +516,12 @@
 
       this._initNativeUsbListeners();
       this._initNativeBleListeners();
+      if (typeof window !== 'undefined' && !window.__evwUnloadFlagBound) {
+        window.__evwUnloadFlagBound = true;
+        window.addEventListener('beforeunload', () => {
+          window.__evwPageUnloading = true;
+        });
+      }
       this._restorePersistentConnectionState();
     }
 
@@ -586,7 +592,21 @@
           }
         }
 
-        // 3. Fallback default when no hardware is connected:
+        // 3. Desktop WebSerial / WebBluetooth auto-reconnect after page navigation (if user previously paired!)
+        let savedSession = null;
+        try { savedSession = JSON.parse(localStorage.getItem('evw_lora_connected_session') || 'null'); } catch (_) {}
+        const sessionRecent = Boolean(savedSession && savedSession.connected && (Date.now() - (savedSession.ts || 0) < 12 * 60 * 60 * 1000));
+
+        if (sessionRecent && savedSession.transport === 'USB_SERIAL' && navigator.serial && typeof navigator.serial.getPorts === 'function') {
+          this._autoReconnectWebSerial(savedSession.deviceName).catch(() => {});
+          return;
+        }
+        if (sessionRecent && savedSession.transport === 'BLE' && navigator.bluetooth && typeof navigator.bluetooth.getDevices === 'function') {
+          this._autoReconnectWebBle(savedSession.deviceId, savedSession.deviceName).catch(() => {});
+          return;
+        }
+
+        // 4. Fallback default when no hardware is connected:
         this.connected = false;
         this.nativeBleActive = false;
         this.nativeUsbActive = false;
@@ -595,6 +615,91 @@
       } catch (err) {
         console.warn('[LoRaMeshClient] Restore session note:', err);
       }
+    }
+
+    async _autoReconnectWebSerial(savedName) {
+      try {
+        const ports = await navigator.serial.getPorts();
+        if (!ports || ports.length === 0) return false;
+        const port = ports[0];
+        if (!port.readable) {
+          await port.open({ baudRate: 115200 });
+        }
+        this.serialPort = port;
+        this.serialWriter = port.writable.getWriter();
+        const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
+        await this.serialWriter.write(wakeFrame);
+        this.readUsbSerialLoop(port);
+        const name = savedName || 'USB-OTG LoRa Node (433MHz)';
+        this.setStatus(true, 'USB_SERIAL', name);
+        console.log('[LoRaMeshClient] ✅ Auto-reconnected WebSerial across page navigation:', name);
+        return true;
+      } catch (err) {
+        console.warn('[LoRaMeshClient] WebSerial auto-reconnect note:', err && err.message ? err.message : err);
+        return false;
+      }
+    }
+
+    async _autoReconnectWebBle(savedDeviceId, savedName) {
+      try {
+        const devices = await navigator.bluetooth.getDevices();
+        if (!devices || devices.length === 0) return false;
+        const device = devices.find(d => d.id === savedDeviceId) || devices.find(d => isLikelyLoraDevice(d.name, d.id)) || devices[0];
+        if (!device) return false;
+        console.log('[LoRaMeshClient] Auto-reconnecting WebBLE across page navigation:', device.name || device.id);
+        return await this._attachWebBleDevice(device);
+      } catch (err) {
+        console.warn('[LoRaMeshClient] WebBLE auto-reconnect note:', err && err.message ? err.message : err);
+        return false;
+      }
+    }
+
+    async _attachWebBleDevice(device) {
+      this.webBleDevice = device;
+      this.deviceId = device.id;
+      this.bleDeviceId = device.id;
+      const name = device.name || 'EvakWar BLE Node';
+
+      if (!device._evwDisconnectBound) {
+        device._evwDisconnectBound = true;
+        device.addEventListener('gattserverdisconnected', () => {
+          if (this.webBleDrainInterval) {
+            clearInterval(this.webBleDrainInterval);
+            this.webBleDrainInterval = null;
+          }
+          // Do NOT erase evw_lora_connected_session on page unload so the next page can auto-reconnect!
+          if (!window.__evwPageUnloading) {
+            this.setStatus(false, 'DISCONNECTED', `${name} (Disconnected)`);
+          }
+        });
+      }
+
+      this.webBleServer = await device.gatt.connect();
+      const service = await this.webBleServer.getPrimaryService(MESH_SERVICE_UUID);
+      this.webBleToRadio = await service.getCharacteristic(TORADIO_UUID);
+      this.webBleFromRadio = await service.getCharacteristic(FROMRADIO_UUID);
+      this.webBleFromNum = await service.getCharacteristic(FROMNUM_UUID);
+
+      await this.webBleToRadio.writeValue(encodeWantConfigToRadio());
+
+      try {
+        await this.webBleFromNum.startNotifications();
+        this.webBleFromNum.addEventListener('characteristicvaluechanged', async () => {
+          await this.drainWebBleFromRadio();
+        });
+      } catch (notifErr) {
+        console.warn('[LoRaMeshClient] WebBLE FromNum notification note:', notifErr);
+      }
+
+      await this.drainWebBleFromRadio();
+
+      if (this.webBleDrainInterval) clearInterval(this.webBleDrainInterval);
+      this.webBleDrainInterval = setInterval(() => {
+        this.drainWebBleFromRadio();
+      }, 1200);
+
+      this.setStatus(true, 'BLE', name);
+      return { success: true, transport: 'BLE', deviceName: name };
     }
 
     _initNativeBleListeners() {
@@ -733,8 +838,11 @@
             ts: Date.now()
           }));
           this._startRelayTelemetryPolling();
-        } else if (!connected) {
-          localStorage.removeItem('evw_lora_connected_session');
+        } else if (!connected && !window.__evwPageUnloading) {
+          // Only clear saved session on explicit disconnect, NOT during page navigation
+          if (transport === 'DISCONNECTED' && deviceName === 'Not Paired') {
+            localStorage.removeItem('evw_lora_connected_session');
+          }
           this._stopRelayTelemetryPolling();
         }
       } catch (_) {}
@@ -1754,46 +1862,7 @@
             acceptAllDevices: true,
             optionalServices: [MESH_SERVICE_UUID]
           });
-
-          this.webBleDevice = device;
-          this.deviceId = device.id;
-          const name = device.name || 'EvakWar BLE Node';
-
-          device.addEventListener('gattserverdisconnected', () => {
-            if (this.webBleDrainInterval) {
-              clearInterval(this.webBleDrainInterval);
-              this.webBleDrainInterval = null;
-            }
-            this.setStatus(false, 'DISCONNECTED', `${name} (Disconnected)`);
-          });
-
-          this.webBleServer = await device.gatt.connect();
-          const service = await this.webBleServer.getPrimaryService(MESH_SERVICE_UUID);
-          this.webBleToRadio = await service.getCharacteristic(TORADIO_UUID);
-          this.webBleFromRadio = await service.getCharacteristic(FROMRADIO_UUID);
-          this.webBleFromNum = await service.getCharacteristic(FROMNUM_UUID);
-
-          await this.webBleToRadio.writeValue(encodeWantConfigToRadio());
-
-          try {
-            await this.webBleFromNum.startNotifications();
-            this.webBleFromNum.addEventListener('characteristicvaluechanged', async () => {
-              await this.drainWebBleFromRadio();
-            });
-          } catch (notifErr) {
-            console.warn('[LoRaMeshClient] WebBLE FromNum notification note:', notifErr);
-          }
-
-          await this.drainWebBleFromRadio();
-
-          // Continuous fallback polling every 1.2s so Windows Chrome WebBLE never misses incoming SOS / MSG / WTH packets
-          if (this.webBleDrainInterval) clearInterval(this.webBleDrainInterval);
-          this.webBleDrainInterval = setInterval(() => {
-            this.drainWebBleFromRadio();
-          }, 1200);
-
-          this.setStatus(true, 'BLE', name);
-          return { success: true, transport: 'BLE', deviceName: name };
+          return await this._attachWebBleDevice(device);
         } catch (err) {
           console.error('Web Bluetooth error:', err);
           throw new Error(err.message || 'Bluetooth pairing cancelled.');
