@@ -2032,7 +2032,7 @@
                     <div class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                       <%= alertReports.list.length %>
                     </div>
-                    <div class="text-[11px] font-semibold text-blue-600">SMS Outbox Executions</div>
+                    <div class="text-[11px] font-semibold text-blue-600">Alert Broadcast Logs</div>
                   </div>
 
                   <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">
@@ -2042,7 +2042,7 @@
                       <%= alertReports.totalRecipients || (alertReports.list || []).reduce((acc, a)=> acc +
                         (a.recipient_count || 0), 0) %>
                     </div>
-                    <div class="text-[11px] font-semibold text-slate-500">Phones via iProgSMS</div>
+                    <div class="text-[11px] font-semibold text-slate-500">Push &amp; LoRa Mesh Alerts</div>
                   </div>
 
                   <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-1">

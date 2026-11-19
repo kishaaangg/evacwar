@@ -231,7 +231,7 @@
                                 </span>
                                 <div
                                   class="text-[9px] sm:text-[10px] font-medium text-slate-500 mt-0.5 whitespace-nowrap">
-                                  SMS Outbox</div>
+                                  Alert Outbox</div>
                               </div>
                             </div>
                           </div>
@@ -240,13 +240,13 @@
                       <!-- Bottom White Section -->
                       <div class="bg-white p-3.5 sm:p-4 rounded-b-2xl space-y-2 text-xs">
                         <div class="flex items-center justify-between gap-2">
-                          <span class="text-slate-600 font-normal">SMS Dispatched:</span>
+                          <span class="text-slate-600 font-normal">Alerts Dispatched:</span>
                           <span class="font-bold text-slate-900 shrink-0">
                             <%= locals.summary ? Number(locals.summary.totalAlerts || 0).toLocaleString() : 0 %> logs
                           </span>
                         </div>
                         <div class="flex items-center justify-between gap-2">
-                          <span class="text-slate-600 font-normal">Gateway Status:</span>
+                          <span class="text-slate-600 font-normal">Alert System:</span>
                           <span class="font-bold text-emerald-700 shrink-0">Active</span>
                         </div>
                       </div>
