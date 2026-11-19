@@ -182,6 +182,8 @@ function recordReading(payload = {}) {
   const trend = computePressureTrend(press, state.history);
   const derived = deriveWeatherSummary(temp, hum, press, trend);
   const updatedAt = payload.updatedAt || payload.rxTime || new Date().toISOString();
+  const parsedTsMs = new Date(updatedAt).getTime();
+  const timestampMs = (parsedTsMs && isFinite(parsedTsMs)) ? parsedTsMs : Date.now();
 
   const reading = {
     temperature: temp,
@@ -204,7 +206,7 @@ function recordReading(payload = {}) {
     hopsAway: payload.hopsAway !== undefined ? Number(payload.hopsAway) : 0,
     source: payload.source || 'LORA_AHT20_BMP280',
     updatedAt,
-    timestampMs: Date.now()
+    timestampMs
   };
 
   state.current = reading;

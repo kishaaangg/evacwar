@@ -507,12 +507,16 @@ async function dispatchWeatherSensorNotification(ioRef, sourceReason = 'AUTO_2H'
   return weatherAlert;
 }
 
-// Automatic 2-hour silent Weather Notification scheduler (checks every 60s)
+// Automatic 2-hour silent Weather Notification scheduler (checks every 60s, only when sensor is actively online)
 setInterval(() => {
   try {
     const state = loraWeatherHelper.readState();
     if (!state.current) return;
-    const elapsed = Date.now() - (state.lastWeatherAlertAt || 0);
+    const now = Date.now();
+    const lastRxMs = state.current.timestampMs || new Date(state.current.updatedAt || 0).getTime();
+    // Do not broadcast automatic weather alerts if the Relay sensor is offline (no reading in the last 10 minutes)
+    if (!lastRxMs || (now - lastRxMs) > 10 * 60 * 1000) return;
+    const elapsed = now - (state.lastWeatherAlertAt || 0);
     if (elapsed >= loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS) {
       dispatchWeatherSensorNotification(ioInstance, 'AUTO_2H').catch((err) => {
         console.warn('[LoRaWeather] 2-hour scheduler error:', err.message);
@@ -769,12 +773,25 @@ router.get('/latest-alert', async (_req, res) => {
 // =========================================================================
 router.get('/weather-sensor', (_req, res) => {
   const state = loraWeatherHelper.readState();
+  const nowMs = Date.now();
+  const lastRxMs = state.current
+    ? ( Number(state.current.timestampMs) || new Date(state.current.updatedAt || 0).getTime() || 0 )
+    : 0;
+  const readingAgeMs = lastRxMs > 0 ? Math.max(0, nowMs - lastRxMs) : 999999999;
+  const gwAgeMs = gatewayStatus.lastSeen ? Math.max(0, nowMs - new Date(gatewayStatus.lastSeen).getTime()) : 999999999;
+  const gatewayConnected = Boolean(gatewayStatus.connected && gwAgeMs < 12000);
+  // Relay sensor is ONLINE if a real sensor reading arrived within the last 2.5 minutes (150,000 ms)
+  const relayOnline = Boolean(state.current && lastRxMs > 0 && readingAgeMs <= 150000);
+
   const nextAutoAlertAt = state.lastWeatherAlertAt
     ? new Date(state.lastWeatherAlertAt + loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS).toISOString()
     : null;
   res.json({
     success: true,
-    serverNowMs: Date.now(),
+    serverNowMs: nowMs,
+    relayOnline,
+    gatewayConnected,
+    readingAgeSeconds: Math.round(readingAgeMs / 1000),
     current: state.current,
     history: state.history || [],
     latestWeatherAlert: state.latestWeatherAlert || null,
@@ -788,14 +805,18 @@ router.post('/weather-sensor', (req, res) => {
   try {
     if (req.io && !ioInstance) ioInstance = req.io;
     const body = req.body || {};
-    const state = loraWeatherHelper.recordReading(body);
+    // Touch timestamp so live readings are always marked fresh on server clock
+    const state = loraWeatherHelper.recordReading({
+      ...body,
+      updatedAt: new Date().toISOString()
+    });
     if (!state.current) {
       return res.status(400).json({ success: false, message: 'No valid temperature, humidity, or pressure provided.' });
     }
 
     const activeIo = req.io || ioInstance;
     if (activeIo) {
-      activeIo.emit('lora:weather_update', state.current);
+      activeIo.emit('lora:weather_update', { ...state.current, relayOnline: true });
     }
 
     // Periodically share compact weather telemetry packet onto 433.875 MHz mesh (every >= 3 min or explicit flag)

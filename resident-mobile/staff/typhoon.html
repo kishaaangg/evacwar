@@ -4879,20 +4879,20 @@
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">LoRa Sensor Telemetry</h2>
-            <span id="lwsSourceBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Live</span>
+            <span id="lwsSourceBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+              <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+              <span>Checking Relay...</span>
             </span>
           </div>
           <p class="text-[11px] font-mono text-slate-500 truncate" id="lwsHardwareMeta">
-            Node <span id="lwsNodeId">!0f778ab0</span> &bull; AHT20 + BMP280
+            Node <span id="lwsNodeId">!0f778ab0</span> &bull; AHT20 + BMP280 &bull; <span id="lwsRelayStatusText">Checking status...</span>
           </p>
         </div>
       </div>
 
       <div class="flex items-center gap-3">
         <div class="text-right">
-          <div class="text-[10px] uppercase font-bold text-slate-400">Updated</div>
+          <div class="text-[10px] uppercase font-bold text-slate-400" id="lwsUpdatedLabel">Last Seen</div>
           <div id="lwsUpdatedAt" class="text-xs font-mono font-bold text-slate-700">--</div>
         </div>
         <button type="button" onclick="window.evwRefreshSensorWeather(this)"
@@ -5107,16 +5107,43 @@
       }
 
       const r = enrichSensorReading(rawCurrent, hist);
+      const refNowMs = Number(state.serverNowMs) || Date.now();
+      const readingTsMs = r ? (Number(r.timestampMs) || new Date(r.updatedAt || 0).getTime() || 0) : 0;
+      const ageMs = readingTsMs > 0 ? Math.max(0, refNowMs - readingTsMs) : 999999999;
+      const isRelayOnline = (typeof state.relayOnline === 'boolean')
+        ? state.relayOnline
+        : Boolean(r && readingTsMs > 0 && ageMs <= 150000);
+
       const pillTempEl = document.getElementById('weatherToggleSensorTemp');
       if (pillTempEl) {
-        pillTempEl.textContent = (r && r.temperature != null) ? `${Number(r.temperature).toFixed(1)}°C` : '--°C';
+        if (r && r.temperature != null) {
+          pillTempEl.textContent = isRelayOnline ? `🟢 ${Number(r.temperature).toFixed(1)}°C` : `⚪ ${Number(r.temperature).toFixed(1)}°C (Off)`;
+        } else {
+          pillTempEl.textContent = isRelayOnline ? '🟢 Online' : '⚪ Offline';
+        }
       }
-      if (!r) return;
 
       const setTxt = (id, txt) => {
         const el = document.getElementById(id);
         if (el) el.textContent = txt;
       };
+
+      const srcBadge = document.getElementById('lwsSourceBadge');
+      if (srcBadge) {
+        if (isRelayOnline) {
+          const isBleRf = !navigator.onLine || String((r && r.source) || '').includes('BLE') || String((r && r.source) || '').includes('RF');
+          srcBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200';
+          srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>${isBleRf ? 'Relay Online (LoRa RF)' : 'Relay Online'}</span>`;
+        } else {
+          srcBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200';
+          srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Relay Offline</span>`;
+        }
+      }
+
+      setTxt('lwsRelayStatusText', isRelayOnline ? 'Active & Transmitting' : 'Offline (Showing Last Saved Reading)');
+      setTxt('lwsUpdatedLabel', isRelayOnline ? 'Live Updated' : 'Last Reading (Offline)');
+
+      if (!r) return;
 
       setTxt('lwsTempValue', r.temperature != null ? Number(r.temperature).toFixed(1) : '--');
       setTxt('lwsHeatIndexValue', r.heatIndex != null ? `${Number(r.heatIndex).toFixed(1)} °C` : '-- °C');
@@ -5135,8 +5162,8 @@
       setTxt('lwsConditionTitle', r.condition || 'Fair / Partly Cloudy');
       setTxt('lwsUpdatedAt', fmtManila(r.updatedAt || r.timestampMs));
       setTxt('lwsNodeId', r.nodeId || '!0f778ab0');
-      setTxt('lwsRssi', r.rssi != null ? `${r.rssi} dBm` : (navigator.onLine ? 'Gateway Live' : 'LoRa RF'));
-      setTxt('lwsSnrHops', r.snr != null ? `SNR ${r.snr} dB • ${r.hopsAway || 0} hop` : '433.875 MHz');
+      setTxt('lwsRssi', isRelayOnline ? (r.rssi != null ? `${r.rssi} dBm` : 'Online') : 'Relay Offline');
+      setTxt('lwsSnrHops', isRelayOnline ? (r.snr != null ? `SNR ${r.snr} dB • ${r.hopsAway || 0} hop` : '433.875 MHz Active') : 'No active LoRa signal');
 
       const advBadge = document.getElementById('lwsAdvisoryBadge');
       if (advBadge) {
@@ -5147,12 +5174,6 @@
             : (r.advisoryLevel === 'CAUTION'
               ? 'bg-amber-50 text-amber-700 border-amber-200'
               : 'bg-emerald-50 text-emerald-700 border-emerald-200'));
-      }
-
-      const srcBadge = document.getElementById('lwsSourceBadge');
-      if (srcBadge) {
-        const isOfflineLora = !navigator.onLine || String(r.source || '').includes('BLE') || String(r.source || '').includes('RF');
-        srcBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${isOfflineLora ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse"></span><span>${isOfflineLora ? 'LoRa RF' : 'Live'}</span>`;
       }
 
       const body = document.getElementById('lwsHistoryBody');
