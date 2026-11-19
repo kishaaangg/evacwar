@@ -36,6 +36,7 @@ if (compression) {
   app.use(compression({
     filter: (req, res) => {
       if (req.headers['x-no-compression']) return false;
+      if (req.url && req.url.toLowerCase().includes('.apk')) return false;
       return compression.filter(req, res);
     },
     threshold: 1024
@@ -511,10 +512,11 @@ app.get('/service-worker.js', (req, res) => {
 });
 
 // Force-fresh APK download endpoints (disables browser caching completely)
-app.get(['/evakwar-resident-v2.apk', '/evakwar-latest.apk', '/evakwar-update.apk', '/evakwar-resident.apk', '/evakwar-mobile.apk'], (_req, res) => {
+const APK_ROUTES = ['/evakwar-resident-v2.8.apk', '/evakwar-resident-v2.apk', '/evakwar-latest.apk', '/evakwar-update.apk', '/evakwar-resident.apk', '/evakwar-mobile.apk'];
+app.get(APK_ROUTES, (_req, res) => {
   const apkPath = path.join(__dirname, 'public', 'evakwar-resident.apk');
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="evakwar-resident-v2.apk"');
+  res.setHeader('Content-Disposition', 'attachment; filename="evakwar-resident-v2.8.apk"');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -551,16 +553,6 @@ app.get('/health', (_req, res) => {
 app.get(['/download', '/get-app', '/app-update'], (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.render('download-app');
-});
-
-app.get(['/evakwar-resident-v2.apk', '/evakwar-latest.apk', '/evakwar-update.apk', '/evakwar-resident.apk', '/evakwar-mobile.apk'], (_req, res) => {
-  const apkPath = path.join(__dirname, 'public', 'evakwar-resident.apk');
-  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="evakwar-resident-v2.apk"');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.sendFile(apkPath);
 });
 
 // Database connectivity diagnostics endpoint

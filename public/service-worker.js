@@ -4,7 +4,7 @@
    Safe, non-invasive caching strategy with strict safety rules for emergency data.
    ========================================================================== */
 
-const CACHE_NAME = 'Evacwar-static-v100';
+const CACHE_NAME = 'Evacwar-static-v101';
 
 // 1x1 transparent PNG buffer for graceful offline tile fallback without 408 console errors
 const EMPTY_TILE_PNG = new Uint8Array([
@@ -86,6 +86,10 @@ const PRECACHE_ASSETS = [
 // Note: Non-GET requests (e.g. POST /api/offline/sync) are already protected by request.method !== 'GET'.
 const NETWORK_ONLY_PATTERNS = [
   /\/health/i,
+  /\.apk/i,
+  /\/download/i,
+  /\/get-app/i,
+  /\/app-update/i,
   /\/api\//i,
   /\/socket\.io\//i,
   /\/auth\//i,
