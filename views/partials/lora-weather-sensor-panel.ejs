@@ -50,8 +50,19 @@
       <div class="text-xs text-slate-400 mt-0.5">No live sensor data available</div>
     </div>
 
-    <!-- Minimalist 3-Card Sensor Data Grid (Hidden when Relay is OFFLINE) -->
-    <div id="lwsLiveDataGrid" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <!-- Minimalist 4-Card Sensor Data Grid (Hidden when Relay is OFFLINE) -->
+    <div id="lwsLiveDataGrid" class="hidden grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+      <!-- Weather Icon & Short Condition (Derived from Sensor Data) -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center gap-3.5">
+        <div id="lwsSkyIconBox" class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/70 text-amber-500 flex items-center justify-center text-3xl shrink-0">
+          <i id="lwsSkyIcon" class="ph ph-sun"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sky</div>
+          <div id="lwsSkyLabel" class="text-lg sm:text-xl font-black text-slate-900 truncate">--</div>
+        </div>
+      </div>
 
       <!-- Temperature (AHT20 / BMP280) -->
       <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
@@ -199,6 +210,28 @@
       setTxt('lwsTempValue', rawCurrent.temperature != null ? Number(rawCurrent.temperature).toFixed(1) : '--');
       setTxt('lwsHumidityValue', rawCurrent.humidity != null ? Number(rawCurrent.humidity).toFixed(1) : '--');
       setTxt('lwsPressureValue', rawCurrent.pressure != null ? Number(rawCurrent.pressure).toFixed(1) : '--');
+
+      // Minimalist sky icon + 1-word label strictly derived from live AHT20 + BMP280 readings
+      const tVal = rawCurrent.temperature != null ? Number(rawCurrent.temperature) : null;
+      const hVal = rawCurrent.humidity != null ? Number(rawCurrent.humidity) : null;
+      const pVal = rawCurrent.pressure != null ? Number(rawCurrent.pressure) : null;
+      let sky = { label: 'Fair', icon: 'ph-cloud-sun', box: 'bg-sky-50 border-sky-200/70 text-sky-500' };
+      if (pVal != null && pVal < 1002) {
+        sky = { label: 'Stormy', icon: 'ph-cloud-lightning', box: 'bg-rose-50 border-rose-200/70 text-rose-500' };
+      } else if (pVal != null && pVal < 1007) {
+        sky = { label: 'Windy', icon: 'ph-wind', box: 'bg-indigo-50 border-indigo-200/70 text-indigo-500' };
+      } else if ((pVal != null && pVal < 1011) || (hVal != null && hVal >= 85)) {
+        sky = { label: 'Rainy', icon: 'ph-cloud-rain', box: 'bg-blue-50 border-blue-200/70 text-blue-600' };
+      } else if (hVal != null && hVal >= 78) {
+        sky = { label: 'Cloudy', icon: 'ph-cloud', box: 'bg-slate-100 border-slate-200 text-slate-500' };
+      } else if (tVal != null && tVal >= 30 && (hVal == null || hVal < 75)) {
+        sky = { label: 'Sunny', icon: 'ph-sun', box: 'bg-amber-50 border-amber-200/70 text-amber-500' };
+      }
+      const skyBox = document.getElementById('lwsSkyIconBox');
+      const skyIcon = document.getElementById('lwsSkyIcon');
+      if (skyBox) skyBox.className = `w-12 h-12 rounded-2xl border flex items-center justify-center text-3xl shrink-0 ${sky.box}`;
+      if (skyIcon) skyIcon.className = `ph ${sky.icon}`;
+      setTxt('lwsSkyLabel', sky.label);
 
       const sigParts = [];
       if (rawCurrent.rssi != null) sigParts.push(`${rawCurrent.rssi} dBm`);
