@@ -4,11 +4,11 @@
     ? 'w-full max-w-[1800px] mx-auto px-2 sm:px-3 lg:px-4 pb-6 font-sans'
     : 'hidden w-full flex-1 min-h-0 overflow-y-auto bg-slate-50 text-slate-900 p-3 sm:p-5 pb-24 lg:pb-8 font-sans';
 %>
-<!-- CLEAN WHITE LORA AHT20 + BMP280 SENSOR WEATHER PANEL -->
+<!-- MINIMALIST LORA SENSOR TELEMETRY PANEL (AHT20 + BMP280 ONLY) -->
 <section id="loraSensorWeatherPane" data-inline-always="<%= _isAdminWeatherRole ? 'true' : 'false' %>" class="<%= _paneClass %>">
-  <div class="<%= _isAdminWeatherRole ? 'space-y-3' : 'max-w-5xl mx-auto space-y-3.5' %>">
+  <div class="<%= _isAdminWeatherRole ? 'space-y-3' : 'max-w-4xl mx-auto space-y-3' %>">
 
-    <!-- Compact Header Bar -->
+    <!-- Minimalist Header Bar -->
     <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
       <div class="flex items-center gap-2.5 min-w-0">
         <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200/70 text-blue-600 flex items-center justify-center text-lg shrink-0">
@@ -16,21 +16,21 @@
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">LoRa Sensor Telemetry</h2>
-            <span id="lwsSourceBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-100 text-slate-600 border border-slate-200">
-              <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-              <span>Checking Relay...</span>
+            <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">LoRa Weather Sensor</h2>
+            <span id="lwsSourceBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>Offline</span>
             </span>
           </div>
-          <p class="text-[11px] font-mono text-slate-500 truncate" id="lwsHardwareMeta">
-            Node <span id="lwsNodeId">!0f778ab0</span> &bull; AHT20 + BMP280 &bull; <span id="lwsRelayStatusText">Checking status...</span>
+          <p class="text-[11px] font-mono text-slate-400 truncate">
+            <span id="lwsNodeId">!0f778ab0</span> &bull; AHT20 + BMP280
           </p>
         </div>
       </div>
 
       <div class="flex items-center gap-3">
         <div class="text-right">
-          <div class="text-[10px] uppercase font-bold text-slate-400" id="lwsUpdatedLabel">Last Seen</div>
+          <div class="text-[10px] uppercase font-bold text-slate-400" id="lwsUpdatedLabel">Updated</div>
           <div id="lwsUpdatedAt" class="text-xs font-mono font-bold text-slate-700">--</div>
         </div>
         <button type="button" onclick="window.evwRefreshSensorWeather(this)"
@@ -41,102 +41,73 @@
       </div>
     </div>
 
-    <!-- Clean 4-Card Data Grid -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <!-- Offline State Card (Shown when Relay is OFFLINE - hides all sensor values) -->
+    <div id="lwsOfflineStateBox" class="bg-white border border-slate-200/90 rounded-2xl p-8 text-center shadow-xs">
+      <div class="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-200 text-rose-500 flex items-center justify-center text-xl mx-auto mb-2.5">
+        <i class="ph ph-wifi-slash"></i>
+      </div>
+      <div class="text-sm font-bold text-slate-800">Relay Offline</div>
+      <div class="text-xs text-slate-400 mt-0.5">No live sensor data available</div>
+    </div>
 
-      <!-- Temperature -->
-      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+    <!-- Minimalist 3-Card Sensor Data Grid (Hidden when Relay is OFFLINE) -->
+    <div id="lwsLiveDataGrid" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+      <!-- Temperature (AHT20 / BMP280) -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
           <span>Temperature</span>
           <i class="ph ph-thermometer-hot text-orange-500 text-base"></i>
         </div>
-        <div class="my-2 flex items-baseline gap-1">
-          <span id="lwsTempValue" class="text-2xl sm:text-3xl font-black font-mono text-slate-900">--</span>
+        <div class="mt-2.5 flex items-baseline gap-1">
+          <span id="lwsTempValue" class="text-3xl sm:text-4xl font-black font-mono text-slate-900">--</span>
           <span class="text-sm font-bold text-slate-400">°C</span>
         </div>
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-          <span class="text-slate-500">Heat Index</span>
-          <span class="font-mono font-bold text-orange-600"><span id="lwsHeatIndexValue">-- °C</span></span>
-        </div>
-        <div class="text-[10px] font-semibold text-slate-400 mt-0.5 truncate" id="lwsHeatCategory">--</div>
       </div>
 
-      <!-- Humidity -->
-      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+      <!-- Humidity (AHT20) -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
           <span>Humidity</span>
           <i class="ph ph-drop-half-bottom text-cyan-500 text-base"></i>
         </div>
-        <div class="my-2 flex items-baseline gap-1">
-          <span id="lwsHumidityValue" class="text-2xl sm:text-3xl font-black font-mono text-slate-900">--</span>
+        <div class="mt-2.5 flex items-baseline gap-1">
+          <span id="lwsHumidityValue" class="text-3xl sm:text-4xl font-black font-mono text-slate-900">--</span>
           <span class="text-sm font-bold text-slate-400">%</span>
         </div>
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-          <span class="text-slate-500">Dew Point</span>
-          <span id="lwsDewPointValue" class="font-mono font-bold text-cyan-700">-- °C</span>
-        </div>
-        <div class="text-[10px] font-semibold text-slate-400 mt-0.5 truncate" id="lwsHumidityLevel">--</div>
       </div>
 
-      <!-- Barometric Pressure -->
-      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
+      <!-- Barometric Pressure (BMP280) -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
           <span>Pressure</span>
           <i class="ph ph-gauge text-indigo-500 text-base"></i>
         </div>
-        <div class="my-2 flex items-baseline gap-1">
-          <span id="lwsPressureValue" class="text-2xl sm:text-3xl font-black font-mono text-slate-900">--</span>
+        <div class="mt-2.5 flex items-baseline gap-1">
+          <span id="lwsPressureValue" class="text-3xl sm:text-4xl font-black font-mono text-slate-900">--</span>
           <span class="text-sm font-bold text-slate-400">hPa</span>
         </div>
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-          <span class="text-slate-500">Trend</span>
-          <span id="lwsPressureTrend" class="font-bold text-indigo-700">--</span>
-        </div>
-        <div class="text-[10px] font-semibold text-slate-400 mt-0.5 truncate" id="lwsPressureStatus">--</div>
-      </div>
-
-      <!-- Condition & RF Link -->
-      <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase">
-          <span>Condition</span>
-          <span id="lwsAdvisoryBadge" class="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">NORMAL</span>
-        </div>
-        <div class="my-2">
-          <div id="lwsConditionTitle" class="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">--</div>
-        </div>
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-          <span class="text-slate-500">Signal</span>
-          <span id="lwsRssi" class="font-mono font-bold text-slate-700">--</span>
-        </div>
-        <div class="text-[10px] font-mono text-slate-400 mt-0.5 truncate" id="lwsSnrHops">--</div>
       </div>
 
     </div>
 
-    <!-- Real Sensor Readings Log Table -->
-    <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs">
-      <div class="flex items-center justify-between mb-2.5">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-          <i class="ph ph-clock-counter-clockwise text-blue-600 text-base"></i> Recent Sensor Logs
-        </span>
-        <span class="text-[11px] font-semibold text-slate-400" id="lwsHistoryCount">0 logs</span>
+    <!-- Minimalist Sensor Logs Table (Hidden when Relay is OFFLINE) -->
+    <div id="lwsLiveHistoryCard" class="hidden bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Recent Logs</span>
+        <span class="text-[11px] font-mono text-slate-400" id="lwsSignalMeta">--</span>
       </div>
-      <div class="overflow-x-auto max-h-60 overflow-y-auto">
+      <div class="overflow-x-auto max-h-56 overflow-y-auto">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
               <th class="py-2 pr-3">Time</th>
               <th class="py-2 pr-3">Temp</th>
-              <th class="py-2 pr-3">Heat Idx</th>
               <th class="py-2 pr-3">Humidity</th>
-              <th class="py-2 pr-3">Pressure</th>
-              <th class="py-2">Condition</th>
+              <th class="py-2">Pressure</th>
             </tr>
           </thead>
           <tbody id="lwsHistoryBody" class="divide-y divide-slate-100 text-slate-700 font-mono">
-            <tr>
-              <td colspan="6" class="py-5 text-center text-slate-400 font-sans">Waiting for live sensor telemetry...</td>
-            </tr>
           </tbody>
         </table>
       </div>
@@ -149,86 +120,12 @@
   (function () {
     'use strict';
 
-    function computeClientHeatIndex(tempC, humidity) {
-      if (tempC == null || humidity == null || !isFinite(tempC) || !isFinite(humidity)) return null;
-      const t = Number(tempC);
-      const rh = Math.max(0, Math.min(100, Number(humidity)));
-      if (t < 27 || rh < 40) return Number(t.toFixed(1));
-      const tf = (t * 9) / 5 + 32;
-      let hiF =
-        -42.379 + 2.04901523 * tf + 10.14333127 * rh - 0.22475541 * tf * rh -
-        0.00683783 * tf * tf - 0.05481717 * rh * rh + 0.00122874 * tf * tf * rh +
-        0.00085282 * tf * rh * rh - 0.00000199 * tf * tf * rh * rh;
-      if (rh < 13 && tf >= 80 && tf <= 112) {
-        hiF -= ((13 - rh) / 4) * Math.sqrt((17 - Math.abs(tf - 95)) / 17);
-      } else if (rh > 85 && tf >= 80 && tf <= 87) {
-        hiF += ((rh - 85) / 10) * ((87 - tf) / 5);
-      }
-      return Number((((hiF - 32) * 5) / 9).toFixed(1));
-    }
-
-    function computeClientDewPoint(tempC, humidity) {
-      if (tempC == null || humidity == null || !isFinite(tempC) || !isFinite(humidity)) return null;
-      const t = Number(tempC);
-      const rh = Math.max(1, Math.min(100, Number(humidity)));
-      const a = 17.625, b = 243.04;
-      const gamma = Math.log(rh / 100) + (a * t) / (b + t);
-      return Number(((b * gamma) / (a - gamma)).toFixed(1));
-    }
-
-    function enrichSensorReading(raw, history = []) {
-      if (!raw) return null;
-      const t = raw.temperature != null ? Number(raw.temperature) : null;
-      const rh = raw.humidity != null ? Number(raw.humidity) : null;
-      const p = raw.pressure != null ? Number(raw.pressure) : null;
-      const hi = raw.heatIndex != null ? Number(raw.heatIndex) : computeClientHeatIndex(t, rh);
-      const dp = raw.dewPoint != null ? Number(raw.dewPoint) : computeClientDewPoint(t, rh);
-
-      let heatCategory = raw.heatCategory || 'Normal';
-      if (!raw.heatCategory && hi != null) {
-        if (hi >= 52) heatCategory = 'Extreme Danger';
-        else if (hi >= 42) heatCategory = 'Danger Heat';
-        else if (hi >= 33) heatCategory = 'Extreme Caution';
-        else if (hi >= 27) heatCategory = 'Caution Warmth';
-      }
-
-      let pressureTrend = raw.pressureTrend || 'Steady';
-      if (!raw.pressureTrend && p != null && history.length > 1) {
-        const ref = history[history.length - 1];
-        if (ref && ref.pressure != null) {
-          const delta = p - Number(ref.pressure);
-          if (delta <= -3.0) pressureTrend = 'Rapid Drop';
-          else if (delta <= -1.0) pressureTrend = 'Falling';
-          else if (delta >= 1.5) pressureTrend = 'Rising';
-        }
-      }
-
-      let condition = raw.condition || 'Fair / Partly Cloudy';
-      let advisoryLevel = raw.advisoryLevel || 'NORMAL';
-      if (!raw.condition && p != null) {
-        if (p < 1002 || pressureTrend === 'Rapid Drop') {
-          condition = 'Low Pressure / Storm Watch';
-          advisoryLevel = 'WATCH';
-        } else if (p < 1008 || (rh != null && rh >= 86)) {
-          condition = 'Rain Showers Likely';
-          advisoryLevel = 'CAUTION';
-        } else if (rh != null && rh >= 80) {
-          condition = 'Warm & Humid';
-          advisoryLevel = (hi != null && hi >= 33) ? 'CAUTION' : 'NORMAL';
-        } else if (p >= 1015) {
-          condition = 'Clear / Fair Skies';
-        }
-      }
-
-      return { ...raw, temperature: t, humidity: rh, pressure: p, heatIndex: hi, dewPoint: dp, heatCategory, pressureTrend, condition, advisoryLevel };
-    }
-
     function fmtManila(val) {
       if (!val) return '--';
       const d = new Date(val);
       if (isNaN(d.getTime())) return '--';
       return d.toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
       });
     }
 
@@ -244,20 +141,19 @@
         try { hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]') || []; } catch (_) { hist = []; }
       }
 
-      const r = enrichSensorReading(rawCurrent, hist);
       const refNowMs = Number(state.serverNowMs) || Date.now();
-      const readingTsMs = r ? (Number(r.timestampMs) || new Date(r.updatedAt || 0).getTime() || 0) : 0;
+      const readingTsMs = rawCurrent ? (Number(rawCurrent.timestampMs) || new Date(rawCurrent.updatedAt || 0).getTime() || 0) : 0;
       const ageMs = readingTsMs > 0 ? Math.max(0, refNowMs - readingTsMs) : 999999999;
       const isRelayOnline = (typeof state.relayOnline === 'boolean')
         ? state.relayOnline
-        : Boolean(r && readingTsMs > 0 && ageMs <= 150000);
+        : Boolean(rawCurrent && !rawCurrent.i2cBusWarning && readingTsMs > 0 && ageMs <= 150000);
 
       const pillTempEl = document.getElementById('weatherToggleSensorTemp');
       if (pillTempEl) {
-        if (r && r.temperature != null) {
-          pillTempEl.textContent = isRelayOnline ? `🟢 ${Number(r.temperature).toFixed(1)}°C` : `⚪ ${Number(r.temperature).toFixed(1)}°C (Off)`;
+        if (isRelayOnline && rawCurrent && rawCurrent.temperature != null) {
+          pillTempEl.textContent = `🟢 ${Number(rawCurrent.temperature).toFixed(1)}°C`;
         } else {
-          pillTempEl.textContent = isRelayOnline ? '🟢 Online' : '⚪ Offline';
+          pillTempEl.textContent = '🔴 Offline';
         }
       }
 
@@ -267,76 +163,61 @@
       };
 
       const srcBadge = document.getElementById('lwsSourceBadge');
-      if (srcBadge) {
-        if (isRelayOnline) {
-          const isBleRf = !navigator.onLine || String((r && r.source) || '').includes('BLE') || String((r && r.source) || '').includes('RF');
-          srcBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200';
-          srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>${isBleRf ? 'Relay Online (LoRa RF)' : 'Relay Online'}</span>`;
-        } else {
+      const offlineBox = document.getElementById('lwsOfflineStateBox');
+      const liveGrid = document.getElementById('lwsLiveDataGrid');
+      const liveHist = document.getElementById('lwsLiveHistoryCard');
+
+      if (!isRelayOnline || !rawCurrent) {
+        if (srcBadge) {
           srcBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200';
-          srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Relay Offline</span>`;
+          srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Offline</span>`;
         }
+        setTxt('lwsUpdatedLabel', 'Status');
+        setTxt('lwsUpdatedAt', 'Offline');
+        setTxt('lwsTempValue', '--');
+        setTxt('lwsHumidityValue', '--');
+        setTxt('lwsPressureValue', '--');
+        if (offlineBox) offlineBox.classList.remove('hidden');
+        if (liveGrid) liveGrid.classList.add('hidden');
+        if (liveHist) liveHist.classList.add('hidden');
+        return;
       }
 
-      const hasI2cWarn = Boolean(r && r.i2cBusWarning && isRelayOnline);
-      setTxt('lwsRelayStatusText', isRelayOnline
-        ? (hasI2cWarn ? 'Relay RF Online (Press EN on Relay to re-init I2C sensor)' : 'Active & Transmitting')
-        : 'Offline (Showing Last Saved Reading)');
-      setTxt('lwsUpdatedLabel', isRelayOnline ? 'Relay Last Heard' : 'Last Reading (Offline)');
-
-      if (!r) return;
-
-      setTxt('lwsTempValue', r.temperature != null ? Number(r.temperature).toFixed(1) : '--');
-      setTxt('lwsHeatIndexValue', r.heatIndex != null ? `${Number(r.heatIndex).toFixed(1)} °C` : '-- °C');
-      setTxt('lwsHeatCategory', r.heatCategory || 'Normal');
-
-      setTxt('lwsHumidityValue', r.humidity != null ? Number(r.humidity).toFixed(1) : '--');
-      setTxt('lwsDewPointValue', r.dewPoint != null ? `${Number(r.dewPoint).toFixed(1)} °C` : '-- °C');
-      const humLvl = r.humidity == null ? '--' : (r.humidity >= 80 ? 'Humid' : (r.humidity >= 55 ? 'Moderate' : 'Comfortable'));
-      setTxt('lwsHumidityLevel', humLvl);
-
-      setTxt('lwsPressureValue', r.pressure != null ? Number(r.pressure).toFixed(1) : '--');
-      setTxt('lwsPressureTrend', r.pressureTrend || 'Steady');
-      const pStat = r.pressure == null ? '--' : (r.pressure < 1005 ? 'Low Pressure' : (r.pressure > 1018 ? 'High / Fair' : 'Normal'));
-      setTxt('lwsPressureStatus', pStat);
-
-      setTxt('lwsConditionTitle', r.condition || 'Fair / Partly Cloudy');
-      setTxt('lwsUpdatedAt', fmtManila(r.updatedAt || r.timestampMs));
-      setTxt('lwsNodeId', r.nodeId || '!0f778ab0');
-      setTxt('lwsRssi', isRelayOnline ? (r.rssi != null ? `${r.rssi} dBm` : 'Online') : 'Relay Offline');
-      setTxt('lwsSnrHops', isRelayOnline ? (r.snr != null ? `SNR ${r.snr} dB • ${r.hopsAway || 0} hop` : '433.875 MHz Active') : 'No active LoRa signal');
-
-      const advBadge = document.getElementById('lwsAdvisoryBadge');
-      if (advBadge) {
-        advBadge.textContent = r.advisoryLevel || 'NORMAL';
-        advBadge.className = 'px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase border ' +
-          (r.advisoryLevel === 'WATCH'
-            ? 'bg-red-50 text-red-700 border-red-200'
-            : (r.advisoryLevel === 'CAUTION'
-              ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : 'bg-emerald-50 text-emerald-700 border-emerald-200'));
+      // Relay is ONLINE -> show minimalist sensor data only
+      if (srcBadge) {
+        srcBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200';
+        srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>Online</span>`;
       }
+      if (offlineBox) offlineBox.classList.add('hidden');
+      if (liveGrid) liveGrid.classList.remove('hidden');
+      if (liveHist) liveHist.classList.remove('hidden');
+
+      setTxt('lwsUpdatedLabel', 'Updated');
+      setTxt('lwsUpdatedAt', fmtManila(rawCurrent.updatedAt || rawCurrent.timestampMs));
+      setTxt('lwsNodeId', rawCurrent.nodeId || '!0f778ab0');
+
+      setTxt('lwsTempValue', rawCurrent.temperature != null ? Number(rawCurrent.temperature).toFixed(1) : '--');
+      setTxt('lwsHumidityValue', rawCurrent.humidity != null ? Number(rawCurrent.humidity).toFixed(1) : '--');
+      setTxt('lwsPressureValue', rawCurrent.pressure != null ? Number(rawCurrent.pressure).toFixed(1) : '--');
+
+      const sigParts = [];
+      if (rawCurrent.rssi != null) sigParts.push(`${rawCurrent.rssi} dBm`);
+      if (rawCurrent.snr != null) sigParts.push(`SNR ${rawCurrent.snr} dB`);
+      setTxt('lwsSignalMeta', sigParts.join(' • ') || '433.875 MHz');
 
       const body = document.getElementById('lwsHistoryBody');
-      const countEl = document.getElementById('lwsHistoryCount');
-      if (countEl) countEl.textContent = `${hist.length} logs`;
       if (body) {
-        if (hist.length === 0) {
-          body.innerHTML = `<tr><td colspan="6" class="py-5 text-center text-slate-400 font-sans">No hardware sensor logs yet.</td></tr>`;
+        if (!hist || hist.length === 0) {
+          body.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-400 font-sans">--</td></tr>`;
         } else {
-          body.innerHTML = hist.slice(0, 20).map((item) => {
-            const itemEn = enrichSensorReading(item, []);
-            return `
-              <tr class="hover:bg-slate-50">
-                <td class="py-2 pr-3 text-[11px] text-slate-500 whitespace-nowrap">${fmtManila(itemEn.updatedAt || itemEn.timestampMs)}</td>
-                <td class="py-2 pr-3 font-bold text-slate-900">${itemEn.temperature != null ? itemEn.temperature.toFixed(1) + '°C' : '--'}</td>
-                <td class="py-2 pr-3 text-orange-600 font-semibold">${itemEn.heatIndex != null ? itemEn.heatIndex.toFixed(1) + '°C' : '--'}</td>
-                <td class="py-2 pr-3 text-cyan-700 font-semibold">${itemEn.humidity != null ? Math.round(itemEn.humidity) + '%' : '--'}</td>
-                <td class="py-2 pr-3 text-indigo-700 font-semibold">${itemEn.pressure != null ? itemEn.pressure.toFixed(1) + ' hPa' : '--'}</td>
-                <td class="py-2 font-sans text-slate-700">${itemEn.condition || '--'}</td>
-              </tr>
-            `;
-          }).join('');
+          body.innerHTML = hist.slice(0, 15).map((item) => `
+            <tr class="hover:bg-slate-50">
+              <td class="py-2 pr-3 text-[11px] text-slate-500 whitespace-nowrap">${fmtManila(item.updatedAt || item.timestampMs)}</td>
+              <td class="py-2 pr-3 font-bold text-slate-900">${item.temperature != null ? Number(item.temperature).toFixed(1) + '°C' : '--'}</td>
+              <td class="py-2 pr-3 text-cyan-700 font-semibold">${item.humidity != null ? Number(item.humidity).toFixed(1) + '%' : '--'}</td>
+              <td class="py-2 text-indigo-700 font-semibold">${item.pressure != null ? Number(item.pressure).toFixed(1) + ' hPa' : '--'}</td>
+            </tr>
+          `).join('');
         }
       }
     }
@@ -376,12 +257,10 @@
       if (icon) icon.classList.add('animate-spin');
       if (btn) btn.disabled = true;
       try {
-        // 1. If a local LoRa node is paired via Bluetooth BLE or USB-OTG, actively poll the outdoor Relay (!0f778ab0) over 433.875 MHz RF
         if (window.evakwarLoraClient && typeof window.evakwarLoraClient.requestRelayWeatherTelemetry === 'function') {
           window.evakwarLoraClient.requestRelayWeatherTelemetry().catch(() => {});
         }
 
-        // 2. Also fetch latest synced outdoor Relay reading from server when online
         if (navigator.onLine) {
           const base = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
           const apiBase = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && window.location.hostname !== 'localhost'
@@ -390,18 +269,23 @@
           const res = await fetch(`${apiBase}/api/lora/weather-sensor`, { cache: 'no-store' });
           const data = await res.json();
           if (data && data.success) {
-            // Only overwrite localStorage current if server has a newer reading than our direct RF packet
-            let localCur = null;
-            try { localCur = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
-            const serverTs = (data.current && data.current.timestampMs) || 0;
-            const localTs = (localCur && localCur.timestampMs) || 0;
-            if (data.current && serverTs >= localTs) {
+            if (data.relayOnline && data.current) {
               localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(data.current));
+              if (Array.isArray(data.history)) {
+                localStorage.setItem('evw_lora_sensor_history', JSON.stringify(data.history));
+              }
+              renderSensorDashboard(data);
+            } else {
+              // Relay is offline on server -> check if we received a fresh direct RF packet locally within 2.5 minutes
+              let localCur = null;
+              try { localCur = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
+              const localTs = (localCur && localCur.timestampMs) || 0;
+              if (localCur && !localCur.i2cBusWarning && localTs > 0 && (Date.now() - localTs) <= 150000) {
+                renderSensorDashboard({ relayOnline: true, current: localCur, history: data.history || [] });
+              } else {
+                renderSensorDashboard({ relayOnline: false, current: null, history: [] });
+              }
             }
-            if (Array.isArray(data.history) && data.history.length > 0) {
-              localStorage.setItem('evw_lora_sensor_history', JSON.stringify(data.history));
-            }
-            renderSensorDashboard(localTs > serverTs ? { current: localCur, history: data.history } : data);
           }
         } else {
           renderSensorDashboard();
@@ -430,6 +314,7 @@
       window.evwRefreshSensorWeather();
       setInterval(() => {
         if (navigator.onLine) window.evwRefreshSensorWeather();
+        else renderSensorDashboard();
       }, 20000);
     });
   })();

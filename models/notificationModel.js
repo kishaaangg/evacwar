@@ -267,11 +267,14 @@ const NotificationModel = {
         });
       }
 
-      // 5. Latest 2-Hour LoRa Relay Weather Sensor Update (All Roles, redirects to Weather page)
+      // 5. Latest LoRa Relay Weather Sensor Update (ONLY when Relay is currently ONLINE)
       try {
         const weatherState = loraWeatherHelper.readState();
+        const cur = weatherState && weatherState.current;
         const wAlt = weatherState && weatherState.latestWeatherAlert;
-        if (wAlt) {
+        const lastRxMs = cur ? (Number(cur.timestampMs) || new Date(cur.updatedAt || 0).getTime() || 0) : 0;
+        const relayOnline = Boolean(cur && !cur.i2cBusWarning && lastRxMs > 0 && (Date.now() - lastRxMs) <= 150000);
+        if (relayOnline && wAlt) {
           const dt = new Date(wAlt.sent_at || wAlt.timestampMs || Date.now());
           const weatherUrl = role === 'admin'
             ? '/admin/typhoon?view=sensor'
@@ -284,7 +287,7 @@ const NotificationModel = {
             category: 'broadcast',
             icon: 'ph-cloud-sun',
             color: wAlt.advisoryLevel === 'WATCH' ? 'amber' : 'blue',
-            title: wAlt.title || '🌤️ LoRa Weather Sensor Update',
+            title: '🌤️ LoRa Weather Sensor Update',
             message: wAlt.message,
             date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' }),
             time: dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }),

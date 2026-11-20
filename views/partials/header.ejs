@@ -4723,8 +4723,8 @@
                           if (window.__seenWeatherNotifIds.has(alertId)) return;
                           window.__seenWeatherNotifIds.add(alertId);
 
-                          const title = weatherAlert.title || '🌤️ 2-Hour LoRa Weather Update';
-                          const message = weatherAlert.message || 'New sensor reading from Relay !0f778ab0. Tap to view Weather page.';
+                          const title = '🌤️ LoRa Weather Sensor Update';
+                          const message = weatherAlert.message || 'Tap to view live sensor telemetry.';
                           const targetUrl = resolveWeatherPageUrl();
 
                           // Persist latest reading to localStorage so Weather page reflects it offline too

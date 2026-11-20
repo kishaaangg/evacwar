@@ -1206,8 +1206,8 @@
           alertId,
           noSiren: true,
           url: '/typhoon',
-          title: '🌤️ 2-Hour LoRa Weather Sensor Update',
-          message: `${weatherObj.summary ? weatherObj.summary + ' • ' : ''}Temp ${weatherObj.temperature != null ? weatherObj.temperature.toFixed(1) + '°C' : '--'} • Humidity ${weatherObj.humidity != null ? Math.round(weatherObj.humidity) + '%' : '--'} • Pressure ${weatherObj.pressure != null ? weatherObj.pressure.toFixed(1) + ' hPa' : '--'} (Relay ${weatherObj.nodeId})`
+          title: '🌤️ LoRa Weather Sensor Update',
+          message: `Temp ${weatherObj.temperature != null ? weatherObj.temperature.toFixed(1) + '°C' : '--'} • Humidity ${weatherObj.humidity != null ? Math.round(weatherObj.humidity) + '%' : '--'} • Pressure ${weatherObj.pressure != null ? weatherObj.pressure.toFixed(1) + ' hPa' : '--'}`
         };
         try {
           window.dispatchEvent(new CustomEvent('evakwar:lora-weather-alert', { detail: alertObj }));

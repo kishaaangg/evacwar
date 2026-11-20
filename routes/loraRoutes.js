@@ -472,6 +472,13 @@ async function dispatchWeatherSensorNotification(ioRef, sourceReason = 'AUTO_2H'
   const state = loraWeatherHelper.readState();
   if (!state.current) return null;
 
+  // Never send weather notifications if the Relay is offline (no valid live reading in last 2.5 minutes)
+  const nowMs = Date.now();
+  const lastRxMs = Number(state.current.timestampMs) || new Date(state.current.updatedAt || 0).getTime() || 0;
+  if (!lastRxMs || (nowMs - lastRxMs) > 150000 || state.current.i2cBusWarning) {
+    return null;
+  }
+
   const weatherAlert = loraWeatherHelper.buildWeatherAlertFromReading(state.current);
   if (!weatherAlert) return null;
   weatherAlert.triggerSource = sourceReason;
@@ -507,19 +514,19 @@ async function dispatchWeatherSensorNotification(ioRef, sourceReason = 'AUTO_2H'
   return weatherAlert;
 }
 
-// Automatic 2-hour silent Weather Notification scheduler (checks every 60s, only when sensor is actively online)
+// Automatic silent Weather Notification scheduler (checks every 60s, ONLY when Relay sensor is actively online)
 setInterval(() => {
   try {
     const state = loraWeatherHelper.readState();
-    if (!state.current) return;
+    if (!state.current || state.current.i2cBusWarning) return;
     const now = Date.now();
     const lastRxMs = state.current.timestampMs || new Date(state.current.updatedAt || 0).getTime();
-    // Do not broadcast automatic weather alerts if the Relay sensor is offline (no reading in the last 10 minutes)
-    if (!lastRxMs || (now - lastRxMs) > 10 * 60 * 1000) return;
+    // Do not broadcast automatic weather alerts if the Relay sensor is offline (no reading in the last 2.5 minutes)
+    if (!lastRxMs || (now - lastRxMs) > 150000) return;
     const elapsed = now - (state.lastWeatherAlertAt || 0);
     if (elapsed >= loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS) {
       dispatchWeatherSensorNotification(ioInstance, 'AUTO_2H').catch((err) => {
-        console.warn('[LoRaWeather] 2-hour scheduler error:', err.message);
+        console.warn('[LoRaWeather] scheduler error:', err.message);
       });
     }
   } catch (_) {}
@@ -849,14 +856,21 @@ router.post('/weather-sensor', (req, res) => {
 router.get('/latest-weather-alert', (_req, res) => {
   try {
     const state = loraWeatherHelper.readState();
+    const nowMs = Date.now();
+    const lastRxMs = state.current
+      ? (Number(state.current.timestampMs) || new Date(state.current.updatedAt || 0).getTime() || 0)
+      : 0;
+    const relayOnline = Boolean(state.current && !state.current.i2cBusWarning && lastRxMs > 0 && (nowMs - lastRxMs) <= 150000);
     return res.json({
       success: true,
-      serverNowMs: Date.now(),
-      weatherAlert: state.latestWeatherAlert || null,
-      sensor: state.current || null
+      serverNowMs: nowMs,
+      relayOnline,
+      // When Relay is offline, do NOT return a weather notification!
+      weatherAlert: relayOnline ? (state.latestWeatherAlert || null) : null,
+      sensor: relayOnline ? (state.current || null) : null
     });
   } catch (err) {
-    return res.json({ success: false, serverNowMs: Date.now(), weatherAlert: null });
+    return res.json({ success: false, serverNowMs: Date.now(), relayOnline: false, weatherAlert: null });
   }
 });
 

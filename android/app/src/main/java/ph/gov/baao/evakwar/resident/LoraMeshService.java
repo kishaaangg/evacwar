@@ -916,9 +916,8 @@ public class LoraMeshService extends Service {
                 String temp = parts.length > 4 ? parts[4].trim() : "--";
                 String hum = parts.length > 5 ? parts[5].trim() : "--";
                 String press = parts.length > 6 ? parts[6].trim() : "--";
-                String summary = parts.length > 7 ? parts[7].trim() : "Local Sensor Weather Update";
-                String body = summary + " • Temp " + temp + "°C • Humidity " + hum + "% • Pressure " + press + " hPa";
-                showWeatherNotificationStatic(LoraMeshService.this, wId, "🌤️ 2-Hour LoRa Weather Update", body);
+                String body = "Temp " + temp + "°C • Humidity " + hum + "% • Pressure " + press + " hPa";
+                showWeatherNotificationStatic(LoraMeshService.this, wId, "🌤️ LoRa Weather Sensor Update", body);
             } catch (Exception ignored) {}
         }
     }
@@ -1215,8 +1214,8 @@ public class LoraMeshService extends Service {
             }
             PendingIntent pi = PendingIntent.getActivity(context, 205, launchIntent, piFlags);
 
-            String notifTitle = (title != null && !title.isEmpty()) ? title : "🌤️ 2-Hour LoRa Weather Update";
-            String notifBody = (body != null && !body.isEmpty()) ? body : "Tap to view live Relay weather sensor telemetry.";
+            String notifTitle = "🌤️ LoRa Weather Sensor Update";
+            String notifBody = (body != null && !body.isEmpty()) ? body : "Tap to view live sensor telemetry.";
 
             NotificationCompat.Builder nb = new NotificationCompat.Builder(context, WEATHER_CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.ic_menu_compass)
@@ -1946,7 +1945,7 @@ public class LoraMeshService extends Service {
                 while ((line = reader.readLine()) != null) sb.append(line);
                 reader.close();
                 JSONObject root = new JSONObject(sb.toString());
-                if (!root.optBoolean("success", false) || root.isNull("weatherAlert")) return;
+                if (!root.optBoolean("success", false) || !root.optBoolean("relayOnline", false) || root.isNull("weatherAlert")) return;
                 JSONObject w = root.getJSONObject("weatherAlert");
                 String wId = w.optString("alertId", w.optString("id", "")).trim();
                 if (wId.isEmpty()) return;
@@ -1959,7 +1958,7 @@ public class LoraMeshService extends Service {
                         return;
                     }
                 }
-                showWeatherNotificationStatic(LoraMeshService.this, wId, w.optString("title", "🌤️ 2-Hour LoRa Weather Update"), w.optString("message", ""));
+                showWeatherNotificationStatic(LoraMeshService.this, wId, "🌤️ LoRa Weather Sensor Update", w.optString("message", ""));
             }
         } catch (Exception ignored) {
         } finally {

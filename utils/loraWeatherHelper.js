@@ -265,10 +265,8 @@ function buildWeatherAlertFromReading(reading, alertIdOverride = null) {
   const tempText = reading.temperature != null ? `${Number(reading.temperature).toFixed(1)}°C` : '--°C';
   const humText = reading.humidity != null ? `${Math.round(Number(reading.humidity))}%` : '--%';
   const pressText = reading.pressure != null ? `${Number(reading.pressure).toFixed(1)} hPa` : '-- hPa';
-  const title = reading.advisoryLevel === 'WATCH'
-    ? '🌦️ LoRa Weather Watch (2-Hr Sensor Update)'
-    : '🌤️ 2-Hour LoRa Weather Sensor Update';
-  const message = `${reading.condition} • Temp ${tempText} • Humidity ${humText} • Pressure ${pressText} (Relay ${reading.nodeId || '!0f778ab0'})`;
+  const title = '🌤️ LoRa Weather Sensor Update';
+  const message = `Temp ${tempText} • Humidity ${humText} • Pressure ${pressText}`;
 
   return {
     id,
