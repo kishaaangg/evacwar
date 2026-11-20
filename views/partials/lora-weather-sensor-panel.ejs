@@ -53,15 +53,15 @@
     <!-- Minimalist 4-Card Sensor Data Grid (Hidden when Relay is OFFLINE) -->
     <div id="lwsLiveDataGrid" class="hidden grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-      <!-- Weather Icon & Short Condition (Derived from Sensor Data) -->
-      <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center gap-3.5">
-        <div id="lwsSkyIconBox" class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/70 text-amber-500 flex items-center justify-center text-3xl shrink-0">
-          <i id="lwsSkyIcon" class="ph ph-sun"></i>
+      <!-- Full-Color 3D Vector Weather Card (Color & 3D SVG adapt dynamically to live sensor data) -->
+      <div id="lwsSkyCard" class="relative overflow-hidden rounded-2xl p-4 sm:p-5 shadow-md border border-white/20 text-white flex items-center justify-between gap-3 transition-all duration-500" style="background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);">
+        <div class="pointer-events-none absolute -right-6 -top-6 w-28 h-28 rounded-full bg-white/15 blur-xl"></div>
+        <div class="pointer-events-none absolute -left-4 -bottom-6 w-20 h-20 rounded-full bg-black/10 blur-lg"></div>
+        <div class="relative z-10 min-w-0">
+          <div class="text-[10px] font-bold uppercase tracking-widest text-white/80">Weather</div>
+          <div id="lwsSkyLabel" class="text-xl sm:text-2xl font-black tracking-tight text-white drop-shadow-xs truncate mt-0.5">--</div>
         </div>
-        <div class="min-w-0">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sky</div>
-          <div id="lwsSkyLabel" class="text-lg sm:text-xl font-black text-slate-900 truncate">--</div>
-        </div>
+        <div id="lwsSkyVector" class="relative z-10 w-16 h-16 sm:w-[70px] sm:h-[70px] shrink-0 flex items-center justify-center drop-shadow-lg"></div>
       </div>
 
       <!-- Temperature (AHT20 / BMP280) -->
@@ -211,27 +211,109 @@
       setTxt('lwsHumidityValue', rawCurrent.humidity != null ? Number(rawCurrent.humidity).toFixed(1) : '--');
       setTxt('lwsPressureValue', rawCurrent.pressure != null ? Number(rawCurrent.pressure).toFixed(1) : '--');
 
-      // Minimalist sky icon + 1-word label strictly derived from live AHT20 + BMP280 readings
+      // Full-color 3D vector weather card strictly derived from live AHT20 + BMP280 readings
       const tVal = rawCurrent.temperature != null ? Number(rawCurrent.temperature) : null;
       const hVal = rawCurrent.humidity != null ? Number(rawCurrent.humidity) : null;
       const pVal = rawCurrent.pressure != null ? Number(rawCurrent.pressure) : null;
-      let sky = { label: 'Fair', icon: 'ph-cloud-sun', box: 'bg-sky-50 border-sky-200/70 text-sky-500' };
+
+      const WEATHER_THEMES = {
+        Sunny: {
+          bg: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+          svg: `<svg viewBox="0 0 80 80" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="sunCore" cx="35%" cy="30%" r="70%"><stop offset="0%" stop-color="#fef08a"/><stop offset="55%" stop-color="#facc15"/><stop offset="100%" stop-color="#ea580c"/></radialGradient>
+              <filter id="sunGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <g stroke="#fde047" stroke-width="3.5" stroke-linecap="round" opacity="0.85">
+              <line x1="40" y1="8" x2="40" y2="15"/><line x1="40" y1="65" x2="40" y2="72"/>
+              <line x1="8" y1="40" x2="15" y2="40"/><line x1="65" y1="40" x2="72" y2="40"/>
+              <line x1="17.5" y1="17.5" x2="22.5" y2="22.5"/><line x1="57.5" y1="57.5" x2="62.5" y2="62.5"/>
+              <line x1="62.5" y1="17.5" x2="57.5" y2="22.5"/><line x1="22.5" y1="57.5" x2="17.5" y2="62.5"/>
+            </g>
+            <circle cx="40" cy="40" r="19" fill="url(#sunCore)" filter="url(#sunGlow)"/>
+            <ellipse cx="34" cy="33" rx="6" ry="3.5" fill="#ffffff" opacity="0.45" transform="rotate(-25 34 33)"/>
+          </svg>`
+        },
+        Fair: {
+          bg: 'linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)',
+          svg: `<svg viewBox="0 0 80 80" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="fairSun" cx="35%" cy="30%" r="70%"><stop offset="0%" stop-color="#fef08a"/><stop offset="65%" stop-color="#facc15"/><stop offset="100%" stop-color="#f59e0b"/></radialGradient>
+              <linearGradient id="fairCloud" x1="20" y1="30" x2="55" y2="65" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+            </defs>
+            <circle cx="51" cy="27" r="14" fill="url(#fairSun)"/>
+            <path d="M23 58h35a12 12 0 0 0 2-23.8A16 16 0 0 0 29 31a13 13 0 0 0-6 27Z" fill="url(#fairCloud)"/>
+            <ellipse cx="35" cy="40" rx="10" ry="4" fill="#ffffff" opacity="0.6"/>
+          </svg>`
+        },
+        Cloudy: {
+          bg: 'linear-gradient(135deg, #64748b 0%, #334155 100%)',
+          svg: `<svg viewBox="0 0 80 80" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="cldBack" x1="30" y1="18" x2="60" y2="48" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e2e8f0"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient>
+              <linearGradient id="cldFront" x1="16" y1="30" x2="56" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+            </defs>
+            <path d="M34 48h28a10 10 0 0 0 1.5-19.8A13 13 0 0 0 38.5 25 11 11 0 0 0 34 48Z" fill="url(#cldBack)"/>
+            <path d="M20 60h36a12 12 0 0 0 2-23.8A16 16 0 0 0 27 33a13 13 0 0 0-7 27Z" fill="url(#cldFront)"/>
+            <ellipse cx="33" cy="43" rx="10" ry="4" fill="#ffffff" opacity="0.65"/>
+          </svg>`
+        },
+        Rainy: {
+          bg: 'linear-gradient(135deg, #0284c7 0%, #1e3a8a 100%)',
+          svg: `<svg viewBox="0 0 80 80" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="rainCld" x1="18" y1="18" x2="58" y2="52" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#f8fafc"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient>
+              <linearGradient id="dropG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7dd3fc"/><stop offset="100%" stop-color="#38bdf8"/></linearGradient>
+            </defs>
+            <path d="M21 48h36a11 11 0 0 0 2-21.8A15 15 0 0 0 29 22a12 12 0 0 0-8 26Z" fill="url(#rainCld)"/>
+            <path d="M28 55l-3 10a2.5 2.5 0 1 0 4.8 1.2L31 56Z" fill="url(#dropG)"/>
+            <path d="M41 55l-3 12a2.5 2.5 0 1 0 4.8 1.2L44 56Z" fill="url(#dropG)"/>
+            <path d="M54 55l-3 10a2.5 2.5 0 1 0 4.8 1.2L57 56Z" fill="url(#dropG)"/>
+          </svg>`
+        },
+        Windy: {
+          bg: 'linear-gradient(135deg, #0ea5e9 0%, #4338ca 100%)',
+          svg: `<svg viewBox="0 0 80 80" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="windCld" x1="16" y1="16" x2="54" y2="46" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+            </defs>
+            <path d="M18 42h31a9.5 9.5 0 0 0 1.5-18.8A13 13 0 0 0 25 20a10.5 10.5 0 0 0-7 22Z" fill="url(#windCld)"/>
+            <path d="M14 52h40a6 6 0 1 0-6-6" stroke="#e0f2fe" stroke-width="4" stroke-linecap="round"/>
+            <path d="M22 62h38a5 5 0 1 1-5 5" stroke="#bae6fd" stroke-width="3.8" stroke-linecap="round"/>
+          </svg>`
+        },
+        Stormy: {
+          bg: 'linear-gradient(135deg, #4f46e5 0%, #1e1b4b 60%, #7f1d1d 100%)',
+          svg: `<svg viewBox="0 0 80 80" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="stmCld" x1="18" y1="16" x2="58" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e2e8f0"/><stop offset="100%" stop-color="#64748b"/></linearGradient>
+              <linearGradient id="boltG" x1="40" y1="44" x2="36" y2="72" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+            </defs>
+            <path d="M20 46h38a11 11 0 0 0 2-21.8A15 15 0 0 0 29 20a12 12 0 0 0-9 26Z" fill="url(#stmCld)"/>
+            <path d="M43 44L31 59h9l-4 13 15-17h-9l5-11Z" fill="url(#boltG)"/>
+          </svg>`
+        }
+      };
+
+      let skyKey = 'Fair';
       if (pVal != null && pVal < 1002) {
-        sky = { label: 'Stormy', icon: 'ph-cloud-lightning', box: 'bg-rose-50 border-rose-200/70 text-rose-500' };
+        skyKey = 'Stormy';
       } else if (pVal != null && pVal < 1007) {
-        sky = { label: 'Windy', icon: 'ph-wind', box: 'bg-indigo-50 border-indigo-200/70 text-indigo-500' };
+        skyKey = 'Windy';
       } else if ((pVal != null && pVal < 1011) || (hVal != null && hVal >= 85)) {
-        sky = { label: 'Rainy', icon: 'ph-cloud-rain', box: 'bg-blue-50 border-blue-200/70 text-blue-600' };
+        skyKey = 'Rainy';
       } else if (hVal != null && hVal >= 78) {
-        sky = { label: 'Cloudy', icon: 'ph-cloud', box: 'bg-slate-100 border-slate-200 text-slate-500' };
+        skyKey = 'Cloudy';
       } else if (tVal != null && tVal >= 30 && (hVal == null || hVal < 75)) {
-        sky = { label: 'Sunny', icon: 'ph-sun', box: 'bg-amber-50 border-amber-200/70 text-amber-500' };
+        skyKey = 'Sunny';
       }
-      const skyBox = document.getElementById('lwsSkyIconBox');
-      const skyIcon = document.getElementById('lwsSkyIcon');
-      if (skyBox) skyBox.className = `w-12 h-12 rounded-2xl border flex items-center justify-center text-3xl shrink-0 ${sky.box}`;
-      if (skyIcon) skyIcon.className = `ph ${sky.icon}`;
-      setTxt('lwsSkyLabel', sky.label);
+
+      const theme = WEATHER_THEMES[skyKey] || WEATHER_THEMES.Fair;
+      const skyCard = document.getElementById('lwsSkyCard');
+      const skyVector = document.getElementById('lwsSkyVector');
+      if (skyCard) skyCard.style.background = theme.bg;
+      if (skyVector) skyVector.innerHTML = theme.svg;
+      setTxt('lwsSkyLabel', skyKey);
 
       const sigParts = [];
       if (rawCurrent.rssi != null) sigParts.push(`${rawCurrent.rssi} dBm`);
