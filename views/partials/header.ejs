@@ -4231,15 +4231,15 @@
                               const directName = liveLora.deviceName || (liveLora.transport === 'USB_SERIAL' ? 'USB Serial Node' : 'LoRa BLE Node');
                               if (modalLabel) {
                                 if (hasDirectLora && isOnline) {
-                                  modalLabel.textContent = `Wi-Fi (Online) + Direct LoRa ${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} (${directName})`;
+                                  modalLabel.textContent = `Wi-Fi + LoRa ${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} (${directName})`;
                                 } else if (hasDirectLora) {
-                                  modalLabel.textContent = `Direct LoRa ${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} (${directName}) - Off-Grid`;
+                                  modalLabel.textContent = `LoRa Only (${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} • ${directName})`;
                                 } else if (gwConnected && isOnline) {
-                                  modalLabel.textContent = 'Wi-Fi (Online) + LoRa Gateway Bridge';
+                                  modalLabel.textContent = 'Wi-Fi + LoRa Gateway (COM3)';
                                 } else if (gwConnected) {
-                                  modalLabel.textContent = 'LoRa Gateway Bridge (Wi-Fi Offline)';
+                                  modalLabel.textContent = 'LoRa Only (Gateway COM3)';
                                 } else if (isOnline) {
-                                  modalLabel.textContent = 'Wi-Fi / Internet (Online)';
+                                  modalLabel.textContent = 'Wi-Fi Only (Online)';
                                 } else {
                                   modalLabel.textContent = 'Offline (No Connection)';
                                 }
@@ -4248,28 +4248,28 @@
                                 if (hasDirectLora && liveLora.transport === 'BLE') {
                                   icon.className = 'ph ph-bluetooth text-base sm:text-lg text-emerald-400';
                                   btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-indigo-950 hover:bg-indigo-900 text-emerald-300 border border-emerald-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                  btn.title = `LoRa BLE Connected: ${directName}${isOnline ? ' + Online' : ' (Off-Grid)'}`;
-                                  if (txt) txt.textContent = 'LORA BLE';
+                                  btn.title = isOnline ? `Wi-Fi + LoRa BLE (${directName})` : `LoRa Only • BLE (${directName})`;
+                                  if (txt) txt.textContent = isOnline ? 'WIFI + LORA' : 'LORA ONLY';
                                 } else if (hasDirectLora && liveLora.transport === 'USB_SERIAL') {
                                   icon.className = 'ph ph-plugs text-base sm:text-lg text-cyan-400';
                                   btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                  btn.title = `LoRa USB Connected: ${directName}${isOnline ? ' + Online' : ' (Off-Grid)'}`;
-                                  if (txt) txt.textContent = 'LORA USB';
+                                  btn.title = isOnline ? `Wi-Fi + LoRa USB (${directName})` : `LoRa Only • USB (${directName})`;
+                                  if (txt) txt.textContent = isOnline ? 'WIFI + LORA' : 'LORA ONLY';
                                 } else if (gwConnected) {
                                   icon.className = 'ph ph-broadcast text-base sm:text-lg text-emerald-400';
                                   btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                  btn.title = isOnline ? 'Online + LoRa Gateway Bridge Active (433.875 MHz)' : 'LoRa Gateway Bridge Active (Off-Grid)';
-                                  if (txt) txt.textContent = 'LORA GW';
+                                  btn.title = isOnline ? 'Wi-Fi + LoRa Gateway (COM3 Active)' : 'LoRa Only • Gateway (COM3)';
+                                  if (txt) txt.textContent = isOnline ? 'WIFI + LORA' : 'LORA ONLY';
                                 } else if (isOnline) {
                                   icon.className = 'ph ph-wifi-high text-base sm:text-lg text-emerald-400';
                                   btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                  btn.title = 'Online (Wi-Fi / Internet) — Click to connect LoRa Node';
-                                  if (txt) txt.textContent = 'ONLINE';
+                                  btn.title = 'Wi-Fi Only — Click to also connect LoRa Node';
+                                  if (txt) txt.textContent = 'WIFI ONLY';
                                 } else {
                                   icon.className = 'ph ph-warning text-base sm:text-lg text-amber-400 animate-pulse';
                                   btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 shadow-xs transition-all active:scale-95 cursor-pointer animate-pulse';
                                   btn.title = 'Offline (No Internet & No LoRa Node). Click to connect LoRa via Bluetooth or USB.';
-                                  if (txt) txt.textContent = 'OFFLINE (NO LORA)';
+                                  if (txt) txt.textContent = 'OFFLINE';
                                 }
                               }
                               if (banner) {
