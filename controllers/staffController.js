@@ -2379,7 +2379,7 @@ exports.getBroadcast = async (req, res) => {
     if (req.query.lora || req.query.success) {
       const status = req.query.status || 'TRANSMITTED_LORA';
       const inApp = req.query.inApp || 'SENT';
-      successMsg = `Emergency alert broadcast dispatched successfully across Internet & 433.875 MHz LoRa Mesh.`;
+      successMsg = `Emergency alert broadcast dispatched simultaneously across 3 channels: SMS Gateway (iProgSMS), Web Push / In-App Siren, and 433.875 MHz LoRa Mesh.`;
     } else if (req.query.warning) {
       const inApp = req.query.inApp || 'SENT';
       const reason = req.query.msg || 'Mesh delivery notice.';
@@ -2444,7 +2444,7 @@ exports.sendBroadcast = async (req, res) => {
   const userBarangay = staff.zone || 'San Rafael';
   const senderName = staff.name || "Barangay Staff";
 
-  const { severity = 'RED', target_audience = 'all', selected_ids, message, title: customTitle } = req.body;
+  const { severity = 'RED', target_audience = 'all', selected_ids, custom_phones, message: rawInputMsg, title: customTitle } = req.body;
   const upperSeverity = severity.toUpperCase();
 
   let title = customTitle ? customTitle.trim() : '';
@@ -2458,10 +2458,20 @@ exports.sendBroadcast = async (req, res) => {
     }
   }
 
+  const evacuateRedirectUrl = process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
+  let message = (rawInputMsg || '').trim();
+  if ((upperSeverity === 'RED' || upperSeverity === 'ORANGE') && !/https?:\/\/[^\s]+\/(evacuate|resident\/evacuation)/i.test(message)) {
+    message = `${message}\nNearest Evacuation Route: ${evacuateRedirectUrl}`;
+  }
+  const loraCleanMessage = (rawInputMsg || '').replace(/https?:\/\/[^\s]+/gi, '').replace(/Nearest Evacuation( Route| Map & Route)?:\s*/gi, '').trim() || message;
+
   let selectedArray = [];
   if (selected_ids) {
     selectedArray = Array.isArray(selected_ids) ? selected_ids : [selected_ids];
   }
+  const customPhonesArray = custom_phones
+    ? String(custom_phones).split(/[,;\s]+/).map(s => s.trim()).filter(Boolean)
+    : [];
 
   // 1. Recipient calculation
   let targetData = { totalRecipients: 0, validPhoneCount: 0, recipientPhones: [], targetUserIds: [] };
@@ -2595,10 +2605,10 @@ exports.sendBroadcast = async (req, res) => {
     loraResult = queueOutboundAlertBroadcast({
       id: alertId || Date.now().toString().slice(-7),
       title: title,
-      message: message,
+      message: loraCleanMessage,
       severity: upperSeverity,
       barangay: userBarangay || 'ALL',
-      evacCenter: 'San Rafael Evacuation Center'
+      evacCenter: 'Nearest Safe Evacuation Center'
     });
     console.log(`[StaffBroadcast] 433.875 MHz LoRa Mesh Alert Queued (Instant):`, loraResult ? loraResult.packet : 'OK');
   } catch (loraErr) {
@@ -2606,35 +2616,51 @@ exports.sendBroadcast = async (req, res) => {
   }
 
   const loraStatus = loraResult ? 'TRANSMITTED_LORA' : 'QUEUED';
-  const loraPacketStr = loraResult ? loraResult.packet : `EVW|ALT|${alertId}|${upperSeverity}|${userBarangay}|${title.slice(0, 38)}|San Rafael Evacuation Center|${message.slice(0, 95)}`;
+  const loraPacketStr = loraResult ? loraResult.packet : `EVW|ALT|${alertId}|${upperSeverity}|${userBarangay}|${title.slice(0, 38)}|Nearest Safe Evacuation Center|${loraCleanMessage.slice(0, 95)}`;
 
-  // 6. Database Status Update
-  if (alertId && typeof alertId === 'number') {
-    try {
-      const db = require('../config/db');
-      await db.execute(
-        'UPDATE alerts SET status = ?, message_id = ?, broadcast_type = ?, delivery_report = ? WHERE id = ?',
-        [
-          loraStatus,
-          'LORA-433.875MHZ',
-          'LORA_MESH',
-          JSON.stringify({
-            meshFreq: '433.875 MHz',
-            channel: 'EU_433 / LONG_FAST',
-            nodes: ['HALL !d88b1a58', 'REL1 !0f778ab0', 'RES1 !f4e213d4'],
-            packet: loraPacketStr
-          }),
-          alertId
-        ]
-      );
-    } catch (dbUpdateErr) {
-      console.warn("Non-fatal: Error updating alert status in DB:", dbUpdateErr);
+  // 6. Live SMS Broadcast via iProgSMS API + Database Status Update
+  const smsService = require('../utils/smsService');
+  smsService.sendSmsBroadcast({
+    recipientPhones: targetData.recipientPhones || [],
+    customPhones: customPhonesArray,
+    message: message,
+    title: title,
+    severity: upperSeverity,
+    senderName: senderName,
+    evacuateUrl: evacuateRedirectUrl,
+    skipLoraQueue: true
+  }).then(async (smsRes) => {
+    if (alertId && typeof alertId === 'number') {
+      try {
+        const db = require('../config/db');
+        let parsedSmsReport = {};
+        try { parsedSmsReport = JSON.parse((smsRes && smsRes.deliveryReport) || '{}'); } catch (_) {}
+        await db.execute(
+          'UPDATE alerts SET status = ?, message_id = ?, broadcast_type = ?, delivery_report = ? WHERE id = ?',
+          [
+            (smsRes && smsRes.success) ? 'QUEUED' : loraStatus,
+            (smsRes && smsRes.messageId) || 'LORA-433.875MHZ',
+            'BOTH',
+            JSON.stringify({
+              ...parsedSmsReport,
+              channels: ['SMS (iProgSMS)', 'Web Push & In-App Siren', '433.875 MHz LoRa Mesh'],
+              meshFreq: '433.875 MHz',
+              channel: 'EU_433 / LONG_FAST',
+              nodes: ['HALL !d88b1a58', 'REL1 !0f778ab0', 'RES1 !f4e213d4'],
+              packet: loraPacketStr
+            }),
+            alertId
+          ]
+        );
+      } catch (dbUpdateErr) {
+        console.warn("Non-fatal: Error updating alert status in DB:", dbUpdateErr);
+      }
     }
-  }
+  }).catch(() => {});
 
-  const alertQuery = `&alertId=${encodeURIComponent(alertId)}&alertSeverity=${encodeURIComponent(upperSeverity)}&alertTitle=${encodeURIComponent(title)}&alertMessage=${encodeURIComponent(message)}`;
+  const alertQuery = `&alertId=${encodeURIComponent(alertId)}&alertSeverity=${encodeURIComponent(upperSeverity)}&alertTitle=${encodeURIComponent(title)}&alertMessage=${encodeURIComponent(loraCleanMessage)}`;
 
-  return res.redirect(`/staff/broadcast?success=1&lora=1&status=TRANSMITTED_LORA&nodes=3&inApp=${inAppStatus}${alertQuery}`);
+  return res.redirect(`/staff/broadcast?success=1&lora=1&sms=1&status=TRANSMITTED_ALL_3&nodes=3&inApp=${inAppStatus}${alertQuery}`);
 };
 
 // 13. STAFF PROFILE & SETTINGS

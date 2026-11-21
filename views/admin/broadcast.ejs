@@ -64,15 +64,20 @@
                 <% } %>
               </div>
               <p class="text-xs text-slate-400 max-w-2xl leading-relaxed">
-                Dispatches critical disaster warnings synchronously across <strong>Internet / Wi-Fi</strong> and autonomous <strong>433.875 MHz LoRa Mesh</strong>.
+                Dispatches critical disaster warnings simultaneously across <strong>3 channels</strong>: <strong>SMS Gateway (iProgSMS)</strong>, <strong>Internet / Web Push</strong>, and <strong>433.875 MHz LoRa Mesh</strong>.
               </p>
             </div>
 
-            <!-- Right: Real-Time Dual Channel Status Badges -->
+            <!-- Right: Real-Time Tri-Channel Status Badges -->
             <div class="flex flex-wrap items-center gap-2 shrink-0">
               <div class="px-3 py-1.5 bg-slate-800/90 rounded-xl border border-slate-700/80 flex items-center gap-2 text-xs shadow-inner">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-slate-300 font-bold">Cloud & Wi-Fi:</span>
+                <span class="text-slate-300 font-bold">SMS (iProgSMS):</span>
+                <span class="text-emerald-400 font-bold uppercase">Active</span>
+              </div>
+              <div class="px-3 py-1.5 bg-slate-800/90 rounded-xl border border-slate-700/80 flex items-center gap-2 text-xs shadow-inner">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-300 font-bold">Cloud & Push:</span>
                 <span class="text-emerald-400 font-bold uppercase">Online</span>
               </div>
               <div class="px-3 py-1.5 bg-slate-800/90 rounded-xl border border-slate-700/80 flex items-center gap-2 text-xs shadow-inner">
@@ -153,12 +158,12 @@
                     <h2 class="text-sm sm:text-base font-black text-slate-900 leading-tight">
                       Compose Emergency Alert
                     </h2>
-                    <p class="text-xs text-slate-500 font-medium">Dispatches simultaneously via Internet & 433.875 MHz LoRa Mesh</p>
+                    <p class="text-xs text-slate-500 font-medium">Dispatches simultaneously via SMS (iProgSMS), Web Push / In-App Siren &amp; 433.875 MHz LoRa Mesh</p>
                   </div>
                 </div>
 
                 <span class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 font-mono">
-                  <i class="ph ph-broadcast"></i> Dual-Redundant
+                  <i class="ph ph-broadcast"></i> 3-Way Simultaneous
                 </span>
               </div>
 
@@ -282,6 +287,26 @@
                   <textarea id="messageBox" name="message" required oninput="updateLiveMetrics()"
                     class="form-control w-full min-h-[115px] resize-y font-sans text-xs sm:text-sm p-3 border-2 border-slate-300 rounded-xl focus:border-blue-600 focus:ring-2 focus:ring-blue-100 leading-relaxed shadow-xs text-slate-900"
                     placeholder="Type urgent instructions for residents... (e.g. Move immediately to high ground or your nearest designated evacuation facility.)"></textarea>
+
+                  <!-- RED & ORANGE SMS NEAREST EVACUATION LINK INDICATOR -->
+                  <div id="smsNearestEvacLinkBanner" class="hidden mt-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900 flex flex-wrap items-center justify-between gap-2">
+                    <span class="flex items-center gap-1.5">
+                      <i class="ph ph-navigation-arrow text-amber-600 text-sm"></i>
+                      <span>SMS Alert Auto-Includes Nearest Evacuation Link:</span>
+                      <a href="/evacuate" target="_blank" class="underline text-blue-700 font-mono">https://evacwar.onrender.com/evacuate</a>
+                    </span>
+                    <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-200/70 text-amber-950">Opens Nearest Evac Route</span>
+                  </div>
+
+                  <!-- OPTIONAL ADDITIONAL / DIRECT SMS PHONE NUMBER(S) -->
+                  <div class="mt-2.5 pt-2.5 border-t border-slate-100">
+                    <label class="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
+                      4. SMS Gateway (iProgSMS) Direct / Additional Recipient Phone(s) <span class="text-slate-400 font-normal normal-case">(Optional — sends to all registered households + any number typed here)</span>
+                    </label>
+                    <input type="text" id="customPhonesInput" name="custom_phones"
+                      placeholder="e.g. 09278935759 (comma-separated for multiple numbers)"
+                      class="form-control w-full font-mono text-xs p-2.5 border border-slate-300 rounded-xl focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs text-slate-900">
+                  </div>
                 </div>
 
                 <!-- ACTION BUTTONS -->
@@ -580,12 +605,12 @@
       red_evac: {
         severity: 'RED',
         title: 'MANDATORY EVACUATION: Critical Danger',
-        message: 'Critical danger in {BARANGAY}. Proceed immediately to your nearest safe evacuation facility via safe high-ground route.'
+        message: 'Critical danger in {BARANGAY}. Proceed immediately to your nearest safe evacuation facility via safe high-ground route.\nNearest Evacuation Route: https://evacwar.onrender.com/evacuate'
       },
       orange_prep: {
         severity: 'ORANGE',
         title: 'PRE-EVACUATION: Prepare Go-Bags',
-        message: 'Severe hazard approaching {BARANGAY}. Prepare 72hr go-bags, assist vulnerable family members, and stand by.'
+        message: 'Severe hazard approaching {BARANGAY}. Prepare 72hr go-bags, assist vulnerable family members, and stand by.\nNearest Evacuation Route: https://evacwar.onrender.com/evacuate'
       },
       yellow_watch: {
         severity: 'YELLOW',
@@ -610,7 +635,7 @@
       center_cap: {
         severity: 'ORANGE',
         title: 'SHELTER NOTICE: Secondary Facilities Open',
-        message: 'Primary shelters near capacity. Proceed to secondary evacuation facilities.'
+        message: 'Primary shelters near capacity. Proceed to secondary evacuation facilities.\nNearest Evacuation Route: https://evacwar.onrender.com/evacuate'
       }
     };
 
@@ -718,6 +743,15 @@
       const headerIcon = document.getElementById('headerIcon');
       if (headerIcon) headerIcon.className = activeTheme.headerIconClass;
 
+      const smsLinkBanner = document.getElementById('smsNearestEvacLinkBanner');
+      if (smsLinkBanner) {
+        if (level === 'RED' || level === 'ORANGE') {
+          smsLinkBanner.classList.remove('hidden');
+        } else {
+          smsLinkBanner.classList.add('hidden');
+        }
+      }
+
       // Auto-load matching preset template
       const templateKeyMap = { RED: 'red_evac', ORANGE: 'orange_prep', YELLOW: 'yellow_watch', BLUE: 'blue_advisory', GREEN: 'green_clear' };
       applyTemplate(templateKeyMap[level] || 'blue_advisory');
@@ -736,6 +770,15 @@
 
       document.getElementById('alertTitleInput').value = title;
       document.getElementById('messageBox').value = msg;
+
+      const smsLinkBanner = document.getElementById('smsNearestEvacLinkBanner');
+      if (smsLinkBanner) {
+        if (tpl.severity === 'RED' || tpl.severity === 'ORANGE') {
+          smsLinkBanner.classList.remove('hidden');
+        } else {
+          smsLinkBanner.classList.add('hidden');
+        }
+      }
 
       updateLiveMetrics();
     };
@@ -809,17 +852,44 @@
       }
     };
 
+    async function transmitDirectLoraAlertFromBrowser() {
+      try {
+        if (window.evakwarLoraClient && window.evakwarLoraClient.isConnected && typeof window.evakwarLoraClient.sendText === 'function') {
+          const sev = (document.getElementById('severityInput').value || 'RED').toUpperCase();
+          const rawTitle = (document.getElementById('alertTitleInput').value || 'EMERGENCY ALERT').replace(/\|/g, '/').trim().slice(0, 38);
+          const rawMsg = (document.getElementById('messageBox').value || '')
+            .replace(/https?:\/\/[^\s]+/gi, '')
+            .replace(/Nearest Evacuation( Route| Map & Route)?:\s*/gi, '')
+            .replace(/\|/g, '/')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 95);
+          const aid = Date.now().toString().slice(-7);
+          const pkt = `EVW|ALT|${aid}|${sev}|ALL|${rawTitle}|Nearest Safe Evacuation Center|${rawMsg}`;
+          await window.evakwarLoraClient.sendText(pkt);
+        }
+      } catch (loraTxErr) {
+        console.warn('[Broadcast Direct LoRa TX]:', loraTxErr);
+      }
+    }
+
     // Modal Confirmation for RED alerts
     window.closeRedModal = function () {
       document.getElementById('redConfirmationModal').classList.add('hidden');
     };
 
-    window.confirmRedSubmit = function () {
+    window.confirmRedSubmit = async function () {
       window.closeRedModal();
+      const submitBtn = document.getElementById('btnSubmitBroadcast');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Dispatching 3-Way Broadcast...';
+      }
+      await transmitDirectLoraAlertFromBrowser();
       document.getElementById('broadcastForm').submit();
     };
 
-    document.getElementById('broadcastForm').addEventListener('submit', function (e) {
+    document.getElementById('broadcastForm').addEventListener('submit', async function (e) {
       const sev = document.getElementById('severityInput').value;
       if (sev === 'RED' && document.getElementById('redConfirmationModal').classList.contains('hidden')) {
         e.preventDefault();
@@ -827,10 +897,23 @@
         return;
       }
 
+      if (!window.__directLoraTxDone && window.evakwarLoraClient && window.evakwarLoraClient.isConnected) {
+        e.preventDefault();
+        window.__directLoraTxDone = true;
+        const submitBtn = document.getElementById('btnSubmitBroadcast');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Dispatching 3-Way Broadcast...';
+        }
+        await transmitDirectLoraAlertFromBrowser();
+        document.getElementById('broadcastForm').submit();
+        return;
+      }
+
       const submitBtn = document.getElementById('btnSubmitBroadcast');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Dispatching Broadcast...';
+        submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Dispatching 3-Way Broadcast...';
       }
     });
 

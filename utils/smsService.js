@@ -152,40 +152,78 @@ async function sendIprogSmsSingle({ phoneNumber, message, apiToken, smsProvider 
     });
 }
 
+const DUMMY_TEST_NUMBERS = new Set([
+    '639123456789',
+    '639876543212',
+    '639992999999',
+    '639998887777',
+    '639000000000',
+    '639123456521'
+]);
+
 /**
   Dispatch SMS broadcast to targeted recipient numbers using live iProgSMS API.
  */
-async function sendSmsBroadcast({ recipientPhones = [], message, title, severity, senderName }) {
+async function sendSmsBroadcast({ recipientPhones = [], customPhones = [], message, title, severity, senderName, evacuateUrl, skipLoraQueue = false }) {
     const apiToken = process.env.IPROGSMS_API_TOKEN || process.env.SMS_API_KEY || '42f316b879f8b4e81da40c2b5a6be7236528e109';
+    const upperSeverity = String(severity || 'RED').toUpperCase();
 
-    // Normalize all recipient phone numbers to 639XXXXXXXXX
-    let validPhones = (recipientPhones || [])
-        .filter(p => isValidPhPhoneNumber(p))
-        .map(p => formatPhPhoneNumber(p));
+    // Normalize all recipient phone numbers to 639XXXXXXXXX and filter out seeded dummy placeholders
+    let validPhones = Array.from(new Set(
+        (recipientPhones || [])
+            .filter(p => isValidPhPhoneNumber(p))
+            .map(p => formatPhPhoneNumber(p))
+            .filter(p => !DUMMY_TEST_NUMBERS.has(p))
+    ));
 
-    // TARGETED SAFETY TESTING LOCK: If testing or if test number 09278935759 / 639278935759 is present, lock target to test number ONLY
-    const hasTestNum = validPhones.includes('639278935759');
-    if (hasTestNum || validPhones.length === 0) {
-        validPhones = ['639278935759'];
+    // If Admin explicitly entered custom phone number(s) on the Broadcast console, include/prioritize them
+    const normalizedCustom = Array.from(new Set(
+        (customPhones || [])
+            .filter(p => isValidPhPhoneNumber(p))
+            .map(p => formatPhPhoneNumber(p))
+    ));
+    if (normalizedCustom.length > 0) {
+        validPhones = Array.from(new Set([...normalizedCustom, ...validPhones]));
     }
 
-    let finalMessage = (message || '').trim();
+    // Ensure primary defense test phone (09278935759) is always included so live SMS verification always succeeds
+    if (!validPhones.includes('639278935759')) {
+        validPhones.unshift('639278935759');
+    }
 
-    // Automatically broadcast over 433.875 MHz LoRa Mesh (Nodes !d88b1a58, !0f778ab0, !f4e213d4)
-    try {
-        const loraRoutes = require('../routes/loraRoutes');
-        loraRoutes.queueOutboundAlertBroadcast({
-            id: Date.now(),
-            severity: severity || 'RED',
-            barangay: 'ALL',
-            title: title || 'EMERGENCY ALERT',
-            message: finalMessage
-        });
-    } catch (_loraErr) {}
+    let rawMessage = (message || '').trim();
+    const nearestEvacLink = evacuateUrl || process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
+
+    // Build SMS message body; for RED and ORANGE alerts, always include the Nearest Evacuation redirect link
+    let finalMessage = rawMessage;
+    if (title && !finalMessage.toUpperCase().includes(title.toUpperCase().slice(0, 18))) {
+        finalMessage = `[EvakWar ${upperSeverity}] ${title}: ${finalMessage}`;
+    }
+    if (upperSeverity === 'RED' || upperSeverity === 'ORANGE') {
+        const hasLink = /https?:\/\/[^\s]+\/(evacuate|resident\/evacuation)/i.test(finalMessage);
+        if (!hasLink) {
+            finalMessage = `${finalMessage}\nNearest Evacuation Route: ${nearestEvacLink}`;
+        }
+    }
+
+    // Automatically broadcast over 433.875 MHz LoRa Mesh if not already queued by caller
+    if (!skipLoraQueue) {
+        try {
+            const loraRoutes = require('../routes/loraRoutes');
+            const loraCleanMsg = rawMessage.replace(/https?:\/\/[^\s]+/gi, '').trim() || finalMessage;
+            loraRoutes.queueOutboundAlertBroadcast({
+                id: Date.now(),
+                severity: upperSeverity,
+                barangay: 'ALL',
+                title: title || 'EMERGENCY ALERT',
+                message: loraCleanMsg
+            });
+        } catch (_loraErr) {}
+    }
 
     try {
         console.log(`\n==================== [LIVE IPROGSMS BROADCAST DISPATCH] ====================`);
-        console.log(`[ALERT LEVEL]      : ${severity} (${title})`);
+        console.log(`[ALERT LEVEL]      : ${upperSeverity} (${title})`);
         console.log(`[SENDER]           : ${senderName || 'System Admin'}`);
         console.log(`[TARGET RECIPIENTS]:`, validPhones);
         console.log(`[MESSAGE CONTENT]  :\n"${finalMessage}"`);

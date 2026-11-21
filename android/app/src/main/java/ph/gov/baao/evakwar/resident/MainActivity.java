@@ -220,6 +220,13 @@ public class MainActivity extends BridgeActivity {
         }
 
         String navTo = intent.getStringExtra("navigate_to");
+        if ((navTo == null || navTo.isEmpty()) && intent.getDataString() != null) {
+            String dataUri = intent.getDataString().toLowerCase();
+            if (dataUri.contains("/evacuate") || dataUri.contains("/nearest-evac") || dataUri.contains("/evacuation") || dataUri.contains("evakwar://evacuate")) {
+                navTo = "/resident/evacuation?auto_route=nearest";
+                intent.setData(null);
+            }
+        }
         if (navTo != null && !navTo.isEmpty()) {
             intent.removeExtra("navigate_to");
             final String safeNavTo = navTo.replace("'", "");

@@ -15,7 +15,24 @@ const pagasaRoutes = require("./pagasaRoutes");
 const loraRoutes = require("./loraRoutes");
 
 const authController = require("../controllers/authController");
+const residentController = require("../controllers/residentController");
+
 router.get("/", redirectIfAuth, authController.getWelcome);
+
+// SMS RED & ORANGE Alert Deep-Link Redirector (/evacuate -> Nearest Evacuation Center Route)
+router.get(["/evacuate", "/nearest-evac"], (req, res, next) => {
+  if (req.session && req.session.userId && req.session.role) {
+    const role = String(req.session.role).toLowerCase();
+    if (role === 'admin') return res.redirect('/admin/evacuation?auto_route=nearest');
+    if (role === 'rescuer' || req.session.staffType === 'RESCUER') return res.redirect('/rescuer/map?auto_route=nearest');
+    if (role === 'staff' || role === 'barangay_council') return res.redirect('/staff/map?auto_route=nearest');
+    return res.redirect('/resident/evacuation?auto_route=nearest');
+  }
+  req.query = req.query || {};
+  req.query.auto_route = 'nearest';
+  req.query.from_sms = '1';
+  return residentController.getEvacuation(req, res, next);
+});
 
 router.use("/", authRoutes);
 router.use("/api/weather", weatherRoutes);

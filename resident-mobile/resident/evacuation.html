@@ -6367,7 +6367,8 @@
         // Auto-fly & draw suggested route to nearest evacuation center when launched from "Evacuate" notification / modal button (?auto_route=nearest)
         try {
           const urlParams = new URLSearchParams(window.location.search || '');
-          if (urlParams.get('auto_route') === 'nearest' && !window.__evwAutoRoutedNearest) {
+          const isEvacDeepLink = urlParams.get('auto_route') === 'nearest' || urlParams.get('autoRouteNearest') === '1' || (window.location.pathname || '').toLowerCase().indexOf('/evacuate') !== -1 || (window.location.pathname || '').toLowerCase().indexOf('/nearest-evac') !== -1;
+          if (isEvacDeepLink && !window.__evwAutoRoutedNearest) {
             window.__evwAutoRoutedNearest = true;
             setTimeout(() => {
               if (typeof window.showEvakWarDirections === 'function') {

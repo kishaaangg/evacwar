@@ -25,6 +25,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep-Link Intent Filter for SMS RED/ORANGE Alert Evacuation Links -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="evacwar.onrender.com" android:pathPrefix="/evacuate" />
+                <data android:scheme="https" android:host="evacwar.onrender.com" android:pathPrefix="/nearest-evac" />
+                <data android:scheme="https" android:host="evacwar.onrender.com" android:pathPrefix="/resident/evacuation" />
+                <data android:scheme="https" android:host="evacwar-sanrafel.xyz" android:pathPrefix="/evacuate" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="evakwar" android:host="evacuate" />
+            </intent-filter>
+
         </activity>
 
         <!-- Foreground Service for Background 433.875 MHz LoRa Mesh & Wi-Fi Disaster Monitor -->

@@ -613,7 +613,7 @@ exports.getEvacuation = async (req, res) => {
 
     try {
       const [[residentRows], centersRes, cachedFeatures] = await Promise.all([
-        db.execute('SELECT id, first_name FROM residents WHERE user_id = ?', [req.session.userId]).catch(() => [[]]),
+        db.execute('SELECT id, first_name FROM residents WHERE user_id = ?', [(req.session && req.session.userId) ? req.session.userId : 0]).catch(() => [[]]),
         Center.findAll().catch(() => []),
         gisCache.getDrawnFeatures(false).catch(() => '{"type":"FeatureCollection","features":[]}')
       ]);
