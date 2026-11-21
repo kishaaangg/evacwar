@@ -5460,6 +5460,28 @@
            ========================================================================= -->
                 <div class="max-w-7xl mx-auto w-full px-4 sm:px-8 py-5 sm:py-6 space-y-6 flex-1">
 
+                  <!-- FULL CAPACITY LOCK BANNER (Shown automatically when site occupancy >= max_capacity) -->
+                  <div id="centerFullLockBanner" class="hidden bg-rose-600 text-white rounded-2xl p-4 sm:p-5 shadow-lg border-2 border-rose-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="flex items-start gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <i class="ph ph-prohibit text-2xl"></i>
+                      </div>
+                      <div>
+                        <h2 class="text-sm sm:text-base font-black uppercase tracking-wide flex items-center gap-2">
+                          <span>Evacuation Site Full Capacity — Intake Locked</span>
+                          <span id="centerFullRatioBadge" class="px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-100 text-[11px] font-mono">FULL</span>
+                        </h2>
+                        <p id="centerFullLockMsg" class="text-xs text-rose-100 font-medium mt-0.5 leading-relaxed">
+                          This evacuation center has reached 100% capacity. QR Scanning, Manual Lookup, and Walk-In Registration are disabled and will not entertain additional evacuees. Please direct evacuees to the nearest available evacuation center.
+                        </p>
+                      </div>
+                    </div>
+                    <a href="/staff/map/index.html" class="px-3.5 py-2 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-black text-xs uppercase tracking-wider shrink-0 flex items-center gap-1.5 shadow-sm">
+                      <i class="ph ph-map-trifold text-sm"></i>
+                      <span>View Open Sites</span>
+                    </a>
+                  </div>
+
                   <!-- GRID LAYOUT: Left is Active Intake Mode / Right is Live Site Feed -->
                   <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
@@ -5498,6 +5520,17 @@
                             </div>
 
                             <div class="scanner-laser-beam"></div>
+
+                            <!-- FULL CAPACITY SCANNER LOCK OVERLAY -->
+                            <div id="scannerFullLockOverlay" class="hidden absolute inset-0 z-30 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                              <div class="w-16 h-16 rounded-2xl bg-rose-600/20 border-2 border-rose-500 text-rose-400 flex items-center justify-center mb-3">
+                                <i class="ph ph-lock-key text-3xl"></i>
+                              </div>
+                              <div class="text-base font-black text-white uppercase tracking-wide">QR Scanner Disabled — Site Full</div>
+                              <p id="scannerFullLockSubtext" class="text-xs text-slate-300 max-w-xs mt-1.5 leading-relaxed">
+                                Evacuation center capacity is full. No additional evacuees can be scanned or checked in at this site.
+                              </p>
+                            </div>
                           </div>
 
                           <!-- Viewfinder Controls & Live Status -->
@@ -6239,6 +6272,13 @@
             // Camera Scanner Functions
             function startCamera() {
               const scanStatus = document.getElementById('scanStatus');
+              if (typeof window.isActiveStaffCenterFull === 'function' && window.isActiveStaffCenterFull()) {
+                stopCamera();
+                if (scanStatus) {
+                  scanStatus.innerHTML = '<p class="text-xs font-black text-rose-400 flex items-center justify-center sm:justify-start gap-2"><i class="ph ph-lock-key text-base"></i> <span>Site at FULL CAPACITY — QR Scanner disabled. Not accepting new evacuees.</span></p>';
+                }
+                return;
+              }
               if (isCameraRunning) return;
 
               if (!html5QrCode) {
@@ -6328,6 +6368,13 @@
 
             function onScanSuccess(decodedText) {
               try {
+                if (typeof window.isActiveStaffCenterFull === 'function' && window.isActiveStaffCenterFull()) {
+                  stopCamera();
+                  if (typeof showOfflineNotice === 'function') {
+                    showOfflineNotice('🚫 Evacuation Center is at FULL CAPACITY — Not accepting additional evacuees.', 'error');
+                  }
+                  return;
+                }
                 let cleanQuery = (decodedText || '').trim();
                 if (cleanQuery.startsWith('{') && cleanQuery.endsWith('}')) {
                   try {
@@ -7318,6 +7365,12 @@
 
               // Manual Lookup submit handler
               function submitManualLookup() {
+                if (typeof window.isActiveStaffCenterFull === 'function' && window.isActiveStaffCenterFull()) {
+                  if (typeof showOfflineNotice === 'function') {
+                    showOfflineNotice('🚫 Evacuation Center is at FULL CAPACITY — Not accepting additional evacuees.', 'error');
+                  }
+                  return;
+                }
                 const query = manualQueryInput ? manualQueryInput.value.trim() : '';
                 if (!query) return;
                 if (btnManualSearch) {
@@ -7416,6 +7469,12 @@
             // =========================================================================
             document.getElementById('walkinForm').addEventListener('submit', async function (e) {
               e.preventDefault();
+              if (typeof window.isActiveStaffCenterFull === 'function' && window.isActiveStaffCenterFull()) {
+                if (typeof showOfflineNotice === 'function') {
+                  showOfflineNotice('🚫 Evacuation Center is at FULL CAPACITY — Walk-in registration disabled.', 'error');
+                }
+                return;
+              }
               const btn = document.getElementById('btnSubmitWalkin');
               btn.disabled = true;
               btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> <span>Checking Roster & Saving...</span>';
@@ -7738,13 +7797,115 @@
               setTimeout(refreshIntakeFeed, 1200);
             });
 
+            // =========================================================================
+            // STRICT EVACUATION CENTER FULL CAPACITY LOCK (Disables Scanner & Intake When Full)
+            // =========================================================================
+            window.__staffCenterCapacityState = { isFull: false, occupancy: 0, maxCap: 25, centerName: '' };
+
+            window.isActiveStaffCenterFull = function () {
+              return Boolean(window.__staffCenterCapacityState && window.__staffCenterCapacityState.isFull);
+            };
+
+            function getActiveCenterIdForLock() {
+              const selHeader = document.getElementById('activeStaffCenterSelectHeader');
+              const selWalkin = document.getElementById('walkinCenterId');
+              const raw = (selHeader && selHeader.value) || (selWalkin && selWalkin.value) || '13';
+              return parseInt(raw, 10) || 0;
+            }
+
+            window.applyCenterFullCapacityLock = function (centerObj) {
+              try {
+                let target = centerObj || null;
+                const activeId = getActiveCenterIdForLock();
+                if (!target) {
+                  const dataEl = document.getElementById('staff-assigned-sites-data');
+                  let sites = [];
+                  try { sites = JSON.parse((dataEl && dataEl.textContent) || '[]'); } catch (_) {}
+                  target = sites.find(s => Number(s.id) === Number(activeId)) || sites[0] || null;
+                }
+                if (!target) return;
+
+                const occ = Number(target.current_occupancy || target.occupancy || 0);
+                const maxCap = Math.max(1, Number(target.max_capacity || target.capacity || 25));
+                const isFull = occ >= maxCap || String(target.status || '').toUpperCase() === 'FULL';
+                const cName = target.name || 'Evacuation Center';
+
+                window.__staffCenterCapacityState = { isFull, occupancy: occ, maxCap, centerName: cName };
+
+                const banner = document.getElementById('centerFullLockBanner');
+                const ratioBadge = document.getElementById('centerFullRatioBadge');
+                const lockMsg = document.getElementById('centerFullLockMsg');
+                const scannerOverlay = document.getElementById('scannerFullLockOverlay');
+                const scannerSub = document.getElementById('scannerFullLockSubtext');
+                const btnToggleCam = document.getElementById('btnToggleCamera');
+                const manualInput = document.getElementById('manualQueryInput');
+                const btnManual = document.getElementById('btnManualSearch');
+                const btnWalkin = document.getElementById('btnSubmitWalkin');
+                const scanStatus = document.getElementById('scanStatus');
+
+                if (isFull) {
+                  if (banner) banner.classList.remove('hidden');
+                  if (ratioBadge) ratioBadge.textContent = `${occ} / ${maxCap} FULL`;
+                  if (lockMsg) lockMsg.textContent = `${cName} has reached 100% capacity (${occ}/${maxCap}). QR Scanning, Manual Lookup, and Walk-In Registration are disabled and will not entertain additional evacuees. Please direct evacuees to the nearest available shelter.`;
+                  if (scannerOverlay) scannerOverlay.classList.remove('hidden');
+                  if (scannerSub) scannerSub.textContent = `${cName} is at full capacity (${occ}/${maxCap}). Scanner is locked until space becomes available.`;
+                  if (btnToggleCam) { btnToggleCam.disabled = true; btnToggleCam.classList.add('opacity-40', 'cursor-not-allowed'); }
+                  if (manualInput) { manualInput.disabled = true; manualInput.placeholder = 'Site FULL CAPACITY — Intake Disabled'; }
+                  if (btnManual) { btnManual.disabled = true; btnManual.classList.add('opacity-40', 'cursor-not-allowed'); }
+                  if (btnWalkin) { btnWalkin.disabled = true; btnWalkin.classList.add('opacity-40', 'cursor-not-allowed'); }
+                  if (scanStatus) {
+                    scanStatus.innerHTML = `<p class="text-xs font-black text-rose-400 flex items-center justify-center sm:justify-start gap-2"><i class="ph ph-lock-key text-base"></i> <span>Site FULL (${occ}/${maxCap}) — QR Scanner Disabled.</span></p>`;
+                  }
+                  if (typeof stopCamera === 'function') stopCamera();
+                } else {
+                  if (banner) banner.classList.add('hidden');
+                  if (scannerOverlay) scannerOverlay.classList.add('hidden');
+                  if (btnToggleCam) { btnToggleCam.disabled = false; btnToggleCam.classList.remove('opacity-40', 'cursor-not-allowed'); }
+                  if (manualInput) { manualInput.disabled = false; manualInput.placeholder = 'Enter resident first/last name, phone number, or ID...'; }
+                  if (btnManual) { btnManual.disabled = false; btnManual.classList.remove('opacity-40', 'cursor-not-allowed'); }
+                  if (btnWalkin) { btnWalkin.disabled = false; btnWalkin.classList.remove('opacity-40', 'cursor-not-allowed'); }
+                }
+              } catch (_) {}
+            };
+
+            async function syncLiveCenterCapacityForLock() {
+              try {
+                const res = await fetch('/api/centers/active');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.centers)) {
+                  const activeId = getActiveCenterIdForLock();
+                  const matched = data.centers.find(c => Number(c.id) === Number(activeId));
+                  if (matched) window.applyCenterFullCapacityLock(matched);
+                }
+              } catch (_) {}
+            }
+
             // Hook into Socket.io if present
             document.addEventListener('DOMContentLoaded', () => {
+              window.applyCenterFullCapacityLock();
+              syncLiveCenterCapacityForLock();
               const checkSocket = setInterval(() => {
                 if (window.__appSocket) {
                   clearInterval(checkSocket);
-                  window.__appSocket.on('center_updated', () => refreshIntakeFeed());
-                  window.__appSocket.on('checkin:new', () => refreshIntakeFeed());
+                  window.__appSocket.on('center_updated', (payload) => {
+                    refreshIntakeFeed();
+                    if (payload && payload.center && Number(payload.center.id) === getActiveCenterIdForLock()) {
+                      window.applyCenterFullCapacityLock(payload.center);
+                    } else {
+                      syncLiveCenterCapacityForLock();
+                    }
+                  });
+                  window.__appSocket.on('ec_board_updated', (payload) => {
+                    if (payload && payload.center && Number(payload.center.id) === getActiveCenterIdForLock()) {
+                      window.applyCenterFullCapacityLock(payload.center);
+                    } else {
+                      syncLiveCenterCapacityForLock();
+                    }
+                  });
+                  window.__appSocket.on('checkin:new', () => {
+                    refreshIntakeFeed();
+                    syncLiveCenterCapacityForLock();
+                  });
                 }
               }, 500);
               setTimeout(() => clearInterval(checkSocket), 10000);

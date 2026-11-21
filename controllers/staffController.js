@@ -454,12 +454,53 @@ exports.getQr = async (req, res) => {
   }
 };
 
+// Helper: Enforce strict Evacuation Center full-capacity lock before QR scan, confirm check-in, or walk-in intake
+async function getCenterCapacityStatus(centerId) {
+  if (!centerId) return { isFull: false, occupancy: 0, maxCap: 25, availableSlots: 25, centerName: 'Evacuation Center' };
+  const [cRows] = await db.execute(
+    'SELECT id, name, max_capacity, current_occupancy, status FROM evacuation_centers WHERE id = ? LIMIT 1',
+    [centerId]
+  );
+  if (!cRows || cRows.length === 0) {
+    return { isFull: false, occupancy: 0, maxCap: 25, availableSlots: 25, centerName: 'Evacuation Center' };
+  }
+  const c = cRows[0];
+  const [occRows] = await db.execute(
+    `SELECT COUNT(*) AS cnt FROM check_ins WHERE center_id = ? AND status IN ('ACTIVE', 'CHECKED_IN')`,
+    [centerId]
+  ).catch(() => [[{ cnt: c.current_occupancy || 0 }]]);
+  const liveOccupancy = Math.max(Number(occRows[0]?.cnt || 0), Number(c.current_occupancy || 0));
+  const maxCap = Math.max(1, Number(c.max_capacity || 25));
+  const availableSlots = Math.max(0, maxCap - liveOccupancy);
+  const isFull = liveOccupancy >= maxCap || String(c.status || '').toUpperCase() === 'FULL';
+  return {
+    isFull,
+    occupancy: liveOccupancy,
+    maxCap,
+    availableSlots,
+    centerName: c.name || 'Evacuation Center'
+  };
+}
+
 // 5. LOOKUP RESIDENT & HOUSEHOLD MEMBERS (via QR UUID or Search query)
 exports.lookupQr = async (req, res) => {
   try {
     const staff = await getStaffContext(req.session.userId);
     if (staff.staff_type === 'RESCUER') {
       return res.status(403).json({ success: false, message: "Access restricted: Rescuers do not scan or perform evacuation center check-ins. Your primary focus is SOS emergency response." });
+    }
+
+    const parsedCenterId = req.body.center_id ? parseInt(req.body.center_id, 10) : null;
+    const targetCenterId = parsedCenterId || req.session.activeCenterId || staff.assigned_center_id;
+    const cap = await getCenterCapacityStatus(targetCenterId);
+    if (cap.isFull) {
+      return res.status(403).json({
+        success: false,
+        center_full: true,
+        occupancy: cap.occupancy,
+        max_capacity: cap.maxCap,
+        message: `🚫 Evacuation Center FULL CAPACITY (${cap.occupancy}/${cap.maxCap}): ${cap.centerName} is no longer accepting new evacuees. Please direct evacuees to the nearest available shelter.`
+      });
     }
 
     const query = (req.body.uuid || req.body.query || '').trim();
@@ -663,6 +704,32 @@ exports.confirmCheckIn = async (req, res) => {
     // Verify staff is authorized for this center
     if (!targetCenterId || !staff.assignedCenterIds || !staff.assignedCenterIds.includes(targetCenterId)) {
       return res.status(403).json({ success: false, message: "You are not authorized to check residents into this evacuation center." });
+    }
+
+    // Enforce strict full-capacity lock (do not accept new evacuees when full or exceeding remaining slots)
+    const cap = await getCenterCapacityStatus(targetCenterId);
+    const shouldCheckInHeadPre = (check_in_head === true || check_in_head === 'true' || check_in_head === 1 || check_in_head === '1');
+    const preMemberArray = Array.isArray(member_ids) ? member_ids : (member_ids ? [member_ids] : []);
+    const requestedHeadCount = shouldCheckInHeadPre ? 1 : 0;
+    const requestedTotalCount = Math.max(1, requestedHeadCount + preMemberArray.length);
+    if (cap.isFull) {
+      return res.status(403).json({
+        success: false,
+        center_full: true,
+        occupancy: cap.occupancy,
+        max_capacity: cap.maxCap,
+        message: `🚫 Evacuation Center FULL CAPACITY (${cap.occupancy}/${cap.maxCap}): ${cap.centerName} is no longer accepting new evacuees.`
+      });
+    }
+    if (requestedTotalCount > cap.availableSlots) {
+      return res.status(403).json({
+        success: false,
+        center_full: true,
+        occupancy: cap.occupancy,
+        max_capacity: cap.maxCap,
+        available_slots: cap.availableSlots,
+        message: `⚠️ Insufficient capacity at ${cap.centerName}: only ${cap.availableSlots} slot(s) remaining (${cap.occupancy}/${cap.maxCap}). Cannot check in ${requestedTotalCount} evacuees.`
+      });
     }
 
     const [residentRows] = await db.execute('SELECT * FROM residents WHERE id = ?', [resident_id]);
@@ -881,6 +948,30 @@ exports.walkinCheckIn = async (req, res) => {
     // Verify staff is authorized for this center
     if (!targetCenterId || !staff.assignedCenterIds || !staff.assignedCenterIds.includes(targetCenterId)) {
       return res.status(403).json({ success: false, message: "You are not authorized to check residents into this evacuation center." });
+    }
+
+    // Enforce strict full-capacity lock for walk-in registration
+    const cap = await getCenterCapacityStatus(targetCenterId);
+    const walkinMembersArr = Array.isArray(req.body.members) ? req.body.members : [];
+    const requestedTotalCount = 1 + walkinMembersArr.length;
+    if (cap.isFull) {
+      return res.status(403).json({
+        success: false,
+        center_full: true,
+        occupancy: cap.occupancy,
+        max_capacity: cap.maxCap,
+        message: `🚫 Evacuation Center FULL CAPACITY (${cap.occupancy}/${cap.maxCap}): ${cap.centerName} is no longer accepting new evacuees.`
+      });
+    }
+    if (requestedTotalCount > cap.availableSlots) {
+      return res.status(403).json({
+        success: false,
+        center_full: true,
+        occupancy: cap.occupancy,
+        max_capacity: cap.maxCap,
+        available_slots: cap.availableSlots,
+        message: `⚠️ Insufficient capacity at ${cap.centerName}: only ${cap.availableSlots} slot(s) remaining (${cap.occupancy}/${cap.maxCap}). Cannot check in ${requestedTotalCount} evacuees.`
+      });
     }
 
     const {
