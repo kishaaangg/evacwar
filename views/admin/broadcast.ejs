@@ -298,14 +298,29 @@
                     <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-200/70 text-amber-950">Opens Nearest Evac Route</span>
                   </div>
 
-                  <!-- OPTIONAL ADDITIONAL / DIRECT SMS PHONE NUMBER(S) -->
+                  <!-- TESTING ONLY: SINGLE NUMBER SELECTOR TO SAVE IPROGSMS API CREDITS -->
                   <div class="mt-2.5 pt-2.5 border-t border-slate-100">
-                    <label class="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
-                      4. SMS Gateway (iProgSMS) Direct / Additional Recipient Phone(s) <span class="text-slate-400 font-normal normal-case">(Optional — sends to all registered households + any number typed here)</span>
-                    </label>
-                    <input type="text" id="customPhonesInput" name="custom_phones"
-                      placeholder="e.g. 09278935759 (comma-separated for multiple numbers)"
-                      class="form-control w-full font-mono text-xs p-2.5 border border-slate-300 rounded-xl focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs text-slate-900">
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="block text-[11px] font-black uppercase tracking-wider text-slate-700">
+                        SMS Target Number (Testing Mode — Saves API Credits)
+                      </label>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                        1 Credit / Test
+                      </span>
+                    </div>
+                    <select id="smsTestTargetSelect" name="sms_test_target"
+                      class="w-full p-2.5 bg-slate-50 border border-slate-300 text-slate-900 rounded-xl text-xs font-bold focus:bg-white focus:border-blue-600 transition-colors cursor-pointer shadow-2xs">
+                      <option value="09278935759" selected>📱 Test Number Only: 09278935759 — Laurence Sinfuego (Default • 1 Credit)</option>
+                      <% if (initialMetrics && initialMetrics.residents && initialMetrics.residents.length > 0) { %>
+                        <% initialMetrics.residents.forEach(r => { %>
+                          <% const rPhone = r.contact || r.contact_number || r.phone; %>
+                          <% if (rPhone && r.has_valid_phone) { %>
+                            <option value="<%= rPhone %>">📱 Single Resident: <%= rPhone %> — <%= r.name %> (1 Credit)</option>
+                          <% } %>
+                        <% }) %>
+                      <% } %>
+                      <option value="ALL">🌐 All Registered Resident Numbers (Deployment Mode)</option>
+                    </select>
                   </div>
                 </div>
 
@@ -323,75 +338,6 @@
                 </div>
 
               </form>
-            </div>
-
-            <!-- 2. TARGETED HOUSEHOLDS ROSTER -->
-            <div class="card p-4 bg-white border border-slate-200/90 rounded-2xl shadow-sm space-y-2.5">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <i class="ph ph-users-four text-blue-600 text-base font-black"></i>
-                  <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Household Delivery Roster</h3>
-                </div>
-                <span class="text-[11px] font-black text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
-                  <%= (initialMetrics && initialMetrics.residents) ? initialMetrics.residents.length : 0 %> Households Reachable
-                </span>
-              </div>
-
-              <!-- Compact Table Container -->
-              <div class="max-h-52 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-inner">
-                <table class="w-full text-left text-xs">
-                  <thead class="bg-slate-100 text-slate-800 font-black sticky top-0 border-b border-slate-200 text-[10px] uppercase">
-                    <tr>
-                      <th class="py-2 px-3">Household / Resident</th>
-                      <th class="py-2 px-3">Zone / Location</th>
-                      <th class="py-2 px-3">Assigned Channel</th>
-                      <th class="py-2 px-3 text-right">Delivery Route</th>
-                    </tr>
-                  </thead>
-                  <tbody id="recipientPreviewTableBody" class="divide-y divide-slate-100 font-medium">
-                    
-                    <!-- PINNED TOP ROW: SINFUEGO LAURENCE RESIDENT -->
-                    <tr class="bg-purple-50/50 hover:bg-purple-50/80 transition-colors text-[11px] font-semibold">
-                      <td class="py-2 px-3 font-black text-slate-900 flex items-center gap-1.5">
-                        <i class="ph ph-user-circle text-purple-600 text-sm"></i>
-                        <span>Sinfuego Laurence Resident</span>
-                      </td>
-                      <td class="py-2 px-3 text-slate-600">San Rafael (Zone 1)</td>
-                      <td class="py-2 px-3">
-                        <span class="font-mono text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-200 inline-flex items-center gap-1">
-                          <i class="ph ph-device-mobile"></i> Node 3: RES1 (!f4e213d4)
-                        </span>
-                      </td>
-                      <td class="py-2 px-3 text-right font-mono text-[10px]">
-                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-black rounded-full border border-emerald-200 inline-flex items-center gap-1">
-                          <i class="ph ph-broadcast"></i> Internet + LoRa Mesh
-                        </span>
-                      </td>
-                    </tr>
-
-                    <!-- OTHER REGISTERED HOUSEHOLDS -->
-                    <% if (initialMetrics && initialMetrics.residents && initialMetrics.residents.length > 0) { %>
-                      <% initialMetrics.residents.forEach(r => { %>
-                        <% const isLaurence = (r.name && (r.name.toLowerCase().includes('laurence') || r.name.toLowerCase().includes('sinfuego'))); %>
-                        <% if (!isLaurence) { %>
-                          <tr class="hover:bg-slate-50 transition-colors text-[11px]">
-                            <td class="py-2 px-3 font-bold text-slate-900"><%= r.name %></td>
-                            <td class="py-2 px-3 text-slate-600"><%= r.zone || r.barangay || 'San Rafael' %></td>
-                            <td class="py-2 px-3">
-                              <span class="text-slate-500 text-[10px]">Standard Terminal</span>
-                            </td>
-                            <td class="py-2 px-3 text-right font-mono text-[10px]">
-                              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full border border-slate-200 inline-flex items-center gap-1">
-                                <i class="ph ph-check"></i> Dual Redundant
-                              </span>
-                            </td>
-                          </tr>
-                        <% } %>
-                      <% }) %>
-                    <% } %>
-                  </tbody>
-                </table>
-              </div>
             </div>
 
           </div>

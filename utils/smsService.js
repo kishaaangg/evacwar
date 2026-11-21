@@ -164,7 +164,7 @@ const DUMMY_TEST_NUMBERS = new Set([
 /**
   Dispatch SMS broadcast to targeted recipient numbers using live iProgSMS API.
  */
-async function sendSmsBroadcast({ recipientPhones = [], customPhones = [], message, title, severity, senderName, evacuateUrl, skipLoraQueue = false }) {
+async function sendSmsBroadcast({ recipientPhones = [], testTargetPhone = null, message, title, severity, senderName, evacuateUrl, skipLoraQueue = false }) {
     const apiToken = process.env.IPROGSMS_API_TOKEN || process.env.SMS_API_KEY || '42f316b879f8b4e81da40c2b5a6be7236528e109';
     const upperSeverity = String(severity || 'RED').toUpperCase();
 
@@ -176,19 +176,11 @@ async function sendSmsBroadcast({ recipientPhones = [], customPhones = [], messa
             .filter(p => !DUMMY_TEST_NUMBERS.has(p))
     ));
 
-    // If Admin explicitly entered custom phone number(s) on the Broadcast console, include/prioritize them
-    const normalizedCustom = Array.from(new Set(
-        (customPhones || [])
-            .filter(p => isValidPhPhoneNumber(p))
-            .map(p => formatPhPhoneNumber(p))
-    ));
-    if (normalizedCustom.length > 0) {
-        validPhones = Array.from(new Set([...normalizedCustom, ...validPhones]));
-    }
-
-    // Ensure primary defense test phone (09278935759) is always included so live SMS verification always succeeds
-    if (!validPhones.includes('639278935759')) {
-        validPhones.unshift('639278935759');
+    // TESTING MODE CREDIT SAVER: If a single test target number is selected (not 'ALL'), send ONLY to that 1 number (1 credit)
+    if (testTargetPhone && String(testTargetPhone).toUpperCase() !== 'ALL' && isValidPhPhoneNumber(testTargetPhone)) {
+        validPhones = [formatPhPhoneNumber(testTargetPhone)];
+    } else if (validPhones.length === 0) {
+        validPhones = ['639278935759'];
     }
 
     let rawMessage = (message || '').trim();

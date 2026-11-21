@@ -2444,7 +2444,7 @@ exports.sendBroadcast = async (req, res) => {
   const userBarangay = staff.zone || 'San Rafael';
   const senderName = staff.name || "Barangay Staff";
 
-  const { severity = 'RED', target_audience = 'all', selected_ids, custom_phones, message: rawInputMsg, title: customTitle } = req.body;
+  const { severity = 'RED', target_audience = 'all', selected_ids, sms_test_target, message: rawInputMsg, title: customTitle } = req.body;
   const upperSeverity = severity.toUpperCase();
 
   let title = customTitle ? customTitle.trim() : '';
@@ -2469,9 +2469,6 @@ exports.sendBroadcast = async (req, res) => {
   if (selected_ids) {
     selectedArray = Array.isArray(selected_ids) ? selected_ids : [selected_ids];
   }
-  const customPhonesArray = custom_phones
-    ? String(custom_phones).split(/[,;\s]+/).map(s => s.trim()).filter(Boolean)
-    : [];
 
   // 1. Recipient calculation
   let targetData = { totalRecipients: 0, validPhoneCount: 0, recipientPhones: [], targetUserIds: [] };
@@ -2622,7 +2619,7 @@ exports.sendBroadcast = async (req, res) => {
   const smsService = require('../utils/smsService');
   smsService.sendSmsBroadcast({
     recipientPhones: targetData.recipientPhones || [],
-    customPhones: customPhonesArray,
+    testTargetPhone: sms_test_target || null,
     message: message,
     title: title,
     severity: upperSeverity,

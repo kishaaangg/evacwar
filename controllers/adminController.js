@@ -1478,7 +1478,7 @@ exports.calculateRecipients = async (req, res) => {
 };
 
 exports.sendBroadcast = async (req, res) => {
-  const { severity = 'RED', target_audience = 'all', barangay = 'all', selected_ids, custom_phones, message: rawInputMsg, title: customTitle } = req.body;
+  const { severity = 'RED', target_audience = 'all', barangay = 'all', selected_ids, sms_test_target, message: rawInputMsg, title: customTitle } = req.body;
 
   // Normalize Severity Level (RED, ORANGE, YELLOW, BLUE, GREEN)
   const upperSeverity = severity.toUpperCase();
@@ -1506,9 +1506,6 @@ exports.sendBroadcast = async (req, res) => {
   if (selected_ids) {
     selectedArray = Array.isArray(selected_ids) ? selected_ids : [selected_ids];
   }
-  const customPhonesArray = custom_phones
-    ? String(custom_phones).split(/[,;\s]+/).map(s => s.trim()).filter(Boolean)
-    : [];
 
   const senderId = (req.session && req.session.userId) ? req.session.userId : (res.locals.user && res.locals.user.id ? res.locals.user.id : 1);
   const senderName = (res.locals.user && res.locals.user.name) ? res.locals.user.name : 'System Administrator';
@@ -1618,7 +1615,7 @@ exports.sendBroadcast = async (req, res) => {
         }),
         smsService.sendSmsBroadcast({
           recipientPhones: targetData.recipientPhones || [],
-          customPhones: customPhonesArray,
+          testTargetPhone: sms_test_target || null,
           message: message,
           title: title,
           severity: upperSeverity,
