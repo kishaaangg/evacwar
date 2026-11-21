@@ -5423,11 +5423,32 @@
                             immediate rescue & assistance.</p>
                         </div>
                       </div>
-                      <span
-                        class="text-xs font-black text-white bg-red-600 px-3 py-1.5 rounded-full border border-red-400 shrink-0"
-                        id="activeSosBadgeCount">
-                        0 Active Signals
-                      </span>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" onclick="window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
+                          class="text-xs font-black text-emerald-950 bg-emerald-400 hover:bg-emerald-300 px-3 py-1.5 rounded-full border border-emerald-500 shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
+                          <i class="ph ph-path text-sm"></i>
+                          <span>Route Multi-Stop Queue</span>
+                        </button>
+                        <span
+                          class="text-xs font-black text-white bg-red-600 px-3 py-1.5 rounded-full border border-red-400 shrink-0"
+                          id="activeSosBadgeCount">
+                          0 Active Signals
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- MULTI-STOP EN-ROUTE RESCUE QUEUE BAR (Auto-Sequenced by Nearest Path: Stop 1 -> Stop 2 -> Shelter) -->
+                    <div id="rescuerMultiStopQueueBar" class="hidden bg-slate-900 text-white rounded-2xl p-3.5 border border-emerald-500/40 shadow-md space-y-2.5">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                          <span class="text-[11px] font-black uppercase tracking-wider text-emerald-400">Active Multi-Stop Rescue Route (Auto-Assigned Along Path)</span>
+                        </div>
+                        <span id="rescuerQueueSummaryPill" class="text-[10.5px] font-mono font-bold bg-slate-800 text-cyan-300 px-2.5 py-0.5 rounded-full border border-slate-700">
+                          0 Stops • ~0 min
+                        </span>
+                      </div>
+                      <div id="rescuerQueueStepsContainer" class="flex flex-wrap items-center gap-2 text-xs"></div>
                     </div>
 
                     <div
@@ -7329,6 +7350,191 @@
         }
       }, 1800);
 
+      /**
+       * Multi-Stop En-Route Rescue Queue & Waypoint Sequencer:
+       * Orders active SOS alerts within Barangay San Rafael by shortest path from the Rescuer's GPS
+       * (Rescuer GPS -> Stop #1 -> Stop #2 -> ... -> Nearest Evacuation Center) so rescuers can rescue
+       * multiple residents along their route without ignoring nearby SOS calls.
+       */
+      window.computeRescuerMultiStopQueue = function () {
+        const rPos = (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number')
+          ? { lat: Number(window._lastKnownUserGps.lat), lng: Number(window._lastKnownUserGps.lng) }
+          : { lat: 13.51037, lng: 123.34810 };
+        const myUid = Number(document.getElementById('staff-map-server-data')?.getAttribute('data-current-user-id') || window.currentUserId || 0);
+
+        const rawAlerts = [];
+        const seenIds = new Set();
+        Object.keys(sosMarkersMap || {}).forEach((k) => {
+          const item = sosMarkersMap[k];
+          const a = (item && item.alertData) ? item.alertData : item;
+          if (!a) return;
+          const sid = a.id || k;
+          if (seenIds.has(String(sid))) return;
+          const st = String(a.status || 'ACTIVE').toUpperCase();
+          if (st === 'RESOLVED' || st === 'CANCELLED') return;
+          const lat = parseFloat(a.latitude || a.lat);
+          const lng = parseFloat(a.longitude || a.lng);
+          if (!isFinite(lat) || !isFinite(lng)) return;
+          if (typeof window.isInsideBarangaySanRafael === 'function' && !window.isInsideBarangaySanRafael(lat, lng)) return;
+          const handledBy = a.handled_by ? Number(a.handled_by) : null;
+          // Include SOS assigned to this rescuer OR unassigned/auto-acknowledged SOS within the barangay
+          if (handledBy && myUid && handledBy !== myUid && ['RESPONDING', 'RESCUED'].includes(st)) return;
+          seenIds.add(String(sid));
+          rawAlerts.push({
+            id: a.id || sid,
+            name: a.name || (a.first_name ? `${a.first_name} ${a.last_name || ''}`.trim() : 'Resident'),
+            lat,
+            lng,
+            status: st,
+            isMine: Boolean(handledBy && myUid && handledBy === myUid)
+          });
+        });
+
+        // Nearest-neighbor path sequencing starting from Rescuer's current GPS position
+        const orderedStops = [];
+        const pool = [...rawAlerts];
+        let curLat = rPos.lat;
+        let curLng = rPos.lng;
+        let cumulativeKm = 0;
+
+        while (pool.length > 0) {
+          let bestIdx = 0;
+          let bestScore = Infinity;
+          let bestDistKm = 0;
+          pool.forEach((cand, idx) => {
+            const dKm = (typeof window.computeHaversineKm === 'function')
+              ? window.computeHaversineKm(curLat, curLng, cand.lat, cand.lng)
+              : Math.hypot(cand.lat - curLat, cand.lng - curLng) * 111;
+            // Prioritize stops already assigned to this rescuer, plus any stop right along the path
+            const score = cand.isMine ? dKm : (dKm + 0.15);
+            if (score < bestScore) {
+              bestScore = score;
+              bestIdx = idx;
+              bestDistKm = dKm;
+            }
+          });
+          const picked = pool.splice(bestIdx, 1)[0];
+          cumulativeKm += bestDistKm;
+          const etaMins = Math.max(1, Math.ceil((cumulativeKm / 24) * 60));
+          orderedStops.push({
+            ...picked,
+            stopNumber: orderedStops.length + 1,
+            legDistKm: bestDistKm,
+            cumulativeKm,
+            etaMins
+          });
+          curLat = picked.lat;
+          curLng = picked.lng;
+        }
+
+        return { rescuerPos: rPos, stops: orderedStops, totalKm: cumulativeKm };
+      };
+
+      window.updateRescuerMultiStopQueue = function () {
+        const bar = document.getElementById('rescuerMultiStopQueueBar');
+        const stepsEl = document.getElementById('rescuerQueueStepsContainer');
+        const sumEl = document.getElementById('rescuerQueueSummaryPill');
+        if (!bar || !stepsEl) return;
+
+        const q = window.computeRescuerMultiStopQueue();
+        if (!q || !Array.isArray(q.stops) || q.stops.length === 0) {
+          bar.classList.add('hidden');
+          return;
+        }
+
+        bar.classList.remove('hidden');
+        const totalMins = Math.max(1, Math.ceil((q.totalKm / 24) * 60));
+        if (sumEl) {
+          sumEl.textContent = `${q.stops.length} ${q.stops.length === 1 ? 'Stop' : 'Stops Along Route'} • ${(q.totalKm * 1000 < 1000) ? Math.round(q.totalKm * 1000) + ' m' : q.totalKm.toFixed(2) + ' km'} • ~${totalMins} min`;
+        }
+
+        stepsEl.innerHTML = q.stops.map((st, idx) => {
+          const distStr = st.legDistKm * 1000 < 1000 ? `${Math.round(st.legDistKm * 1000)}m` : `${st.legDistKm.toFixed(2)}km`;
+          const arrowHtml = idx < q.stops.length - 1 ? `<i class="ph ph-arrow-right text-emerald-400 font-bold"></i>` : '';
+          return `
+            <button type="button" data-lat="${st.lat}" data-lng="${st.lng}" data-sos-id="${st.id}" onclick="flyToSosAndFocus(this)"
+              class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border ${idx === 0 ? 'border-emerald-400 text-white' : 'border-slate-700 text-slate-200'} flex items-center gap-1.5 cursor-pointer transition-all">
+              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black ${idx === 0 ? 'bg-emerald-500 text-slate-950' : 'bg-indigo-600 text-white'}">STOP #${st.stopNumber}</span>
+              <span class="font-extrabold text-xs">${st.name}</span>
+              <span class="font-mono text-[10px] text-emerald-300">(+${distStr} • ~${st.etaMins}m)</span>
+            </button>
+            ${arrowHtml}
+          `;
+        }).join('');
+      };
+
+      window.drawRescuerMultiStopRoute = function (autoZoom = false) {
+        window.updateRescuerMultiStopQueue();
+        const q = window.computeRescuerMultiStopQueue();
+        if (!q || !q.stops || q.stops.length === 0) return;
+
+        // If 1 stop, use standard road directions router
+        if (q.stops.length === 1 && typeof window.showEvakWarDirections === 'function') {
+          const s = q.stops[0];
+          window.showEvakWarDirections(s.lat, s.lng, `STOP #1: ${s.name}`);
+          return;
+        }
+
+        // For 2+ stops along the path, draw the connected Multi-Stop Waypoint Route on MapLibre
+        const coords = [[q.rescuerPos.lng, q.rescuerPos.lat]];
+        q.stops.forEach((s) => coords.push([s.lng, s.lat]));
+        if (window._nearestEvacCenter && isFinite(parseFloat(window._nearestEvacCenter.latitude))) {
+          coords.push([parseFloat(window._nearestEvacCenter.longitude), parseFloat(window._nearestEvacCenter.latitude)]);
+        }
+
+        const activeMap = window._activeEvacwarMap || map;
+        if (activeMap && typeof activeMap.getSource === 'function') {
+          const multiGeoJson = {
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: coords }
+            }]
+          };
+          try {
+            const src = activeMap.getSource('rescuer-multistop-route-src');
+            if (src) {
+              src.setData(multiGeoJson);
+            } else {
+              activeMap.addSource('rescuer-multistop-route-src', { type: 'geojson', data: multiGeoJson });
+              activeMap.addLayer({
+                id: 'rescuer-multistop-route-glow',
+                type: 'line',
+                source: 'rescuer-multistop-route-src',
+                paint: { 'line-color': '#10b981', 'line-width': 8, 'line-opacity': 0.28 }
+              });
+              activeMap.addLayer({
+                id: 'rescuer-multistop-route-line',
+                type: 'line',
+                source: 'rescuer-multistop-route-src',
+                paint: { 'line-color': '#10b981', 'line-width': 4, 'line-dasharray': [2, 1.5] }
+              });
+            }
+            if (autoZoom && typeof maplibregl !== 'undefined' && coords.length >= 2) {
+              const b = new maplibregl.LngLatBounds(coords[0], coords[0]);
+              coords.forEach(c => b.extend(c));
+              activeMap.fitBounds(b, { padding: 70, maxZoom: 17, duration: 900 });
+            }
+          } catch (_) {}
+        }
+        // Also route road directions to Stop #1 right away
+        if (typeof window.showEvakWarDirections === 'function') {
+          const s1 = q.stops[0];
+          window.showEvakWarDirections(s1.lat, s1.lng, `STOP #1 of ${q.stops.length}: ${s1.name}`);
+        }
+      };
+
+      setInterval(() => {
+        if (typeof window.updateRescuerMultiStopQueue === 'function') {
+          window.updateRescuerMultiStopQueue();
+        }
+      }, 2500);
+      setTimeout(() => {
+        if (typeof window.updateRescuerMultiStopQueue === 'function') {
+          window.updateRescuerMultiStopQueue();
+        }
+      }, 900);
+
       async function handleSosLifecycleBtn(btnEl) {
         const sosId = btnEl.getAttribute('data-sos-id');
         const nextStatus = btnEl.getAttribute('data-next-status');
@@ -7363,6 +7569,9 @@
               if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.stopTracking(Number(sosId));
             }
             if (data.alert) addOrUpdateSosMarker(data.alert, false); else setTimeout(() => window.location.reload(), 600);
+            setTimeout(() => {
+              if (typeof window.drawRescuerMultiStopRoute === 'function') window.drawRescuerMultiStopRoute(false);
+            }, 350);
           } else {
             showSosToast(data.message || 'Unable to update SOS status.', 'error');
             if (data.alert) {
