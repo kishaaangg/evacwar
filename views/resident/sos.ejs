@@ -56,6 +56,44 @@
                 Tapping this button will send your current location coordinates directly to the assigned rescuers for
                 emergency response.
               </p>
+
+              <!-- RESCUER ETA & DISTANCE CARD (Haversine Distance Formula + ETA v = d/t) -->
+              <div id="rescuerEtaCard" class="hidden w-full max-w-md mt-4 text-left bg-slate-900 text-white rounded-2xl p-4 border border-emerald-500/40 shadow-lg space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+                      <i class="ph ph-timer text-lg animate-pulse"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[10px] font-black uppercase tracking-wider text-emerald-400">Estimated Time of Arrival (ETA)</div>
+                      <div id="rescuerEtaResponderName" class="text-xs font-extrabold text-white truncate">Barangay Rescue Team</div>
+                    </div>
+                  </div>
+                  <span id="rescuerEtaStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shrink-0">
+                    RESPONDING
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 pt-1">
+                  <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 text-center">
+                    <div class="text-[9.5px] font-bold uppercase text-slate-400">Distance (d)</div>
+                    <div id="rescuerEtaDistanceVal" class="text-sm sm:text-base font-black font-mono text-cyan-300 mt-0.5">-- km</div>
+                  </div>
+                  <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 text-center">
+                    <div class="text-[9.5px] font-bold uppercase text-slate-400">Vehicle ETA</div>
+                    <div id="rescuerEtaVehicleVal" class="text-sm sm:text-base font-black font-mono text-emerald-300 mt-0.5">~-- min</div>
+                  </div>
+                  <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 text-center">
+                    <div class="text-[9.5px] font-bold uppercase text-slate-400">On-Foot ETA</div>
+                    <div id="rescuerEtaWalkVal" class="text-sm sm:text-base font-black font-mono text-amber-300 mt-0.5">~-- min</div>
+                  </div>
+                </div>
+
+                <div class="pt-1 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
+                  <span id="rescuerEtaCoordsText" class="truncate">Rescuer GPS: 13.51037° N, 123.34810° E</span>
+                  <span class="text-slate-500 shrink-0">ETA = d / v</span>
+                </div>
+              </div>
             </div>
 
             <!-- Resident Live Map Card -->
@@ -417,6 +455,17 @@
 
                 // Update visual accuracy circle
                 updateMapAccuracyCircle(nLat, nLng, currentAccuracy);
+                if (activeSosAlert && typeof updateRescuerEtaDisplay === 'function') {
+                  updateRescuerEtaDisplay(window._lastRescuerCoords ? {
+                    status: window._lastRescuerCoords.status,
+                    responderName: window._lastRescuerCoords.name,
+                    rescuerLat: window._lastRescuerCoords.lat,
+                    rescuerLng: window._lastRescuerCoords.lng
+                  } : {
+                    status: activeSosAlert.status || 'ACTIVE',
+                    responderName: activeSosAlert.responder_name || 'Barangay Hall / Rescue Team'
+                  });
+                }
 
                 // 1. MapLibre Provider
                 if (typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
@@ -739,6 +788,85 @@
 
                 if (sosCardHeading) sosCardHeading.textContent = "🚨 EMERGENCY DISTRESS ACTIVE";
                 if (sosCardSubtext) sosCardSubtext.textContent = "Your live GPS position is transmitting to LGU responders. Tap STOP SOS below when you are safe.";
+
+                // Compute & show Estimated Time of Arrival (ETA) immediately using Haversine formula
+                updateRescuerEtaDisplay({
+                  status: (alertData && alertData.status) || 'ACTIVE',
+                  responderName: (alertData && (alertData.handler_name || alertData.responderName)) || 'Barangay Rescue Team',
+                  rescuerLat: (alertData && alertData.rescuer_lat) || window._lastRescuerCoords?.lat || 13.51037,
+                  rescuerLng: (alertData && alertData.rescuer_lng) || window._lastRescuerCoords?.lng || 123.34810
+                });
+              }
+
+              /**
+               * Computes Rescuer Distance (d) & Estimated Time of Arrival (ETA = d / v) using the Haversine Formula:
+               *   a = sin²(Δφ/2) + cos(φ1)·cos(φ2)·sin²(Δλ/2)
+               *   c = 2 · atan2(√a, √(1−a))
+               *   d = R · c   (Earth radius R = 6371 km)
+               *   ETA_vehicle = (d / 25 km/h) * 60 + 1 min dispatch buffer
+               *   ETA_foot    = (d / 4.5 km/h) * 60
+               */
+              let rescuerMapMarker = null;
+              function updateRescuerEtaDisplay({ status = 'RESPONDING', responderName = 'Barangay Rescue Team', rescuerLat = 13.51037, rescuerLng = 123.34810 } = {}) {
+                const etaCard = document.getElementById('rescuerEtaCard');
+                if (!etaCard) return;
+                const st = String(status || 'ACTIVE').toUpperCase();
+                if (st === 'RESOLVED' || st === 'CANCELLED') {
+                  etaCard.classList.add('hidden');
+                  return;
+                }
+                etaCard.classList.remove('hidden');
+
+                const resLat = isValidCoordinate(currentLat, currentLng) ? Number(currentLat) : 13.51024;
+                const resLng = isValidCoordinate(currentLat, currentLng) ? Number(currentLng) : 123.34701;
+                const rLat = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLat) : 13.51037;
+                const rLng = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLng) : 123.34810;
+                window._lastRescuerCoords = { lat: rLat, lng: rLng, name: responderName, status: st };
+
+                const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+                const R = 6371; // km
+                const dLat = toRad(rLat - resLat);
+                const dLng = toRad(rLng - resLng);
+                const a =
+                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(toRad(resLat)) * Math.cos(toRad(rLat)) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const distKm = R * c;
+                const distMeters = Math.round(distKm * 1000);
+
+                // Rescue vehicle average barangay speed ~24 km/h (400 m/min); On-foot rescuer ~4.5 km/h (75 m/min)
+                const vehicleEtaMins = Math.max(1, Math.ceil((distKm / 24) * 60));
+                const walkEtaMins = Math.max(1, Math.ceil((distKm / 4.5) * 60));
+
+                const nameEl = document.getElementById('rescuerEtaResponderName');
+                const badgeEl = document.getElementById('rescuerEtaStatusBadge');
+                const distEl = document.getElementById('rescuerEtaDistanceVal');
+                const vehEl = document.getElementById('rescuerEtaVehicleVal');
+                const walkEl = document.getElementById('rescuerEtaWalkVal');
+                const coordsEl = document.getElementById('rescuerEtaCoordsText');
+
+                if (nameEl) nameEl.textContent = responderName || 'Barangay Rescue Team';
+                if (badgeEl) badgeEl.textContent = st === 'ACTIVE' ? 'DISPATCH ESTIMATE' : st;
+                if (distEl) distEl.textContent = distMeters < 1000 ? `${distMeters} m` : `${distKm.toFixed(2)} km`;
+                if (vehEl) vehEl.textContent = `~${vehicleEtaMins} min`;
+                if (walkEl) walkEl.textContent = `~${walkEtaMins} min`;
+                if (coordsEl) coordsEl.textContent = `Rescuer GPS: ${rLat.toFixed(5)}° N, ${rLng.toFixed(5)}° E`;
+
+                // Also render green Rescuer pin on Resident's SOS map if MapLibre is active
+                if (map && typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
+                  if (!rescuerMapMarker) {
+                    const el = document.createElement('div');
+                    el.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#10b981;border:3px solid #ffffff;box-shadow:0 0 12px rgba(16,185,129,0.85);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:14px;font-weight:900;';
+                    el.innerHTML = '<i class="ph ph-first-aid"></i>';
+                    el.title = `Rescuer: ${responderName}`;
+                    rescuerMapMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+                      .setLngLat([rLng, rLat])
+                      .addTo(map);
+                  } else {
+                    rescuerMapMarker.setLngLat([rLng, rLat]);
+                  }
+                }
               }
 
               function setSosNormalState() {
@@ -746,6 +874,12 @@
                 isAcquiringGps = false;
                 if (sosActiveBanner) sosActiveBanner.classList.add('hidden');
                 if (stopSosContainer) stopSosContainer.classList.add('hidden');
+                const etaCard = document.getElementById('rescuerEtaCard');
+                if (etaCard) etaCard.classList.add('hidden');
+                if (rescuerMapMarker && typeof rescuerMapMarker.remove === 'function') {
+                  try { rescuerMapMarker.remove(); } catch (_) {}
+                  rescuerMapMarker = null;
+                }
 
                 if (sosBtn) {
                   sosBtn.disabled = false;
@@ -1066,6 +1200,57 @@
                   }
                 });
 
+                socket.on('sos:update_status', (data) => {
+                  if (!data) return;
+                  const isMine = (
+                    (activeSosAlert && (String(data.id) === String(activeSosAlert.id) || String(data.sos_id) === String(activeSosAlert.id))) ||
+                    (data.resident_id && (data.resident_id == residentId || (currentUserId && data.resident_id == currentUserId)))
+                  );
+                  if (!isMine && !activeSosAlert) return;
+                  const status = String(data.status || 'ACKNOWLEDGED').toUpperCase();
+                  const responder = data.responder_name || 'Rescue Team';
+                  if (status === 'RESOLVED' || status === 'RESCUED' || status === 'CANCELLED') {
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast(`SOS Status Updated: ${status} by ${responder}.`);
+                    }
+                    setSosNormalState();
+                  } else {
+                    if (!activeSosAlert && isMine) {
+                      setSosActiveState({
+                        id: data.id || data.sos_id || Date.now(),
+                        resident_id: residentId,
+                        name: residentName,
+                        latitude: currentLat || 13.51024,
+                        longitude: currentLng || 123.34701,
+                        status: status,
+                        responder_name: responder,
+                        rescuer_lat: data.rescuer_lat,
+                        rescuer_lng: data.rescuer_lng
+                      });
+                    }
+                    if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
+                    if (sosCardSubtext) sosCardSubtext.textContent = `${responder} updated your SOS status to ${status}. Help is on the way!`;
+                    updateRescuerEtaDisplay({
+                      status: status,
+                      responderName: responder,
+                      rescuerLat: data.rescuer_lat,
+                      rescuerLng: data.rescuer_lng
+                    });
+                  }
+                });
+
+                socket.on('rescuer:location_update', (data) => {
+                  if (!data || !activeSosAlert) return;
+                  if (isValidCoordinate(data.lat, data.lng)) {
+                    updateRescuerEtaDisplay({
+                      status: window._lastRescuerCoords ? window._lastRescuerCoords.status : (activeSosAlert.status || 'RESPONDING'),
+                      responderName: data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : 'Rescuer Unit'),
+                      rescuerLat: Number(data.lat),
+                      rescuerLng: Number(data.lng)
+                    });
+                  }
+                });
+
                 socket.on('sos:resolve', (data) => {
                   if (data && data.status === 'RESOLVED' && (
                     (activeSosAlert && (data.id === activeSosAlert.id || data.sos_id === activeSosAlert.id)) ||
@@ -1088,7 +1273,7 @@
                 });
               }
 
-              // Listen for 433.875 MHz LoRa ACK / Rescuer Status Updates (EVW|ACK|<sosId>|<residentId>|<status>|<responderName>)
+              // Listen for 433.875 MHz LoRa ACK / Rescuer Status Updates (EVW|ACK|<sosId>|<residentId>|<status>|<responderName>|<rescuerLat>,<rescuerLng>)
               if (window.evakwarLoraClient) {
                 window.evakwarLoraClient.on('ack', (ackData) => {
                   if (!ackData) return;
@@ -1110,12 +1295,21 @@
                         name: residentName,
                         latitude: currentLat || 13.51024,
                         longitude: currentLng || 123.34701,
-                        status: status
+                        status: status,
+                        responder_name: responder,
+                        rescuer_lat: ackData.rescuerLat,
+                        rescuer_lng: ackData.rescuerLng
                       });
                     }
                     if (badge) badge.textContent = `LORA ACK: ${status} • ${responder}`;
                     if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
                     if (sosCardSubtext) sosCardSubtext.textContent = `Barangay Hall / Rescuer (${responder}) acknowledged your SOS over 433.875 MHz LoRa Mesh! Help is on the way.`;
+                    updateRescuerEtaDisplay({
+                      status: status,
+                      responderName: responder,
+                      rescuerLat: ackData.rescuerLat,
+                      rescuerLng: ackData.rescuerLng
+                    });
                     if (typeof window.EvacWarToast === 'function') {
                       window.EvacWarToast(`LoRa ACK: ${status} by ${responder}!`);
                     }

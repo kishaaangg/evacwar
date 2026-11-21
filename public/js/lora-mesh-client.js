@@ -327,13 +327,18 @@
     }
 
     if (type === 'ACK') {
+      const coordParts = (parts[6] || '').split(',');
+      const rLat = coordParts.length >= 2 ? parseFloat(coordParts[0]) : null;
+      const rLng = coordParts.length >= 2 ? parseFloat(coordParts[1]) : null;
       return {
         type: 'ACK',
         raw: trimmed,
-        sosId: parts[2] ? Number(parts[2]) : null,
+        sosId: parts[2] ? (isNaN(Number(parts[2])) ? parts[2] : Number(parts[2])) : null,
         residentId: parts[3] ? Number(parts[3]) : null,
         status: parts[4] || 'ACKNOWLEDGED',
-        responderName: parts[5] || 'Barangay Hall'
+        responderName: parts[5] || 'Barangay Hall',
+        rescuerLat: (rLat !== null && isFinite(rLat)) ? rLat : null,
+        rescuerLng: (rLng !== null && isFinite(rLng)) ? rLng : null
       };
     }
 

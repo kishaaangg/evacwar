@@ -615,6 +615,11 @@
                   <i class="ph ph-map-pin text-blue-500"></i>
                   <span class="truncate">${center.address || 'San Rafael'}</span>
                 </p>
+                <div class="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-[10px] font-mono font-bold text-slate-700" title="Evacuation Site GPS Coordinates (Latitude, Longitude)">
+                  <i class="ph ph-compass text-indigo-600 text-xs"></i>
+                  <span>${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E</span>
+                  <span id="popup-dist-${center.id}" class="text-emerald-700 font-extrabold">${(window._lastKnownUserGps && typeof window.computeHaversineKm === 'function') ? ('• ' + window.computeHaversineKm(window._lastKnownUserGps.lat, window._lastKnownUserGps.lng, lat, lng).toFixed(2) + ' km') : ''}</span>
+                </div>
               </div>
             </div>
 
@@ -902,25 +907,92 @@
 
     if (typeof window.handleSosLifecycleBtn !== 'function') {
       window.handleSosLifecycleBtn = async function (btnEl) {
+        if (!btnEl) return;
         const sosId = btnEl.getAttribute('data-sos-id');
         const nextStatus = btnEl.getAttribute('data-next-status');
         if (!sosId || !nextStatus) return;
         btnEl.disabled = true; btnEl.classList.add('opacity-50');
+
+        const getResponderGpsCoords = () => {
+          if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number') {
+            return { lat: window._lastKnownUserGps.lat, lng: window._lastKnownUserGps.lng };
+          }
+          try {
+            const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+            if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
+              return { lat: Number(lastGps.lat), lng: Number(lastGps.lng) };
+            }
+          } catch (_) {}
+          return { lat: 13.51037, lng: 123.34810 }; // Barangay San Rafael Command Center
+        };
+
+        const sendDirectLoraSosAck = (statusStr) => {
+          if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
+            const rCoords = getResponderGpsCoords();
+            const rName = (localStorage.getItem('evw_user_full_name') || 'Rescue Team').replace(/\|/g, '/').slice(0, 24);
+            const ackPkt = `EVW|ACK|${sosId}|0|${statusStr}|${rName}|${Number(rCoords.lat).toFixed(5)},${Number(rCoords.lng).toFixed(5)}`;
+            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          }
+        };
+
+        const clearLocalLoraSos = () => {
+          try {
+            let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+            if (Array.isArray(stored)) {
+              stored = stored.filter(a => String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
+              localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
+            }
+          } catch (_) {}
+          if (typeof window.dismissGlobalDistressBanner === 'function') {
+            window.dismissGlobalDistressBanner(sosId, null);
+          }
+          if (typeof removeSosMarker === 'function') {
+            removeSosMarker(sosId);
+          }
+          if (Array.isArray(window.currentAdminSosAlerts)) {
+            window.currentAdminSosAlerts = window.currentAdminSosAlerts.filter(a => String(a.id || a.sos_id) !== String(sosId));
+            if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
+          }
+          sendDirectLoraSosAck(nextStatus);
+        };
+
+        // If offline or this is a pure LoRa mesh SOS (not yet in SQL DB), update locally & broadcast LoRa ACK with responder coordinates
+        const isPureLoraId = String(sosId).startsWith('lora_') || !navigator.onLine;
+        if (isPureLoraId) {
+          if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') {
+            clearLocalLoraSos();
+          } else {
+            sendDirectLoraSosAck(nextStatus);
+            btnEl.disabled = false; btnEl.classList.remove('opacity-50');
+          }
+          if (typeof showSosToast === 'function') showSosToast(`LoRa SOS marked as ${nextStatus}!`, 'success');
+          return;
+        }
+
+        const rCoords = getResponderGpsCoords();
         try {
           const res = await fetch('/api/sos/status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: sosId, status: nextStatus })
+            body: JSON.stringify({ id: sosId, status: nextStatus, rescuer_lat: rCoords.lat, rescuer_lng: rCoords.lng })
           });
           const data = await res.json();
           if (data.success) {
+            if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') clearLocalLoraSos();
+            else sendDirectLoraSosAck(nextStatus);
             if (typeof showSosToast === 'function') showSosToast(data.message || 'Status updated!', 'success');
             if (typeof addOrUpdateSosMarker === 'function' && data.alert) {
               addOrUpdateSosMarker(data.alert, false, true);
-            } else {
+            } else if (nextStatus !== 'RESOLVED' && nextStatus !== 'CANCELLED') {
               setTimeout(() => window.location.reload(), 600);
             }
           } else {
+            // If server says "SOS alert not found" (e.g. direct LoRa SOS that didn't hit SQL DB), still resolve it cleanly!
+            if ((nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') && String(data.message || data.error || '').toLowerCase().includes('not found')) {
+              clearLocalLoraSos();
+              if (typeof showSosToast === 'function') showSosToast(`LoRa SOS marked as ${nextStatus}!`, 'success');
+              return;
+            }
             if (typeof showSosToast === 'function') showSosToast(data.message || 'This SOS has already been assigned to another rescuer.', 'error');
             if (typeof addOrUpdateSosMarker === 'function' && data.alert) {
               addOrUpdateSosMarker(data.alert, false, true);
@@ -931,6 +1003,11 @@
             btnEl.disabled = false; btnEl.classList.remove('opacity-50');
           }
         } catch (err) {
+          if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') {
+            clearLocalLoraSos();
+            if (typeof showSosToast === 'function') showSosToast(`Offline LoRa SOS marked as ${nextStatus}!`, 'success');
+            return;
+          }
           if (typeof showSosToast === 'function') showSosToast('Network error updating status', 'error');
           btnEl.disabled = false; btnEl.classList.remove('opacity-50');
         }
@@ -2020,10 +2097,12 @@
                   <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black font-mono">${distLabel}</span>
                   ${routeBadgeHtml}
                 </div>
-                <div class="text-[11px] text-slate-700 font-bold mt-0.5 flex items-center gap-2">
+                <div class="text-[11px] text-slate-700 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
                   <span><i class="ph ph-person-simple-walk text-emerald-600"></i> ~${walkMins} min walk</span>
                   <span class="text-slate-300">•</span>
                   <span><i class="ph ph-car text-blue-600"></i> ~${driveMins} min drive</span>
+                  <span class="text-slate-300">•</span>
+                  <span class="font-mono text-[10px] text-indigo-700 font-bold">${dLat.toFixed(5)}°, ${dLng.toFixed(5)}°</span>
                 </div>
                 <div class="text-[10px] ${passedHazard ? 'text-amber-700 font-bold' : 'text-slate-500 font-medium'} truncate mt-0.5">${nextStepText}</div>
               </div>
@@ -2034,6 +2113,105 @@
           </div>
         `;
       }
+    };
+
+    /**
+     * Global Haversine Great-Circle Distance Formula (in kilometers):
+     *   a = sin²(Δφ/2) + cos(φ1)·cos(φ2)·sin²(Δλ/2)
+     *   c = 2 · atan2(√a, √(1−a))
+     *   d = R · c   (where Earth radius R = 6371 km)
+     * Works 100% offline using only GPS coordinates (lat1, lng1) and site coordinates (lat2, lng2).
+     */
+    window.computeHaversineKm = function (lat1, lng1, lat2, lng2) {
+      const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+      const R = 6371; // Earth radius in km
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    /**
+     * Identifies the Nearest Evacuation Center for ANY user (Resident, Staff, Rescuer, Admin)
+     * 100% offline using the Haversine distance formula on cached/embedded evacuation site coordinates,
+     * and automatically draws the suggested route on the active map!
+     */
+    window.findAndRouteNearestEvacCenter = async function (autoRoute = true) {
+      let centersList = [];
+      const centersEl = document.getElementById('centers-data');
+      if (centersEl && centersEl.textContent) {
+        try { centersList = JSON.parse(centersEl.textContent.trim()); } catch (_) {}
+      }
+      if ((!Array.isArray(centersList) || centersList.length === 0) && window.OFFLINE_BOOTSTRAP && Array.isArray(window.OFFLINE_BOOTSTRAP.centers)) {
+        centersList = window.OFFLINE_BOOTSTRAP.centers;
+      }
+      if ((!Array.isArray(centersList) || centersList.length === 0) && window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+        try {
+          const cached = await window.EvakWarDB.getMapData();
+          if (cached && Array.isArray(cached.centers)) centersList = cached.centers;
+        } catch (_) {}
+      }
+      if (!Array.isArray(centersList) || centersList.length === 0) return null;
+
+      const SAN_RAFAEL_DEFAULT = { lat: 13.51037, lng: 123.3481, isFallback: true };
+      const getUserCoords = () => new Promise((resolve) => {
+        if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number' && !window._lastKnownUserGps.isFallback) {
+          return resolve(window._lastKnownUserGps);
+        }
+        if (!navigator.geolocation) return resolve(SAN_RAFAEL_DEFAULT);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
+            window._lastKnownUserGps = c;
+            resolve(c);
+          },
+          () => resolve(window._lastKnownUserGps || SAN_RAFAEL_DEFAULT),
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
+        );
+      });
+
+      const userPos = await getUserCoords();
+      let nearest = null;
+      let bestScore = Infinity;
+
+      centersList.forEach((center) => {
+        if (!center) return;
+        const cLat = parseFloat(center.latitude);
+        const cLng = parseFloat(center.longitude);
+        if (isNaN(cLat) || isNaN(cLng)) return;
+
+        const distKm = window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng);
+        const distEl = document.getElementById(`distance-${center.id}`);
+        if (distEl) distEl.textContent = `${distKm.toFixed(2)} km`;
+        const popDistEl = document.getElementById(`popup-dist-${center.id}`);
+        if (popDistEl) popDistEl.textContent = `• ${distKm.toFixed(2)} km`;
+
+        const maxCap = Math.max(1, parseInt(center.max_capacity || center.capacity || 25, 10));
+        const curOcc = parseInt(center.current_occupancy || 0, 10);
+        const isFull = curOcc >= maxCap;
+        // Prefer available shelters first; only pick full shelter if no available shelter exists nearby
+        const score = isFull ? (distKm + 50) : distKm;
+        if (score < bestScore) {
+          bestScore = score;
+          nearest = { ...center, latitude: cLat, longitude: cLng, distanceKm: distKm };
+        }
+      });
+
+      if (nearest) {
+        window._nearestEvacCenter = nearest;
+        if (autoRoute && typeof window.showEvakWarDirections === 'function') {
+          await window.showEvakWarDirections(
+            nearest.latitude,
+            nearest.longitude,
+            `${nearest.name || 'Nearest Evacuation Center'} (Nearest • ${nearest.distanceKm.toFixed(2)} km)`
+          );
+        }
+      }
+      return nearest;
     };
   </script>
   <script id="Evacwar-google-maps-loader">
@@ -2890,7 +3068,7 @@
         document.addEventListener('DOMContentLoaded', () => {
           fetchNotifications();
 
-          if (typeof io !== 'undefined') {
+          {
             let currentUserId = "1";
             let role = "resident";
             let staffType = "";
@@ -2925,41 +3103,7 @@
             window.userRole = role;
             window.userStaffType = staffType;
 
-            const isMobileBundle = Boolean(
-              (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
-              window.location.pathname.startsWith('/resident-mobile') ||
-              window.location.protocol === 'file:' ||
-              window.location.protocol === 'capacitor:' ||
-              window.location.hostname === 'localhost'
-            );
-            const savedSrv = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
-            const socketOrigin = isMobileBundle
-              ? ((savedSrv && savedSrv.startsWith('http') && !savedSrv.includes('192.168.') && !savedSrv.includes('localhost')) ? savedSrv : 'https://evacwar.onrender.com')
-              : window.location.origin;
-
-            const socket = (window.__appSocket && window.__appSocket._evwTarget === socketOrigin)
-              ? window.__appSocket
-              : io(socketOrigin, {
-                  transports: ['websocket', 'polling'],
-                  reconnectionAttempts: 15,
-                  timeout: 5000,
-                  auth: { userId: currentUserId, role: role, staffType: staffType, userName: resolvedFullName }
-                });
-            socket._evwTarget = socketOrigin;
-            window.__appSocket = socket;
-
-            function announceOnline() {
-              if (currentUserId && Number(currentUserId) > 0) {
-                socket.emit('user:online', { userId: currentUserId, role: role });
-              }
-            }
-
-            if (socket.connected) announceOnline();
-            socket.on('connect', announceOnline);
-            socket.on('notification:new', () => { try { fetchNotifications(); } catch (_) {} });
-            socket.on('emergency:alert', (d) => { try { fetchNotifications(); if (typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
-            socket.on('alert:broadcast', (d) => { try { fetchNotifications(); if (d && d.title && typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
-
+            // ALWAYS define global distress banner + chime BEFORE Socket.IO check so 100% offline LoRa SOS works!
             const isEvacuationStaff = (role === 'staff' || role === 'barangay_council') && staffType === 'EVACUATION';
             const isRescuerOrAdmin = (role === 'admin' || role === 'rescuer' || staffType === 'RESCUER' || window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/rescuer') || ((role === 'staff' || role === 'barangay_council') && !isEvacuationStaff));
 
@@ -3090,6 +3234,45 @@
                   window.dismissGlobalDistressBanner(sosId, resId);
                 }, 25000);
               };
+            }
+
+            if (typeof io !== 'undefined') {
+              const isMobileBundle = Boolean(
+                (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+                window.location.pathname.startsWith('/resident-mobile') ||
+                window.location.protocol === 'file:' ||
+                window.location.protocol === 'capacitor:' ||
+                window.location.hostname === 'localhost'
+              );
+              const savedSrv = (localStorage.getItem('evw_server_url') || '').replace(/\/$/, '');
+              const socketOrigin = isMobileBundle
+                ? ((savedSrv && savedSrv.startsWith('http') && !savedSrv.includes('192.168.') && !savedSrv.includes('localhost')) ? savedSrv : 'https://evacwar.onrender.com')
+                : window.location.origin;
+
+              const socket = (window.__appSocket && window.__appSocket._evwTarget === socketOrigin)
+                ? window.__appSocket
+                : io(socketOrigin, {
+                    transports: ['websocket', 'polling'],
+                    reconnectionAttempts: 15,
+                    timeout: 5000,
+                    auth: { userId: currentUserId, role: role, staffType: staffType, userName: resolvedFullName }
+                  });
+              socket._evwTarget = socketOrigin;
+              window.__appSocket = socket;
+
+              function announceOnline() {
+                if (currentUserId && Number(currentUserId) > 0) {
+                  socket.emit('user:online', { userId: currentUserId, role: role });
+                }
+              }
+
+              if (socket.connected) announceOnline();
+              socket.on('connect', announceOnline);
+              socket.on('notification:new', () => { try { fetchNotifications(); } catch (_) {} });
+              socket.on('emergency:alert', (d) => { try { fetchNotifications(); if (typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
+              socket.on('alert:broadcast', (d) => { try { fetchNotifications(); if (d && d.title && typeof window.triggerEmergencyAlarm === 'function') window.triggerEmergencyAlarm(d); } catch (_) {} });
+
+              if (isRescuerOrAdmin) {
 
               socket.on('sos:new', (data) => {
                 fetchNotifications();
@@ -3147,6 +3330,7 @@
                 fetchNotifications();
               }
             });
+            }
           }
 
           document.addEventListener('click', (e) => {
@@ -4092,52 +4276,86 @@
                           const modalLabel = document.getElementById('modalActiveTransportLabel');
                           const banner = document.getElementById('offlineLoraNotificationBanner');
                           const isOnline = Boolean(navigator.onLine);
+                          const liveLora = st || window.evakwarLoraClient || {};
+                          const hasDirectLora = Boolean(liveLora && liveLora.connected && (liveLora.transport === 'BLE' || liveLora.transport === 'USB_SERIAL'));
 
-                          // A. Admin PC Gateway Check (USB Serial / COM3)
+                          // A. Admin PC Gateway Check (Direct WebBLE / WebSerial OR Backend Gateway Bridge)
                           if (currentUserRole === 'admin') {
-                            fetch('/api/lora/status')
-                              .then(r => r.json())
-                              .then(data => {
-                                const gwConnected = Boolean(data && data.gateway && data.gateway.connected);
-                                window._adminGatewayConnected = gwConnected;
-                                if (modalLabel) {
-                                  if (gwConnected && isOnline) {
-                                    modalLabel.textContent = 'Wi-Fi (Online) + LoRa Gateway (COM3)';
-                                  } else if (gwConnected) {
-                                    modalLabel.textContent = 'LoRa Gateway COM3 (Wi-Fi Offline)';
-                                  } else if (isOnline) {
-                                    modalLabel.textContent = 'Wi-Fi / Internet (Online)';
-                                  } else {
-                                    modalLabel.textContent = 'Offline (No Connection)';
-                                  }
+                            const applyAdminUi = (gwConnected) => {
+                              window._adminGatewayConnected = Boolean(gwConnected || hasDirectLora);
+                              const anyLora = Boolean(gwConnected || hasDirectLora);
+                              const directName = liveLora.deviceName || (liveLora.transport === 'USB_SERIAL' ? 'USB Serial Node' : 'LoRa BLE Node');
+                              if (modalLabel) {
+                                if (hasDirectLora && isOnline) {
+                                  modalLabel.textContent = `Wi-Fi + LoRa ${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} (${directName})`;
+                                } else if (hasDirectLora) {
+                                  modalLabel.textContent = `LoRa Only (${liveLora.transport === 'USB_SERIAL' ? 'USB' : 'BLE'} • ${directName})`;
+                                } else if (gwConnected && isOnline) {
+                                  modalLabel.textContent = 'Wi-Fi + LoRa Gateway (COM3)';
+                                } else if (gwConnected) {
+                                  modalLabel.textContent = 'LoRa Only (Gateway COM3)';
+                                } else if (isOnline) {
+                                  modalLabel.textContent = 'Wi-Fi Only (Online)';
+                                } else {
+                                  modalLabel.textContent = 'Offline (No Connection)';
                                 }
-                                if (btn && icon) {
-                                  if (isOnline) {
-                                    icon.className = 'ph ph-wifi-high text-base sm:text-lg text-emerald-400';
-                                    btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                    btn.title = gwConnected ? 'Online (Wi-Fi) • ESP LoRa Gateway Active (COM3)' : 'Online (Wi-Fi / Internet)';
-                                    if (txt) txt.textContent = 'ONLINE';
-                                  } else if (gwConnected) {
-                                    icon.className = 'ph ph-plugs text-base sm:text-lg text-cyan-400';
-                                    btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-400/50 shadow-xs transition-all active:scale-95 cursor-pointer';
-                                    btn.title = 'LoRa Gateway Active (COM3) • Wi-Fi Offline';
-                                    if (txt) txt.textContent = 'USB COM3';
-                                  } else {
-                                    icon.className = 'ph ph-warning text-base sm:text-lg text-amber-400 animate-pulse';
-                                    btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 shadow-xs transition-all active:scale-95 cursor-pointer animate-pulse';
-                                    btn.title = 'Offline (No Internet & No LoRa Gateway). Plug ESP LoRa via USB.';
-                                    if (txt) txt.textContent = 'OFFLINE (NO LORA)';
-                                  }
+                              }
+                              if (btn && icon) {
+                                if (hasDirectLora && liveLora.transport === 'BLE') {
+                                  icon.className = 'ph ph-bluetooth text-base sm:text-lg text-emerald-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-indigo-950 hover:bg-indigo-900 text-emerald-300 border border-emerald-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = isOnline ? `Wi-Fi + LoRa BLE (${directName})` : `LoRa Only • BLE (${directName})`;
+                                  if (txt) txt.textContent = isOnline ? 'WIFI + LORA' : 'LORA ONLY';
+                                } else if (hasDirectLora && liveLora.transport === 'USB_SERIAL') {
+                                  icon.className = 'ph ph-plugs text-base sm:text-lg text-cyan-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = isOnline ? `Wi-Fi + LoRa USB (${directName})` : `LoRa Only • USB (${directName})`;
+                                  if (txt) txt.textContent = isOnline ? 'WIFI + LORA' : 'LORA ONLY';
+                                } else if (gwConnected) {
+                                  icon.className = 'ph ph-broadcast text-base sm:text-lg text-emerald-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-400/60 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = isOnline ? 'Wi-Fi + LoRa Gateway (COM3 Active)' : 'LoRa Only • Gateway (COM3)';
+                                  if (txt) txt.textContent = isOnline ? 'WIFI + LORA' : 'LORA ONLY';
+                                } else if (isOnline) {
+                                  icon.className = 'ph ph-wifi-high text-base sm:text-lg text-emerald-400';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-500/30 shadow-xs transition-all active:scale-95 cursor-pointer';
+                                  btn.title = 'Wi-Fi Only — Click to also connect LoRa Node';
+                                  if (txt) txt.textContent = 'WIFI ONLY';
+                                } else {
+                                  icon.className = 'ph ph-warning text-base sm:text-lg text-amber-400 animate-pulse';
+                                  btn.className = 'focus-ring inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 shadow-xs transition-all active:scale-95 cursor-pointer animate-pulse';
+                                  btn.title = 'Offline (No Internet & No LoRa Node). Click to connect LoRa via Bluetooth or USB.';
+                                  if (txt) txt.textContent = 'OFFLINE';
                                 }
-                                if (banner) {
-                                  if (!isOnline && !gwConnected && !window._offlineBannerDismissed) {
-                                    banner.classList.remove('hidden');
-                                  } else {
-                                    banner.classList.add('hidden');
-                                  }
+                              }
+                              if (banner) {
+                                // Only show offline LoRa warning banner if NOT currently auto-reconnecting a saved BLE/USB session
+                                let hasRecentLoraSession = false;
+                                try {
+                                  const s = JSON.parse(localStorage.getItem('evw_lora_connected_session') || 'null');
+                                  hasRecentLoraSession = Boolean(s && s.connected && (Date.now() - (s.ts || 0) < 12 * 60 * 60 * 1000));
+                                } catch (_) {}
+                                if (!isOnline && !anyLora && !window._offlineBannerDismissed && !hasRecentLoraSession) {
+                                  banner.classList.remove('hidden');
+                                } else {
+                                  banner.classList.add('hidden');
                                 }
-                              })
-                              .catch(() => {});
+                              }
+                            };
+
+                            // Apply direct BLE/USB state immediately (even when offline!)
+                            applyAdminUi(Boolean(window._lastAdminGwConnected));
+
+                            if (isOnline) {
+                              fetch('/api/lora/status')
+                                .then(r => r.json())
+                                .then(data => {
+                                  const gwConnected = Boolean(data && data.gateway && data.gateway.connected);
+                                  window._lastAdminGwConnected = gwConnected;
+                                  applyAdminUi(gwConnected);
+                                })
+                                .catch(() => applyAdminUi(false));
+                            }
                             return;
                           }
 
@@ -4432,34 +4650,79 @@
                           if (!sosPacket) return;
                           console.log('[LoRa Mesh] 🚨 Inbound Resident SOS Packet received:', sosPacket);
 
+                          // Normalize fields so both Admin, Staff, and Rescuer maps/banners render it cleanly offline
+                          const normalizedSos = {
+                            id: sosPacket.sosId || sosPacket.msgId || ('lora_' + Date.now()),
+                            sos_id: sosPacket.sosId || sosPacket.msgId || ('lora_' + Date.now()),
+                            resident_id: sosPacket.residentId || sosPacket.resident_id || 0,
+                            name: sosPacket.name || sosPacket.residentName || sosPacket.sender || 'Resident in Distress',
+                            resident_name: sosPacket.name || sosPacket.residentName || sosPacket.sender || 'Resident in Distress',
+                            latitude: Number(sosPacket.latitude) || 13.51024,
+                            longitude: Number(sosPacket.longitude) || 123.34701,
+                            accuracy: Number(sosPacket.accuracy) || 15,
+                            status: (sosPacket.statusCode === 'CAN' || sosPacket.command === 'CANCEL_SOS') ? 'CANCELLED' : 'ACTIVE',
+                            barangay: sosPacket.barangay || sosPacket.zone || 'San Rafael (433.875 MHz LoRa)',
+                            sos_type: sosPacket.sos_type || sosPacket.emergencyType || 'Emergency SOS',
+                            via: 'LORA_MESH_433MHZ',
+                            created_at: new Date().toISOString()
+                          };
+
+                          // Persist offline SOS list in localStorage so navigating to /admin/evacuation offline still displays it!
+                          try {
+                            let storedSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+                            if (!Array.isArray(storedSos)) storedSos = [];
+                            if (normalizedSos.status === 'CANCELLED') {
+                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id) && String(a.resident_id) !== String(normalizedSos.resident_id));
+                            } else {
+                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id));
+                              storedSos.unshift(normalizedSos);
+                            }
+                            localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(storedSos.slice(0, 30)));
+                          } catch (_) {}
+
                           // Forward to window event so tactical maps and dashboards react immediately
                           try {
-                            window.dispatchEvent(new CustomEvent('evakwar:lora-sos', { detail: sosPacket }));
+                            window.dispatchEvent(new CustomEvent('evakwar:lora-sos', { detail: normalizedSos }));
                           } catch (_) {}
 
                           // Also notify socket listeners locally if socket is active
                           if (window.appSocket && typeof window.appSocket.emit === 'function') {
-                            window.appSocket.emit('sos:incoming_mesh', sosPacket);
+                            window.appSocket.emit('sos:incoming_mesh', normalizedSos);
                           }
 
-                          // If Rescuer or Staff account, notify with high priority audio and notification
-                          const isStaffOrRescuer = Boolean(
-                            (window.__evwRole && (window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
+                          // If Admin, Rescuer, or Staff account, notify with high priority audio, distress banner, and notification drawer
+                          const isAdminOrStaffOrRescuer = Boolean(
+                            currentUserRole === 'admin' ||
+                            currentUserRole === 'staff' ||
+                            currentUserRole === 'rescuer' ||
+                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
                             localStorage.getItem('evw_cached_staff') ||
-                            (window.location.pathname && (window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
+                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
                           );
 
-                          if (isStaffOrRescuer) {
-                            const residentName = sosPacket.residentName || sosPacket.sender || 'Resident in Distress';
-                            const zone = sosPacket.zone || sosPacket.barangay || 'San Rafael';
-                            const emType = sosPacket.emergencyType || 'EMERGENCY';
+                          if (isAdminOrStaffOrRescuer) {
+                            const residentName = normalizedSos.name;
+                            const zone = normalizedSos.barangay;
+                            const emType = normalizedSos.sos_type;
+                            const mapUrl = (currentUserRole === 'admin' || (window.location.pathname || '').includes('/admin'))
+                              ? '/admin/evacuation'
+                              : ((window.location.pathname || '').includes('/staff') ? '/staff/map' : '/rescuer/map');
+
+                            // Trigger Admin/Staff global distress pop-up notification banner + chime
+                            if (normalizedSos.status === 'CANCELLED') {
+                              if (typeof window.dismissGlobalDistressBanner === 'function') {
+                                try { window.dismissGlobalDistressBanner(normalizedSos.id, normalizedSos.resident_id); } catch (_) {}
+                              }
+                            } else if (typeof window.showGlobalDistressNotification === 'function') {
+                              try { window.showGlobalDistressNotification(normalizedSos); } catch (_) {}
+                            }
 
                             // Sound emergency tone if siren available
-                            if (typeof window.triggerEmergencyAlarm === 'function') {
+                            if (typeof window.triggerEmergencyAlarm === 'function' && normalizedSos.status !== 'CANCELLED') {
                               window.triggerEmergencyAlarm({
-                                id: 'lora_sos_' + (sosPacket.sosId || Date.now()),
+                                id: 'lora_sos_' + normalizedSos.id,
                                 title: `🚨 RESIDENT SOS: ${residentName.toUpperCase()}`,
-                                message: `Distress signal received over 433.875 MHz LoRa Mesh from ${zone}. Type: ${emType}. Coordinates: ${sosPacket.latitude || 'GPS'}, ${sosPacket.longitude || 'GPS'}.`,
+                                message: `Distress signal received over 433.875 MHz LoRa Mesh from ${zone}. Type: ${emType}. Coordinates: ${normalizedSos.latitude.toFixed(5)}, ${normalizedSos.longitude.toFixed(5)}.`,
                                 severity: 'RED',
                                 isSos: true
                               });
@@ -4469,7 +4732,7 @@
                             if (typeof window.injectLoraNotificationToDrawer === 'function') {
                               const now = new Date();
                               window.injectLoraNotificationToDrawer({
-                                id: 'lora_sos_' + (sosPacket.sosId || Date.now()),
+                                id: 'lora_sos_' + normalizedSos.id,
                                 category: 'sos',
                                 title: `🚨 [LoRa 433MHz] Resident SOS: ${residentName}`,
                                 message: `SOS distress beacon active at ${zone} (${emType}). Tap to open tactical map.`,
@@ -4478,7 +4741,7 @@
                                 icon: 'ph-siren',
                                 color: 'red',
                                 isActionRequired: true,
-                                actionUrl: '/rescuer/map',
+                                actionUrl: mapUrl,
                                 actionLabel: 'View SOS on Map'
                               });
                             }
@@ -4516,8 +4779,8 @@
                           if (window.__seenWeatherNotifIds.has(alertId)) return;
                           window.__seenWeatherNotifIds.add(alertId);
 
-                          const title = weatherAlert.title || '🌤️ 2-Hour LoRa Weather Update';
-                          const message = weatherAlert.message || 'New sensor reading from Relay !0f778ab0. Tap to view Weather page.';
+                          const title = '🌤️ LoRa Weather Sensor Update';
+                          const message = weatherAlert.message || 'Tap to view live sensor telemetry.';
                           const targetUrl = resolveWeatherPageUrl();
 
                           // Persist latest reading to localStorage so Weather page reflects it offline too
@@ -4884,6 +5147,44 @@
                 Tapping this button will send your current location coordinates directly to the assigned rescuers for
                 emergency response.
               </p>
+
+              <!-- RESCUER ETA & DISTANCE CARD (Haversine Distance Formula + ETA v = d/t) -->
+              <div id="rescuerEtaCard" class="hidden w-full max-w-md mt-4 text-left bg-slate-900 text-white rounded-2xl p-4 border border-emerald-500/40 shadow-lg space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+                      <i class="ph ph-timer text-lg animate-pulse"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[10px] font-black uppercase tracking-wider text-emerald-400">Estimated Time of Arrival (ETA)</div>
+                      <div id="rescuerEtaResponderName" class="text-xs font-extrabold text-white truncate">Barangay Rescue Team</div>
+                    </div>
+                  </div>
+                  <span id="rescuerEtaStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shrink-0">
+                    RESPONDING
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 pt-1">
+                  <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 text-center">
+                    <div class="text-[9.5px] font-bold uppercase text-slate-400">Distance (d)</div>
+                    <div id="rescuerEtaDistanceVal" class="text-sm sm:text-base font-black font-mono text-cyan-300 mt-0.5">-- km</div>
+                  </div>
+                  <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 text-center">
+                    <div class="text-[9.5px] font-bold uppercase text-slate-400">Vehicle ETA</div>
+                    <div id="rescuerEtaVehicleVal" class="text-sm sm:text-base font-black font-mono text-emerald-300 mt-0.5">~-- min</div>
+                  </div>
+                  <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 text-center">
+                    <div class="text-[9.5px] font-bold uppercase text-slate-400">On-Foot ETA</div>
+                    <div id="rescuerEtaWalkVal" class="text-sm sm:text-base font-black font-mono text-amber-300 mt-0.5">~-- min</div>
+                  </div>
+                </div>
+
+                <div class="pt-1 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
+                  <span id="rescuerEtaCoordsText" class="truncate">Rescuer GPS: 13.51037° N, 123.34810° E</span>
+                  <span class="text-slate-500 shrink-0">ETA = d / v</span>
+                </div>
+              </div>
             </div>
 
             <!-- Resident Live Map Card -->
@@ -5246,6 +5547,17 @@
 
                 // Update visual accuracy circle
                 updateMapAccuracyCircle(nLat, nLng, currentAccuracy);
+                if (activeSosAlert && typeof updateRescuerEtaDisplay === 'function') {
+                  updateRescuerEtaDisplay(window._lastRescuerCoords ? {
+                    status: window._lastRescuerCoords.status,
+                    responderName: window._lastRescuerCoords.name,
+                    rescuerLat: window._lastRescuerCoords.lat,
+                    rescuerLng: window._lastRescuerCoords.lng
+                  } : {
+                    status: activeSosAlert.status || 'ACTIVE',
+                    responderName: activeSosAlert.responder_name || 'Barangay Hall / Rescue Team'
+                  });
+                }
 
                 // 1. MapLibre Provider
                 if (typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
@@ -5568,6 +5880,85 @@
 
                 if (sosCardHeading) sosCardHeading.textContent = "🚨 EMERGENCY DISTRESS ACTIVE";
                 if (sosCardSubtext) sosCardSubtext.textContent = "Your live GPS position is transmitting to LGU responders. Tap STOP SOS below when you are safe.";
+
+                // Compute & show Estimated Time of Arrival (ETA) immediately using Haversine formula
+                updateRescuerEtaDisplay({
+                  status: (alertData && alertData.status) || 'ACTIVE',
+                  responderName: (alertData && (alertData.handler_name || alertData.responderName)) || 'Barangay Rescue Team',
+                  rescuerLat: (alertData && alertData.rescuer_lat) || window._lastRescuerCoords?.lat || 13.51037,
+                  rescuerLng: (alertData && alertData.rescuer_lng) || window._lastRescuerCoords?.lng || 123.34810
+                });
+              }
+
+              /**
+               * Computes Rescuer Distance (d) & Estimated Time of Arrival (ETA = d / v) using the Haversine Formula:
+               *   a = sin²(Δφ/2) + cos(φ1)·cos(φ2)·sin²(Δλ/2)
+               *   c = 2 · atan2(√a, √(1−a))
+               *   d = R · c   (Earth radius R = 6371 km)
+               *   ETA_vehicle = (d / 25 km/h) * 60 + 1 min dispatch buffer
+               *   ETA_foot    = (d / 4.5 km/h) * 60
+               */
+              let rescuerMapMarker = null;
+              function updateRescuerEtaDisplay({ status = 'RESPONDING', responderName = 'Barangay Rescue Team', rescuerLat = 13.51037, rescuerLng = 123.34810 } = {}) {
+                const etaCard = document.getElementById('rescuerEtaCard');
+                if (!etaCard) return;
+                const st = String(status || 'ACTIVE').toUpperCase();
+                if (st === 'RESOLVED' || st === 'CANCELLED') {
+                  etaCard.classList.add('hidden');
+                  return;
+                }
+                etaCard.classList.remove('hidden');
+
+                const resLat = isValidCoordinate(currentLat, currentLng) ? Number(currentLat) : 13.51024;
+                const resLng = isValidCoordinate(currentLat, currentLng) ? Number(currentLng) : 123.34701;
+                const rLat = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLat) : 13.51037;
+                const rLng = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLng) : 123.34810;
+                window._lastRescuerCoords = { lat: rLat, lng: rLng, name: responderName, status: st };
+
+                const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+                const R = 6371; // km
+                const dLat = toRad(rLat - resLat);
+                const dLng = toRad(rLng - resLng);
+                const a =
+                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(toRad(resLat)) * Math.cos(toRad(rLat)) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const distKm = R * c;
+                const distMeters = Math.round(distKm * 1000);
+
+                // Rescue vehicle average barangay speed ~24 km/h (400 m/min); On-foot rescuer ~4.5 km/h (75 m/min)
+                const vehicleEtaMins = Math.max(1, Math.ceil((distKm / 24) * 60));
+                const walkEtaMins = Math.max(1, Math.ceil((distKm / 4.5) * 60));
+
+                const nameEl = document.getElementById('rescuerEtaResponderName');
+                const badgeEl = document.getElementById('rescuerEtaStatusBadge');
+                const distEl = document.getElementById('rescuerEtaDistanceVal');
+                const vehEl = document.getElementById('rescuerEtaVehicleVal');
+                const walkEl = document.getElementById('rescuerEtaWalkVal');
+                const coordsEl = document.getElementById('rescuerEtaCoordsText');
+
+                if (nameEl) nameEl.textContent = responderName || 'Barangay Rescue Team';
+                if (badgeEl) badgeEl.textContent = st === 'ACTIVE' ? 'DISPATCH ESTIMATE' : st;
+                if (distEl) distEl.textContent = distMeters < 1000 ? `${distMeters} m` : `${distKm.toFixed(2)} km`;
+                if (vehEl) vehEl.textContent = `~${vehicleEtaMins} min`;
+                if (walkEl) walkEl.textContent = `~${walkEtaMins} min`;
+                if (coordsEl) coordsEl.textContent = `Rescuer GPS: ${rLat.toFixed(5)}° N, ${rLng.toFixed(5)}° E`;
+
+                // Also render green Rescuer pin on Resident's SOS map if MapLibre is active
+                if (map && typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
+                  if (!rescuerMapMarker) {
+                    const el = document.createElement('div');
+                    el.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#10b981;border:3px solid #ffffff;box-shadow:0 0 12px rgba(16,185,129,0.85);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:14px;font-weight:900;';
+                    el.innerHTML = '<i class="ph ph-first-aid"></i>';
+                    el.title = `Rescuer: ${responderName}`;
+                    rescuerMapMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+                      .setLngLat([rLng, rLat])
+                      .addTo(map);
+                  } else {
+                    rescuerMapMarker.setLngLat([rLng, rLat]);
+                  }
+                }
               }
 
               function setSosNormalState() {
@@ -5575,6 +5966,12 @@
                 isAcquiringGps = false;
                 if (sosActiveBanner) sosActiveBanner.classList.add('hidden');
                 if (stopSosContainer) stopSosContainer.classList.add('hidden');
+                const etaCard = document.getElementById('rescuerEtaCard');
+                if (etaCard) etaCard.classList.add('hidden');
+                if (rescuerMapMarker && typeof rescuerMapMarker.remove === 'function') {
+                  try { rescuerMapMarker.remove(); } catch (_) {}
+                  rescuerMapMarker = null;
+                }
 
                 if (sosBtn) {
                   sosBtn.disabled = false;
@@ -5895,6 +6292,57 @@
                   }
                 });
 
+                socket.on('sos:update_status', (data) => {
+                  if (!data) return;
+                  const isMine = (
+                    (activeSosAlert && (String(data.id) === String(activeSosAlert.id) || String(data.sos_id) === String(activeSosAlert.id))) ||
+                    (data.resident_id && (data.resident_id == residentId || (currentUserId && data.resident_id == currentUserId)))
+                  );
+                  if (!isMine && !activeSosAlert) return;
+                  const status = String(data.status || 'ACKNOWLEDGED').toUpperCase();
+                  const responder = data.responder_name || 'Rescue Team';
+                  if (status === 'RESOLVED' || status === 'RESCUED' || status === 'CANCELLED') {
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast(`SOS Status Updated: ${status} by ${responder}.`);
+                    }
+                    setSosNormalState();
+                  } else {
+                    if (!activeSosAlert && isMine) {
+                      setSosActiveState({
+                        id: data.id || data.sos_id || Date.now(),
+                        resident_id: residentId,
+                        name: residentName,
+                        latitude: currentLat || 13.51024,
+                        longitude: currentLng || 123.34701,
+                        status: status,
+                        responder_name: responder,
+                        rescuer_lat: data.rescuer_lat,
+                        rescuer_lng: data.rescuer_lng
+                      });
+                    }
+                    if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
+                    if (sosCardSubtext) sosCardSubtext.textContent = `${responder} updated your SOS status to ${status}. Help is on the way!`;
+                    updateRescuerEtaDisplay({
+                      status: status,
+                      responderName: responder,
+                      rescuerLat: data.rescuer_lat,
+                      rescuerLng: data.rescuer_lng
+                    });
+                  }
+                });
+
+                socket.on('rescuer:location_update', (data) => {
+                  if (!data || !activeSosAlert) return;
+                  if (isValidCoordinate(data.lat, data.lng)) {
+                    updateRescuerEtaDisplay({
+                      status: window._lastRescuerCoords ? window._lastRescuerCoords.status : (activeSosAlert.status || 'RESPONDING'),
+                      responderName: data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : 'Rescuer Unit'),
+                      rescuerLat: Number(data.lat),
+                      rescuerLng: Number(data.lng)
+                    });
+                  }
+                });
+
                 socket.on('sos:resolve', (data) => {
                   if (data && data.status === 'RESOLVED' && (
                     (activeSosAlert && (data.id === activeSosAlert.id || data.sos_id === activeSosAlert.id)) ||
@@ -5917,7 +6365,7 @@
                 });
               }
 
-              // Listen for 433.875 MHz LoRa ACK / Rescuer Status Updates (EVW|ACK|<sosId>|<residentId>|<status>|<responderName>)
+              // Listen for 433.875 MHz LoRa ACK / Rescuer Status Updates (EVW|ACK|<sosId>|<residentId>|<status>|<responderName>|<rescuerLat>,<rescuerLng>)
               if (window.evakwarLoraClient) {
                 window.evakwarLoraClient.on('ack', (ackData) => {
                   if (!ackData) return;
@@ -5939,12 +6387,21 @@
                         name: residentName,
                         latitude: currentLat || 13.51024,
                         longitude: currentLng || 123.34701,
-                        status: status
+                        status: status,
+                        responder_name: responder,
+                        rescuer_lat: ackData.rescuerLat,
+                        rescuer_lng: ackData.rescuerLng
                       });
                     }
                     if (badge) badge.textContent = `LORA ACK: ${status} • ${responder}`;
                     if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
                     if (sosCardSubtext) sosCardSubtext.textContent = `Barangay Hall / Rescuer (${responder}) acknowledged your SOS over 433.875 MHz LoRa Mesh! Help is on the way.`;
+                    updateRescuerEtaDisplay({
+                      status: status,
+                      responderName: responder,
+                      rescuerLat: ackData.rescuerLat,
+                      rescuerLng: ackData.rescuerLng
+                    });
                     if (typeof window.EvacWarToast === 'function') {
                       window.EvacWarToast(`LoRa ACK: ${status} by ${responder}!`);
                     }
@@ -6018,7 +6475,7 @@
   <script src="/js/ui.js"></script>
   <script src="/js/weatherLocation.js" defer></script>
   <script src="/js/offline-queue.js" defer></script>
-  <script src="/js/pwa.js?v=100" defer></script>
+  <script src="/js/pwa.js?v=103" defer></script>
 
   </div>
   </body>

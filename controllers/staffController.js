@@ -2283,7 +2283,7 @@ exports.getRescueMap = exports.getStaffMap;
 // 11. UPDATE SOS STATUS (ACTIVE -> ACKNOWLEDGED -> RESPONDING -> RESCUED -> RESOLVED)
 exports.updateSosStatus = async (req, res) => {
   try {
-    const { id, status, notes } = req.body;
+    const { id, status, notes, rescuer_lat, rescuer_lng } = req.body;
     const staff = await getStaffContext(req.session.userId);
 
     if (!id || !status) {
@@ -2310,6 +2310,18 @@ exports.updateSosStatus = async (req, res) => {
     }
 
     const updated = result;
+    const activeRescuerLoc = rescuerTracker.getRescuerLocation(id);
+    const rLat = (rescuer_lat !== undefined && rescuer_lat !== null && isFinite(Number(rescuer_lat)))
+      ? Number(rescuer_lat)
+      : (activeRescuerLoc && isFinite(Number(activeRescuerLoc.latitude)) ? Number(activeRescuerLoc.latitude) : 13.51037);
+    const rLng = (rescuer_lng !== undefined && rescuer_lng !== null && isFinite(Number(rescuer_lng)))
+      ? Number(rescuer_lng)
+      : (activeRescuerLoc && isFinite(Number(activeRescuerLoc.longitude)) ? Number(activeRescuerLoc.longitude) : 123.34810);
+
+    try {
+      const loraRoutes = require('../routes/loraRoutes');
+      loraRoutes.queueOutboundSosAck(updated, status.toUpperCase(), updated.handler_name || staff.name || 'Rescue Team', { lat: rLat, lng: rLng });
+    } catch (_) {}
 
     if (req.io && updated) {
       req.io.emit('sos:update_status', {
@@ -2318,6 +2330,8 @@ exports.updateSosStatus = async (req, res) => {
         handled_by: staff.userId,
         handler_name: updated.handler_name || staff.name,
         handler_contact: updated.handler_contact || null,
+        rescuer_lat: rLat,
+        rescuer_lng: rLng,
         notes: notes || null,
         alert: updated,
         updated_at: new Date().toISOString()

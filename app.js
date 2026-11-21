@@ -859,7 +859,12 @@ io.on('connection', (socket) => {
       };
 
       rescuerTracker.updateRescuerLocation(data.sos_id, rescuerPayload);
-      io.to('staff_admin_channel').emit('rescuer:location_update', rescuerPayload);
+      io.emit('rescuer:location_update', {
+        ...rescuerPayload,
+        resident_id: sosAlert.resident_id || null,
+        resident_lat: Number(sosAlert.latitude) || null,
+        resident_lng: Number(sosAlert.longitude) || null
+      });
     } catch (err) {
       console.error('Error handling socket rescuer:location:', err);
     }

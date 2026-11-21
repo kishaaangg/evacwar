@@ -205,7 +205,7 @@ function enqueueLoRaPacket(packetStr, meta = {}) {
 
 const queueOutboundPacket = enqueueLoRaPacket;
 
-function queueOutboundSosAck(sosAlert, status, handlerName = 'Rescue Team') {
+function queueOutboundSosAck(sosAlert, status, handlerName = 'Rescue Team', responderCoords = null) {
   if (!sosAlert) return null;
   const sosId = sosAlert.id || 0;
   const resId = sosAlert.resident_id || 0;
@@ -214,7 +214,12 @@ function queueOutboundSosAck(sosAlert, status, handlerName = 'Rescue Team') {
     .replace(/\|/g, '/')
     .slice(0, 32);
 
-  const packet = `EVW|ACK|${sosId}|${resId}|${cleanStatus}|${cleanHandler}`;
+  let coordSuffix = '';
+  if (responderCoords && isFinite(Number(responderCoords.lat)) && isFinite(Number(responderCoords.lng))) {
+    coordSuffix = `|${Number(responderCoords.lat).toFixed(5)},${Number(responderCoords.lng).toFixed(5)}`;
+  }
+
+  const packet = `EVW|ACK|${sosId}|${resId}|${cleanStatus}|${cleanHandler}${coordSuffix}`;
   return enqueueLoRaPacket(packet, {
     type: 'SOS_ACK',
     sosId,

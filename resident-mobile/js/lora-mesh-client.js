@@ -110,6 +110,33 @@
   }
 
   /**
+   * Builds a 24-byte `ToRadio` packet that requests live Environment Telemetry (`AHT20 + BMP280`)
+   * from the outdoor Relay node (`!0f778ab0` = `0x0f778ab0`) over 433.875 MHz LoRa RF.
+   *
+   * MeshPacket {
+   *   fixed32 to = 2 (0x0f778ab0);
+   *   Data decoded = 4 { portnum = 67 (TELEMETRY_APP), payload = [0x1a, 0x00] (environment_metrics), want_response = true };
+   *   fixed32 id = 6 (packetId);
+   *   uint32 hop_limit = 9 (3);
+   * }
+   */
+  function encodeRequestRelayTelemetryToRadio(relayNodeNum = 0x0f778ab0) {
+    const dataMsg = concatUint8([
+      encodeVarintField(1, 67), // PortNum.TELEMETRY_APP = 67
+      encodeLengthDelimited(2, new Uint8Array([0x1a, 0x00])), // Telemetry { environment_metrics: {} }
+      encodeVarintField(3, 1) // want_response = true
+    ]);
+    const packetId = Math.floor(Math.random() * 0x7fffffff) || 1;
+    const meshPacket = concatUint8([
+      encodeFixed32Field(2, relayNodeNum >>> 0),
+      encodeLengthDelimited(4, dataMsg),
+      encodeFixed32Field(6, packetId),
+      encodeVarintField(9, 3) // hop_limit = 3
+    ]);
+    return encodeLengthDelimited(1, meshPacket);
+  }
+
+  /**
    * Wraps a `ToRadio` protobuf payload in the 4-byte Meshtastic Serial header (0x94 0xC3 MSB LSB)
    */
   function wrapSerialFrame(protoBytes) {
@@ -165,12 +192,15 @@
     const readVarint = () => {
       let res = 0;
       let shift = 0;
-      while (pos < len) {
+      let count = 0;
+      while (pos < len && count < 10) {
         const b = bytes[pos++];
-        res |= (b & 0x7f) << shift;
+        count++;
+        if (shift < 32) {
+          res |= (b & 0x7f) << shift;
+        }
         if ((b & 0x80) === 0) return res >>> 0;
         shift += 7;
-        if (shift > 35) break;
       }
       return res >>> 0;
     };
@@ -180,7 +210,8 @@
       const fn = tag >>> 3;
       const wt = tag & 0x7;
       if (wt === 0) {
-        fields.push({ fn, wt, val: readVarint() });
+        const raw = readVarint();
+        fields.push({ fn, wt, val: raw, i32: raw | 0 });
       } else if (wt === 1) {
         if (pos + 8 > len) break;
         pos += 8;
@@ -210,6 +241,8 @@
       const pktFields = readProtoFields(pktField.val);
       const fromField = pktFields.find(f => f.fn === 1 && f.wt === 5);
       const decField = pktFields.find(f => f.fn === 4 && f.wt === 2);
+      const snrField = pktFields.find(f => f.fn === 8 && f.wt === 5);
+      const rssiField = pktFields.find(f => f.fn === 12 && f.wt === 0);
       if (!decField) return null;
 
       const dataFields = readProtoFields(decField.val);
@@ -234,12 +267,16 @@
 
       const nodeId = fromField ? ('!' + fromField.u32.toString(16).padStart(8, '0')) : '!0f778ab0';
       const tsMs = (timeField && timeField.u32 > 1600000000) ? (timeField.u32 * 1000) : Date.now();
+      const rssi = (rssiField && isFinite(rssiField.i32) && rssiField.i32 !== 0) ? rssiField.i32 : null;
+      const snr = (snrField && isFinite(snrField.f32)) ? Number(snrField.f32.toFixed(2)) : null;
       return {
         type: 'WTH',
         nodeId,
         temperature,
         humidity,
         pressure,
+        rssi,
+        snr,
         timestamp: tsMs,
         sent_at: new Date(tsMs).toISOString(),
         source: 'LORA_TELEMETRY_RF'
@@ -260,12 +297,24 @@
     const parts = trimmed.split('|');
     const type = parts[1];
 
+    if (type === 'CAN') {
+      return {
+        type: 'SOS',
+        command: 'CANCEL_SOS',
+        statusCode: 'CAN',
+        raw: trimmed,
+        sosId: parts[2] || null,
+        residentId: parts[3] ? Number(parts[3]) : null
+      };
+    }
+
     if (type === 'SOS') {
       const coords = (parts[4] || '13.51024,123.34701,10').split(',');
       return {
         type: 'SOS',
         raw: trimmed,
         msgId: parts[2] || String(Date.now()),
+        sosId: parts[2] || String(Date.now()),
         residentId: parts[3] ? Number(parts[3]) : null,
         latitude: parseFloat(coords[0]) || 13.51024,
         longitude: parseFloat(coords[1]) || 123.34701,
@@ -278,13 +327,18 @@
     }
 
     if (type === 'ACK') {
+      const coordParts = (parts[6] || '').split(',');
+      const rLat = coordParts.length >= 2 ? parseFloat(coordParts[0]) : null;
+      const rLng = coordParts.length >= 2 ? parseFloat(coordParts[1]) : null;
       return {
         type: 'ACK',
         raw: trimmed,
-        sosId: parts[2] ? Number(parts[2]) : null,
+        sosId: parts[2] ? (isNaN(Number(parts[2])) ? parts[2] : Number(parts[2])) : null,
         residentId: parts[3] ? Number(parts[3]) : null,
         status: parts[4] || 'ACKNOWLEDGED',
-        responderName: parts[5] || 'Barangay Hall'
+        responderName: parts[5] || 'Barangay Hall',
+        rescuerLat: (rLat !== null && isFinite(rLat)) ? rLat : null,
+        rescuerLng: (rLng !== null && isFinite(rLng)) ? rLng : null
       };
     }
 
@@ -459,11 +513,20 @@
         ack: [],
         alert: [],
         sos: [],
-        chat: []
+        chat: [],
+        weather: [],
+        weatherAlert: []
       };
+      this.relayTelemetryPollTimer = null;
 
       this._initNativeUsbListeners();
       this._initNativeBleListeners();
+      if (typeof window !== 'undefined' && !window.__evwUnloadFlagBound) {
+        window.__evwUnloadFlagBound = true;
+        window.addEventListener('beforeunload', () => {
+          window.__evwPageUnloading = true;
+        });
+      }
       this._restorePersistentConnectionState();
     }
 
@@ -534,7 +597,21 @@
           }
         }
 
-        // 3. Fallback default when no hardware is connected:
+        // 3. Desktop WebSerial / WebBluetooth auto-reconnect after page navigation (if user previously paired!)
+        let savedSession = null;
+        try { savedSession = JSON.parse(localStorage.getItem('evw_lora_connected_session') || 'null'); } catch (_) {}
+        const sessionRecent = Boolean(savedSession && savedSession.connected && (Date.now() - (savedSession.ts || 0) < 12 * 60 * 60 * 1000));
+
+        if (sessionRecent && savedSession.transport === 'USB_SERIAL' && navigator.serial && typeof navigator.serial.getPorts === 'function') {
+          this._autoReconnectWebSerial(savedSession.deviceName).catch(() => {});
+          return;
+        }
+        if (sessionRecent && savedSession.transport === 'BLE' && navigator.bluetooth && typeof navigator.bluetooth.getDevices === 'function') {
+          this._autoReconnectWebBle(savedSession.deviceId, savedSession.deviceName).catch(() => {});
+          return;
+        }
+
+        // 4. Fallback default when no hardware is connected:
         this.connected = false;
         this.nativeBleActive = false;
         this.nativeUsbActive = false;
@@ -543,6 +620,91 @@
       } catch (err) {
         console.warn('[LoRaMeshClient] Restore session note:', err);
       }
+    }
+
+    async _autoReconnectWebSerial(savedName) {
+      try {
+        const ports = await navigator.serial.getPorts();
+        if (!ports || ports.length === 0) return false;
+        const port = ports[0];
+        if (!port.readable) {
+          await port.open({ baudRate: 115200 });
+        }
+        this.serialPort = port;
+        this.serialWriter = port.writable.getWriter();
+        const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
+        await this.serialWriter.write(wakeFrame);
+        this.readUsbSerialLoop(port);
+        const name = savedName || 'USB-OTG LoRa Node (433MHz)';
+        this.setStatus(true, 'USB_SERIAL', name);
+        console.log('[LoRaMeshClient] ✅ Auto-reconnected WebSerial across page navigation:', name);
+        return true;
+      } catch (err) {
+        console.warn('[LoRaMeshClient] WebSerial auto-reconnect note:', err && err.message ? err.message : err);
+        return false;
+      }
+    }
+
+    async _autoReconnectWebBle(savedDeviceId, savedName) {
+      try {
+        const devices = await navigator.bluetooth.getDevices();
+        if (!devices || devices.length === 0) return false;
+        const device = devices.find(d => d.id === savedDeviceId) || devices.find(d => isLikelyLoraDevice(d.name, d.id)) || devices[0];
+        if (!device) return false;
+        console.log('[LoRaMeshClient] Auto-reconnecting WebBLE across page navigation:', device.name || device.id);
+        return await this._attachWebBleDevice(device);
+      } catch (err) {
+        console.warn('[LoRaMeshClient] WebBLE auto-reconnect note:', err && err.message ? err.message : err);
+        return false;
+      }
+    }
+
+    async _attachWebBleDevice(device) {
+      this.webBleDevice = device;
+      this.deviceId = device.id;
+      this.bleDeviceId = device.id;
+      const name = device.name || 'EvakWar BLE Node';
+
+      if (!device._evwDisconnectBound) {
+        device._evwDisconnectBound = true;
+        device.addEventListener('gattserverdisconnected', () => {
+          if (this.webBleDrainInterval) {
+            clearInterval(this.webBleDrainInterval);
+            this.webBleDrainInterval = null;
+          }
+          // Do NOT erase evw_lora_connected_session on page unload so the next page can auto-reconnect!
+          if (!window.__evwPageUnloading) {
+            this.setStatus(false, 'DISCONNECTED', `${name} (Disconnected)`);
+          }
+        });
+      }
+
+      this.webBleServer = await device.gatt.connect();
+      const service = await this.webBleServer.getPrimaryService(MESH_SERVICE_UUID);
+      this.webBleToRadio = await service.getCharacteristic(TORADIO_UUID);
+      this.webBleFromRadio = await service.getCharacteristic(FROMRADIO_UUID);
+      this.webBleFromNum = await service.getCharacteristic(FROMNUM_UUID);
+
+      await this.webBleToRadio.writeValue(encodeWantConfigToRadio());
+
+      try {
+        await this.webBleFromNum.startNotifications();
+        this.webBleFromNum.addEventListener('characteristicvaluechanged', async () => {
+          await this.drainWebBleFromRadio();
+        });
+      } catch (notifErr) {
+        console.warn('[LoRaMeshClient] WebBLE FromNum notification note:', notifErr);
+      }
+
+      await this.drainWebBleFromRadio();
+
+      if (this.webBleDrainInterval) clearInterval(this.webBleDrainInterval);
+      this.webBleDrainInterval = setInterval(() => {
+        this.drainWebBleFromRadio();
+      }, 1200);
+
+      this.setStatus(true, 'BLE', name);
+      return { success: true, transport: 'BLE', deviceName: name };
     }
 
     _initNativeBleListeners() {
@@ -601,6 +763,19 @@
           this.handleIncomingRawPacket(detail.packet, 'USB_SERIAL');
           this.nativeUsbAsciiBuffer = '';
           return;
+        }
+        if (detail.telemetryJson) {
+          try {
+            const telObj = typeof detail.telemetryJson === 'string' ? JSON.parse(detail.telemetryJson) : detail.telemetryJson;
+            this._handleWeatherTelemetryObject(telObj, 'USB_SERIAL', Boolean(telObj && telObj.isAlert));
+          } catch (_) {}
+        }
+        if (detail.hex) {
+          try {
+            const bytes = new Uint8Array(detail.hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const envTel = extractEnvironmentTelemetryFromBytes(bytes);
+            if (envTel) this._handleWeatherTelemetryObject(envTel, 'USB_SERIAL', false);
+          } catch (_) {}
         }
         if (detail.ascii) {
           this.nativeUsbAsciiBuffer += detail.ascii;
@@ -667,8 +842,13 @@
             deviceId: this.bleDeviceId || this.deviceId || '!f4e213d4',
             ts: Date.now()
           }));
-        } else if (!connected) {
-          localStorage.removeItem('evw_lora_connected_session');
+          this._startRelayTelemetryPolling();
+        } else if (!connected && !window.__evwPageUnloading) {
+          // Only clear saved session on explicit disconnect, NOT during page navigation
+          if (transport === 'DISCONNECTED' && deviceName === 'Not Paired') {
+            localStorage.removeItem('evw_lora_connected_session');
+          }
+          this._stopRelayTelemetryPolling();
         }
       } catch (_) {}
 
@@ -822,30 +1002,153 @@
       }
     }
 
+    _startRelayTelemetryPolling() {
+      if (this.relayTelemetryPollTimer) clearInterval(this.relayTelemetryPollTimer);
+      setTimeout(() => {
+        if (this.connected && (this.transport === 'BLE' || this.transport === 'USB_SERIAL')) {
+          this.requestRelayWeatherTelemetry().catch(() => {});
+        }
+      }, 2500);
+      this.relayTelemetryPollTimer = setInterval(() => {
+        if (this.connected && (this.transport === 'BLE' || this.transport === 'USB_SERIAL')) {
+          this.requestRelayWeatherTelemetry().catch(() => {});
+        }
+      }, 60000);
+    }
+
+    _stopRelayTelemetryPolling() {
+      if (this.relayTelemetryPollTimer) {
+        clearInterval(this.relayTelemetryPollTimer);
+        this.relayTelemetryPollTimer = null;
+      }
+    }
+
+    /**
+     * Actively polls the outdoor Relay (`!0f778ab0` / `0x0f778ab0`) over 433.875 MHz LoRa RF
+     * for its live `AHT20 + BMP280` environment_metrics telemetry via the connected LoRa node.
+     */
+    async requestRelayWeatherTelemetry(relayNodeNum = 0x0f778ab0) {
+      const now = Date.now();
+      if (this._lastRelayPollAttempt && (now - this._lastRelayPollAttempt) < 3500) {
+        return { throttled: true };
+      }
+      this._lastRelayPollAttempt = now;
+
+      const protoBytes = encodeRequestRelayTelemetryToRadio(relayNodeNum);
+      const hexStr = bytesToHex(protoBytes);
+      const capBle = global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.BluetoothLe;
+
+      try {
+        // 1. Native Android USB-OTG Serial
+        if (this.transport === 'USB_SERIAL' && this.nativeUsbActive && window.AndroidUsbSerialBridge) {
+          const serialFrame = wrapSerialFrame(protoBytes);
+          const ok = window.AndroidUsbSerialBridge.writeHex(bytesToHex(serialFrame));
+          if (ok) return { success: true, transport: 'USB_SERIAL' };
+        }
+
+        // 2. Native Android BLE Bridge
+        if (window.AndroidBleBridge && typeof window.AndroidBleBridge.writeHex === 'function') {
+          const isNativeConnected = this.nativeBleActive || (
+            typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected()
+          );
+          if (isNativeConnected) {
+            const ok = window.AndroidBleBridge.writeHex(hexStr);
+            if (ok) return { success: true, transport: 'BLE' };
+          }
+        }
+
+        // 3. Capacitor BLE
+        if (capBle && this.bleDeviceId) {
+          try {
+            await capBle.write({
+              deviceId: this.bleDeviceId,
+              service: MESH_SERVICE_UUID,
+              characteristic: TORADIO_UUID,
+              value: hexStr
+            });
+            return { success: true, transport: 'BLE' };
+          } catch (_) {
+            await capBle.writeWithoutResponse({
+              deviceId: this.bleDeviceId,
+              service: MESH_SERVICE_UUID,
+              characteristic: TORADIO_UUID,
+              value: hexStr
+            });
+            return { success: true, transport: 'BLE' };
+          }
+        }
+
+        // 4. Web Bluetooth
+        if (this.transport === 'BLE' && this.webBleToRadio) {
+          await this.webBleToRadio.writeValue(protoBytes);
+          return { success: true, transport: 'BLE' };
+        }
+
+        // 5. Desktop WebSerial USB
+        if (this.transport === 'USB_SERIAL' && this.serialWriter) {
+          const serialFrame = wrapSerialFrame(protoBytes);
+          await this.serialWriter.write(serialFrame);
+          return { success: true, transport: 'USB_SERIAL' };
+        }
+      } catch (err) {
+        console.warn('[LoRaMeshClient] requestRelayWeatherTelemetry warning:', err && err.message ? err.message : err);
+      }
+      return { success: false };
+    }
+
     _handleWeatherTelemetryObject(parsed, sourceTransport, isAlert = false) {
-      if (!parsed || (parsed.temperature == null && parsed.humidity == null && parsed.pressure == null)) return;
-      const tsMs = parsed.timestamp || Date.now();
+      if (!parsed) return;
+      const rawTemp = parsed.temperature != null ? Number(parsed.temperature) : null;
+      const rawHum = parsed.humidity != null ? Number(parsed.humidity) : null;
+      const rawPress = parsed.pressure != null ? Number(parsed.pressure) : null;
+
+      // Filter out loose-wire I2C glitch values (e.g. 177.6°C, 0% RH, -176.4 hPa)
+      const validTemp = (rawTemp !== null && isFinite(rawTemp) && rawTemp >= -10 && rawTemp <= 65) ? Number(rawTemp.toFixed(2)) : null;
+      const validHum = (rawHum !== null && isFinite(rawHum) && rawHum >= 1 && rawHum <= 100) ? Number(rawHum.toFixed(2)) : null;
+      const validPress = (rawPress !== null && isFinite(rawPress) && rawPress >= 850 && rawPress <= 1100) ? Number(rawPress.toFixed(2)) : null;
+      const isI2cWarning = Boolean(validTemp === null && validHum === null && validPress === null);
+
+      let prevCached = null;
+      try { prevCached = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
+      if (isI2cWarning && !parsed.rssi && !parsed.nodeId) {
+        return;
+      }
+
+      const nowMs = Date.now();
+      const rawTs = Number(parsed.timestamp || nowMs);
+      // Use current receive clock if node RTC is unsynced or stale
+      const tsMs = (isFinite(rawTs) && Math.abs(nowMs - rawTs) < 3600000) ? rawTs : nowMs;
+
       const weatherObj = {
-        temperature: parsed.temperature != null ? Number(Number(parsed.temperature).toFixed(2)) : null,
-        humidity: parsed.humidity != null ? Number(Number(parsed.humidity).toFixed(2)) : null,
-        pressure: parsed.pressure != null ? Number(Number(parsed.pressure).toFixed(2)) : null,
+        temperature: validTemp !== null ? validTemp : (prevCached && prevCached.temperature != null ? prevCached.temperature : null),
+        humidity: validHum !== null ? validHum : (prevCached && prevCached.humidity != null ? prevCached.humidity : null),
+        pressure: validPress !== null ? validPress : (prevCached && prevCached.pressure != null ? prevCached.pressure : null),
+        rssi: (parsed.rssi != null && isFinite(Number(parsed.rssi))) ? Number(parsed.rssi) : null,
+        snr: (parsed.snr != null && isFinite(Number(parsed.snr))) ? Number(parsed.snr) : null,
+        hopsAway: (parsed.hopsAway != null && isFinite(Number(parsed.hopsAway))) ? Number(parsed.hopsAway) : 0,
+        i2cBusWarning: isI2cWarning,
+        relayHeartbeatOnly: isI2cWarning,
         nodeId: parsed.nodeId || '!0f778ab0',
         nodeName: parsed.nodeName || 'EvakWar Zone Relay 1 (REL1)',
         sensorModel: 'AHT20 + BMP280 (I2C)',
         summary: parsed.summary || '',
         source: sourceTransport || parsed.source || 'LORA_433MHZ',
-        updatedAt: parsed.sent_at || new Date(tsMs).toISOString(),
-        timestampMs: tsMs
+        updatedAt: new Date(tsMs).toISOString(),
+        timestampMs: tsMs,
+        relayOnline: true,
+        ageMinutes: 0
       };
 
       try {
         localStorage.setItem('evw_lora_sensor_weather', JSON.stringify(weatherObj));
-        let hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]');
-        if (!Array.isArray(hist)) hist = [];
-        const top = hist[0];
-        if (!top || Math.abs((top.timestampMs || 0) - tsMs) > 45000 || top.temperature !== weatherObj.temperature || top.pressure !== weatherObj.pressure) {
-          hist.unshift(weatherObj);
-          localStorage.setItem('evw_lora_sensor_history', JSON.stringify(hist.slice(0, 72)));
+        if (!isI2cWarning) {
+          let hist = JSON.parse(localStorage.getItem('evw_lora_sensor_history') || '[]');
+          if (!Array.isArray(hist)) hist = [];
+          const top = hist[0];
+          if (!top || Math.abs((top.timestampMs || 0) - tsMs) > 45000 || top.temperature !== weatherObj.temperature || top.pressure !== weatherObj.pressure) {
+            hist.unshift(weatherObj);
+            localStorage.setItem('evw_lora_sensor_history', JSON.stringify(hist.slice(0, 72)));
+          }
         }
       } catch (_) {}
 
@@ -853,6 +1156,48 @@
         window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: weatherObj }));
       } catch (_) {}
       this.emit('weather', weatherObj);
+
+      // Crowd-sync outdoor Relay telemetry to the EvakWar server whenever any node-connected device has internet
+      // so Admin, Residents, Staff, and Rescuers all see the live outdoor Relay readings immediately!
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        const lastSync = this._lastWeatherServerSyncMs || 0;
+        const tempChanged = this._lastWeatherServerTemp !== weatherObj.temperature || this._lastWeatherServerPress !== weatherObj.pressure;
+        if (nowMs - lastSync > 20000 || tempChanged) {
+          this._lastWeatherServerSyncMs = nowMs;
+          this._lastWeatherServerTemp = weatherObj.temperature;
+          this._lastWeatherServerPress = weatherObj.pressure;
+          const syncPayload = JSON.stringify({
+            temperature: validTemp,
+            humidity: validHum,
+            pressure: validPress,
+            i2cBusWarning: isI2cWarning,
+            relayHeartbeatOnly: isI2cWarning,
+            rssi: weatherObj.rssi,
+            snr: weatherObj.snr,
+            hopsAway: weatherObj.hopsAway,
+            nodeId: weatherObj.nodeId,
+            nodeName: weatherObj.nodeName,
+            sensorModel: weatherObj.sensorModel,
+            source: `${weatherObj.source}_RELAY_FORWARD`,
+            forwardedByNode: this.getResolvedNodeId() || this.deviceId || 'MESH_NODE',
+            timestampMs: tsMs
+          });
+          const primaryUrl = (this.serverUrl || window.location.origin || '').replace(/\/$/, '');
+          const targets = new Set();
+          if (primaryUrl && primaryUrl.startsWith('http')) targets.add(primaryUrl);
+          if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http')) {
+            targets.add(window.location.origin.replace(/\/$/, ''));
+          }
+          targets.add('https://evacwar.onrender.com');
+          targets.forEach((baseUrl) => {
+            fetch(`${baseUrl}/api/lora/weather-sensor`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: syncPayload
+            }).catch(() => {});
+          });
+        }
+      }
 
       if (isAlert) {
         const alertId = String(parsed.alertId || tsMs);
@@ -866,8 +1211,8 @@
           alertId,
           noSiren: true,
           url: '/typhoon',
-          title: '🌤️ 2-Hour LoRa Weather Sensor Update',
-          message: `${weatherObj.summary ? weatherObj.summary + ' • ' : ''}Temp ${weatherObj.temperature != null ? weatherObj.temperature.toFixed(1) + '°C' : '--'} • Humidity ${weatherObj.humidity != null ? Math.round(weatherObj.humidity) + '%' : '--'} • Pressure ${weatherObj.pressure != null ? weatherObj.pressure.toFixed(1) + ' hPa' : '--'} (Relay ${weatherObj.nodeId})`
+          title: '🌤️ LoRa Weather Sensor Update',
+          message: `Temp ${weatherObj.temperature != null ? weatherObj.temperature.toFixed(1) + '°C' : '--'} • Humidity ${weatherObj.humidity != null ? Math.round(weatherObj.humidity) + '%' : '--'} • Pressure ${weatherObj.pressure != null ? weatherObj.pressure.toFixed(1) + ' hPa' : '--'}`
         };
         try {
           window.dispatchEvent(new CustomEvent('evakwar:lora-weather-alert', { detail: alertObj }));
@@ -1522,32 +1867,7 @@
             acceptAllDevices: true,
             optionalServices: [MESH_SERVICE_UUID]
           });
-
-          this.webBleDevice = device;
-          this.deviceId = device.id;
-          const name = device.name || 'EvakWar BLE Node';
-
-          device.addEventListener('gattserverdisconnected', () => {
-            this.setStatus(false, 'DISCONNECTED', `${name} (Disconnected)`);
-          });
-
-          this.webBleServer = await device.gatt.connect();
-          const service = await this.webBleServer.getPrimaryService(MESH_SERVICE_UUID);
-          this.webBleToRadio = await service.getCharacteristic(TORADIO_UUID);
-          this.webBleFromRadio = await service.getCharacteristic(FROMRADIO_UUID);
-          this.webBleFromNum = await service.getCharacteristic(FROMNUM_UUID);
-
-          await this.webBleToRadio.writeValue(encodeWantConfigToRadio());
-
-          await this.webBleFromNum.startNotifications();
-          this.webBleFromNum.addEventListener('characteristicvaluechanged', async () => {
-            await this.drainWebBleFromRadio();
-          });
-
-          await this.drainWebBleFromRadio();
-
-          this.setStatus(true, 'BLE', name);
-          return { success: true, transport: 'BLE', deviceName: name };
+          return await this._attachWebBleDevice(device);
         } catch (err) {
           console.error('Web Bluetooth error:', err);
           throw new Error(err.message || 'Bluetooth pairing cancelled.');
@@ -1580,19 +1900,24 @@
     }
 
     async drainWebBleFromRadio() {
-      if (!this.webBleFromRadio) return;
-      for (let i = 0; i < 15; i++) {
-        try {
-          const view = await this.webBleFromRadio.readValue();
-          if (!view || view.byteLength === 0) break;
-          const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-          const evw = extractEvwStringFromBytes(bytes);
-          if (evw) this.handleIncomingRawPacket(evw, 'BLE');
-          const envTel = extractEnvironmentTelemetryFromBytes(bytes);
-          if (envTel) this._handleWeatherTelemetryObject(envTel, 'BLE', false);
-        } catch (e) {
-          break;
+      if (!this.webBleFromRadio || this._drainingWebBle) return;
+      this._drainingWebBle = true;
+      try {
+        for (let i = 0; i < 20; i++) {
+          try {
+            const view = await this.webBleFromRadio.readValue();
+            if (!view || view.byteLength === 0) break;
+            const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+            const evw = extractEvwStringFromBytes(bytes);
+            if (evw) this.handleIncomingRawPacket(evw, 'BLE');
+            const envTel = extractEnvironmentTelemetryFromBytes(bytes);
+            if (envTel) this._handleWeatherTelemetryObject(envTel, 'BLE', false);
+          } catch (e) {
+            break;
+          }
         }
+      } finally {
+        this._drainingWebBle = false;
       }
     }
 
@@ -1809,8 +2134,23 @@
         while (true) {
           const { value, done } = await this.serialReader.read();
           if (done) break;
-          if (value && value.length > 0) {
+      if (value && value.length > 0) {
             this.serialBuffer = concatUint8([this.serialBuffer, value]);
+            // Parse any 0x94 0xC3 framed protobuf messages for environment telemetry
+            if (this.serialBuffer.length >= 6) {
+              for (let idx = 0; idx <= this.serialBuffer.length - 6; idx++) {
+                if (this.serialBuffer[idx] === 0x94 && this.serialBuffer[idx + 1] === 0xc3) {
+                  const frameLen = (this.serialBuffer[idx + 2] << 8) | this.serialBuffer[idx + 3];
+                  if (frameLen > 0 && frameLen <= 512 && idx + 4 + frameLen <= this.serialBuffer.length) {
+                    const frameBytes = this.serialBuffer.subarray(idx + 4, idx + 4 + frameLen);
+                    const envTel = extractEnvironmentTelemetryFromBytes(frameBytes);
+                    if (envTel) {
+                      this._handleWeatherTelemetryObject(envTel, 'USB_SERIAL', false);
+                    }
+                  }
+                }
+              }
+            }
             const evw = extractEvwStringFromBytes(this.serialBuffer);
             if (evw) {
               this.handleIncomingRawPacket(evw, 'USB_SERIAL');

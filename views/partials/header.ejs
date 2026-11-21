@@ -913,6 +913,28 @@
         if (!sosId || !nextStatus) return;
         btnEl.disabled = true; btnEl.classList.add('opacity-50');
 
+        const getResponderGpsCoords = () => {
+          if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number') {
+            return { lat: window._lastKnownUserGps.lat, lng: window._lastKnownUserGps.lng };
+          }
+          try {
+            const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+            if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
+              return { lat: Number(lastGps.lat), lng: Number(lastGps.lng) };
+            }
+          } catch (_) {}
+          return { lat: 13.51037, lng: 123.34810 }; // Barangay San Rafael Command Center
+        };
+
+        const sendDirectLoraSosAck = (statusStr) => {
+          if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
+            const rCoords = getResponderGpsCoords();
+            const rName = (localStorage.getItem('evw_user_full_name') || 'Rescue Team').replace(/\|/g, '/').slice(0, 24);
+            const ackPkt = `EVW|ACK|${sosId}|0|${statusStr}|${rName}|${Number(rCoords.lat).toFixed(5)},${Number(rCoords.lng).toFixed(5)}`;
+            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          }
+        };
+
         const clearLocalLoraSos = () => {
           try {
             let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
@@ -931,30 +953,33 @@
             window.currentAdminSosAlerts = window.currentAdminSosAlerts.filter(a => String(a.id || a.sos_id) !== String(sosId));
             if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
           }
-          // Broadcast LoRa ACK back to Resident over 433.875 MHz RF if a LoRa node is connected
-          if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
-            const ackPkt = `EVW|ACK|${sosId}|0|${nextStatus}|Hall Command`;
-            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
-          }
+          sendDirectLoraSosAck(nextStatus);
         };
 
-        // If offline or this is a pure LoRa mesh SOS (not yet in SQL DB), update locally & broadcast LoRa ACK
+        // If offline or this is a pure LoRa mesh SOS (not yet in SQL DB), update locally & broadcast LoRa ACK with responder coordinates
         const isPureLoraId = String(sosId).startsWith('lora_') || !navigator.onLine;
-        if (isPureLoraId && (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED')) {
-          clearLocalLoraSos();
+        if (isPureLoraId) {
+          if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') {
+            clearLocalLoraSos();
+          } else {
+            sendDirectLoraSosAck(nextStatus);
+            btnEl.disabled = false; btnEl.classList.remove('opacity-50');
+          }
           if (typeof showSosToast === 'function') showSosToast(`LoRa SOS marked as ${nextStatus}!`, 'success');
           return;
         }
 
+        const rCoords = getResponderGpsCoords();
         try {
           const res = await fetch('/api/sos/status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: sosId, status: nextStatus })
+            body: JSON.stringify({ id: sosId, status: nextStatus, rescuer_lat: rCoords.lat, rescuer_lng: rCoords.lng })
           });
           const data = await res.json();
           if (data.success) {
             if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') clearLocalLoraSos();
+            else sendDirectLoraSosAck(nextStatus);
             if (typeof showSosToast === 'function') showSosToast(data.message || 'Status updated!', 'success');
             if (typeof addOrUpdateSosMarker === 'function' && data.alert) {
               addOrUpdateSosMarker(data.alert, false, true);

@@ -23,13 +23,8 @@
      -------------------------------------------------------------------------- */
   
   function isResidentNativeOrPortal() {
-    const p = (window.location.pathname || '').toLowerCase();
-    const role = (window.userRole || '').toLowerCase();
     return Boolean(
-      (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
-      role === 'resident' ||
-      p.startsWith('/resident') ||
-      document.getElementById('btnHeaderLoraBle')
+      window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
     );
   }
 
@@ -45,6 +40,7 @@
     navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
       .then((registration) => {
         console.log('ServiceWorker registration successful.');
+        try { registration.update(); } catch (_) {}
 
         // When online, pre-cache critical portal views (QR, map, dashboard, reports, profile) for seamless offline access
         const precachePortalViews = async () => {
@@ -89,6 +85,7 @@
               '/admin/staff',
               '/admin/typhoon',
               '/admin/broadcast',
+              '/admin/chat',
               '/admin/reports',
               '/admin/settings'
             ];
@@ -102,10 +99,12 @@
               const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
               const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
               return numA - numB;
-            }).pop() || 'Evacwar-static-v89';
+            }).pop() || 'Evacwar-static-v103';
             const cache = await caches.open(activeKey);
 
-            for (const pageUrl of targetPages) {
+            // Cache current page immediately from live DOM/fetch first so current page is always ready offline
+            const orderedPages = [currentPath, ...targetPages.filter(p => p !== currentPath)];
+            for (const pageUrl of orderedPages) {
               try {
                 const res = await fetch(pageUrl, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } });
                 if (res && res.ok && (res.headers.get('content-type') || '').includes('text/html')) {
