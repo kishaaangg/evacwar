@@ -763,15 +763,44 @@ exports.deleteResident = async (req, res) => {
   }
 };
 
-exports.getStaff = async (_req, res) => {
+exports.getStaff = async (req, res) => {
   try {
     const Staff = require('../models/staffModel');
     const onlineTracker = require('../utils/onlineTracker');
-    const [staffMembers, centers, barangays] = await Promise.all([
+    const [staffMembers, centers, barangays, [adminRows]] = await Promise.all([
       Staff.findAll(),
       Center.findAll(),
-      Resident.getAllBarangays()
+      Resident.getAllBarangays(),
+      db.execute(`
+        SELECT u.id, u.email, u.role, u.created_at,
+               COALESCE(r.first_name, s.first_name, '') AS first_name,
+               COALESCE(r.last_name, s.last_name, '') AS last_name,
+               COALESCE(r.contact_number, s.contact_number, '') AS contact_number,
+               COALESCE(r.profile_photo, s.profile_photo) AS profile_photo
+        FROM users u
+        LEFT JOIN residents r ON u.id = r.user_id
+        LEFT JOIN staff s ON u.id = s.user_id
+        WHERE u.role = 'admin'
+        GROUP BY u.id
+        ORDER BY u.id ASC
+      `).catch(() => [[]])
     ]);
+
+    const adminAccounts = (adminRows || []).map(a => {
+      const fullName = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+      return {
+        id: a.id,
+        email: a.email,
+        name: fullName || (a.email ? a.email.split('@')[0] : 'Administrator'),
+        first_name: a.first_name || '',
+        last_name: a.last_name || '',
+        contact_number: a.contact_number || '',
+        profile_photo: a.profile_photo || null,
+        is_online: onlineTracker.isUserOnline(a.id),
+        is_current_user: Boolean(req.session && Number(req.session.userId) === Number(a.id)),
+        created_at: a.created_at
+      };
+    });
 
     const enrichedStaff = staffMembers.map(staff => ({
       ...staff,
@@ -817,10 +846,13 @@ exports.getStaff = async (_req, res) => {
     res.render("admin/staff", {
       ...sharedSimData(),
       user: res.locals.user || { name: "Admin", role: "admin" },
-      page: { title: "Manage Staff" },
+      page: { title: "Manage Staff & Admins" },
       staffMembers: enrichedStaff,
+      adminAccounts: adminAccounts,
       centers: sortedCenters,
-      barangays: barangays
+      barangays: barangays,
+      successMsg: req.query.success || null,
+      errorMsg: req.query.error || null
     });
   } catch (error) {
     console.error("Error fetching staff:", error);
@@ -1066,6 +1098,86 @@ exports.deleteStaff = async (req, res) => {
   } catch (error) {
     console.error("Error deleting staff:", error);
     res.status(500).send("Server Error");
+  }
+};
+
+exports.createAdmin = async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const crypto = require('crypto');
+    const { first_name, last_name, email, contact_number, password } = req.body;
+
+    const cleanFirst = (first_name || '').trim();
+    const cleanLast = (last_name || '').trim();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanContact = (contact_number || '').trim();
+    const rawPassword = (password || '').trim();
+
+    if (!cleanFirst || !cleanLast || !cleanEmail || !rawPassword) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent('First name, last name, email, and password are required to create an admin account.'));
+    }
+    if (!isValidPassword(rawPassword)) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
+    }
+    if (cleanContact && !isValidPhoneNumber(cleanContact)) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
+    }
+
+    const [existing] = await db.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [cleanEmail]);
+    if (existing.length > 0) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent('An account with this email address already exists.'));
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(rawPassword, salt);
+
+    const [userRes] = await db.execute(
+      `INSERT INTO users (email, password_hash, role, is_verified) VALUES (?, ?, 'admin', 1)`,
+      [cleanEmail, password_hash]
+    );
+    const newUserId = userRes.insertId;
+
+    // Create linked profile record in residents table so Admin's name & contact display across header, chat, and settings
+    const qrUuid = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO residents (user_id, first_name, last_name, contact_number, home_address, barangay, qr_code_uuid, approval_status)
+       VALUES (?, ?, ?, ?, ?, 'San Rafael', ?, 'APPROVED')`,
+      [newUserId, cleanFirst, cleanLast, cleanContact || '09000000000', 'Barangay San Rafael Command Center', qrUuid]
+    ).catch((profileErr) => {
+      console.warn('[createAdmin] Non-fatal profile insert notice:', profileErr.message);
+    });
+
+    return res.redirect('/admin/staff?success=' + encodeURIComponent(`Administrator account for ${cleanFirst} ${cleanLast} (${cleanEmail}) created successfully!`));
+  } catch (error) {
+    console.error('Error creating admin account:', error);
+    return res.redirect('/admin/staff?error=' + encodeURIComponent('Server error creating admin account: ' + error.message));
+  }
+};
+
+exports.deleteAdmin = async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const currentUserId = req.session ? Number(req.session.userId) : 0;
+
+    if (!targetId || isNaN(targetId)) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent('Invalid admin account ID.'));
+    }
+    if (targetId === currentUserId) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent('You cannot delete your own currently logged-in administrator account.'));
+    }
+
+    const [admins] = await db.execute("SELECT id FROM users WHERE role = 'admin'");
+    if (admins.length <= 1) {
+      return res.redirect('/admin/staff?error=' + encodeURIComponent('Cannot delete the last remaining administrator account.'));
+    }
+
+    await db.execute('DELETE FROM residents WHERE user_id = ?', [targetId]).catch(() => {});
+    await db.execute("DELETE FROM users WHERE id = ? AND role = 'admin'", [targetId]);
+
+    return res.redirect('/admin/staff?success=' + encodeURIComponent('Administrator account removed successfully.'));
+  } catch (error) {
+    console.error('Error deleting admin account:', error);
+    return res.redirect('/admin/staff?error=' + encodeURIComponent('Error removing administrator account.'));
   }
 };
 

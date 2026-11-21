@@ -23,6 +23,8 @@ router.get("/staff", adminController.getStaff);
 router.post("/staff/create", upload.single('profile_photo'), adminController.createStaff);
 router.post("/staff/edit/:id", upload.single('profile_photo'), adminController.editStaff);
 router.post("/staff/delete/:id", adminController.deleteStaff);
+router.post("/admins/create", adminController.createAdmin);
+router.post("/admins/delete/:id", adminController.deleteAdmin);
 
 router.get("/typhoon", adminController.getTyphoon);
 router.get("/evacuation", adminController.getEvacuation);
