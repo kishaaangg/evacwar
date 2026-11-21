@@ -19,8 +19,59 @@ const residentController = require("../controllers/residentController");
 
 router.get("/", redirectIfAuth, authController.getWelcome);
 
-// SMS RED & ORANGE Alert Deep-Link Redirector (/evacuate -> Nearest Evacuation Center Route)
+// SMS RED & ORANGE Alert Native App Deep-Link Launcher (/evacuate -> Opens EvakWar App & Routes to Nearest Evacuation Center)
 router.get(["/evacuate", "/nearest-evac"], (req, res, next) => {
+  const ua = String((req.headers && req.headers['user-agent']) || '').toLowerCase();
+  const isAndroidDevice = ua.includes('android');
+  const isAlreadyWebFallback = req.query && req.query.web === '1';
+
+  // On Android phones, immediately launch the installed EvakWar Native App (ph.gov.baao.evakwar.resident)
+  // straight to the Evacuation Map with automatic Nearest Evacuation Center routing
+  if (isAndroidDevice && !isAlreadyWebFallback) {
+    const proto = (req.secure || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+    const host = req.headers.host || 'evacwar.onrender.com';
+    const fallbackWebUrl = `${proto}://${host}/evacuate?web=1&auto_route=nearest`;
+    const androidIntentUri = `intent://evacuate?auto_route=nearest#Intent;scheme=evakwar;package=ph.gov.baao.evakwar.resident;S.navigate_to=%2Fresident%2Fevacuation%3Fauto_route%3Dnearest;S.browser_fallback_url=${encodeURIComponent(fallbackWebUrl)};end`;
+
+    return res.send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Opening EvakWar Evacuation Route...</title>
+  <style>
+    body { margin: 0; min-height: 100vh; background: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
+    .box { max-width: 360px; width: 100%; background: #1e293b; border: 2px solid #10b981; border-radius: 18px; padding: 24px 18px; box-shadow: 0 15px 35px rgba(0,0,0,0.45); }
+    .btn { display: block; width: 100%; padding: 13px 16px; border-radius: 12px; background: #10b981; color: #022c22; font-weight: 900; font-size: 13px; text-transform: uppercase; text-decoration: none; box-sizing: border-box; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div style="font-size: 11px; font-weight: 900; color: #34d399; text-transform: uppercase; letter-spacing: 0.06em;">EvakWar Emergency Navigation</div>
+    <h2 style="font-size: 17px; font-weight: 900; margin: 6px 0 8px;">Opening EvakWar App...</h2>
+    <p style="font-size: 12px; color: #cbd5e1; margin: 0; line-height: 1.5;">Calculating your GPS location and routing to the nearest available evacuation center.</p>
+    <a id="openAppBtn" href="${androidIntentUri}" class="btn">Open EvakWar App (Nearest Evacuation)</a>
+  </div>
+  <script>
+    (function () {
+      var intentUrl = ${JSON.stringify(androidIntentUri)};
+      var fallbackUrl = ${JSON.stringify(fallbackWebUrl)};
+      try {
+        window.location.replace(intentUrl);
+      } catch (e) {
+        window.location.href = 'evakwar://evacuate?auto_route=nearest';
+      }
+      setTimeout(function () {
+        if (!document.hidden) {
+          window.location.replace(fallbackUrl);
+        }
+      }, 2200);
+    })();
+  </script>
+</body>
+</html>`);
+  }
+
   if (req.session && req.session.userId && req.session.role) {
     const role = String(req.session.role).toLowerCase();
     if (role === 'admin') return res.redirect('/admin/evacuation?auto_route=nearest');

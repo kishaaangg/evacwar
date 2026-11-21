@@ -6445,9 +6445,22 @@
               lastKnownUserCoords = geoPos.coords;
               window._lastKnownUserGps = { lat: geoPos.coords.latitude, lng: geoPos.coords.longitude, isFallback: false };
               updateLiveDistancesToCenters(geoPos.coords.latitude, geoPos.coords.longitude);
-            }, () => { });
+            }, () => { }, { enableHighAccuracy: true, timeout: 4500, maximumAge: 15000 });
           }
         }
+        try {
+          const urlParams = new URLSearchParams(window.location.search || '');
+          const shouldAutoRoute = (
+            urlParams.get('auto_route') === 'nearest' ||
+            urlParams.get('autoRouteNearest') === '1' ||
+            (window.location.pathname || '').toLowerCase().indexOf('/evacuate') !== -1 ||
+            (window.location.pathname || '').toLowerCase().indexOf('/nearest-evac') !== -1
+          ) && !window.__evwAutoRoutedNearest;
+          if (shouldAutoRoute) window.__evwAutoRoutedNearest = true;
+          if (typeof window.findAndRouteNearestEvacCenter === 'function') {
+            setTimeout(() => { window.findAndRouteNearestEvacCenter(shouldAutoRoute); }, 400);
+          }
+        } catch (_) {}
         return;
       }
 

@@ -2460,10 +2460,7 @@ exports.sendBroadcast = async (req, res) => {
 
   const evacuateRedirectUrl = process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
   let message = (rawInputMsg || '').trim();
-  if ((upperSeverity === 'RED' || upperSeverity === 'ORANGE') && !/https?:\/\/[^\s]+\/(evacuate|resident\/evacuation)/i.test(message)) {
-    message = `${message}\nNearest Evacuation Route: ${evacuateRedirectUrl}`;
-  }
-  const loraCleanMessage = (rawInputMsg || '').replace(/https?:\/\/[^\s]+/gi, '').replace(/Nearest Evacuation( Route| Map & Route)?:\s*/gi, '').trim() || message;
+  const loraCleanMessage = message.replace(/https?:\/\/[^\s]+/gi, '').trim() || message;
 
   let selectedArray = [];
   if (selected_ids) {

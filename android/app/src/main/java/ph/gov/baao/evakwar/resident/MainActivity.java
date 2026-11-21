@@ -225,6 +225,9 @@ public class MainActivity extends BridgeActivity {
             if (dataUri.contains("/evacuate") || dataUri.contains("/nearest-evac") || dataUri.contains("/evacuation") || dataUri.contains("evakwar://evacuate")) {
                 navTo = "/resident/evacuation?auto_route=nearest";
                 intent.setData(null);
+                try {
+                    LoraMeshService.stopEmergencyAlarmStatic();
+                } catch (Exception ignored) {}
             }
         }
         if (navTo != null && !navTo.isEmpty()) {
@@ -240,6 +243,12 @@ public class MainActivity extends BridgeActivity {
                                     "    if (rawNav.indexOf('/evacuation') !== -1 || rawNav.indexOf('auto_route=nearest') !== -1) {\n" +
                                     "      if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();\n" +
                                     "      if (typeof window.closeGlobalEmergencyModal === 'function') window.closeGlobalEmergencyModal();\n" +
+                                    "      if (p.indexOf('/evacuation') !== -1 || p.indexOf('/map') !== -1) {\n" +
+                                    "        if (typeof window.findAndRouteNearestEvacCenter === 'function') {\n" +
+                                    "          window.findAndRouteNearestEvacCenter(true);\n" +
+                                    "        }\n" +
+                                    "        return;\n" +
+                                    "      }\n" +
                                     "      var rEv = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
                                     "      var evTarget = (rEv === 'staff' || rEv === 'barangay_council') ? '/staff/map?auto_route=nearest' : (rEv === 'rescuer' ? '/rescuer/map?auto_route=nearest' : '/resident/evacuation?auto_route=nearest');\n" +
                                     "      if (typeof window.navigateToEvakWar === 'function') {\n" +

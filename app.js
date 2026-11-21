@@ -164,6 +164,24 @@ app.get('/favicon.ico', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'icons', 'favicon-32x32.png'));
 });
 
+// Android App Links Digital Asset Links verification (/.well-known/assetlinks.json)
+// Allows Android SMS links to open the installed EvakWar Native App (ph.gov.baao.evakwar.resident) directly without Chrome
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json([
+    {
+      relation: ['delegate_permission/common.handle_all_urls'],
+      target: {
+        namespace: 'android_app',
+        package_name: 'ph.gov.baao.evakwar.resident',
+        sha256_cert_fingerprints: [
+          '3A:0F:CE:A0:43:21:CE:96:FA:C8:04:3E:18:18:D2:8F:C3:58:B8:5E:FD:2C:C1:94:FF:D7:3A:D7:1D:A0:83:5C'
+        ]
+      }
+    }
+  ]);
+});
+
 // Built-in In-App Directions API (Hybrid Admin-Drawn Evacuation Routes + Road Routing + Hazard Avoidance)
 const gisCacheForRouting = require('./utils/gisCache');
 app.get('/api/directions', async (req, res) => {
