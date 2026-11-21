@@ -547,6 +547,19 @@
             flyToCenter(parseFloat(nearestCenter.longitude), parseFloat(nearestCenter.latitude), nearestCenter.id);
           }
         };
+
+        // Auto-fly & open nearest evacuation center when launched from "Evacuate" notification / modal button (?auto_route=nearest)
+        try {
+          const urlParams = new URLSearchParams(window.location.search || '');
+          if (urlParams.get('auto_route') === 'nearest' && !window.__evwAutoRoutedNearest) {
+            window.__evwAutoRoutedNearest = true;
+            if (typeof flyToCenter === 'function') {
+              setTimeout(() => {
+                flyToCenter(parseFloat(nearestCenter.longitude), parseFloat(nearestCenter.latitude), nearestCenter.id);
+              }, 350);
+            }
+          }
+        } catch (_) {}
             const markerEl = (existing.marker.getElement && typeof existing.marker.getElement === 'function') ? existing.marker.getElement() : null;
             if (markerEl) {
               const path = markerEl.querySelector('path');

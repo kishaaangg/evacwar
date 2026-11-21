@@ -212,6 +212,13 @@ public class MainActivity extends BridgeActivity {
     private void handleAlertLaunchIntent(Intent intent) {
         if (intent == null) return;
 
+        if (intent.getBooleanExtra("stop_alarm_now", false)) {
+            intent.removeExtra("stop_alarm_now");
+            try {
+                LoraMeshService.stopEmergencyAlarmStatic();
+            } catch (Exception ignored) {}
+        }
+
         String navTo = intent.getStringExtra("navigate_to");
         if (navTo != null && !navTo.isEmpty()) {
             intent.removeExtra("navigate_to");
@@ -223,7 +230,19 @@ public class MainActivity extends BridgeActivity {
                                     "  try {\n" +
                                     "    var rawNav = '" + safeNavTo + "';\n" +
                                     "    var p = (window.location.pathname || '').toLowerCase();\n" +
-                                    "    if (rawNav.indexOf('/typhoon') !== -1 || rawNav.indexOf('/weather') !== -1) {\n" +
+                                    "    if (rawNav.indexOf('/evacuation') !== -1 || rawNav.indexOf('auto_route=nearest') !== -1) {\n" +
+                                    "      if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();\n" +
+                                    "      if (typeof window.closeGlobalEmergencyModal === 'function') window.closeGlobalEmergencyModal();\n" +
+                                    "      var rEv = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
+                                    "      var evTarget = (rEv === 'staff' || rEv === 'barangay_council') ? '/staff/map?auto_route=nearest' : (rEv === 'rescuer' ? '/rescuer/map?auto_route=nearest' : '/resident/evacuation?auto_route=nearest');\n" +
+                                    "      if (typeof window.navigateToEvakWar === 'function') {\n" +
+                                    "        window.navigateToEvakWar(evTarget);\n" +
+                                    "      } else {\n" +
+                                    "        var isCapEv = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
+                                    "        var evDest = isCapEv ? (evTarget.split('?')[0] + '/index.html?auto_route=nearest') : evTarget;\n" +
+                                    "        window.location.href = evDest;\n" +
+                                    "      }\n" +
+                                    "    } else if (rawNav.indexOf('/typhoon') !== -1 || rawNav.indexOf('/weather') !== -1) {\n" +
                                     "      var r = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
                                     "      var rolePrefix = (r === 'staff' || r === 'barangay_council') ? '/staff' : (r === 'rescuer' ? '/rescuer' : '/resident');\n" +
                                     "      var target = rolePrefix + '/typhoon?view=sensor';\n" +

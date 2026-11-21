@@ -1584,7 +1584,16 @@ public class LoraMeshService extends Service {
                             .setContentIntent(pi)
                             .addAction(android.R.drawable.ic_lock_silent_mode_off, "Silence Siren", stopPi);
 
+                    // For Mandatory RED alerts, add an "Evacuate" action button right beside "Silence Siren"
+                    // that silences the siren and immediately opens the Evacuation Map auto-routed to the nearest center!
                     if (isRedAlert) {
+                        Intent evacIntent = new Intent(LoraMeshService.this, MainActivity.class);
+                        evacIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        evacIntent.putExtra("navigate_to", "/resident/evacuation?auto_route=nearest");
+                        evacIntent.putExtra("stop_alarm_now", true);
+                        if (alertId != null) evacIntent.putExtra("alert_id", alertId);
+                        PendingIntent evacPi = PendingIntent.getActivity(LoraMeshService.this, 104, evacIntent, piFlags);
+                        b.addAction(android.R.drawable.ic_menu_directions, "Evacuate", evacPi);
                         b.setVibrate(new long[]{0, 800, 200, 800, 200, 1200});
                     } else {
                         b.setVibrate(new long[]{0});

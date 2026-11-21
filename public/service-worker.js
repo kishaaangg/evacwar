@@ -1066,9 +1066,14 @@ self.addEventListener('push', (event) => {
         sent_at: data.sent_at || data.timestamp || Date.now()
       }
     },
-    actions: [
-      { action: isWeatherUpdate ? 'open_weather' : 'open_alert', title: isWeatherUpdate ? 'View Weather' : 'Open Evacwar' }
-    ]
+    actions: isWeatherUpdate
+      ? [{ action: 'open_weather', title: 'View Weather' }]
+      : (String(severity || '').toUpperCase().includes('RED')
+        ? [
+            { action: 'evacuate_nearest', title: 'Evacuate' },
+            { action: 'open_alert', title: 'Open Evacwar' }
+          ]
+        : [{ action: 'open_alert', title: 'Open Evacwar' }])
   };
 
   event.waitUntil(Promise.all([
@@ -1097,9 +1102,10 @@ self.addEventListener('notificationclick', (event) => {
     : '/';
   const notifType = (event.notification.data && event.notification.data.type) || '';
   const isWeatherNotif = notifType === 'WEATHER_UPDATE' || rawTargetPath.includes('/typhoon');
+  const isEvacuateAction = event.action === 'evacuate_nearest';
 
   const defaultUrl = self.location.origin;
-  const fullUrl = new URL(rawTargetPath, defaultUrl).href;
+  const fullUrl = new URL(isEvacuateAction ? '/resident/evacuation?auto_route=nearest' : rawTargetPath, defaultUrl).href;
   const alertPayload = event.notification.data && event.notification.data.alert
     ? event.notification.data.alert
     : null;
@@ -1112,7 +1118,14 @@ self.addEventListener('notificationclick', (event) => {
         for (let i = 0; i < windowClients.length; i++) {
           const client = windowClients[i];
           if (client.url && (client.url.startsWith(defaultUrl) || client.url.includes('evacwar-testing.onrender.com'))) {
-            if (isWeatherNotif) {
+            if (isEvacuateAction) {
+              const evacUrl = new URL('/resident/evacuation?auto_route=nearest', defaultUrl).href;
+              if (typeof client.navigate === 'function') {
+                try { await client.navigate(evacUrl); } catch (_) {}
+              } else {
+                client.postMessage({ type: 'NAVIGATE_TO', url: '/resident/evacuation?auto_route=nearest' });
+              }
+            } else if (isWeatherNotif) {
               let roleDest = '/resident/typhoon?view=sensor';
               try {
                 const u = new URL(client.url);
