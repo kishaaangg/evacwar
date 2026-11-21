@@ -1114,18 +1114,18 @@ exports.createAdmin = async (req, res) => {
     const rawPassword = (password || '').trim();
 
     if (!cleanFirst || !cleanLast || !cleanEmail || !rawPassword) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent('First name, last name, email, and password are required to create an admin account.'));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent('First name, last name, email, and password are required to create an admin account.'));
     }
     if (!isValidPassword(rawPassword)) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
     }
     if (cleanContact && !isValidPhoneNumber(cleanContact)) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
     }
 
     const [existing] = await db.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [cleanEmail]);
     if (existing.length > 0) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent('An account with this email address already exists.'));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent('An account with this email address already exists.'));
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -1147,10 +1147,10 @@ exports.createAdmin = async (req, res) => {
       console.warn('[createAdmin] Non-fatal profile insert notice:', profileErr.message);
     });
 
-    return res.redirect('/admin/staff?success=' + encodeURIComponent(`Administrator account for ${cleanFirst} ${cleanLast} (${cleanEmail}) created successfully!`));
+    return res.redirect('/admin/settings?success=' + encodeURIComponent(`Administrator account for ${cleanFirst} ${cleanLast} (${cleanEmail}) created successfully!`));
   } catch (error) {
     console.error('Error creating admin account:', error);
-    return res.redirect('/admin/staff?error=' + encodeURIComponent('Server error creating admin account: ' + error.message));
+    return res.redirect('/admin/settings?error=' + encodeURIComponent('Server error creating admin account: ' + error.message));
   }
 };
 
@@ -1160,24 +1160,24 @@ exports.deleteAdmin = async (req, res) => {
     const currentUserId = req.session ? Number(req.session.userId) : 0;
 
     if (!targetId || isNaN(targetId)) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent('Invalid admin account ID.'));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent('Invalid admin account ID.'));
     }
     if (targetId === currentUserId) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent('You cannot delete your own currently logged-in administrator account.'));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent('You cannot delete your own currently logged-in administrator account.'));
     }
 
     const [admins] = await db.execute("SELECT id FROM users WHERE role = 'admin'");
     if (admins.length <= 1) {
-      return res.redirect('/admin/staff?error=' + encodeURIComponent('Cannot delete the last remaining administrator account.'));
+      return res.redirect('/admin/settings?error=' + encodeURIComponent('Cannot delete the last remaining administrator account.'));
     }
 
     await db.execute('DELETE FROM residents WHERE user_id = ?', [targetId]).catch(() => {});
     await db.execute("DELETE FROM users WHERE id = ? AND role = 'admin'", [targetId]);
 
-    return res.redirect('/admin/staff?success=' + encodeURIComponent('Administrator account removed successfully.'));
+    return res.redirect('/admin/settings?success=' + encodeURIComponent('Administrator account removed successfully.'));
   } catch (error) {
     console.error('Error deleting admin account:', error);
-    return res.redirect('/admin/staff?error=' + encodeURIComponent('Error removing administrator account.'));
+    return res.redirect('/admin/settings?error=' + encodeURIComponent('Error removing administrator account.'));
   }
 };
 
@@ -2764,6 +2764,38 @@ exports.getSettings = async (req, res) => {
     const fullName = realFullName || 'Administrator';
     const profilePhoto = resident.profile_photo || (res.locals.user && res.locals.user.profile_photo) || null;
 
+    // Fetch all system administrator accounts for the Admin Accounts Management section
+    const onlineTracker = require('../utils/onlineTracker');
+    const [adminRows] = await db.execute(`
+      SELECT u.id, u.email, u.role, u.created_at,
+             COALESCE(r.first_name, s.first_name, '') AS first_name,
+             COALESCE(r.last_name, s.last_name, '') AS last_name,
+             COALESCE(r.contact_number, s.contact_number, '') AS contact_number,
+             COALESCE(r.profile_photo, s.profile_photo) AS profile_photo
+      FROM users u
+      LEFT JOIN residents r ON u.id = r.user_id
+      LEFT JOIN staff s ON u.id = s.user_id
+      WHERE u.role = 'admin'
+      GROUP BY u.id
+      ORDER BY u.id ASC
+    `).catch(() => [[]]);
+
+    const adminAccounts = (adminRows || []).map(a => {
+      const aFull = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+      return {
+        id: a.id,
+        email: a.email,
+        name: aFull || (a.email ? a.email.split('@')[0] : 'Administrator'),
+        first_name: a.first_name || '',
+        last_name: a.last_name || '',
+        contact_number: a.contact_number || '',
+        profile_photo: a.profile_photo || null,
+        is_online: onlineTracker.isUserOnline(a.id),
+        is_current_user: Boolean(Number(userId) === Number(a.id)),
+        created_at: a.created_at
+      };
+    });
+
     res.render("admin/settings", {
       ...sharedSimData(),
       user: {
@@ -2780,6 +2812,7 @@ exports.getSettings = async (req, res) => {
         barangay: resident.barangay || 'San Rafael',
         profile_photo: profilePhoto
       },
+      adminAccounts: adminAccounts,
       page: { title: "Settings" },
       statusMsg: req.query.success || null,
       errorMsg: req.query.error || null
