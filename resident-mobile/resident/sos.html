@@ -748,6 +748,55 @@
       return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' });
     };
 
+    // Official Barangay San Rafael (Ikpan) Geofence Boundary Ring ([lng, lat])
+    window.SAN_RAFAEL_BOUNDARY_RING = [
+      [123.3505072, 13.5206086], [123.3520272, 13.5197012], [123.3523738, 13.5194938], [123.3524272, 13.5191567],
+      [123.3524272, 13.5186641], [123.3525605, 13.5180678], [123.3527605, 13.5176011], [123.3531871, 13.5177697],
+      [123.3534938, 13.5182493], [123.3538537, 13.5184308], [123.3543471, 13.5184178], [123.3554537, 13.5181456],
+      [123.3561203, 13.5177048], [123.3567732, 13.5175309], [123.3572938, 13.5172272], [123.3576921, 13.5169424],
+      [123.3583712, 13.5170218], [123.3589821, 13.5171117], [123.3593733, 13.5167412], [123.3591839, 13.5162520],
+      [123.3588536, 13.5157916], [123.3588753, 13.5152328], [123.3592819, 13.5147480], [123.3598356, 13.5146381],
+      [123.3604418, 13.5142078], [123.3608276, 13.5134662], [123.3610723, 13.5128252], [123.3616708, 13.5123151],
+      [123.3621814, 13.5116127], [123.3623018, 13.5107622], [123.3620003, 13.5097650], [123.3506221, 13.4983814],
+      [123.3403898, 13.5058927], [123.3394793, 13.5063430], [123.3386098, 13.5072937], [123.3378265, 13.5081292],
+      [123.3369618, 13.5083295], [123.3362720, 13.5086716], [123.3353390, 13.5094381], [123.3365562, 13.5101104],
+      [123.3374655, 13.5107483], [123.3381366, 13.5115844], [123.3402170, 13.5139327], [123.3425108, 13.5137478],
+      [123.3432305, 13.5137765], [123.3434195, 13.5144462], [123.3441974, 13.5152444], [123.3445511, 13.5156144],
+      [123.3448129, 13.5152667], [123.3459637, 13.5150592], [123.3465663, 13.5152996], [123.3475046, 13.5160514],
+      [123.3480551, 13.5168473], [123.3479529, 13.5179366], [123.3477691, 13.5186271], [123.3484857, 13.5196407],
+      [123.3488035, 13.5204514], [123.3491594, 13.5210536], [123.3493481, 13.5213945], [123.3504803, 13.5206289],
+      [123.3505072, 13.5206086]
+    ];
+
+    window.isInsideBarangaySanRafael = function (lat, lng, bufferKm = 0.22) {
+      const nLat = Number(lat);
+      const nLng = Number(lng);
+      if (!isFinite(nLat) || !isFinite(nLng) || (nLat === 0 && nLng === 0)) return false;
+      if (nLat < 13.4960 || nLat > 13.5235 || nLng < 123.3330 || nLng > 123.3645) return false;
+
+      let inside = false;
+      const ring = window.SAN_RAFAEL_BOUNDARY_RING;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        const intersect = ((yi > nLat) !== (yj > nLat)) && (nLng < (xj - xi) * (nLat - yi) / ((yj - yi) || 1e-12) + xi);
+        if (intersect) inside = !inside;
+      }
+      if (inside) return true;
+
+      const haversine = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+      for (let i = 0; i < ring.length; i++) {
+        if (haversine(nLat, nLng, ring[i][1], ring[i][0]) <= bufferKm) return true;
+      }
+      return false;
+    };
+
     // Shared Modern UI Builder for SOS Distress Popups (Clean, Compact & Space-Efficient)
     window.buildSosPopupHtml = function (sosAlert, role = 'admin') {
       const lat = Number(sosAlert.latitude);
@@ -768,8 +817,10 @@
       const alertHandledBy = (sosAlert.handled_by !== null && sosAlert.handled_by !== undefined && sosAlert.handled_by !== '') ? Number(sosAlert.handled_by) : null;
       const isAssigned = alertHandledBy && alertHandledBy > 0;
       const isMine = isAssigned && (alertHandledBy === currentUserId);
-      const isAssignedToOther = isAssigned && !isMine && (userRole !== 'admin');
-      const handlerName = sosAlert.handler_name || (sosAlert.handler ? sosAlert.handler.name : null);
+      // Only lock out other rescuers if another rescuer is ALREADY actively RESPONDING/RESCUED (so en-route rescuers can pick up ACKNOWLEDGED/ACTIVE SOS along their path!)
+      const isAssignedToOther = isAssigned && !isMine && (userRole !== 'admin') && ['RESPONDING', 'RESCUED'].includes(status);
+      const handlerName = sosAlert.handler_name || sosAlert.responder_name || (sosAlert.handler ? sosAlert.handler.name : null);
+      const isWithinBarangay = window.isInsideBarangaySanRafael ? window.isInsideBarangaySanRafael(lat, lng) : true;
 
       const photoUrl = (sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo)
         ? ((sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo).startsWith('http') || (sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo).startsWith('/')
@@ -860,6 +911,12 @@
 
           <!-- Dispatch Toolbar -->
           <div class="px-2 pb-2 pt-1.5 bg-slate-50/90 border-t border-slate-100 space-y-1">
+            ${!isWithinBarangay ? `
+              <div class="py-1.5 px-2 bg-rose-50 text-rose-800 font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 border border-rose-200 text-center">
+                <i class="ph ph-prohibit text-rose-600 text-xs shrink-0"></i>
+                <span>Outside Barangay San Rafael — Rescue Within Barangay Only</span>
+              </div>
+            ` : `
             <div class="grid grid-cols-2 gap-1 text-xs">
               <button type="button" data-dest-lat="${lat}" data-dest-lng="${lng}" data-dest-name="${String('SOS: ' + resName).replace(/"/g, '&quot;')}" onclick="window.showEvakWarDirections(this.getAttribute('data-dest-lat'), this.getAttribute('data-dest-lng'), this.getAttribute('data-dest-name'))" class="py-1 px-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
                 <i class="ph ph-navigation-arrow text-xs shrink-0"></i> Navigate
@@ -900,6 +957,7 @@
                 <i class="ph ph-check-square text-xs text-emerald-600 shrink-0"></i> Mark Alert as Fully Resolved
               </button>
             ` : ''}
+            `}
           </div>
         </div>
       `;
@@ -5608,6 +5666,18 @@
 
               function setManualPinLocation(lat, lng) {
                 if (!isValidCoordinate(lat, lng)) return;
+                if (typeof window.isInsideBarangaySanRafael === 'function' && !window.isInsideBarangaySanRafael(lat, lng)) {
+                  const brgyMsg = '🚫 Outside Barangay San Rafael Boundary! SOS & Rescue option is available ONLY within Barangay San Rafael.';
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(brgyMsg);
+                  } else {
+                    alert(brgyMsg);
+                  }
+                  if (isValidCoordinate(currentLat, currentLng)) {
+                    placeOrUpdateSosMarker(currentLat, currentLng);
+                  }
+                  return;
+                }
                 currentLat = Number(lat);
                 currentLng = Number(lng);
                 isManuallyPinned = true;
@@ -6037,6 +6107,15 @@
                   if (typeof window.openLoraHardwarePicker === 'function') {
                     window.openLoraHardwarePicker();
                   }
+                  return;
+                }
+
+                if (typeof window.isInsideBarangaySanRafael === 'function' && !window.isInsideBarangaySanRafael(lat, lng)) {
+                  const outsideMsg = '🚫 Outside Barangay San Rafael Jurisdiction: SOS & Rescue option is available ONLY within Barangay San Rafael boundary.';
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(outsideMsg);
+                  }
+                  alert(outsideMsg);
                   return;
                 }
 

@@ -516,6 +516,18 @@
 
               function setManualPinLocation(lat, lng) {
                 if (!isValidCoordinate(lat, lng)) return;
+                if (typeof window.isInsideBarangaySanRafael === 'function' && !window.isInsideBarangaySanRafael(lat, lng)) {
+                  const brgyMsg = '🚫 Outside Barangay San Rafael Boundary! SOS & Rescue option is available ONLY within Barangay San Rafael.';
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(brgyMsg);
+                  } else {
+                    alert(brgyMsg);
+                  }
+                  if (isValidCoordinate(currentLat, currentLng)) {
+                    placeOrUpdateSosMarker(currentLat, currentLng);
+                  }
+                  return;
+                }
                 currentLat = Number(lat);
                 currentLng = Number(lng);
                 isManuallyPinned = true;
@@ -945,6 +957,15 @@
                   if (typeof window.openLoraHardwarePicker === 'function') {
                     window.openLoraHardwarePicker();
                   }
+                  return;
+                }
+
+                if (typeof window.isInsideBarangaySanRafael === 'function' && !window.isInsideBarangaySanRafael(lat, lng)) {
+                  const outsideMsg = '🚫 Outside Barangay San Rafael Jurisdiction: SOS & Rescue option is available ONLY within Barangay San Rafael boundary.';
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(outsideMsg);
+                  }
+                  alert(outsideMsg);
                   return;
                 }
 

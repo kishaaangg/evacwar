@@ -1,30 +1,50 @@
 /**
  * In-memory active rescuer tracking singleton.
- * Maintains ONLY the current active rescuer location needed for an active SOS distress alert.
- * Zero unnecessary location history is stored.
+ * Supports Multi-SOS / En-Route Rescue: a single rescuer can be assigned to multiple SOS alerts along their path.
  */
 class RescuerTracker {
   constructor() {
-    // Map: sos_id (Number) -> {
-    //   sos_id,
-    //   rescuer_user_id,
-    //   rescuer_name,
-    //   rescuer_role,
-    //   rescuer_photo,
-    //   latitude,
-    //   longitude,
-    //   accuracy,
-    //   status,
-    //   updated_at
-    // }
+    // Map: sos_id (Number) -> rescuer record
     this.activeRescuers = new Map();
+    // Map: rescuer_user_id (Number) -> latest rescuer GPS coordinates & profile
+    this.rescuersByUserId = new Map();
   }
 
   /**
-   * Update or set the current active rescuer location for a given SOS ID.
-   * Overwrites the previous location to ensure only the latest coordinates are stored.
+   * Update or set the current active rescuer location for a given SOS ID (and sync across all SOS IDs handled by this rescuer).
    */
   updateRescuerLocation(sosId, data) {
+    const lat = Number(data && (data.latitude !== undefined ? data.latitude : data.lat));
+    const lng = Number(data && (data.longitude !== undefined ? data.longitude : data.lng));
+    if (data && data.rescuer_user_id && isFinite(lat) && isFinite(lng)) {
+      const uid = Number(data.rescuer_user_id);
+      this.rescuersByUserId.set(uid, {
+        rescuer_user_id: uid,
+        rescuer_name: data.rescuer_name || 'Emergency Rescuer',
+        rescuer_role: data.rescuer_role || 'Emergency Rescuer',
+        rescuer_photo: data.rescuer_photo || null,
+        latitude: lat,
+        longitude: lng,
+        lat: lat,
+        lng: lng,
+        accuracy: Number(data.accuracy || 0),
+        updated_at: new Date().toISOString()
+      });
+
+      // Sync new coordinates to all other active SOS alerts handled by this same rescuer (Multi-Rescue support)
+      for (const [otherSosId, record] of this.activeRescuers.entries()) {
+        if (record && Number(record.rescuer_user_id) === uid) {
+          this.activeRescuers.set(otherSosId, {
+            ...record,
+            latitude: lat,
+            longitude: lng,
+            accuracy: Number(data.accuracy || 0),
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+    }
+
     if (!sosId) return null;
     const numericId = Number(sosId);
     const existing = this.activeRescuers.get(numericId) || {};
@@ -33,14 +53,35 @@ class RescuerTracker {
       ...existing,
       ...data,
       sos_id: numericId,
-      latitude: Number(data.latitude),
-      longitude: Number(data.longitude),
-      accuracy: Number(data.accuracy || 0),
+      latitude: isFinite(lat) ? lat : existing.latitude,
+      longitude: isFinite(lng) ? lng : existing.longitude,
+      accuracy: Number((data && data.accuracy) || existing.accuracy || 0),
       updated_at: new Date().toISOString()
     };
 
     this.activeRescuers.set(numericId, updatedRecord);
     return updatedRecord;
+  }
+
+  /**
+   * Retrieve the latest known GPS location of a rescuer by their user_id (or sos_id fallback).
+   */
+  getRescuerLocation(id) {
+    if (!id) return null;
+    const numId = Number(id);
+    if (this.rescuersByUserId.has(numId)) {
+      return this.rescuersByUserId.get(numId);
+    }
+    for (const record of this.activeRescuers.values()) {
+      if (Number(record.rescuer_user_id) === numId || Number(record.sos_id) === numId) {
+        return {
+          ...record,
+          lat: Number(record.latitude),
+          lng: Number(record.longitude)
+        };
+      }
+    }
+    return null;
   }
 
   /**

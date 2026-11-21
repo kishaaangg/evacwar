@@ -84,9 +84,40 @@ router.post('/create', requireAuth, async (req, res) => {
     if (!alert) {
       return res.status(500).json({ success: false, error: 'Failed to record SOS alert' });
     }
+    if (alert.error === 'OUTSIDE_BARANGAY') {
+      return res.status(403).json({
+        success: false,
+        error: 'OUTSIDE_BARANGAY',
+        message: alert.message || 'SOS & Rescue option is available ONLY within Barangay San Rafael boundary.'
+      });
+    }
+
+    if (alert.auto_assigned && alert.responder_name) {
+      try {
+        loraRoutes.queueOutboundSosAck(alert, alert.status || 'ACKNOWLEDGED', alert.responder_name, {
+          lat: alert.rescuer_lat || 13.51037,
+          lng: alert.rescuer_lng || 123.34810
+        });
+      } catch (_e) {}
+    }
 
     if (req.io) {
       req.io.emit('sos:new', alert);
+      if (alert.auto_assigned && alert.responder_name) {
+        req.io.emit('sos:update_status', {
+          id: Number(alert.id),
+          sos_id: Number(alert.id),
+          resident_id: alert.resident_id ? Number(alert.resident_id) : null,
+          status: alert.status || 'ACKNOWLEDGED',
+          handled_by: alert.handled_by || null,
+          responder_name: alert.responder_name,
+          rescuer_lat: alert.rescuer_lat || 13.51037,
+          rescuer_lng: alert.rescuer_lng || 123.34810,
+          auto_assigned: true,
+          auto_assigned_type: alert.auto_assigned_type || 'NEAREST_RESCUER',
+          alert
+        });
+      }
     }
 
     res.json({ success: true, alert });

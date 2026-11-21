@@ -1211,13 +1211,34 @@ async function handleInboundLoRaPacket(req, res) {
               payload.name = `${rRows[0].first_name || ''} ${rRows[0].last_name || ''}`.trim() || displayName;
             }
           }
-          await SosModel.createAlert({
+          const createdLoRaSos = await SosModel.createAlert({
             resident_id: payload.resident_id,
             name: payload.name,
             latitude: parsed.latitude,
             longitude: parsed.longitude,
             accuracy: parsed.accuracy || 10
           }).catch(() => null);
+          if (createdLoRaSos && !createdLoRaSos.error && createdLoRaSos.auto_assigned && createdLoRaSos.responder_name) {
+            queueOutboundSosAck(createdLoRaSos, createdLoRaSos.status || 'ACKNOWLEDGED', createdLoRaSos.responder_name, {
+              lat: createdLoRaSos.rescuer_lat || 13.51037,
+              lng: createdLoRaSos.rescuer_lng || 123.34810
+            });
+            if (req.io) {
+              req.io.emit('sos:update_status', {
+                id: Number(createdLoRaSos.id),
+                sos_id: Number(createdLoRaSos.id),
+                resident_id: createdLoRaSos.resident_id ? Number(createdLoRaSos.resident_id) : null,
+                status: createdLoRaSos.status || 'ACKNOWLEDGED',
+                handled_by: createdLoRaSos.handled_by || null,
+                responder_name: createdLoRaSos.responder_name,
+                rescuer_lat: createdLoRaSos.rescuer_lat || 13.51037,
+                rescuer_lng: createdLoRaSos.rescuer_lng || 123.34810,
+                auto_assigned: true,
+                auto_assigned_type: createdLoRaSos.auto_assigned_type || 'NEAREST_RESCUER',
+                alert: createdLoRaSos
+              });
+            }
+          }
         } catch (_) {}
       })();
 

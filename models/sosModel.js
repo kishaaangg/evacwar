@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const { isInsideBarangaySanRafael, findNearestRescuerForSos } = require('../utils/barangayGeofence');
+const rescuerTracker = require('../utils/rescuerTracker');
 
 // In-flight mutex lock to prevent concurrent requests from creating duplicate alerts
 const inFlightAlertCreations = new Map();
@@ -56,10 +58,19 @@ const SosModel = {
           return null;
         }
 
+        // Strict Barangay San Rafael Jurisdiction Check: SOS & Rescue option is only available within Barangay San Rafael
+        if (!isInsideBarangaySanRafael(lat, lng)) {
+          console.warn("SosModel.createAlert rejected: Coordinates outside Barangay San Rafael boundary:", { lat, lng });
+          return {
+            error: 'OUTSIDE_BARANGAY',
+            message: 'SOS & Rescue option is available ONLY within Barangay San Rafael boundary.'
+          };
+        }
+
         // 1. If resident already has an active alert, update its coordinates instead of creating duplicates
         if (cleanResidentId) {
           const [existing] = await db.execute(
-            `SELECT id FROM sos_alerts WHERE (resident_id = ? OR resident_id IN (SELECT user_id FROM residents WHERE id = ?)) AND status IN ('ACTIVE', 'ACKNOWLEDGED', 'RESPONDING') ORDER BY id DESC LIMIT 1`,
+            `SELECT id, handled_by, status FROM sos_alerts WHERE (resident_id = ? OR resident_id IN (SELECT user_id FROM residents WHERE id = ?)) AND status IN ('ACTIVE', 'ACKNOWLEDGED', 'RESPONDING') ORDER BY id DESC LIMIT 1`,
             [cleanResidentId, cleanResidentId]
           );
           if (existing.length > 0) {
@@ -68,7 +79,35 @@ const SosModel = {
               `UPDATE sos_alerts SET latitude = ?, longitude = ?, accuracy = ?, name = ?, updated_at = NOW() WHERE id = ?`,
               [lat, lng, accuracy || 0, resolvedName, activeId]
             );
-            return await SosModel.getById(activeId);
+            // If not yet assigned to a rescuer, auto-assign nearest / en-route rescuer now
+            if (!existing[0].handled_by) {
+              const autoRescuer = await findNearestRescuerForSos(lat, lng);
+              if (autoRescuer && autoRescuer.user_id) {
+                const autoNotes = autoRescuer.assignmentType === 'EN_ROUTE_MULTI_RESCUE'
+                  ? `Auto-assigned to En-Route Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`
+                  : `Auto-assigned to Nearest Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`;
+                await db.execute(
+                  `UPDATE sos_alerts SET status = 'ACKNOWLEDGED', handled_by = ?, responder_notes = ? WHERE id = ?`,
+                  [autoRescuer.user_id, autoNotes, activeId]
+                );
+                rescuerTracker.updateRescuerLocation(activeId, {
+                  rescuer_user_id: autoRescuer.user_id,
+                  rescuer_name: autoRescuer.name,
+                  latitude: autoRescuer.latitude,
+                  longitude: autoRescuer.longitude,
+                  status: 'ACKNOWLEDGED'
+                });
+              }
+            }
+            const existingAlert = await SosModel.getById(activeId);
+            if (existingAlert && existingAlert.handled_by) {
+              const tr = rescuerTracker.getRescuerLocation(existingAlert.handled_by) || rescuerTracker.getActiveRescuerBySosId(activeId);
+              if (tr) {
+                existingAlert.rescuer_lat = Number(tr.latitude || tr.lat);
+                existingAlert.rescuer_lng = Number(tr.longitude || tr.lng);
+              }
+            }
+            return existingAlert;
           }
         } else {
           // Check for guest alert with same name and location created in the last 60 seconds
@@ -86,13 +125,38 @@ const SosModel = {
           }
         }
 
+        // Automatically find Nearest Rescuer (or En-Route Rescuer passing along the path) based on SOS location
+        const autoRescuer = await findNearestRescuerForSos(lat, lng);
+        const initialStatus = (autoRescuer && autoRescuer.user_id) ? 'ACKNOWLEDGED' : 'ACTIVE';
+        const initialHandledBy = (autoRescuer && autoRescuer.user_id) ? autoRescuer.user_id : null;
+        const initialNotes = (autoRescuer && autoRescuer.user_id)
+          ? (autoRescuer.assignmentType === 'EN_ROUTE_MULTI_RESCUE'
+              ? `Auto-assigned to En-Route Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`
+              : `Auto-assigned to Nearest Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`)
+          : null;
+
         const [result] = await db.execute(
-          `INSERT INTO sos_alerts (resident_id, name, latitude, longitude, accuracy, status)
-           VALUES (?, ?, ?, ?, ?, 'ACTIVE')`,
-          [cleanResidentId, resolvedName, lat, lng, accuracy || 0]
+          `INSERT INTO sos_alerts (resident_id, name, latitude, longitude, accuracy, status, handled_by, responder_notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [cleanResidentId, resolvedName, lat, lng, accuracy || 0, initialStatus, initialHandledBy, initialNotes]
         );
 
-        return await SosModel.getById(result.insertId);
+        const createdAlert = await SosModel.getById(result.insertId);
+        if (createdAlert && autoRescuer && autoRescuer.user_id) {
+          rescuerTracker.updateRescuerLocation(result.insertId, {
+            rescuer_user_id: autoRescuer.user_id,
+            rescuer_name: autoRescuer.name,
+            latitude: autoRescuer.latitude,
+            longitude: autoRescuer.longitude,
+            status: initialStatus
+          });
+          createdAlert.rescuer_lat = autoRescuer.latitude;
+          createdAlert.rescuer_lng = autoRescuer.longitude;
+          createdAlert.responder_name = autoRescuer.name;
+          createdAlert.auto_assigned = true;
+          createdAlert.auto_assigned_type = autoRescuer.assignmentType;
+        }
+        return createdAlert;
       } catch (err) {
         console.error("Error creating SOS alert:", err.message || err);
         return null;
@@ -221,19 +285,29 @@ const SosModel = {
         }
       }
 
-      // 2. Enforce assigned rescuer restriction:
-      // If already claimed by another rescuer, reject other rescuers attempting to dispatch, rescue, or resolve
-      if (currentHandledBy && incomingHandledBy && currentHandledBy !== incomingHandledBy && !isAdmin) {
+      // 1b. Enforce Barangay San Rafael Jurisdiction: Rescue option is available ONLY within Barangay San Rafael boundary
+      if (['ACKNOWLEDGED', 'RESPONDING', 'RESCUED'].includes(status) && !isInsideBarangaySanRafael(currentAlert.latitude, currentAlert.longitude)) {
         return {
-          error: 'ALREADY_ASSIGNED',
-          message: 'This SOS has already been assigned to another rescuer.',
+          error: 'OUTSIDE_BARANGAY',
+          message: 'Rescue option is available ONLY within Barangay San Rafael boundary.',
           alert: currentAlert
         };
       }
-      if (currentHandledBy && !incomingHandledBy && !isAdmin) {
+
+      // 2. Multi-Rescue & En-Route Support:
+      // A rescuer can acknowledge/respond to multiple SOS alerts along their path.
+      // Only lock to a different rescuer if that other rescuer is ALREADY actively RESPONDING / RESCUED (not merely auto-acknowledged).
+      const isActivelyRespondingByOther = (
+        currentHandledBy &&
+        incomingHandledBy &&
+        currentHandledBy !== incomingHandledBy &&
+        !isAdmin &&
+        ['RESPONDING', 'RESCUED'].includes(currentAlert.status)
+      );
+      if (isActivelyRespondingByOther) {
         return {
           error: 'ALREADY_ASSIGNED',
-          message: 'This SOS has already been assigned to another rescuer.',
+          message: 'Another rescuer is already actively en-route (RESPONDING) to this SOS.',
           alert: currentAlert
         };
       }

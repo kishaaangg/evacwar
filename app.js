@@ -772,8 +772,37 @@ io.on('connection', (socket) => {
         console.warn('SosModel.createAlert returned null, alert creation skipped.');
         return;
       }
+      if (created.error === 'OUTSIDE_BARANGAY') {
+        socket.emit('sos:error', {
+          error: 'OUTSIDE_BARANGAY',
+          message: created.message || 'SOS & Rescue option is available ONLY within Barangay San Rafael boundary.'
+        });
+        return;
+      }
 
       io.emit('sos:new', created);
+      if (created.auto_assigned && created.responder_name) {
+        try {
+          const loraRoutes = require('./routes/loraRoutes');
+          loraRoutes.queueOutboundSosAck(created, created.status || 'ACKNOWLEDGED', created.responder_name, {
+            lat: created.rescuer_lat || 13.51037,
+            lng: created.rescuer_lng || 123.34810
+          });
+        } catch (_e) {}
+        io.emit('sos:update_status', {
+          id: Number(created.id),
+          sos_id: Number(created.id),
+          resident_id: created.resident_id ? Number(created.resident_id) : null,
+          status: created.status || 'ACKNOWLEDGED',
+          handled_by: created.handled_by || null,
+          responder_name: created.responder_name,
+          rescuer_lat: created.rescuer_lat || 13.51037,
+          rescuer_lng: created.rescuer_lng || 123.34810,
+          auto_assigned: true,
+          auto_assigned_type: created.auto_assigned_type || 'NEAREST_RESCUER',
+          alert: created
+        });
+      }
       NotificationModel.invalidateCache();
     } catch (err) {
       console.error('Error handling socket sos:new:', err);

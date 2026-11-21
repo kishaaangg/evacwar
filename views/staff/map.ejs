@@ -2377,24 +2377,33 @@
           return;
         }
 
+        const rCoords = (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number')
+          ? { lat: window._lastKnownUserGps.lat, lng: window._lastKnownUserGps.lng }
+          : { lat: 13.51037, lng: 123.34810 };
+
         btnEl.disabled = true; btnEl.classList.add('opacity-50');
         try {
+          if (window.evakwarLoraClient && window.evakwarLoraClient.isConnected && typeof window.evakwarLoraClient.sendText === 'function') {
+            const rName = (localStorage.getItem('evw_user_full_name') || 'Rescue Team').replace(/\|/g, '/').slice(0, 22);
+            const pkt = `EVW|ACK|${sosId}|0|${nextStatus}|${rName}|${Number(rCoords.lat).toFixed(5)},${Number(rCoords.lng).toFixed(5)}`;
+            window.evakwarLoraClient.sendText(pkt).catch(() => {});
+          }
           const res = await fetch('/staff/sos/status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: sosId, status: nextStatus })
+            body: JSON.stringify({ id: sosId, status: nextStatus, rescuer_lat: rCoords.lat, rescuer_lng: rCoords.lng })
           });
           const data = await res.json();
           if (data.success) {
             showSosToast(data.message || 'Status updated!', 'success');
-            if (nextStatus === 'RESPONDING' || nextStatus === 'RESCUED') {
-              if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.startTracking(sosId);
+            if (nextStatus === 'ACKNOWLEDGED' || nextStatus === 'RESPONDING' || nextStatus === 'RESCUED') {
+              if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.startTracking(Number(sosId));
             } else if (nextStatus === 'RESOLVED') {
-              if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.stopTracking();
+              if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.stopTracking(Number(sosId));
             }
             if (data.alert) addOrUpdateSosMarker(data.alert, false); else setTimeout(() => window.location.reload(), 600);
           } else {
-            showSosToast(data.message || 'This SOS has already been assigned to another rescuer.', 'error');
+            showSosToast(data.message || 'Unable to update SOS status.', 'error');
             if (data.alert) {
               addOrUpdateSosMarker(data.alert, false);
               if (typeof updateSosFeedCard === 'function') updateSosFeedCard(data.alert);
@@ -2402,7 +2411,7 @@
             btnEl.disabled = false; btnEl.classList.remove('opacity-50');
           }
         } catch (err) {
-          showSosToast('Network error updating status', 'error');
+          showSosToast('Offline / LoRa ACK transmitted', 'info');
           btnEl.disabled = false; btnEl.classList.remove('opacity-50');
         }
       }
