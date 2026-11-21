@@ -84,6 +84,14 @@
                     <i class="ph ph-navigation-arrow text-sm text-blue-600"></i>
                     <span class="hidden xl:inline">My Location</span>
                   </button>
+
+                  <!-- Nearest Evacuation Site Auto-Router Button (Haversine Offline + Online) -->
+                  <button id="btnNearestEvacRoute" type="button" onclick="window.findAndRouteNearestEvacCenter && window.findAndRouteNearestEvacCenter(true)"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Find &amp; Route to Nearest Evacuation Site">
+                    <i class="ph ph-compass text-sm"></i>
+                    <span>Nearest Evac</span>
+                  </button>
                 </div>
               </div>
 
@@ -465,6 +473,11 @@
                                     class="text-[10px] text-slate-400 font-medium truncate flex items-center gap-0.5">
                                     <i class="ph ph-map-pin text-rose-400"></i>
                                     <%= center.address || center.barangay || 'San Rafael' %>
+                                  </div>
+                                  <div class="text-[10px] font-mono font-bold text-indigo-700 truncate flex items-center gap-1 mt-0.5">
+                                    <i class="ph ph-compass text-indigo-500"></i>
+                                    <span><%= Number(center.latitude || 13.5102).toFixed(5) %>° N, <%= Number(center.longitude || 123.3470).toFixed(5) %>° E</span>
+                                    <span id="distance-<%= center.id %>" class="text-emerald-700 font-extrabold"></span>
                                   </div>
                                 </div>
                               </div>
@@ -1038,6 +1051,15 @@
           }
         });
         updateStaffCentersDirectory(centersList);
+        // Auto-compute offline/online Haversine distances & auto-route if launched with ?auto_route=nearest
+        try {
+          const urlParams = new URLSearchParams(window.location.search || '');
+          const shouldAutoRoute = urlParams.get('auto_route') === 'nearest' && !window.__evwAutoRoutedNearest;
+          if (shouldAutoRoute) window.__evwAutoRoutedNearest = true;
+          if (typeof window.findAndRouteNearestEvacCenter === 'function') {
+            setTimeout(() => { window.findAndRouteNearestEvacCenter(shouldAutoRoute); }, 450);
+          }
+        } catch (_) {}
       }
 
       function updateStaffCentersDirectory(centersList) {

@@ -139,6 +139,14 @@
                     <i class="ph ph-navigation-arrow text-sm text-blue-600"></i>
                     <span class="hidden xl:inline"></span>
                   </button>
+
+                  <!-- Nearest Evacuation Site Auto-Router Button (Haversine Offline + Online) -->
+                  <button id="btnAdminNearestEvacRoute" type="button" onclick="window.findAndRouteNearestEvacCenter && window.findAndRouteNearestEvacCenter(true)"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Find &amp; Route to Nearest Evacuation Site">
+                    <i class="ph ph-compass text-sm"></i>
+                    <span>Nearest Evac</span>
+                  </button>
               </div>
             </div>
 
@@ -464,6 +472,11 @@
                         <span class="truncate">
                           <%= center.address || 'San Rafael' %>
                         </span>
+                      </p>
+                      <p class="text-[11px] font-mono font-bold text-indigo-700 flex items-center gap-1.5">
+                        <i class="ph ph-compass text-indigo-600 text-xs shrink-0"></i>
+                        <span><%= Number(center.latitude || 13.5102).toFixed(5) %>° N, <%= Number(center.longitude || 123.3470).toFixed(5) %>° E</span>
+                        <span id="distance-<%= center.id %>" class="text-emerald-700 font-extrabold"></span>
                       </p>
                       <p class="text-[11px] sm:text-xs font-bold text-blue-700 flex items-center gap-1.5 font-mono">
                         <i class="ph ph-phone text-blue-600 text-xs shrink-0"></i>

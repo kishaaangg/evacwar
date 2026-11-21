@@ -615,6 +615,11 @@
                   <i class="ph ph-map-pin text-blue-500"></i>
                   <span class="truncate">${center.address || 'San Rafael'}</span>
                 </p>
+                <div class="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-[10px] font-mono font-bold text-slate-700" title="Evacuation Site GPS Coordinates (Latitude, Longitude)">
+                  <i class="ph ph-compass text-indigo-600 text-xs"></i>
+                  <span>${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E</span>
+                  <span id="popup-dist-${center.id}" class="text-emerald-700 font-extrabold">${(window._lastKnownUserGps && typeof window.computeHaversineKm === 'function') ? ('• ' + window.computeHaversineKm(window._lastKnownUserGps.lat, window._lastKnownUserGps.lng, lat, lng).toFixed(2) + ' km') : ''}</span>
+                </div>
               </div>
             </div>
 
@@ -2067,10 +2072,12 @@
                   <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black font-mono">${distLabel}</span>
                   ${routeBadgeHtml}
                 </div>
-                <div class="text-[11px] text-slate-700 font-bold mt-0.5 flex items-center gap-2">
+                <div class="text-[11px] text-slate-700 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
                   <span><i class="ph ph-person-simple-walk text-emerald-600"></i> ~${walkMins} min walk</span>
                   <span class="text-slate-300">•</span>
                   <span><i class="ph ph-car text-blue-600"></i> ~${driveMins} min drive</span>
+                  <span class="text-slate-300">•</span>
+                  <span class="font-mono text-[10px] text-indigo-700 font-bold">${dLat.toFixed(5)}°, ${dLng.toFixed(5)}°</span>
                 </div>
                 <div class="text-[10px] ${passedHazard ? 'text-amber-700 font-bold' : 'text-slate-500 font-medium'} truncate mt-0.5">${nextStepText}</div>
               </div>
@@ -2081,6 +2088,105 @@
           </div>
         `;
       }
+    };
+
+    /**
+     * Global Haversine Great-Circle Distance Formula (in kilometers):
+     *   a = sin²(Δφ/2) + cos(φ1)·cos(φ2)·sin²(Δλ/2)
+     *   c = 2 · atan2(√a, √(1−a))
+     *   d = R · c   (where Earth radius R = 6371 km)
+     * Works 100% offline using only GPS coordinates (lat1, lng1) and site coordinates (lat2, lng2).
+     */
+    window.computeHaversineKm = function (lat1, lng1, lat2, lng2) {
+      const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+      const R = 6371; // Earth radius in km
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    /**
+     * Identifies the Nearest Evacuation Center for ANY user (Resident, Staff, Rescuer, Admin)
+     * 100% offline using the Haversine distance formula on cached/embedded evacuation site coordinates,
+     * and automatically draws the suggested route on the active map!
+     */
+    window.findAndRouteNearestEvacCenter = async function (autoRoute = true) {
+      let centersList = [];
+      const centersEl = document.getElementById('centers-data');
+      if (centersEl && centersEl.textContent) {
+        try { centersList = JSON.parse(centersEl.textContent.trim()); } catch (_) {}
+      }
+      if ((!Array.isArray(centersList) || centersList.length === 0) && window.OFFLINE_BOOTSTRAP && Array.isArray(window.OFFLINE_BOOTSTRAP.centers)) {
+        centersList = window.OFFLINE_BOOTSTRAP.centers;
+      }
+      if ((!Array.isArray(centersList) || centersList.length === 0) && window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
+        try {
+          const cached = await window.EvakWarDB.getMapData();
+          if (cached && Array.isArray(cached.centers)) centersList = cached.centers;
+        } catch (_) {}
+      }
+      if (!Array.isArray(centersList) || centersList.length === 0) return null;
+
+      const SAN_RAFAEL_DEFAULT = { lat: 13.51037, lng: 123.3481, isFallback: true };
+      const getUserCoords = () => new Promise((resolve) => {
+        if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number' && !window._lastKnownUserGps.isFallback) {
+          return resolve(window._lastKnownUserGps);
+        }
+        if (!navigator.geolocation) return resolve(SAN_RAFAEL_DEFAULT);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
+            window._lastKnownUserGps = c;
+            resolve(c);
+          },
+          () => resolve(window._lastKnownUserGps || SAN_RAFAEL_DEFAULT),
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
+        );
+      });
+
+      const userPos = await getUserCoords();
+      let nearest = null;
+      let bestScore = Infinity;
+
+      centersList.forEach((center) => {
+        if (!center) return;
+        const cLat = parseFloat(center.latitude);
+        const cLng = parseFloat(center.longitude);
+        if (isNaN(cLat) || isNaN(cLng)) return;
+
+        const distKm = window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng);
+        const distEl = document.getElementById(`distance-${center.id}`);
+        if (distEl) distEl.textContent = `${distKm.toFixed(2)} km`;
+        const popDistEl = document.getElementById(`popup-dist-${center.id}`);
+        if (popDistEl) popDistEl.textContent = `• ${distKm.toFixed(2)} km`;
+
+        const maxCap = Math.max(1, parseInt(center.max_capacity || center.capacity || 25, 10));
+        const curOcc = parseInt(center.current_occupancy || 0, 10);
+        const isFull = curOcc >= maxCap;
+        // Prefer available shelters first; only pick full shelter if no available shelter exists nearby
+        const score = isFull ? (distKm + 50) : distKm;
+        if (score < bestScore) {
+          bestScore = score;
+          nearest = { ...center, latitude: cLat, longitude: cLng, distanceKm: distKm };
+        }
+      });
+
+      if (nearest) {
+        window._nearestEvacCenter = nearest;
+        if (autoRoute && typeof window.showEvakWarDirections === 'function') {
+          await window.showEvakWarDirections(
+            nearest.latitude,
+            nearest.longitude,
+            `${nearest.name || 'Nearest Evacuation Center'} (Nearest • ${nearest.distanceKm.toFixed(2)} km)`
+          );
+        }
+      }
+      return nearest;
     };
   </script>
   <script id="Evacwar-google-maps-loader">
