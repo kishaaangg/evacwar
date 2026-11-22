@@ -1105,12 +1105,12 @@ exports.createAdmin = async (req, res) => {
   try {
     const bcrypt = require('bcryptjs');
     const crypto = require('crypto');
-    const { first_name, last_name, email, contact_number, password } = req.body;
+    const { first_name, last_name, email, contact_number, phone_number, password } = req.body;
 
     const cleanFirst = (first_name || '').trim();
     const cleanLast = (last_name || '').trim();
     const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanContact = (contact_number || '').trim();
+    const cleanContact = (contact_number || phone_number || '').trim();
     const rawPassword = (password || '').trim();
 
     if (!cleanFirst || !cleanLast || !cleanEmail || !rawPassword) {
@@ -2957,6 +2957,7 @@ exports.updateSettings = async (req, res) => {
     return res.redirect('/admin/settings?success=' + encodeURIComponent('Admin profile and settings updated successfully!'));
   } catch (error) {
     console.error("Error updating admin settings:", error);
+    return res.redirect('/admin/settings?error=' + encodeURIComponent('Error updating admin settings: ' + error.message));
   }
 };
 
