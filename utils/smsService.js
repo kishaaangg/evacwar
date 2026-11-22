@@ -186,17 +186,15 @@ async function sendSmsBroadcast({ recipientPhones = [], testTargetPhone = null, 
     let rawMessage = (message || '').trim();
     const nearestEvacLink = evacuateUrl || process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
 
-    // Build SMS message body.
-    // NOTE: Philippine telcos (Globe/Smart/DITO under NTC anti-smishing rules) automatically mask
-    // ANY http/https URL or domain name in A2P SMS (iProgSMS) into "********".
-    // Therefore, strip raw URLs from the SMS text and append a clean, uncensored EvakWar App action instruction.
-    let finalMessage = rawMessage.replace(/https?:\/\/[^\s]+/gi, '').replace(/\s{2,}/g, ' ').trim();
+    // Build SMS message body; for RED and ORANGE alerts, always include the HTTPS EvakWar App deep-link
+    let finalMessage = rawMessage;
     if (title && !finalMessage.toUpperCase().includes(title.toUpperCase().slice(0, 18))) {
         finalMessage = `[EvakWar ${upperSeverity}] ${title}: ${finalMessage}`;
     }
     if (upperSeverity === 'RED' || upperSeverity === 'ORANGE') {
-        if (!/open the evakwar app/i.test(finalMessage)) {
-            finalMessage = `${finalMessage}\nAction: Open the EvakWar App and tap Evacuate for your nearest safe evacuation route.`;
+        const hasLink = /https?:\/\/[^\s]+\/(evacuate|resident\/evacuation)/i.test(finalMessage);
+        if (!hasLink) {
+            finalMessage = `${finalMessage}\nOpen EvakWar App (Nearest Evacuation Route): ${nearestEvacLink}`;
         }
     }
 

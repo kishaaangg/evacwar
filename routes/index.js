@@ -25,47 +25,58 @@ router.get(["/evacuate", "/nearest-evac"], (req, res, next) => {
   const isAndroidDevice = ua.includes('android');
   const isAlreadyWebFallback = req.query && req.query.web === '1';
 
-  // On Android phones, immediately launch the installed EvakWar Native App (ph.gov.baao.evakwar.resident)
-  // straight to the Evacuation Map with automatic Nearest Evacuation Center routing
-  if (isAndroidDevice && !isAlreadyWebFallback) {
+  // When opened via HTTPS link (unless ?web=1), show the clean "Open EvakWar App" launcher screen
+  // and immediately trigger the Android native App Intent (ph.gov.baao.evakwar.resident) on Android phones
+  if (!isAlreadyWebFallback) {
     const proto = (req.secure || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
     const host = req.headers.host || 'evacwar.onrender.com';
     const fallbackWebUrl = `${proto}://${host}/evacuate?web=1&auto_route=nearest`;
     const androidIntentUri = `intent://evacuate?auto_route=nearest#Intent;scheme=evakwar;package=ph.gov.baao.evakwar.resident;S.navigate_to=%2Fresident%2Fevacuation%3Fauto_route%3Dnearest;S.browser_fallback_url=${encodeURIComponent(fallbackWebUrl)};end`;
+    const appLaunchHref = isAndroidDevice ? androidIntentUri : 'evakwar://evacuate?auto_route=nearest';
 
     return res.send(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Opening EvakWar Evacuation Route...</title>
+  <title>Open EvakWar App — Nearest Evacuation Route</title>
   <style>
-    body { margin: 0; min-height: 100vh; background: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
-    .box { max-width: 360px; width: 100%; background: #1e293b; border: 2px solid #10b981; border-radius: 18px; padding: 24px 18px; box-shadow: 0 15px 35px rgba(0,0,0,0.45); }
-    .btn { display: block; width: 100%; padding: 13px 16px; border-radius: 12px; background: #10b981; color: #022c22; font-weight: 900; font-size: 13px; text-transform: uppercase; text-decoration: none; box-sizing: border-box; margin-top: 14px; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(160deg, #0b132b 0%, #0f172a 60%, #172554 100%); color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
+    .box { max-width: 390px; width: 100%; background: rgba(30, 41, 59, 0.95); border: 1.5px solid rgba(16, 185, 129, 0.55); border-radius: 24px; padding: 28px 22px; box-shadow: 0 20px 45px rgba(0,0,0,0.5); }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(248, 113, 113, 0.4); color: #fca5a5; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+    .logo { width: 64px; height: 64px; border-radius: 18px; background: #ffffff; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+    .logo img { width: 54px; height: 54px; object-fit: contain; }
+    h2 { font-size: 20px; font-weight: 900; margin: 0 0 8px; color: #ffffff; letter-spacing: -0.01em; }
+    p { font-size: 13px; color: #cbd5e1; margin: 0 0 20px; line-height: 1.55; }
+    .btn-primary { display: block; width: 100%; padding: 14px 18px; border-radius: 14px; background: #10b981; color: #022c22; font-weight: 900; font-size: 14px; text-decoration: none; box-sizing: border-box; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35); transition: transform 0.12s ease; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-secondary { display: block; width: 100%; padding: 12px 16px; border-radius: 14px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); color: #e2e8f0; font-weight: 700; font-size: 13px; text-decoration: none; box-sizing: border-box; margin-top: 10px; }
+    .hint { font-size: 11px; color: #94a3b8; margin-top: 14px; }
   </style>
 </head>
 <body>
   <div class="box">
-    <div style="font-size: 11px; font-weight: 900; color: #34d399; text-transform: uppercase; letter-spacing: 0.06em;">EvakWar Emergency Navigation</div>
-    <h2 style="font-size: 17px; font-weight: 900; margin: 6px 0 8px;">Opening EvakWar App...</h2>
-    <p style="font-size: 12px; color: #cbd5e1; margin: 0; line-height: 1.5;">Calculating your GPS location and routing to the nearest available evacuation center.</p>
-    <a id="openAppBtn" href="${androidIntentUri}" class="btn">Open EvakWar App (Nearest Evacuation)</a>
+    <div class="badge">Emergency Evacuation Route</div>
+    <div class="logo">
+      <img src="/images/evacwar-logo.png" alt="EvakWar" onerror="this.style.display='none'" />
+    </div>
+    <h2>Open the EvakWar App</h2>
+    <p>Launch EvakWar to get your live GPS location and automatic route to the nearest safe evacuation center in Barangay San Rafael.</p>
+    <a id="openAppBtn" href="${appLaunchHref}" class="btn-primary">Open EvakWar App</a>
+    <a id="webFallbackBtn" href="${fallbackWebUrl}" class="btn-secondary">Continue in Browser Map</a>
+    <div class="hint">Barangay San Rafael, Baao &bull; MDRRMO Command Center</div>
   </div>
   <script>
     (function () {
+      var isAndroid = ${JSON.stringify(isAndroidDevice)};
       var intentUrl = ${JSON.stringify(androidIntentUri)};
-      var fallbackUrl = ${JSON.stringify(fallbackWebUrl)};
-      try {
-        window.location.replace(intentUrl);
-      } catch (e) {
-        window.location.href = 'evakwar://evacuate?auto_route=nearest';
+      if (isAndroid) {
+        setTimeout(function () {
+          try {
+            window.location.href = intentUrl;
+          } catch (e) {}
+        }, 350);
       }
-      setTimeout(function () {
-        if (!document.hidden) {
-          window.location.replace(fallbackUrl);
-        }
-      }, 2200);
     })();
   </script>
 </body>
