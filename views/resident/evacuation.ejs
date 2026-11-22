@@ -586,6 +586,45 @@
             }, 400);
           }
         } catch (_) {}
+      }
+    }
+
+    function renderResidentCenters(centersList, map) {
+      if (!map) return;
+      if (!Array.isArray(centersList)) centersList = [];
+
+      // MapLibre Centers Rendering
+      if (typeof map.getLayer === 'function') {
+        const currentIds = new Set();
+        centersList.forEach(center => {
+          if (!center || !center.id) return;
+          const cId = String(center.id);
+          currentIds.add(cId);
+
+          const lat = parseFloat(center.latitude) || 13.5102;
+          const lng = parseFloat(center.longitude) || 123.3470;
+          const percent = Math.round(((parseInt(center.current_occupancy, 10) || 0) / (parseInt(center.max_capacity, 10) || 25)) * 100);
+          let markerColor = '#10b981';
+          if (percent >= 100) markerColor = '#ef4444';
+          else if (percent >= 80) markerColor = '#f97316';
+
+          const popupContent = window.buildCenterPopupHtml(center, 'resident');
+
+          // If popup for this center is currently open on map, update live DOM immediately
+          const livePopupEl = document.getElementById(`popup-center-${center.id}`);
+          if (livePopupEl) {
+            livePopupEl.outerHTML = popupContent;
+          }
+
+          if (centerMarkersMap[cId] && centerMarkersMap[cId].marker) {
+            const existing = centerMarkersMap[cId];
+            if (typeof existing.marker.setLngLat === 'function') {
+              existing.marker.setLngLat([lng, lat]);
+            }
+            if (existing.popup) existing.popup.setHTML(popupContent);
+            existing.lat = lat;
+            existing.lng = lng;
+            existing.triggerClick = () => flyToCenter(lng, lat, center.id);
             const markerEl = (existing.marker.getElement && typeof existing.marker.getElement === 'function') ? existing.marker.getElement() : null;
             if (markerEl) {
               const path = markerEl.querySelector('path');
@@ -593,12 +632,6 @@
               const rect = markerEl.querySelector('rect');
               if (rect) rect.setAttribute('fill', markerColor);
             }
-          }
-
-          // If popup for this center is currently open on map, update live DOM immediately
-          const livePopupEl = document.getElementById(`popup-center-${center.id}`);
-          if (livePopupEl) {
-            livePopupEl.outerHTML = popupContent;
           } else if (typeof maplibregl !== 'undefined') {
             const el = window.createMaplibreCenterMarkerEl(markerColor, center);
             const popup = new maplibregl.Popup({
