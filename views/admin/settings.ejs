@@ -3,412 +3,702 @@
   <div class="app-main-layout">
     <%- include('../partials/sidebar') %>
 
-      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-24 lg:pb-8 overflow-x-hidden">
+      <main class="app-content flex flex-col min-h-screen bg-slate-50 relative pb-28 lg:pb-12 overflow-x-hidden">
         <div class="max-w-7xl mx-auto space-y-6 flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+
+          <!-- PAGE HEADER & PRIMARY CTA -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
+                  System Administration
+                </span>
+                <span class="text-xs text-slate-400">•</span>
+                <span class="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                  <i class="ph ph-map-pin text-blue-600"></i> MDRRMO San Rafael HQ
+                </span>
+              </div>
+              <h1 class="text-2xl sm:text-3xl font-black text-blue-950 tracking-tight">Admin & System Settings</h1>
+              <p class="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                Manage authorized administrator accounts, command center credentials, and system profile settings.
+              </p>
+            </div>
+
+            <!-- Primary Header Action: Add Administrator (Directly at the Top) -->
+            <div class="flex items-center gap-3 shrink-0">
+              <button type="button" onclick="openAddAdminModal()"
+                class="btn bg-blue-900 hover:bg-blue-950 text-white text-xs sm:text-sm font-bold py-2.5 px-5 rounded-2xl shadow-md shadow-blue-950/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer">
+                <i class="ph ph-user-plus text-lg"></i>
+                <span>Add Administrator</span>
+              </button>
+            </div>
+          </div>
 
           <!-- FEEDBACK NOTIFICATIONS -->
           <% if (locals.statusMsg) { %>
             <div
-              class="p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-900 rounded-xl shadow-xs flex items-center justify-between gap-3">
+              class="p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-900 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-in fade-in duration-150">
               <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
-                <i class="ph ph-check-circle text-xl text-emerald-600"></i>
-                <span>
-                  <%= locals.statusMsg %>
-                </span>
+                <i class="ph ph-check-circle text-xl text-emerald-600 shrink-0"></i>
+                <span><%= locals.statusMsg %></span>
               </div>
-              <button onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 text-base"><i
-                  class="ph ph-x"></i></button>
+              <button onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 text-base cursor-pointer">
+                <i class="ph ph-x"></i>
+              </button>
             </div>
-            <% } %>
+          <% } %>
 
-              <% if (locals.errorMsg) { %>
-                <div
-                  class="p-4 bg-red-50 border-l-4 border-red-500 text-red-900 rounded-xl shadow-xs flex items-center justify-between gap-3">
-                  <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
-                    <i class="ph ph-warning-circle text-xl text-red-600"></i>
-                    <span>
-                      <%= locals.errorMsg %>
-                    </span>
+          <% if (locals.errorMsg) { %>
+            <div
+              class="p-4 bg-red-50 border-l-4 border-red-500 text-red-900 rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-in fade-in duration-150">
+              <div class="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+                <i class="ph ph-warning-circle text-xl text-red-600 shrink-0"></i>
+                <span><%= locals.errorMsg %></span>
+              </div>
+              <button onclick="this.parentElement.remove()" class="text-red-700 hover:text-red-950 text-base cursor-pointer">
+                <i class="ph ph-x"></i>
+              </button>
+            </div>
+          <% } %>
+
+          <!-- EXECUTIVE OVERVIEW METRIC CARDS STRIP -->
+          <% const adminList = locals.adminAccounts || []; %>
+          <% const onlineCount = adminList.filter(a => a.is_online).length; %>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- 1. Total Administrators -->
+            <div class="card p-4 sm:p-5 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <i class="ph ph-shield-check text-2xl"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Administrators</p>
+                <h3 class="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
+                  <%= adminList.length %> <span class="text-xs font-semibold text-slate-500">Accounts</span>
+                </h3>
+                <p class="text-[11px] text-blue-700 font-semibold truncate mt-0.5">Full Command Access</p>
+              </div>
+            </div>
+
+            <!-- 2. Active Online Admins -->
+            <div class="card p-4 sm:p-5 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 relative">
+                <i class="ph ph-broadcast text-2xl"></i>
+                <span class="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Online</p>
+                <h3 class="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
+                  <%= onlineCount %> <span class="text-xs font-semibold text-slate-500">Online</span>
+                </h3>
+                <p class="text-[11px] text-emerald-700 font-semibold truncate mt-0.5">Real-time WebSocket</p>
+              </div>
+            </div>
+
+            <!-- 3. Current Session User -->
+            <div class="card p-4 sm:p-5 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <i class="ph ph-user-check text-2xl"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Current User</p>
+                <h3 class="text-sm sm:text-base font-black text-slate-900 truncate leading-tight">
+                  <%= user ? user.name : 'Administrator' %>
+                </h3>
+                <p class="text-[11px] text-slate-500 truncate mt-0.5">
+                  <%= user ? user.email : 'admin@evakwar.gov.ph' %>
+                </p>
+              </div>
+            </div>
+
+            <!-- 4. Operational Jurisdiction -->
+            <div class="card p-4 sm:p-5 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <i class="ph ph-buildings text-2xl"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Command Center</p>
+                <h3 class="text-sm sm:text-base font-black text-slate-900 truncate leading-tight">
+                  MDRRMO Baao
+                </h3>
+                <p class="text-[11px] text-amber-700 font-semibold truncate mt-0.5">Barangay San Rafael</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- NAVIGATION TABS -->
+          <% const activeTab = locals.currentTab || 'admins'; %>
+          <div class="bg-white p-1.5 sm:p-2 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-wrap sm:flex-nowrap items-center gap-1.5">
+            <!-- Tab 1: Administrator Accounts (Default) -->
+            <button type="button" onclick="switchSettingsTab('admins')" id="tabBtn-admins" data-tab="admins"
+              class="settings-tab-btn flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 text-center cursor-pointer <%= activeTab === 'admins' ? 'bg-blue-900 text-white shadow-sm ring-2 ring-blue-900/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+              <i class="ph ph-shield-check text-base"></i>
+              <span>Administrator Accounts</span>
+              <span id="tabCountBadge"
+                class="ml-1 px-2 py-0.5 rounded-full text-[11px] font-black <%= activeTab === 'admins' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700' %>">
+                <%= adminList.length %>
+              </span>
+            </button>
+
+            <!-- Tab 2: Personal Profile -->
+            <button type="button" onclick="switchSettingsTab('profile')" id="tabBtn-profile" data-tab="profile"
+              class="settings-tab-btn flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 text-center cursor-pointer <%= activeTab === 'profile' ? 'bg-blue-900 text-white shadow-sm ring-2 ring-blue-900/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+              <i class="ph ph-user-circle text-base"></i>
+              <span>My Profile & Details</span>
+            </button>
+
+            <!-- Tab 3: Security & Password -->
+            <button type="button" onclick="switchSettingsTab('security')" id="tabBtn-security" data-tab="security"
+              class="settings-tab-btn flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 text-center cursor-pointer <%= activeTab === 'security' ? 'bg-blue-900 text-white shadow-sm ring-2 ring-blue-900/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>">
+              <i class="ph ph-shield-lock text-base"></i>
+              <span>Security & Password</span>
+            </button>
+
+            <!-- Tab 4: All Sections View -->
+            <button type="button" onclick="switchSettingsTab('all')" id="tabBtn-all" data-tab="all"
+              class="settings-tab-btn py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 text-center cursor-pointer <%= activeTab === 'all' ? 'bg-blue-900 text-white shadow-sm ring-2 ring-blue-900/20' : 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80' %>"
+              title="Show all sections together">
+              <i class="ph ph-squares-four text-base"></i>
+              <span class="hidden md:inline">All Sections</span>
+            </button>
+          </div>
+
+          <!-- ========================================================================= -->
+          <!-- TAB PANEL 1: ADMINISTRATOR ACCOUNTS MANAGEMENT (PROMINENT AT TOP)         -->
+          <!-- ========================================================================= -->
+          <div id="panel-admins" class="settings-panel space-y-4 <%= (activeTab === 'admins' || activeTab === 'all') ? '' : 'hidden' %>">
+            <section class="card bg-white border border-slate-200/90 shadow-soft rounded-3xl overflow-hidden">
+              
+              <!-- Toolbar Header -->
+              <div class="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/60 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="flex items-start gap-3.5">
+                  <div class="w-11 h-11 rounded-2xl bg-blue-900 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-900/20">
+                    <i class="ph ph-shield-check text-2xl"></i>
                   </div>
-                  <button onclick="this.parentElement.remove()" class="text-red-700 hover:text-red-950 text-base"><i
-                      class="ph ph-x"></i></button>
+                  <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <h2 class="font-black text-blue-950 text-base sm:text-lg leading-tight">Administrator Accounts</h2>
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-50 text-blue-800 border border-blue-200">
+                        <%= adminList.length %> Authorized
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Authorized MDRRMO administrators with complete Command Center, SOS dispatch, and user management authority.
+                    </p>
+                  </div>
                 </div>
-                <% } %>
 
-                  <!-- 1. USER PROFILE AVATAR & HERO CARD (OWN DEDICATED PHOTO SAVE FORM) -->
-                  <form id="avatarUploadForm" action="/admin/settings" method="POST" enctype="multipart/form-data"
-                    class="card p-5 sm:p-6 bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900 text-white rounded-2xl shadow-md border border-white/10 relative overflow-hidden">
-                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+                <!-- Right Actions: Search + Add Admin -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+                  <div class="relative w-full sm:w-64">
+                    <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+                    <input type="text" id="adminSearchInput" oninput="filterAdminList()"
+                      placeholder="Search name, email, phone..."
+                      class="w-full pl-10 pr-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium text-slate-800 placeholder:text-slate-400 shadow-2xs" />
+                  </div>
 
-                    <!-- Hidden File Input for Avatar Upload -->
-                    <input type="file" id="photo-upload-input" name="profile_photo" accept="image/*" class="hidden"
-                      onchange="previewProfilePhoto(this)" />
+                  <button type="button" onclick="openAddAdminModal()"
+                    class="btn bg-blue-900 hover:bg-blue-950 text-white text-xs sm:text-sm font-bold py-2 px-4 rounded-xl shadow-xs flex items-center justify-center gap-2 shrink-0 transition-colors cursor-pointer">
+                    <i class="ph ph-user-plus text-base"></i>
+                    <span>Add Administrator</span>
+                  </button>
+                </div>
+              </div>
 
-                    <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10">
-
-                      <!-- Profile Photo & Change Avatar Trigger -->
-                      <div class="relative group shrink-0">
-                        <div
-                          class="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-white/10 border-4 border-white/20 shadow-md flex items-center justify-center relative">
-                          <% let rawSettingsPhoto=(user && user.profile_photo) ? user.profile_photo :
-                            (locals.profilePhoto ? locals.profilePhoto : null); let settingsPhotoSrc=null; if
-                            (rawSettingsPhoto) { settingsPhotoSrc=(rawSettingsPhoto.startsWith('http') ||
-                            rawSettingsPhoto.startsWith('/')) ? rawSettingsPhoto :
-                            `/uploads/profiles/${rawSettingsPhoto}`; } %>
-                            <% if (settingsPhotoSrc) { %>
-                              <img loading="lazy" id="profile-avatar-img" src="<%= settingsPhotoSrc %>" decoding="async" alt="Profile"
-                                class="w-full h-full object-cover"
-                                onerror="this.style.display='none'; const ph=document.getElementById('profile-avatar-placeholder'); if(ph) ph.classList.remove('hidden');" />
-                              <i class="ph ph-user-circle text-5xl text-blue-200 hidden"
-                                id="profile-avatar-placeholder"></i>
-                              <% } else { %>
-                                <i class="ph ph-user-circle text-5xl text-blue-200" id="profile-avatar-placeholder"></i>
-                                <img loading="lazy" id="profile-avatar-img" src="" alt="Profile"
-                                  class="w-full h-full object-cover hidden" / decoding="async">
-                                <% } %>
-                        </div>
-
-                        <!-- Change Photo Overlay Button -->
-                        <label for="photo-upload-input" title="Click to choose a new profile photo"
-                          class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center cursor-pointer shadow-md transition-transform hover:scale-110 border-2 border-white">
-                          <i class="ph ph-camera text-base"></i>
-                        </label>
-                      </div>
-
-                      <!-- User Meta Info -->
-                      <div class="text-center sm:text-left flex-1 min-w-0">
-                        <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
-                          <% let headerName=(user && user.name) ? user.name : 'Administrator' ; if
-                            (headerName==='Super Admin' || headerName==='Super Administrator' ||
-                            headerName==='Administrator Administrator' || headerName==='Super' ) {
-                            headerName='Administrator' ; } %>
-                            <h2 class="text-xl sm:text-2xl font-black text-white tracking-wide truncate max-w-md">
-                              <%= headerName %>
-                            </h2>
-                            <span
-                              class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/30 text-purple-200 border border-purple-400/30 shadow-2xs">
-                              Administrator
-                            </span>
-                        </div>
-
-                        <p class="text-xs sm:text-sm text-blue-200/90 font-medium truncate mb-2.5">
-                          <%= user.email || 'admin@evakwar.gov.ph' %>
-                        </p>
-
-                        <div
-                          class="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-blue-100/80 font-semibold">
-                          <span class="flex items-center gap-1"><i class="ph ph-phone text-blue-300"></i>
-                            <%= (resident && resident.contact_number) ? resident.contact_number
-                              : 'Hotline: 0900-000-0000' %>
-                          </span>
-                          <span class="flex items-center gap-1"><i class="ph ph-shield-check text-blue-300"></i> Global
-                            Municipal Authority</span>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    <!-- Dedicated Avatar Save Bar right inside Hero Card -->
-                    <div id="avatar-actions-bar"
-                      class="hidden mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
-                      <div class="flex items-center gap-2 text-emerald-300 font-bold">
-                        <i class="ph ph-check-circle text-lg"></i>
-                        <span>New photo ready to save!</span>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <button type="button" onclick="resetProfilePhoto()"
-                          class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors">
-                          Cancel
-                        </button>
-                        <button type="submit" id="save-avatar-btn"
-                          class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5">
-                          <i class="ph ph-floppy-disk text-sm"></i> Save Profile Photo
-                        </button>
-                      </div>
-                    </div>
-
-                  </form>
-
-                  <!-- 2. PERSONAL INFORMATION FORM CARD (OWN DEDICATED SAVE CHANGES FORM) -->
-                  <form id="profileDetailsForm" action="/admin/settings" method="POST"
-                    class="card p-5 sm:p-6 bg-white border border-slate-200 shadow-soft rounded-2xl space-y-6">
-                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
-
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <h3 class="font-bold text-blue-950 text-base sm:text-lg flex items-center gap-2.5">
-                        <i class="ph ph-user-circle-gear text-xl text-blue-600"></i> Administrator Profile Details
-                      </h3>
-
-                      <div class="flex items-center gap-2">
-                        <span id="editing-indicator"
-                          class="hidden text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 animate-pulse">
-                          ✏️ Editing Mode
-                        </span>
-                        <button id="edit-profile-btn" type="button" onclick="toggleEditMode(true)"
-                          class="btn bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs sm:text-sm font-bold py-1.5 px-3.5 rounded-xl border border-blue-200 flex items-center gap-1.5 transition-all active:scale-95 shadow-xs">
-                          <i class="ph ph-pencil-simple text-sm"></i> Edit Profile
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <!-- First Name -->
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">First Name</label>
-                        <div
-                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
-                          <% if (resident && resident.first_name && resident.first_name !=='Super' &&
-                            resident.first_name !=='Administrator' ) { %>
-                            <%= resident.first_name %>
-                              <% } else { %>
-                                <span class="text-slate-400 font-normal italic">Not set (Click Edit Profile)</span>
-                                <% } %>
-                        </div>
-                        <input type="text" name="first_name"
-                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
-                          value="<%= (resident && resident.first_name && resident.first_name !== 'Super' && resident.first_name !== 'Administrator') ? resident.first_name : '' %>"
-                          placeholder="Enter first name" />
-                      </div>
-
-                      <!-- Last Name -->
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Last Name</label>
-                        <div
-                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
-                          <% if (resident && resident.last_name && resident.last_name !=='Admin' && resident.last_name
-                            !=='Administrator' ) { %>
-                            <%= resident.last_name %>
-                              <% } else { %>
-                                <span class="text-slate-400 font-normal italic">Not set (Click Edit Profile)</span>
-                                <% } %>
-                        </div>
-                        <input type="text" name="last_name"
-                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
-                          value="<%= (resident && resident.last_name && resident.last_name !== 'Admin' && resident.last_name !== 'Administrator') ? resident.last_name : '' %>"
-                          placeholder="Enter last name" />
-                      </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <!-- Contact Number -->
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mobile / Contact
-                          Number</label>
-                        <div
-                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
-                          <%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>
-                        </div>
-                        <input type="text" id="admin_contact_number" name="contact_number" pattern="09[0-9]{9}"
-                          maxlength="11"
-                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
-                          value="<%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>"
-                          placeholder="09123456789" title="11-digit Philippine mobile number starting with 09" />
-                      </div>
-
-                      <!-- Email Address -->
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email Address</label>
-                        <div
-                          class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
-                          <%= user ? (user.email || 'admin@evakwar.gov.ph' ) : 'admin@evakwar.gov.ph' %>
-                        </div>
-                        <input type="email" name="email"
-                          class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
-                          value="<%= user ? (user.email || 'admin@evakwar.gov.ph') : 'admin@evakwar.gov.ph' %>" />
-                      </div>
-                    </div>
-
-                    <!-- Role Identifier -->
-                    <div>
-                      <label class="block text-xs font-bold text-slate-500 uppercase mb-1">System Role &
-                        Jurisdiction</label>
-                      <div
-                        class="font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-100 rounded-xl border border-slate-200">
-                        Administrator
-                      </div>
-                    </div>
-
-                    <!-- ACTION BUTTONS (VISIBLE ONLY IN EDIT MODE) -->
-                    <div id="profile-actions"
-                      class="hidden flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                      <button type="button" onclick="toggleEditMode(false)"
-                        class="btn btn-outline text-xs sm:text-sm font-bold text-slate-600 bg-white border-slate-300 py-2.5 px-5 rounded-xl hover:bg-slate-50">
-                        Cancel
-                      </button>
-                      <button type="submit" id="save-profile-btn"
-                        class="btn btn-primary text-xs sm:text-sm font-bold py-2.5 px-6 rounded-xl shadow-soft flex items-center gap-2">
-                        <i class="ph ph-floppy-disk text-base"></i> Save Changes
-                      </button>
-                    </div>
-
-                  </form>
-
-                  <!-- 3. STANDALONE SECURITY & CHANGE PASSWORD CARD -->
-                  <form id="passwordForm" action="/admin/settings" method="POST"
-                    class="card p-5 sm:p-6 bg-white border border-slate-200 shadow-soft rounded-2xl space-y-4">
-                    <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
-                    <div class="pb-3 border-b border-slate-100">
-                      <h3 class="font-bold text-blue-950 text-base sm:text-lg flex items-center gap-2.5">
-                        <i class="ph ph-shield-lock text-xl text-amber-500"></i> Security & Change Password
-                      </h3>
-                      <p class="text-xs text-slate-500 mt-0.5">Keep your administrative account safe by updating your
-                        password regularly.</p>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Current Password</label>
-                        <input type="password" name="current_password" required
-                          class="form-control w-full text-xs sm:text-sm font-medium" placeholder="••••••••" />
-                      </div>
-
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">New Password</label>
-                        <input type="password" id="admin_new_password" name="new_password" required minlength="8"
-                          class="form-control w-full text-xs sm:text-sm font-medium"
-                          placeholder="Min. 8 chars (letters & numbers)" />
-                      </div>
-
-                      <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Confirm Password</label>
-                        <input type="password" id="admin_confirm_password" name="confirm_password" required
-                          minlength="8" class="form-control w-full text-xs sm:text-sm font-medium"
-                          placeholder="Repeat new password" />
-                      </div>
-                    </div>
-
-                    <div class="flex justify-end pt-2">
-                      <button type="submit"
-                        class="btn bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold py-2.5 px-6 rounded-xl shadow-xs flex items-center gap-2">
-                        <i class="ph ph-key text-base"></i> Update Password
-                      </button>
-                    </div>
-                  </form>
-
-                  <!-- 4. Administrator Accounts Management -->
-                  <section class="card bg-white border border-slate-200 shadow-soft rounded-2xl overflow-hidden">
-                    <div class="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div class="flex items-start gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                          <i class="ph ph-shield-check text-xl"></i>
-                        </div>
-                        <div>
-                          <div class="flex items-center gap-2 flex-wrap">
-                            <h3 class="font-bold text-blue-950 text-base sm:text-lg leading-tight">Administrator Accounts</h3>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                              <%= (locals.adminAccounts || []).length %> Total
-                            </span>
-                          </div>
-                          <p class="text-xs text-slate-500 mt-1">
-                            Manage authorized system administrators with full Command Center access.
-                          </p>
-                        </div>
-                      </div>
-
-                      <button type="button" onclick="openAddAdminModal()"
-                        class="btn bg-blue-900 hover:bg-blue-950 text-white text-xs sm:text-sm font-bold py-2.5 px-5 rounded-xl shadow-xs flex items-center justify-center gap-2 shrink-0 transition-colors cursor-pointer">
-                        <i class="ph ph-user-plus text-base"></i> Add Administrator
-                      </button>
-                    </div>
-
-                    <div class="divide-y divide-slate-100">
-                      <% const adminList = locals.adminAccounts || []; %>
-                      <% if (adminList.length === 0) { %>
-                        <div class="p-8 text-center text-sm text-slate-400">
+              <!-- Desktop Table View -->
+              <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left border-collapse table-fixed">
+                  <colgroup>
+                    <col style="width: 32%;">
+                    <col style="width: 26%;">
+                    <col style="width: 18%;">
+                    <col style="width: 14%;">
+                    <col style="width: 10%;">
+                  </colgroup>
+                  <thead class="bg-slate-100/80 border-b border-slate-200 text-slate-700 select-none text-[11px] font-black uppercase tracking-wider">
+                    <tr>
+                      <th class="py-3 px-5">Administrator Member</th>
+                      <th class="py-3 px-4">Email Address</th>
+                      <th class="py-3 px-4">Contact Number</th>
+                      <th class="py-3 px-4 text-center">System Role</th>
+                      <th class="py-3 px-5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminTableBody" class="divide-y divide-slate-100 text-sm font-medium">
+                    <% if (adminList.length === 0) { %>
+                      <tr>
+                        <td colspan="5" class="py-12 text-center text-sm text-slate-400 font-medium">
                           No administrator accounts found.
-                        </div>
-                      <% } else { %>
-                        <% adminList.forEach(function(adm) {
-                          const admPhoto = adm.photo_url
-                            ? ((adm.photo_url.startsWith('http') || adm.photo_url.startsWith('/')) ? adm.photo_url : '/uploads/' + adm.photo_url)
-                            : null;
-                          const admInitial = (adm.full_name || adm.email || 'A').charAt(0).toUpperCase();
-                        %>
-                          <div class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors">
-                            <div class="flex items-center gap-3.5 min-w-0">
+                        </td>
+                      </tr>
+                    <% } else { %>
+                      <% adminList.forEach(function(adm) {
+                        const admPhoto = adm.profile_photo
+                          ? ((adm.profile_photo.startsWith('http') || adm.profile_photo.startsWith('/')) ? adm.profile_photo : '/uploads/profiles/' + adm.profile_photo)
+                          : null;
+                        const admInitial = (adm.name || adm.email || 'A').charAt(0).toUpperCase();
+                      %>
+                        <tr class="admin-table-row hover:bg-slate-50/80 transition-colors"
+                          data-name="<%= (adm.name || '').toLowerCase() %>"
+                          data-email="<%= (adm.email || '').toLowerCase() %>"
+                          data-contact="<%= (adm.contact_number || '').toLowerCase() %>">
+                          
+                          <!-- Name & Avatar -->
+                          <td class="py-3.5 px-5">
+                            <div class="flex items-center gap-3 min-w-0">
                               <div class="relative shrink-0">
                                 <% if (admPhoto) { %>
-                                  <img src="<%= admPhoto %>" alt="<%= adm.full_name %>"
-                                    class="w-11 h-11 rounded-full object-cover border border-slate-200 bg-slate-100" />
+                                  <img src="<%= admPhoto %>" alt="<%= adm.name %>"
+                                    class="w-10 h-10 rounded-full object-cover border border-slate-200 bg-slate-100" />
                                 <% } else { %>
-                                  <div class="w-11 h-11 rounded-full bg-blue-950 text-white font-bold text-sm flex items-center justify-center border border-blue-900">
+                                  <div class="w-10 h-10 rounded-full bg-blue-900 text-white font-bold text-sm flex items-center justify-center border border-blue-950 shadow-2xs">
                                     <%= admInitial %>
                                   </div>
                                 <% } %>
-                                <span title="<%= adm.is_online ? 'Online' : 'Offline' %>"
+                                <span title="<%= adm.is_online ? 'Active Online' : 'Offline' %>"
                                   class="w-3 h-3 rounded-full border-2 border-white absolute -bottom-0.5 -right-0.5 <%= adm.is_online ? 'bg-emerald-500' : 'bg-slate-300' %>"></span>
                               </div>
 
                               <div class="min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                  <span class="font-bold text-slate-900 text-sm truncate"><%= adm.full_name %></span>
+                                  <span class="font-bold text-slate-900 text-sm truncate"><%= adm.name %></span>
                                   <% if (adm.is_current_user) { %>
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                                       <span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span> Current Session
                                     </span>
                                   <% } %>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-slate-500">
-                                  <span class="inline-flex items-center gap-1 truncate">
-                                    <i class="ph ph-envelope-simple text-slate-400"></i> <%= adm.email %>
-                                  </span>
-                                  <% if (adm.contact_number) { %>
-                                    <span class="text-slate-300 hidden sm:inline">•</span>
-                                    <span class="inline-flex items-center gap-1">
-                                      <i class="ph ph-phone text-slate-400"></i> <%= adm.contact_number %>
-                                    </span>
-                                  <% } %>
-                                </div>
+                                <span class="text-xs text-slate-400 font-medium">
+                                  <%= adm.is_online ? 'Active now' : 'Offline' %>
+                                </span>
                               </div>
                             </div>
+                          </td>
 
-                            <div class="flex items-center justify-between sm:justify-end gap-3 pl-14 sm:pl-0 shrink-0">
-                              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                                <i class="ph ph-shield-star text-blue-700"></i> System Admin
+                          <!-- Email -->
+                          <td class="py-3.5 px-4 text-slate-700 truncate">
+                            <span class="inline-flex items-center gap-1.5 text-xs font-semibold">
+                              <i class="ph ph-envelope-simple text-slate-400 text-sm"></i>
+                              <%= adm.email %>
+                            </span>
+                          </td>
+
+                          <!-- Contact Number -->
+                          <td class="py-3.5 px-4 text-slate-700">
+                            <% if (adm.contact_number && adm.contact_number !== '09000000000') { %>
+                              <span class="inline-flex items-center gap-1.5 text-xs font-semibold">
+                                <i class="ph ph-phone text-slate-400 text-sm"></i>
+                                <%= adm.contact_number %>
                               </span>
+                            <% } else { %>
+                              <span class="text-xs text-slate-400 italic">None set</span>
+                            <% } %>
+                          </td>
 
-                              <% if (!adm.is_current_user && adminList.length > 1) { %>
-                                <form action="/admin/admins/delete/<%= adm.id %>" method="POST"
-                                  onsubmit="return confirm('Remove administrator access for <%= adm.full_name.replace(/'/g, '') %>? This account will be permanently deleted.');">
-                                  <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>" />
-                                  <button type="submit"
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-colors cursor-pointer"
-                                    title="Remove Administrator">
-                                    <i class="ph ph-trash text-sm"></i> Remove
-                                  </button>
-                                </form>
-                              <% } else { %>
-                                <span class="text-[11px] font-medium text-slate-400 px-2 select-none">Protected</span>
-                              <% } %>
+                          <!-- Role Badge -->
+                          <td class="py-3.5 px-4 text-center">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                              <i class="ph ph-shield-star text-xs"></i> System Admin
+                            </span>
+                          </td>
+
+                          <!-- Actions -->
+                          <td class="py-3.5 px-5 text-right">
+                            <% if (!adm.is_current_user && adminList.length > 1) { %>
+                              <form action="/admin/admins/delete/<%= adm.id %>" method="POST" class="inline"
+                                onsubmit="return confirm('Remove administrator access for <%= adm.name.replace(/'/g, '') %>? This administrator account will be permanently removed.');">
+                                <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>" />
+                                <button type="submit"
+                                  class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 hover:text-red-700 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-colors cursor-pointer"
+                                  title="Delete Administrator Account">
+                                  <i class="ph ph-trash text-sm"></i> Remove
+                                </button>
+                              </form>
+                            <% } else if (adm.is_current_user) { %>
+                              <span class="text-[11px] font-semibold text-slate-400 px-2 select-none" title="You cannot delete your own active session">
+                                Protected (You)
+                              </span>
+                            <% } else { %>
+                              <span class="text-[11px] font-semibold text-slate-400 px-2 select-none" title="At least one administrator account must remain">
+                                Protected (Sole)
+                              </span>
+                            <% } %>
+                          </td>
+
+                        </tr>
+                      <% }); %>
+                    <% } %>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Mobile Card View -->
+              <div id="adminMobileList" class="block md:hidden divide-y divide-slate-100">
+                <% adminList.forEach(function(adm) {
+                  const admPhoto = adm.profile_photo
+                    ? ((adm.profile_photo.startsWith('http') || adm.profile_photo.startsWith('/')) ? adm.profile_photo : '/uploads/profiles/' + adm.profile_photo)
+                    : null;
+                  const admInitial = (adm.name || adm.email || 'A').charAt(0).toUpperCase();
+                %>
+                  <div class="admin-mobile-card p-4 space-y-3"
+                    data-name="<%= (adm.name || '').toLowerCase() %>"
+                    data-email="<%= (adm.email || '').toLowerCase() %>"
+                    data-contact="<%= (adm.contact_number || '').toLowerCase() %>">
+                    
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div class="relative shrink-0">
+                          <% if (admPhoto) { %>
+                            <img src="<%= admPhoto %>" alt="<%= adm.name %>"
+                              class="w-10 h-10 rounded-full object-cover border border-slate-200 bg-slate-100" />
+                          <% } else { %>
+                            <div class="w-10 h-10 rounded-full bg-blue-900 text-white font-bold text-sm flex items-center justify-center border border-blue-950">
+                              <%= admInitial %>
                             </div>
-                          </div>
-                        <% }); %>
+                          <% } %>
+                          <span class="w-2.5 h-2.5 rounded-full border-2 border-white absolute -bottom-0.5 -right-0.5 <%= adm.is_online ? 'bg-emerald-500' : 'bg-slate-300' %>"></span>
+                        </div>
+                        <div class="min-w-0">
+                          <h4 class="font-bold text-slate-900 text-sm truncate"><%= adm.name %></h4>
+                          <p class="text-xs text-slate-500 truncate"><%= adm.email %></p>
+                        </div>
+                      </div>
+
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                        Admin
+                      </span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-50">
+                      <span class="inline-flex items-center gap-1">
+                        <i class="ph ph-phone text-slate-400"></i>
+                        <%= (adm.contact_number && adm.contact_number !== '09000000000') ? adm.contact_number : 'No phone' %>
+                      </span>
+
+                      <% if (!adm.is_current_user && adminList.length > 1) { %>
+                        <form action="/admin/admins/delete/<%= adm.id %>" method="POST"
+                          onsubmit="return confirm('Remove administrator <%= adm.name.replace(/'/g, '') %>?');">
+                          <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>" />
+                          <button type="submit" class="text-xs font-bold text-red-600 hover:text-red-700 py-1 px-2.5 rounded-lg bg-red-50 cursor-pointer">
+                            Remove
+                          </button>
+                        </form>
+                      <% } else { %>
+                        <span class="text-[11px] text-slate-400 font-semibold">Protected</span>
                       <% } %>
                     </div>
-                  </section>
+                  </div>
+                <% }); %>
+              </div>
+
+              <!-- Search Empty Notice -->
+              <div id="adminSearchEmpty" class="hidden py-12 px-4 text-center">
+                <i class="ph ph-magnifying-glass text-3xl text-slate-300 mb-2"></i>
+                <p class="text-sm font-bold text-slate-600">No matching administrators found</p>
+                <p class="text-xs text-slate-400 mt-0.5">Try searching with a different name, email, or contact number.</p>
+              </div>
+
+            </section>
+          </div>
+
+          <!-- ========================================================================= -->
+          <!-- TAB PANEL 2: PERSONAL PROFILE & AVATAR DETAILS                            -->
+          <!-- ========================================================================= -->
+          <div id="panel-profile" class="settings-panel space-y-6 <%= (activeTab === 'profile' || activeTab === 'all') ? '' : 'hidden' %>">
+
+            <!-- 1. Hero Avatar & Identity Card -->
+            <form id="avatarUploadForm" action="/admin/settings" method="POST" enctype="multipart/form-data"
+              class="card p-5 sm:p-6 bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900 text-white rounded-3xl shadow-md border border-white/10 relative overflow-hidden">
+              <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+              <!-- Hidden File Input for Avatar Upload -->
+              <input type="file" id="photo-upload-input" name="profile_photo" accept="image/*" class="hidden"
+                onchange="previewProfilePhoto(this)" />
+
+              <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10">
+
+                <!-- Profile Photo Container -->
+                <div class="relative group shrink-0">
+                  <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-white/10 border-4 border-white/20 shadow-md flex items-center justify-center relative">
+                    <% let rawSettingsPhoto = (user && user.profile_photo) ? user.profile_photo : (locals.profilePhoto ? locals.profilePhoto : null);
+                       let settingsPhotoSrc = null;
+                       if (rawSettingsPhoto) {
+                         settingsPhotoSrc = (rawSettingsPhoto.startsWith('http') || rawSettingsPhoto.startsWith('/')) ? rawSettingsPhoto : `/uploads/profiles/${rawSettingsPhoto}`;
+                       }
+                    %>
+                    <% if (settingsPhotoSrc) { %>
+                      <img loading="lazy" id="profile-avatar-img" src="<%= settingsPhotoSrc %>" decoding="async" alt="Profile"
+                        class="w-full h-full object-cover"
+                        onerror="this.style.display='none'; const ph=document.getElementById('profile-avatar-placeholder'); if(ph) ph.classList.remove('hidden');" />
+                      <i class="ph ph-user-circle text-5xl text-blue-200 hidden" id="profile-avatar-placeholder"></i>
+                    <% } else { %>
+                      <i class="ph ph-user-circle text-5xl text-blue-200" id="profile-avatar-placeholder"></i>
+                      <img loading="lazy" id="profile-avatar-img" src="" alt="Profile" class="w-full h-full object-cover hidden" decoding="async">
+                    <% } %>
+                  </div>
+
+                  <!-- Change Photo Trigger -->
+                  <label for="photo-upload-input" title="Click to choose a new profile photo"
+                    class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center cursor-pointer shadow-md transition-transform hover:scale-110 border-2 border-white">
+                    <i class="ph ph-camera text-base"></i>
+                  </label>
+                </div>
+
+                <!-- User Meta Information -->
+                <div class="text-center sm:text-left flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
+                    <% let headerName = (user && user.name) ? user.name : 'Administrator';
+                       if (headerName === 'Super Admin' || headerName === 'Super Administrator' || headerName === 'Administrator Administrator' || headerName === 'Super') {
+                         headerName = 'Administrator';
+                       }
+                    %>
+                    <h2 class="text-xl sm:text-2xl font-black text-white tracking-wide truncate max-w-md">
+                      <%= headerName %>
+                    </h2>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/30 text-purple-200 border border-purple-400/30 shadow-2xs">
+                      System Administrator
+                    </span>
+                  </div>
+
+                  <p class="text-xs sm:text-sm text-blue-200/90 font-medium truncate mb-2.5">
+                    <%= user ? (user.email || 'admin@evakwar.gov.ph') : 'admin@evakwar.gov.ph' %>
+                  </p>
+
+                  <div class="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-blue-100/80 font-semibold">
+                    <span class="flex items-center gap-1">
+                      <i class="ph ph-phone text-blue-300"></i>
+                      <%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>
+                    </span>
+                    <span class="flex items-center gap-1">
+                      <i class="ph ph-shield-check text-blue-300"></i>
+                      MDRRMO Municipal Command
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Dedicated Avatar Save Bar -->
+              <div id="avatar-actions-bar"
+                class="hidden mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2 text-emerald-300 font-bold">
+                  <i class="ph ph-check-circle text-lg"></i>
+                  <span>New profile photo selected! Click save to update.</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="resetProfilePhoto()"
+                    class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="submit" id="save-avatar-btn"
+                    class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                    <i class="ph ph-floppy-disk text-sm"></i> Save Photo
+                  </button>
+                </div>
+              </div>
+
+            </form>
+
+            <!-- 2. Profile Details Form -->
+            <form id="profileDetailsForm" action="/admin/settings" method="POST"
+              class="card p-5 sm:p-6 bg-white border border-slate-200/90 shadow-soft rounded-3xl space-y-5">
+              <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                    <i class="ph ph-user-circle-gear text-xl"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-blue-950 text-base sm:text-lg leading-tight">Personal Details & Contacts</h3>
+                    <p class="text-xs text-slate-500">Update your operational name, email, and emergency contact number.</p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <span id="editing-indicator"
+                    class="hidden text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 animate-pulse">
+                    ✏️ Editing Mode
+                  </span>
+                  <button id="edit-profile-btn" type="button" onclick="toggleEditMode(true)"
+                    class="btn bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs sm:text-sm font-bold py-1.5 px-3.5 rounded-xl border border-blue-200 flex items-center gap-1.5 transition-all active:scale-95 shadow-xs cursor-pointer">
+                    <i class="ph ph-pencil-simple text-sm"></i> Edit Profile
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- First Name -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">First Name</label>
+                  <div
+                    class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                    <% if (resident && resident.first_name && resident.first_name !== 'Super' && resident.first_name !== 'Administrator') { %>
+                      <%= resident.first_name %>
+                    <% } else { %>
+                      <span class="text-slate-400 font-normal italic">Not set (Click Edit Profile)</span>
+                    <% } %>
+                  </div>
+                  <input type="text" name="first_name"
+                    class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                    value="<%= (resident && resident.first_name && resident.first_name !== 'Super' && resident.first_name !== 'Administrator') ? resident.first_name : '' %>"
+                    placeholder="Enter first name" />
+                </div>
+
+                <!-- Last Name -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Last Name</label>
+                  <div
+                    class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                    <% if (resident && resident.last_name && resident.last_name !== 'Admin' && resident.last_name !== 'Administrator') { %>
+                      <%= resident.last_name %>
+                    <% } else { %>
+                      <span class="text-slate-400 font-normal italic">Not set (Click Edit Profile)</span>
+                    <% } %>
+                  </div>
+                  <input type="text" name="last_name"
+                    class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                    value="<%= (resident && resident.last_name && resident.last_name !== 'Admin' && resident.last_name !== 'Administrator') ? resident.last_name : '' %>"
+                    placeholder="Enter last name" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Contact Number -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Mobile Contact Number</label>
+                  <div
+                    class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                    <%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>
+                  </div>
+                  <input type="text" id="admin_contact_number" name="contact_number" pattern="09[0-9]{9}" maxlength="11"
+                    class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                    value="<%= (resident && resident.contact_number) ? resident.contact_number : '09000000000' %>"
+                    placeholder="09123456789" title="11-digit Philippine mobile number starting with 09" />
+                </div>
+
+                <!-- Email Address -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                  <div
+                    class="profile-view-field font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-50 rounded-xl border border-slate-200/70">
+                    <%= user ? (user.email || 'admin@evakwar.gov.ph') : 'admin@evakwar.gov.ph' %>
+                  </div>
+                  <input type="email" name="email"
+                    class="profile-edit-field hidden form-control w-full text-xs sm:text-sm font-semibold"
+                    value="<%= user ? (user.email || 'admin@evakwar.gov.ph') : 'admin@evakwar.gov.ph' %>" />
+                </div>
+              </div>
+
+              <!-- Role & Jurisdiction -->
+              <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">System Role & Jurisdiction</label>
+                <div class="font-bold text-slate-800 text-sm py-2.5 px-3.5 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span>System Administrator (MDRRMO Command)</span>
+                  <span class="text-xs text-slate-400 font-semibold">San Rafael, Baao</span>
+                </div>
+              </div>
+
+              <!-- Action Buttons (Visible only in edit mode) -->
+              <div id="profile-actions" class="hidden flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onclick="toggleEditMode(false)"
+                  class="btn text-xs sm:text-sm font-bold text-slate-600 bg-white border border-slate-300 py-2.5 px-5 rounded-xl hover:bg-slate-50 cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" id="save-profile-btn"
+                  class="btn bg-blue-900 hover:bg-blue-950 text-white text-xs sm:text-sm font-bold py-2.5 px-6 rounded-xl shadow-soft flex items-center gap-2 cursor-pointer">
+                  <i class="ph ph-floppy-disk text-base"></i> Save Changes
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+
+          <!-- ========================================================================= -->
+          <!-- TAB PANEL 3: SECURITY & PASSWORD CHANGE                                   -->
+          <!-- ========================================================================= -->
+          <div id="panel-security" class="settings-panel <%= (activeTab === 'security' || activeTab === 'all') ? '' : 'hidden' %>">
+            <form id="passwordForm" action="/admin/settings" method="POST"
+              class="card p-5 sm:p-6 bg-white border border-slate-200/90 shadow-soft rounded-3xl space-y-5">
+              <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
+
+              <div class="pb-3 border-b border-slate-100 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <i class="ph ph-shield-lock text-2xl"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-blue-950 text-base sm:text-lg leading-tight">Security & Change Password</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">Protect administrative access by setting a strong alphanumeric password.</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Current Password</label>
+                  <input type="password" name="current_password" required
+                    class="form-control w-full text-xs sm:text-sm font-medium" placeholder="••••••••" />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">New Password</label>
+                  <input type="password" id="admin_new_password" name="new_password" required minlength="8"
+                    class="form-control w-full text-xs sm:text-sm font-medium"
+                    placeholder="Min. 8 chars (letters & numbers)" />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Confirm Password</label>
+                  <input type="password" id="admin_confirm_password" name="confirm_password" required minlength="8"
+                    class="form-control w-full text-xs sm:text-sm font-medium"
+                    placeholder="Repeat new password" />
+                </div>
+              </div>
+
+              <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-500 space-y-1">
+                <p class="font-bold text-slate-700 flex items-center gap-1.5">
+                  <i class="ph ph-info text-blue-600"></i> Password Guidelines:
+                </p>
+                <ul class="list-disc list-inside space-y-0.5 text-[11px] text-slate-600 pl-1">
+                  <li>At least 8 characters in length.</li>
+                  <li>Must contain both letters and numeric digits.</li>
+                  <li>Do not reuse previous or easily guessable passwords.</li>
+                </ul>
+              </div>
+
+              <div class="flex justify-end pt-2">
+                <button type="submit"
+                  class="btn bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold py-2.5 px-6 rounded-xl shadow-xs flex items-center gap-2 cursor-pointer">
+                  <i class="ph ph-key text-base"></i> Update Password
+                </button>
+              </div>
+            </form>
+          </div>
 
         </div>
         <%- include('../partials/footer-visible') %>
       </main>
   </div>
 
-  <!-- Add New Administrator Modal -->
+  <!-- ========================================================================= -->
+  <!-- ADD NEW ADMINISTRATOR MODAL                                               -->
+  <!-- ========================================================================= -->
   <div id="addAdminModal"
     class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
     onclick="if (event.target === this) closeAddAdminModal();">
-    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-        <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-blue-900 text-white flex items-center justify-center">
-            <i class="ph ph-user-plus text-lg"></i>
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center shadow-sm">
+            <i class="ph ph-user-plus text-xl"></i>
           </div>
           <div>
-            <h3 class="font-bold text-slate-900 text-base leading-tight">Add New Administrator</h3>
-            <p class="text-[11px] text-slate-500">Create a privileged account with full system permissions.</p>
+            <h3 class="font-black text-slate-900 text-base leading-tight">Add New Administrator</h3>
+            <p class="text-[11px] text-slate-500">Create an authorized account with full Command Center access.</p>
           </div>
         </div>
         <button type="button" onclick="closeAddAdminModal()"
-          class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 flex items-center justify-center transition-colors cursor-pointer"
+          class="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 flex items-center justify-center transition-colors cursor-pointer"
           aria-label="Close modal">
           <i class="ph ph-x text-lg"></i>
         </button>
@@ -480,7 +770,101 @@
     </div>
   </div>
 
+  <!-- SCRIPT LOGIC -->
   <script>
+    // Tab Switching
+    function switchSettingsTab(tabName) {
+      const panels = {
+        admins: document.getElementById('panel-admins'),
+        profile: document.getElementById('panel-profile'),
+        security: document.getElementById('panel-security')
+      };
+
+      const buttons = {
+        admins: document.getElementById('tabBtn-admins'),
+        profile: document.getElementById('tabBtn-profile'),
+        security: document.getElementById('tabBtn-security'),
+        all: document.getElementById('tabBtn-all')
+      };
+
+      const countBadge = document.getElementById('tabCountBadge');
+
+      if (tabName === 'all') {
+        Object.values(panels).forEach(p => { if (p) p.classList.remove('hidden'); });
+      } else {
+        Object.entries(panels).forEach(([key, p]) => {
+          if (!p) return;
+          if (key === tabName) {
+            p.classList.remove('hidden');
+          } else {
+            p.classList.add('hidden');
+          }
+        });
+      }
+
+      // Update Tab Button Styles
+      const activeClasses = 'bg-blue-900 text-white shadow-sm ring-2 ring-blue-900/20';
+      const inactiveClasses = 'text-slate-700 hover:text-slate-950 bg-slate-50 hover:bg-slate-100 border border-slate-200/80';
+
+      Object.entries(buttons).forEach(([key, btn]) => {
+        if (!btn) return;
+        btn.className = btn.className.replace(activeClasses, '').replace(inactiveClasses, '');
+        if (key === tabName) {
+          btn.className = `settings-tab-btn flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 text-center cursor-pointer ${activeClasses}`;
+        } else {
+          btn.className = `settings-tab-btn flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 text-center cursor-pointer ${inactiveClasses}`;
+        }
+      });
+
+      if (countBadge) {
+        if (tabName === 'admins') {
+          countBadge.className = 'ml-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-white/20 text-white';
+        } else {
+          countBadge.className = 'ml-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-slate-200 text-slate-700';
+        }
+      }
+
+      // Remember Tab Selection & Update URL
+      try {
+        localStorage.setItem('evakwar_admin_tab', tabName);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tabName);
+        window.history.replaceState({}, '', url.toString());
+      } catch (err) {}
+    }
+
+    // Real-Time Admin Search Filter
+    function filterAdminList() {
+      const q = (document.getElementById('adminSearchInput')?.value || '').trim().toLowerCase();
+      const rows = document.querySelectorAll('.admin-table-row');
+      const cards = document.querySelectorAll('.admin-mobile-card');
+      const emptyNotice = document.getElementById('adminSearchEmpty');
+
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const name = row.getAttribute('data-name') || '';
+        const email = row.getAttribute('data-email') || '';
+        const contact = row.getAttribute('data-contact') || '';
+        const match = !q || name.includes(q) || email.includes(q) || contact.includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+      });
+
+      cards.forEach(card => {
+        const name = card.getAttribute('data-name') || '';
+        const email = card.getAttribute('data-email') || '';
+        const contact = card.getAttribute('data-contact') || '';
+        const match = !q || name.includes(q) || email.includes(q) || contact.includes(q);
+        card.style.display = match ? '' : 'none';
+      });
+
+      if (emptyNotice) {
+        emptyNotice.classList.toggle('hidden', visibleCount > 0);
+      }
+    }
+
+    // Modal Controls
     function openAddAdminModal() {
       const modal = document.getElementById('addAdminModal');
       if (!modal) return;
@@ -509,8 +893,8 @@
       if (e.key === 'Escape') closeAddAdminModal();
     });
 
+    // Profile Edit Mode
     let isEditing = false;
-
     function toggleEditMode(enable) {
       isEditing = (typeof enable === 'boolean') ? enable : !isEditing;
 
@@ -591,6 +975,7 @@
       }
     }
 
+    // Form Validation Handlers
     document.addEventListener('DOMContentLoaded', () => {
       // Profile details validation
       const profileForm = document.getElementById('profileDetailsForm');
@@ -677,6 +1062,17 @@
             btn.innerHTML = '<i class="ph ph-spinner animate-spin text-base"></i> Creating...';
           });
         });
+      }
+
+      // Check saved tab or query param on load
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTab = urlParams.get('tab');
+      const hashTab = window.location.hash ? window.location.hash.replace('#', '') : null;
+      const savedTab = localStorage.getItem('evakwar_admin_tab');
+
+      const initialTab = urlTab || hashTab || savedTab || 'admins';
+      if (initialTab && initialTab !== 'admins') {
+        switchSettingsTab(initialTab);
       }
     });
   </script>

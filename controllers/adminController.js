@@ -1114,18 +1114,18 @@ exports.createAdmin = async (req, res) => {
     const rawPassword = (password || '').trim();
 
     if (!cleanFirst || !cleanLast || !cleanEmail || !rawPassword) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent('First name, last name, email, and password are required to create an admin account.'));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('First name, last name, email, and password are required to create an admin account.'));
     }
     if (!isValidPassword(rawPassword)) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
     }
     if (cleanContact && !isValidPhoneNumber(cleanContact)) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
     }
 
     const [existing] = await db.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [cleanEmail]);
     if (existing.length > 0) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent('An account with this email address already exists.'));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('An account with this email address already exists.'));
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -1147,10 +1147,10 @@ exports.createAdmin = async (req, res) => {
       console.warn('[createAdmin] Non-fatal profile insert notice:', profileErr.message);
     });
 
-    return res.redirect('/admin/settings?success=' + encodeURIComponent(`Administrator account for ${cleanFirst} ${cleanLast} (${cleanEmail}) created successfully!`));
+    return res.redirect('/admin/settings?tab=admins&success=' + encodeURIComponent(`Administrator account for ${cleanFirst} ${cleanLast} (${cleanEmail}) created successfully!`));
   } catch (error) {
     console.error('Error creating admin account:', error);
-    return res.redirect('/admin/settings?error=' + encodeURIComponent('Server error creating admin account: ' + error.message));
+    return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('Server error creating admin account: ' + error.message));
   }
 };
 
@@ -1160,24 +1160,24 @@ exports.deleteAdmin = async (req, res) => {
     const currentUserId = req.session ? Number(req.session.userId) : 0;
 
     if (!targetId || isNaN(targetId)) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent('Invalid admin account ID.'));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('Invalid admin account ID.'));
     }
     if (targetId === currentUserId) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent('You cannot delete your own currently logged-in administrator account.'));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('You cannot delete your own currently logged-in administrator account.'));
     }
 
     const [admins] = await db.execute("SELECT id FROM users WHERE role = 'admin'");
     if (admins.length <= 1) {
-      return res.redirect('/admin/settings?error=' + encodeURIComponent('Cannot delete the last remaining administrator account.'));
+      return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('Cannot delete the last remaining administrator account.'));
     }
 
     await db.execute('DELETE FROM residents WHERE user_id = ?', [targetId]).catch(() => {});
     await db.execute("DELETE FROM users WHERE id = ? AND role = 'admin'", [targetId]);
 
-    return res.redirect('/admin/settings?success=' + encodeURIComponent('Administrator account removed successfully.'));
+    return res.redirect('/admin/settings?tab=admins&success=' + encodeURIComponent('Administrator account removed successfully.'));
   } catch (error) {
     console.error('Error deleting admin account:', error);
-    return res.redirect('/admin/settings?error=' + encodeURIComponent('Error removing administrator account.'));
+    return res.redirect('/admin/settings?tab=admins&error=' + encodeURIComponent('Error removing administrator account.'));
   }
 };
 
@@ -2796,6 +2796,8 @@ exports.getSettings = async (req, res) => {
       };
     });
 
+    const onlineAdminCount = (adminAccounts || []).filter(a => a.is_online).length;
+
     res.render("admin/settings", {
       ...sharedSimData(),
       user: {
@@ -2813,6 +2815,8 @@ exports.getSettings = async (req, res) => {
         profile_photo: profilePhoto
       },
       adminAccounts: adminAccounts,
+      onlineAdminCount: onlineAdminCount,
+      currentTab: req.query.tab || 'admins',
       page: { title: "Settings" },
       statusMsg: req.query.success || null,
       errorMsg: req.query.error || null
@@ -2884,7 +2888,7 @@ exports.updateSettings = async (req, res) => {
 
     if (contact_number !== undefined && contact_number !== null && contact_number.trim() !== '') {
       if (!isValidPhoneNumber(contact_number.trim())) {
-        return res.redirect('/admin/settings?error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
+        return res.redirect('/admin/settings?tab=profile&error=' + encodeURIComponent(PHONE_ERROR_MESSAGE));
       }
     }
 
@@ -2911,32 +2915,34 @@ exports.updateSettings = async (req, res) => {
       const cleanEmail = email.trim().toLowerCase();
       const [existingEmail] = await db.execute('SELECT id FROM users WHERE email = ? AND id != ?', [cleanEmail, userId]);
       if (existingEmail.length > 0) {
-        return res.redirect('/admin/settings?error=' + encodeURIComponent('Email address is already in use by another account.'));
+        return res.redirect('/admin/settings?tab=profile&error=' + encodeURIComponent('Email address is already in use by another account.'));
       }
       await db.execute('UPDATE users SET email = ? WHERE id = ?', [cleanEmail, userId]);
     }
 
     // 5. Handle Password update if provided
+    let passwordUpdated = false;
     if (current_password || new_password || confirm_password) {
       if (!current_password || !new_password || !confirm_password) {
-        return res.redirect('/admin/settings?error=' + encodeURIComponent('Please fill out all password fields.'));
+        return res.redirect('/admin/settings?tab=security&error=' + encodeURIComponent('Please fill out all password fields.'));
       }
       if (new_password !== confirm_password) {
-        return res.redirect('/admin/settings?error=' + encodeURIComponent('New password and confirm password do not match.'));
+        return res.redirect('/admin/settings?tab=security&error=' + encodeURIComponent('New password and confirm password do not match.'));
       }
       if (!isValidPassword(new_password)) {
-        return res.redirect('/admin/settings?error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
+        return res.redirect('/admin/settings?tab=security&error=' + encodeURIComponent(PASSWORD_ERROR_MESSAGE));
       }
 
       const [userRows] = await db.execute('SELECT password_hash FROM users WHERE id = ?', [userId]);
       if (userRows.length > 0) {
         const isMatch = await bcrypt.compare(current_password, userRows[0].password_hash);
         if (!isMatch) {
-          return res.redirect('/admin/settings?error=' + encodeURIComponent('Current password is incorrect.'));
+          return res.redirect('/admin/settings?tab=security&error=' + encodeURIComponent('Current password is incorrect.'));
         }
         const salt = await bcrypt.genSalt(10);
         const newHash = await bcrypt.hash(new_password, salt);
         await db.execute('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
+        passwordUpdated = true;
       }
     }
 
@@ -2944,7 +2950,11 @@ exports.updateSettings = async (req, res) => {
       req.session.userProfile = null;
     }
 
-    return res.redirect('/admin/settings?success=' + encodeURIComponent('Admin profile and settings updated successfully!'));
+    if (passwordUpdated) {
+      return res.redirect('/admin/settings?tab=security&success=' + encodeURIComponent('Admin password updated successfully!'));
+    }
+
+    return res.redirect('/admin/settings?tab=profile&success=' + encodeURIComponent('Admin profile and settings updated successfully!'));
   } catch (error) {
     console.error("Error updating admin settings:", error);
   }
