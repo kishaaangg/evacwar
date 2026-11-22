@@ -15,12 +15,41 @@ const pagasaService = require('../utils/pagasaService');
 const gisCache = require('../utils/gisCache');
 const rescuerTracker = require('../utils/rescuerTracker');
 const loraWeatherHelper = require('../utils/loraWeatherHelper');
+const loraMqttBridge = require('../utils/loraMqttBridge');
 const NotificationModel = require('../models/notificationModel');
 const pushService = require('../services/pushService');
 
 let ioInstance = null;
 function attachIo(io) {
   ioInstance = io || null;
+  try {
+    loraMqttBridge.start({
+      onWeatherReading: (reading) => {
+        try {
+          const state = loraWeatherHelper.recordReading({
+            ...reading,
+            updatedAt: new Date().toISOString()
+          });
+          if (!state || !state.current) return;
+
+          if (ioInstance) {
+            ioInstance.emit('lora:weather_update', { ...state.current, relayOnline: true });
+          }
+
+          const now = Date.now();
+          if (!state.lastWeatherAlertAt || (now - state.lastWeatherAlertAt >= loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS)) {
+            if (typeof dispatchWeatherSensorNotification === 'function') {
+              dispatchWeatherSensorNotification(ioInstance, 'AUTO_2H').catch(() => {});
+            }
+          }
+        } catch (err) {
+          console.warn('[LoRa-MQTT] Error processing incoming weather telemetry:', err.message);
+        }
+      }
+    });
+  } catch (err) {
+    console.warn('[LoRa-MQTT] Bridge startup skipped:', err.message);
+  }
 }
 
 const processedMsgIds = new Map();
@@ -803,6 +832,7 @@ router.get('/weather-sensor', (_req, res) => {
     serverNowMs: nowMs,
     relayOnline,
     gatewayConnected,
+    mqttBridge: loraMqttBridge.getStatus(),
     readingAgeSeconds: Math.round(readingAgeMs / 1000),
     current: state.current,
     history: state.history || [],
