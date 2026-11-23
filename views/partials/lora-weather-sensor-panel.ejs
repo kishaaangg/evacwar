@@ -157,7 +157,7 @@
       const ageMs = readingTsMs > 0 ? Math.max(0, refNowMs - readingTsMs) : 999999999;
       const isRelayOnline = (typeof state.relayOnline === 'boolean')
         ? state.relayOnline
-        : Boolean(rawCurrent && !rawCurrent.i2cBusWarning && readingTsMs > 0 && ageMs <= 150000);
+        : Boolean(rawCurrent && !rawCurrent.i2cBusWarning && readingTsMs > 0 && ageMs <= (35 * 60 * 1000));
 
       const pillTempEl = document.getElementById('weatherToggleSensorTemp');
       if (pillTempEl) {
@@ -391,11 +391,11 @@
               }
               renderSensorDashboard(data);
             } else {
-              // Relay is offline on server -> check if we received a fresh direct RF packet locally within 2.5 minutes
+              // Relay is offline on server -> check if we received a fresh direct RF packet locally within 35 minutes
               let localCur = null;
               try { localCur = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
               const localTs = (localCur && localCur.timestampMs) || 0;
-              if (localCur && !localCur.i2cBusWarning && localTs > 0 && (Date.now() - localTs) <= 150000) {
+              if (localCur && !localCur.i2cBusWarning && localTs > 0 && (Date.now() - localTs) <= (35 * 60 * 1000)) {
                 renderSensorDashboard({ relayOnline: true, current: localCur, history: data.history || [] });
               } else {
                 renderSensorDashboard({ relayOnline: false, current: null, history: [] });

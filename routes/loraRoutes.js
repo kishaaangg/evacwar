@@ -821,11 +821,10 @@ router.get('/weather-sensor', (_req, res) => {
   const readingAgeMs = lastRxMs > 0 ? Math.max(0, nowMs - lastRxMs) : 999999999;
   const gwAgeMs = gatewayStatus.lastSeen ? Math.max(0, nowMs - new Date(gatewayStatus.lastSeen).getTime()) : 999999999;
   const gatewayConnected = Boolean(gatewayStatus.connected && gwAgeMs < 12000);
-  // Relay sensor is ONLINE if a real sensor reading arrived within the freshness window
-  // (35 minutes for Wi-Fi/MQTT battery-saving intervals, 5 minutes for direct RF/USB gateway)
-  const isMqttSource = Boolean(state.current && String(state.current.source || '').includes('MQTT'));
-  const maxFreshAgeMs = isMqttSource ? (35 * 60 * 1000) : (5 * 60 * 1000);
-  const relayOnline = Boolean(state.current && lastRxMs > 0 && readingAgeMs <= maxFreshAgeMs);
+  // Relay sensor is ONLINE if a real sensor reading arrived within the 35-minute Meshtastic telemetry window
+  // (covers standalone 30-min Wi-Fi/MQTT interval, 15s live poller, and BLE/USB LoRa bridge seamlessly)
+  const maxFreshAgeMs = 35 * 60 * 1000;
+  const relayOnline = Boolean(state.current && !state.current.i2cBusWarning && lastRxMs > 0 && readingAgeMs <= maxFreshAgeMs);
 
   const nextAutoAlertAt = state.lastWeatherAlertAt
     ? new Date(state.lastWeatherAlertAt + loraWeatherHelper.WEATHER_ALERT_INTERVAL_MS).toISOString()
