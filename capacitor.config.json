@@ -4,7 +4,8 @@
   "webDir": "resident-mobile",
   "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "http",
+    "url": "https://evacwar.onrender.com",
+    "errorPath": "offline.html",
     "cleartext": true,
     "allowNavigation": [
       "*"
