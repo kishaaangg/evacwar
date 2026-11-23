@@ -169,6 +169,7 @@ public class MainActivity extends BridgeActivity {
             registerReceiver(usbReceiver, filter);
         }
 
+        activeInstance = this;
         if (this.bridge != null && this.bridge.getWebView() != null) {
             try {
                 WebSettings ws = this.bridge.getWebView().getSettings();
@@ -235,7 +236,8 @@ public class MainActivity extends BridgeActivity {
             final String safeNavTo = navTo.replace("'", "");
             Runnable doNav = () -> {
                 try {
-                    if (this.bridge != null && this.bridge.getWebView() != null) {
+                    activeInstance = this;
+        if (this.bridge != null && this.bridge.getWebView() != null) {
                         String js = "(function(){\n" +
                                     "  try {\n" +
                                     "    var rawNav = '" + safeNavTo + "';\n" +
@@ -292,7 +294,8 @@ public class MainActivity extends BridgeActivity {
             intent.removeExtra("open_lora_modal");
             Runnable triggerModal = () -> {
                 try {
-                    if (this.bridge != null && this.bridge.getWebView() != null) {
+                    activeInstance = this;
+        if (this.bridge != null && this.bridge.getWebView() != null) {
                         String js = "(function(){\n" +
                                     "  try {\n" +
                                     "    if (typeof window.openLoraHardwarePicker === 'function') {\n" +
@@ -324,7 +327,8 @@ public class MainActivity extends BridgeActivity {
             boolean hasUnreadChatFromPrefs = prefs.getBoolean("evw_chat_has_unread", false) || LoraMeshService.hasUnreadChatStatic;
             if (hasUnreadChatFromPrefs) {
                 mainHandler.postDelayed(() -> {
-                    if (this.bridge != null && this.bridge.getWebView() != null) {
+                    activeInstance = this;
+        if (this.bridge != null && this.bridge.getWebView() != null) {
                         String js = "(function(){\n" +
                                     "  try {\n" +
                                     "    localStorage.setItem('evw_chat_has_unread', 'true');\n" +
@@ -542,10 +546,24 @@ public class MainActivity extends BridgeActivity {
     }
 
     private static final int EMERGENCY_NOTIFICATION_ID = 4339;
+    public static volatile MainActivity activeInstance = null;
     private static volatile String lastNativeAlertId = null;
     private static final Set<String> mutedAlertKeys = Collections.synchronizedSet(new HashSet<>());
 
+    public static void stopActiveAlarmStatic() {
+        MainActivity act = activeInstance;
+        if (act != null) {
+            try { act.stopNativeEmergencyAlarmInternal(); } catch (Exception ignored) {}
+        }
+    }
+
     private void triggerNativeEmergencyAlarmInternal(final String title, final String message, final String severity, final String alertId) {
+        // LoraMeshService is the single authoritative 24/7 emergency notification & siren engine
+        // (with both "Silence Siren" and "Evacuate" buttons). Never spawn a duplicate second
+        // notification/siren inside MainActivity when LoraMeshService is active!
+        if (LoraMeshService.instance != null) {
+            return;
+        }
         if (alertId != null && !alertId.trim().isEmpty()) {
             String aid = alertId.trim();
             if (mutedAlertKeys.contains(aid) || aid.equals(lastNativeAlertId)) {

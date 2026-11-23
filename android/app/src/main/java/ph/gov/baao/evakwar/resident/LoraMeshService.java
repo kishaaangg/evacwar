@@ -1706,6 +1706,7 @@ public class LoraMeshService extends Service {
 
     private void stopEmergencyAlarm() {
         nativeAlarmPlaying.set(false);
+        try { MainActivity.stopActiveAlarmStatic(); } catch (Exception ignored) {}
         mainHandler.post(() -> {
             if (nativeSirenLoopRunnable != null) {
                 mainHandler.removeCallbacks(nativeSirenLoopRunnable);
