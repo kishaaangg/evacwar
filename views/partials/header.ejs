@@ -4997,6 +4997,37 @@
                             });
                           }
 
+                          // Play a soft, minimal two-tone notification chime (G5 -> C6, calm non-alarm sound, works 100% offline)
+                          if (typeof window.playMinimalWeatherChime !== 'function') {
+                            window.playMinimalWeatherChime = function () {
+                              try {
+                                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                                if (!AudioCtx) return;
+                                const ctx = window.__evwChimeCtx || (window.__evwChimeCtx = new AudioCtx());
+                                if (ctx.state === 'suspended') {
+                                  ctx.resume().catch(() => {});
+                                }
+                                const nowT = ctx.currentTime;
+                                const playNote = (freq, startOffset, duration, peakGain) => {
+                                  const osc = ctx.createOscillator();
+                                  const gain = ctx.createGain();
+                                  osc.type = 'sine';
+                                  osc.frequency.setValueAtTime(freq, nowT + startOffset);
+                                  gain.gain.setValueAtTime(0.0001, nowT + startOffset);
+                                  gain.gain.exponentialRampToValueAtTime(peakGain, nowT + startOffset + 0.015);
+                                  gain.gain.exponentialRampToValueAtTime(0.0001, nowT + startOffset + duration);
+                                  osc.connect(gain);
+                                  gain.connect(ctx.destination);
+                                  osc.start(nowT + startOffset);
+                                  osc.stop(nowT + startOffset + duration + 0.02);
+                                };
+                                playNote(783.99, 0.0, 0.16, 0.13);   // Soft G5
+                                playNote(1046.50, 0.11, 0.26, 0.11); // Soft C6
+                              } catch (_) {}
+                            };
+                          }
+                          window.playMinimalWeatherChime();
+
                           // Native Android non-siren notification (only if not already posted directly by LoraMeshService)
                           if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeWeatherNotification === 'function') {
                             try {
@@ -5007,7 +5038,7 @@
                               const n = new Notification(title, {
                                 body: message,
                                 icon: '/icons/icon-192x192.png',
-                                silent: true,
+                                silent: false,
                                 tag: 'evw-weather-' + alertId
                               });
                               n.onclick = () => {
