@@ -1723,16 +1723,60 @@
     /* ========================================================================= */
 
     // Emergency SOS Resolution & Marker Logic
+    function getAdminCsrfToken() {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return (meta && meta.getAttribute('content')) || window.CSRF_TOKEN || '<%= locals.csrfToken || "" %>';
+    }
+
+    function rememberResolvedSosId(sosId) {
+      if (!sosId) return;
+      try {
+        const key = 'evw_resolved_sos_ids';
+        let ids = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(ids)) ids = [];
+        const strId = String(sosId);
+        if (!ids.includes(strId)) ids.unshift(strId);
+        localStorage.setItem(key, JSON.stringify(ids.slice(0, 100)));
+      } catch (_) {}
+      try {
+        let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+        if (Array.isArray(stored)) {
+          stored = stored.filter(a => a && String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
+          localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
+        }
+      } catch (_) {}
+    }
+
+    function loadFreshOfflineLoraSos() {
+      try {
+        const resolvedIds = new Set((JSON.parse(localStorage.getItem('evw_resolved_sos_ids') || '[]') || []).map(String));
+        const raw = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
+        if (!Array.isArray(raw)) return [];
+        const now = Date.now();
+        const MAX_AGE_MS = 2 * 60 * 60 * 1000; // Auto-expire stale offline LoRa SOS cache after 2 hours
+        const fresh = raw.filter(alert => {
+          if (!alert) return false;
+          const st = String(alert.status || '').toUpperCase();
+          if (st === 'CANCELLED' || st === 'RESOLVED') return false;
+          const sid = String(alert.id || alert.sos_id || '');
+          if (sid && resolvedIds.has(sid)) return false;
+          const ts = Number(alert.timestampMs) || new Date(alert.created_at || alert.updated_at || 0).getTime() || 0;
+          if (!ts || (now - ts) > MAX_AGE_MS) return false;
+          return true;
+        });
+        if (fresh.length !== raw.length) {
+          localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(fresh));
+        }
+        return fresh;
+      } catch (_) {
+        return [];
+      }
+    }
+
     window.resolveSosAlert = async function (sosId) {
       if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
       const clearOfflineSos = () => {
-        try {
-          let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
-          if (Array.isArray(stored)) {
-            stored = stored.filter(a => String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
-            localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
-          }
-        } catch (_) {}
+        rememberResolvedSosId(sosId);
         removeSosMarker(sosId);
         if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, null);
         window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => String(a.id || a.sos_id) !== String(sosId));
@@ -1746,17 +1790,25 @@
         return;
       }
       try {
+        const csrfToken = getAdminCsrfToken();
         const res = await fetch('/api/sos/resolve', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: sosId })
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ id: sosId, _csrf: csrfToken })
         });
         const data = await res.json();
         if (data.success || String(data.error || data.message || '').toLowerCase().includes('not found')) {
           clearOfflineSos();
+        } else {
+          alert(data.error || data.message || 'Failed to resolve SOS alert on server. Please refresh and try again.');
         }
       } catch (err) {
-        clearOfflineSos();
+        console.error('[Admin SOS Resolve] Error:', err);
+        alert('Could not reach server to resolve SOS alert. Please check your connection and try again.');
       }
     };
 
@@ -2414,10 +2466,10 @@
 
             <!-- Card Actions -->
             <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
-              <button type="button" onclick="focusSosOnAdminMap(${lat}, ${lng}, ${sosId})" class="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer">
+              <button type="button" onclick="focusSosOnAdminMap(${lat}, ${lng}, '${String(sosId).replace(/'/g, '')}')" class="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer">
                 <i class="ph ph-navigation-arrow text-sm"></i> Focus Map Pin
               </button>
-              <button type="button" onclick="resolveSosAlertFromAdmin(${sosId})" class="py-2 px-3 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+              <button type="button" onclick="resolveSosAlertFromAdmin('${String(sosId).replace(/'/g, '')}')" class="py-2 px-3 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                 <i class="ph ph-check-circle text-sm text-emerald-600"></i> Mark Resolved
               </button>
             </div>
@@ -2495,13 +2547,7 @@
       if (!sosId) return;
       if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
       const clearOfflineSos = () => {
-        try {
-          let stored = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
-          if (Array.isArray(stored)) {
-            stored = stored.filter(a => String(a.id) !== String(sosId) && String(a.sos_id) !== String(sosId));
-            localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(stored));
-          }
-        } catch (_) {}
+        rememberResolvedSosId(sosId);
         removeSosMarker(sosId);
         if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, null);
         window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => String(a.id || a.sos_id) !== String(sosId));
@@ -2515,19 +2561,25 @@
         return;
       }
       try {
+        const csrfToken = getAdminCsrfToken();
         const res = await fetch('/api/sos/resolve', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: sosId })
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ id: sosId, _csrf: csrfToken })
         });
         const data = await res.json();
         if (data.success || String(data.error || data.message || '').toLowerCase().includes('not found')) {
           clearOfflineSos();
         } else {
-          alert(data.error || 'Failed to resolve SOS alert.');
+          alert(data.error || data.message || 'Failed to resolve SOS alert on server.');
         }
       } catch (err) {
-        clearOfflineSos();
+        console.error('[Admin SOS Resolve] Error:', err);
+        alert('Could not reach server to resolve SOS alert. Please check your connection and try again.');
       }
     };
 
@@ -3034,16 +3086,10 @@
 
       setTimeout(checkAdminUrlForSosFocus, 600);
 
-      // Load any offline LoRa SOS alerts cached in localStorage + listen for live direct BLE/USB LoRa SOS packets
+      // Load ONLY fresh (<2h), unresolved offline LoRa SOS alerts cached in localStorage
       try {
-        const offlineSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
-        if (Array.isArray(offlineSos)) {
-          offlineSos.forEach(alert => {
-            if (alert && alert.status !== 'CANCELLED' && alert.status !== 'RESOLVED') {
-              addOrUpdateSosMarker(alert, false);
-            }
-          });
-        }
+        const offlineSos = loadFreshOfflineLoraSos();
+        offlineSos.forEach(alert => addOrUpdateSosMarker(alert, false));
       } catch (_) {}
 
       window.addEventListener('evakwar:lora-sos', (ev) => {
@@ -3771,14 +3817,8 @@
         });
       }
       try {
-        const offlineSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
-        if (Array.isArray(offlineSos)) {
-          offlineSos.forEach(alert => {
-            if (alert && alert.status !== 'CANCELLED' && alert.status !== 'RESOLVED') {
-              addOrUpdateSosMarker(alert, false);
-            }
-          });
-        }
+        const offlineSos = loadFreshOfflineLoraSos();
+        offlineSos.forEach(alert => addOrUpdateSosMarker(alert, false));
       } catch (_) {}
 
       if (typeof io !== 'undefined' && !window.__adminEvacSocketInitialized) {
