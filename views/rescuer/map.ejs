@@ -85,16 +85,36 @@
                     <span class="hidden xl:inline">My Location</span>
                   </button>
 
-                  <!-- Nearest Evacuation Site Auto-Router Button (Haversine Offline + Online) -->
-                  <button id="btnNearestEvacRoute" type="button" onclick="window.findAndRouteNearestEvacCenter && window.findAndRouteNearestEvacCenter(true)"
-                    class="bg-emerald-600 hover:bg-emerald-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
-                    title="Find &amp; Route to Nearest Evacuation Site">
-                    <i class="ph ph-compass text-sm"></i>
-                    <span>Nearest Evac</span>
+                  <!-- Rescue Multi-Stop Path Auto-Router Button (Rescuer SOS Only — No Nearest Evac) -->
+                  <button id="btnRescuerMultiRoute" type="button" onclick="window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
+                    class="bg-rose-600 hover:bg-rose-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Route Shortest Multi-Stop Rescue Path">
+                    <i class="ph ph-path text-sm"></i>
+                    <span>Rescue Path</span>
                   </button>
                 </div>
               </div>
 
+            </div>
+
+            <!-- Floating Active Rescue Path HUD (Shown while routing to 1 or more SOS stops) -->
+            <div id="rescuerActivePathHud"
+              class="hidden absolute top-14 sm:top-16 left-2 right-12 sm:left-4 sm:right-auto sm:max-w-md z-20 pointer-events-auto">
+              <div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-emerald-200 px-3 py-2.5 flex items-center justify-between gap-2.5">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                    <i class="ph ph-navigation-arrow-fill text-base"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div id="rescuerHudPrimary" class="text-xs font-black text-slate-900 truncate">STOP #1 • Routing...</div>
+                    <div id="rescuerHudSecondary" class="text-[10.5px] font-bold text-emerald-700 truncate">Calculating shortest road path...</div>
+                  </div>
+                </div>
+                <button type="button" onclick="window.clearRescuerMultiStopRoute && window.clearRescuerMultiStopRoute()"
+                  class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-extrabold shrink-0 cursor-pointer">
+                  End
+                </button>
+              </div>
             </div>
           </div>
 
@@ -237,70 +257,60 @@
 
 
 
-          <!-- True Fixed Google Maps-style Mobile Bottom Sheet -->
+          <!-- True Fixed Google Maps-style Mobile Bottom Sheet (Solid White Active SOS List) -->
           <div id="staffBottomSheet"
-            class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-4xl mx-auto bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.22)] border-t border-slate-200/90 flex flex-col max-h-[80dvh] will-change-transform transition-transform duration-300 ease-out"
-            style="transform: translateY(calc(100% - 48px));">
+            class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-4xl mx-auto bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.22)] border-t border-slate-200/90 flex flex-col max-h-[62dvh] will-change-transform transition-transform duration-300 ease-out"
+            style="transform: translateY(calc(100% - 78px));">
 
-            <!-- Drag Handle Area -->
+            <!-- Drag Handle & Always-Visible Peek Header -->
             <div id="staffSheetHandle"
-              class="w-full pt-3.5 pb-2.5 flex flex-col items-center justify-center cursor-pointer select-none touch-none rounded-t-3xl bg-white shrink-0 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-              title="Drag or tap to expand/collapse">
-              <div class="w-14 h-1.5 bg-slate-300 rounded-full"></div>
+              class="w-full pt-2.5 pb-2.5 px-4 sm:px-6 flex flex-col items-center justify-center cursor-pointer select-none touch-none rounded-t-3xl bg-white border-b border-slate-100 shrink-0 hover:bg-slate-50/70 transition-colors"
+              title="Drag or tap to expand/collapse SOS list">
+              <div class="w-12 h-1.5 bg-slate-300 rounded-full mb-2"></div>
+              <div class="w-full flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="relative flex h-2.5 w-2.5 shrink-0">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+                  </span>
+                  <h3 class="font-extrabold text-slate-900 text-sm sm:text-base truncate">Active SOS List</h3>
+                  <span id="activeSosBadgeCount"
+                    class="text-[10.5px] font-black text-white bg-red-600 px-2 py-0.5 rounded-full shrink-0">
+                    <%= locals.activeSosAlerts ? locals.activeSosAlerts.length : 0 %> Active
+                  </span>
+                </div>
+                <button type="button" onclick="event.stopPropagation(); window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
+                  class="text-[11px] font-black text-emerald-950 bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1 rounded-full border border-emerald-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all shrink-0">
+                  <i class="ph ph-path text-xs"></i>
+                  <span>Route Path</span>
+                </button>
+              </div>
             </div>
 
             <!-- Scrollable Sheet Content -->
-            <div id="staffSheetScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-1 overscroll-contain">
-              <div id="centersSheetContent" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div id="staffSheetScrollArea" class="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-3 overscroll-contain bg-white">
+              <div id="centersSheetContent" class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
                 <% if (isRescuer) { %>
-                  <!-- Live SOS Emergency Incident Feed (Full Width Dedicated Radar - ONLY FOR RESCUER) -->
-                  <div class="lg:col-span-12 space-y-4">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div class="flex items-center gap-2.5">
-                        <div
-                          class="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm shadow-red-500/30 animate-pulse">
-                          <i class="ph ph-warning-octagon text-xl"></i>
-                        </div>
-                        <div>
-                          <h3 class="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
-                            Active SOS Distress Alerts & Location Radar
-                          </h3>
-                          <p class="text-xs text-slate-500 font-medium">Real-time distress signals from residents
-                            needing
-                            immediate rescue & assistance.</p>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-2 shrink-0">
-                        <button type="button" onclick="window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
-                          class="text-xs font-black text-emerald-950 bg-emerald-400 hover:bg-emerald-300 px-3 py-1.5 rounded-full border border-emerald-500 shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
-                          <i class="ph ph-path text-sm"></i>
-                          <span>Route Multi-Stop Queue</span>
-                        </button>
-                        <span
-                          class="text-xs font-black text-white bg-red-600 px-3 py-1.5 rounded-full border border-red-400 shrink-0"
-                          id="activeSosBadgeCount">
-                          <%= locals.activeSosAlerts ? locals.activeSosAlerts.length : 0 %> Active Signals
-                        </span>
-                      </div>
-                    </div>
+                  <!-- Live SOS Emergency List & Auto-Assigned Multi-Stop Rescue Feed -->
+                  <div class="lg:col-span-12 space-y-3">
 
-                    <!-- MULTI-STOP EN-ROUTE RESCUE QUEUE BAR (Auto-Sequenced by Nearest Path: Stop 1 -> Stop 2 -> Shelter) -->
-                    <div id="rescuerMultiStopQueueBar" class="hidden bg-slate-900 text-white rounded-2xl p-3.5 border border-emerald-500/40 shadow-md space-y-2.5">
+                    <!-- MULTI-STOP EN-ROUTE RESCUE QUEUE BAR (Auto-Sequenced by Shortest Road Path: Stop 1 -> Stop 2) -->
+                    <div id="rescuerMultiStopQueueBar" class="hidden bg-slate-900 text-white rounded-2xl p-3 border border-emerald-500/40 shadow-md space-y-2">
                       <div class="flex flex-wrap items-center justify-between gap-2">
                         <div class="flex items-center gap-2">
-                          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                          <span class="text-[11px] font-black uppercase tracking-wider text-emerald-400">Active Multi-Stop Rescue Route (Auto-Assigned Along Path)</span>
+                          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                          <span class="text-[10.5px] font-black uppercase tracking-wider text-emerald-400">Shortest Rescue Path (Auto-Assigned)</span>
                         </div>
-                        <span id="rescuerQueueSummaryPill" class="text-[10.5px] font-mono font-bold bg-slate-800 text-cyan-300 px-2.5 py-0.5 rounded-full border border-slate-700">
+                        <span id="rescuerQueueSummaryPill" class="text-[10px] font-mono font-bold bg-slate-800 text-cyan-300 px-2 py-0.5 rounded-full border border-slate-700">
                           0 Stops • ~0 min
                         </span>
                       </div>
-                      <div id="rescuerQueueStepsContainer" class="flex flex-wrap items-center gap-2 text-xs"></div>
+                      <div id="rescuerQueueStepsContainer" class="flex flex-wrap items-center gap-1.5 text-xs"></div>
                     </div>
 
                     <div
-                      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[420px] overflow-y-auto pr-1"
+                      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pr-0.5"
                       id="sosFeedList">
                       <% if (locals.activeSosAlerts && locals.activeSosAlerts.length> 0) { %>
                         <% locals.activeSosAlerts.forEach(alert=> {
@@ -320,8 +330,9 @@
                           const cardInitial = cardName.charAt(0).toUpperCase();
                           %>
                           <div
-                            class="p-4 rounded-2xl border <%= alert.status === 'RESPONDING' ? 'bg-indigo-50/80 border-indigo-200' : (alert.status === 'ACKNOWLEDGED' ? 'bg-amber-50/80 border-amber-200' : 'bg-red-50/80 border-red-200') %> space-y-3 shadow-xs hover:shadow-md transition-all"
+                            class="p-3.5 rounded-2xl border <%= alert.status === 'RESPONDING' ? 'bg-indigo-50/85 border-indigo-300' : (alert.status === 'ACKNOWLEDGED' ? 'bg-amber-50/85 border-amber-200' : 'bg-red-50/85 border-red-200') %> space-y-2.5 shadow-xs hover:shadow-md transition-all"
                             id="sos_card_<%= alert.id %>" data-resident-id="<%= alert.resident_id || '' %>">
+                            <div class="sos-stop-badge-slot flex flex-wrap items-center gap-1.5"></div>
                             <div class="flex items-start justify-between gap-2">
                               <div class="flex items-center gap-3">
                                 <div
@@ -597,6 +608,28 @@
         const { latitude, longitude, accuracy } = coords;
         lastKnownRescuerCoords = coords;
         window._lastKnownUserGps = { lat: latitude, lng: longitude, isFallback: false };
+
+        // Report live standby GPS to backend so nearest-rescuer auto-assign always uses real coordinates
+        const nowPing = Date.now();
+        if (!window._lastStandbyGpsPing || (nowPing - window._lastStandbyGpsPing) > 12000) {
+          window._lastStandbyGpsPing = nowPing;
+          try {
+            const sock = window.__staffSocket || window.__appSocket;
+            if (sock && sock.connected) {
+              sock.emit('rescuer:standby_location', { latitude, longitude, accuracy: accuracy || 0 });
+            }
+            if (navigator.onLine) {
+              fetch('/api/sos/rescuer/location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude, longitude, accuracy: accuracy || 0 })
+              }).catch(() => {});
+            }
+          } catch (_) {}
+        }
+        if (typeof window.updateRescuerMultiStopQueue === 'function') {
+          window.updateRescuerMultiStopQueue();
+        }
 
         const activeMap = targetMap || mapInstance;
 
@@ -1111,15 +1144,7 @@
           }
         });
         updateStaffCentersDirectory(centersList);
-        // Auto-compute offline/online Haversine distances & auto-route if launched with ?auto_route=nearest
-        try {
-          const urlParams = new URLSearchParams(window.location.search || '');
-          const shouldAutoRoute = urlParams.get('auto_route') === 'nearest' && !window.__evwAutoRoutedNearest;
-          if (shouldAutoRoute) window.__evwAutoRoutedNearest = true;
-          if (typeof window.findAndRouteNearestEvacCenter === 'function') {
-            setTimeout(() => { window.findAndRouteNearestEvacCenter(shouldAutoRoute); }, 450);
-          }
-        } catch (_) {}
+        // Rescuer SOS map does NOT auto-route to nearest evacuation site; focus strictly on SOS rescue path.
       }
 
       function updateStaffCentersDirectory(centersList) {
@@ -1661,12 +1686,34 @@
         updateActiveCountBadge();
       }
 
+      function getActiveRescuerUserId() {
+        try {
+          const cached = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+          if (cached && (cached.user_id || cached.userId)) return Number(cached.user_id || cached.userId);
+        } catch (_) {}
+        return Number(window.currentUserId || 0);
+      }
+
+      function resolveSosPhotoUrl(raw) {
+        if (!raw) return null;
+        const s = String(raw).trim();
+        if (!s) return null;
+        if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+        const rel = s.startsWith('/') ? s : `/uploads/profiles/${s}`;
+        const isStatic = window.location.hostname === 'localhost' && window.location.port !== '8080';
+        if (isStatic) {
+          const base = (localStorage.getItem('evw_server_url') || 'https://evacwar.onrender.com').replace(/\/$/, '');
+          return `${base}${rel}`;
+        }
+        return rel;
+      }
+
       function updateActiveCountBadge() {
         const feedList = document.getElementById('sosFeedList');
         const countBadge = document.getElementById('activeSosBadgeCount');
         if (feedList && countBadge) {
           const activeCards = feedList.querySelectorAll('[id^="sos_card_"]');
-          countBadge.textContent = `${activeCards.length} Active Signals`;
+          countBadge.textContent = `${activeCards.length} Active`;
         }
       }
 
@@ -1688,14 +1735,17 @@
             if (existingRes) existingRes.remove();
           }
           updateActiveCountBadge();
+          if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
           return;
         }
 
         const alertLng = parseFloat(alert.longitude || alert.lng || 123.3470);
         const alertLat = parseFloat(alert.latitude || alert.lat || 13.5102);
         const cardName = (alert.first_name ? (`${alert.first_name} ${alert.last_name || ''}`).trim() : (alert.name || 'Resident in Distress'));
+        const cardInitial = cardName.charAt(0).toUpperCase();
+        const cardPhoto = resolveSosPhotoUrl(alert.resident_profile_photo || alert.profile_photo || alert.user_profile_photo);
 
-        const myUserId = Number(window.currentUserId || 0);
+        const myUserId = getActiveRescuerUserId();
         const myRole = String(window.userRole || '').toLowerCase();
         const alertHandledBy = (alert.handled_by !== null && alert.handled_by !== undefined && alert.handled_by !== '') ? Number(alert.handled_by) : null;
         const isAssigned = alertHandledBy && alertHandledBy > 0;
@@ -1705,18 +1755,18 @@
           ? window.isInsideBarangaySanRafael(alertLat, alertLng)
           : true;
 
-        let statusClass = 'bg-red-50/80 border-red-200';
+        let statusClass = 'bg-red-50/85 border-red-200';
         let statusBadgeClass = 'bg-red-600 text-white animate-pulse';
         let actionButtonsSectionHtml = '';
 
         if (status === 'ACKNOWLEDGED') {
-          statusClass = 'bg-amber-50/80 border-amber-200';
-          statusBadgeClass = 'bg-amber-500 text-white';
+          statusClass = isMine ? 'bg-emerald-50/80 border-emerald-300' : 'bg-amber-50/85 border-amber-200';
+          statusBadgeClass = isMine ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white';
         } else if (status === 'RESPONDING') {
-          statusClass = 'bg-indigo-50/80 border-indigo-200';
+          statusClass = 'bg-indigo-50/85 border-indigo-300';
           statusBadgeClass = 'bg-indigo-600 text-white';
         } else if (status === 'RESCUED') {
-          statusClass = 'bg-emerald-50/80 border-emerald-200';
+          statusClass = 'bg-emerald-50/85 border-emerald-300';
           statusBadgeClass = 'bg-emerald-600 text-white';
         }
 
@@ -1724,11 +1774,12 @@
         const handlerContact = alert.handler_contact || (alert.handler ? alert.handler.contact : null);
         let handlerBoxHtml = '';
         if (handlerName) {
+          const isAutoEnRoute = String(alert.responder_notes || '').toLowerCase().includes('en-route') || alert.auto_assigned_type === 'EN_ROUTE_MULTI_RESCUE';
           handlerBoxHtml = `
-            <div class="bg-white/90 rounded-xl p-2 border ${isOther ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200'} text-xs flex items-center justify-between gap-2 shadow-2xs">
+            <div class="bg-white/95 rounded-xl p-2 border ${isOther ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200'} text-xs flex items-center justify-between gap-2 shadow-2xs">
               <div class="flex items-center gap-1.5 min-w-0">
                 <i class="ph ${isOther ? 'ph-user-circle text-amber-600' : 'ph-user-check text-emerald-600'} font-bold shrink-0"></i>
-                <span class="text-slate-600 truncate">Assigned: <strong class="text-slate-900">${handlerName}${isMine ? ' (You)' : ''}</strong></span>
+                <span class="text-slate-600 truncate">${isMine ? (isAutoEnRoute ? '<strong class="text-indigo-700">Auto-Assigned Along Path (You)</strong>' : '<strong class="text-emerald-700">Auto-Assigned Nearest (You)</strong>') : `Assigned: <strong class="text-slate-900">${handlerName}</strong>`}</span>
               </div>
               ${handlerContact ? `
                 <a href="tel:${handlerContact}" class="text-blue-600 hover:underline font-mono font-bold shrink-0 flex items-center gap-0.5">
@@ -1739,9 +1790,9 @@
           `;
         } else if (status === 'ACTIVE') {
           handlerBoxHtml = `
-            <div class="bg-white/90 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
-              <i class="ph ph-clock text-red-500 shrink-0"></i>
-              <span>Situation: <strong>Auto-Assigning Nearest Rescuer...</strong></span>
+            <div class="bg-white/95 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
+              <i class="ph ph-siren text-red-500 shrink-0"></i>
+              <span>Awaiting nearest rescuer acknowledgment</span>
             </div>
           `;
         }
@@ -1765,7 +1816,7 @@
           if (status === 'ACTIVE') {
             primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-check-circle"></i> Acknowledge</button>`;
           } else if (status === 'ACKNOWLEDGED') {
-            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-navigation-arrow"></i> Dispatch Rescuer</button>`;
+            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-navigation-arrow"></i> Start Rescue &amp; Route</button>`;
           } else if (status === 'RESPONDING') {
             primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESCUED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-shield-check"></i> Mark Rescued</button>`;
           }
@@ -1775,27 +1826,32 @@
           `;
         }
 
+        const avatarHtml = cardPhoto
+          ? `<img loading="lazy" src="${cardPhoto}" decoding="async" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" /><span class="hidden font-black text-white text-xs">${cardInitial}</span>`
+          : `<span class="font-black text-white text-xs">${cardInitial}</span>`;
+
         const cardHtml = `
+        <div class="sos-stop-badge-slot flex flex-wrap items-center gap-1.5"></div>
         <div class="flex items-start justify-between gap-2">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-              SOS
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-10 h-10 rounded-full border-2 border-red-500 overflow-hidden bg-slate-900 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+              ${avatarHtml}
             </div>
-            <div>
-              <div class="font-black text-slate-950 text-base">${cardName}</div>
-              <div class="text-xs text-slate-600 font-bold flex flex-wrap items-center gap-2 mt-0.5">
+            <div class="min-w-0">
+              <div class="font-black text-slate-950 text-sm sm:text-base truncate">${cardName}</div>
+              <div class="text-xs text-slate-600 font-bold flex flex-wrap items-center gap-1.5 mt-0.5">
                 ${alert.contact_number ? `<a href="tel:${alert.contact_number}" class="text-blue-700 font-bold hover:underline flex items-center gap-1 bg-blue-100/70 px-2 py-0.5 rounded-lg"><i class="ph ph-phone"></i> ${alert.contact_number}</a>` : '<span class="text-slate-400">No phone</span>'}
               </div>
             </div>
           </div>
-          <span class="text-[11px] font-black uppercase px-2.5 py-1 rounded-full shrink-0 ${statusBadgeClass}">${status}</span>
+          <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${statusBadgeClass}">${status}</span>
         </div>
         ${handlerBoxHtml}
         <div class="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/60">
           <span><i class="ph ph-clock text-slate-400"></i> ${alert.created_at ? (window.formatManilaTime ? window.formatManilaTime(alert.created_at) : 'Just now') : 'Just now'}</span>
-          <button type="button" data-lng="${alertLng}" data-lat="${alertLat}" data-sos-id="${sosId || ''}" onclick="flyToSosAndFocus(this)" class="text-xs font-extrabold text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"><i class="ph ph-navigation-arrow"></i> Focus Map Pin</button>
+          <button type="button" data-lng="${alertLng}" data-lat="${alertLat}" data-sos-id="${sosId || ''}" onclick="flyToSosAndFocus(this)" class="text-xs font-extrabold text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"><i class="ph ph-navigation-arrow"></i> Focus &amp; Route</button>
         </div>
-        <div class="flex items-center gap-1.5 pt-1">
+        <div class="flex items-center gap-1.5 pt-0.5">
           ${actionButtonsSectionHtml}
         </div>
       `;
@@ -1808,7 +1864,7 @@
         if (card) {
           if (sosId) card.id = 'sos_card_' + sosId;
           card.setAttribute('data-resident-id', resId || '');
-          card.className = `p-4 rounded-2xl border ${statusClass} space-y-3 shadow-xs hover:shadow-md transition-all`;
+          card.className = `p-3.5 rounded-2xl border ${statusClass} space-y-2.5 shadow-xs hover:shadow-md transition-all`;
           card.innerHTML = cardHtml;
         } else {
           const emptyState = feedList.querySelector('.col-span-full');
@@ -1816,11 +1872,12 @@
           card = document.createElement('div');
           if (sosId) card.id = 'sos_card_' + sosId;
           card.setAttribute('data-resident-id', resId || '');
-          card.className = `p-4 rounded-2xl border ${statusClass} space-y-3 shadow-xs hover:shadow-md transition-all`;
+          card.className = `p-3.5 rounded-2xl border ${statusClass} space-y-2.5 shadow-xs hover:shadow-md transition-all`;
           card.innerHTML = cardHtml;
           feedList.prepend(card);
         }
         updateActiveCountBadge();
+        if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
       }
 
       window.resolveSosAlert = async function (sosId) {
@@ -1881,6 +1938,9 @@
                 infowindow.open(mapInstance, markerObj.marker);
               }
             }
+          }
+          if (typeof window.drawRescuerMultiStopRoute === 'function') {
+            window.drawRescuerMultiStopRoute(false);
           }
           if (staffSheet && staffSheet.isExpanded) staffSheet.setCollapsed();
         }
@@ -2302,12 +2362,18 @@
       }
       document.addEventListener('DOMContentLoaded', () => {
         initStaffSocketSync();
-        staffSheet = new MobileBottomSheet('staffBottomSheet', 'staffSheetHandle', 'staffSheetScrollArea', 48);
+        staffSheet = new MobileBottomSheet('staffBottomSheet', 'staffSheetHandle', 'staffSheetScrollArea', 78);
 
         if (window.MAP_CONFIG && window.MAP_CONFIG.provider === 'maplibre' && !mapInstance) {
           window._staffMapReady = true;
           initStaffMaplibreMap();
         }
+        // Auto-watch Rescuer GPS in background so nearest-rescuer auto-assign & distances are always accurate
+        setTimeout(() => {
+          if (typeof locateStaffUser === 'function') {
+            locateStaffUser(mapInstance, false);
+          }
+        }, 700);
       });
 
       whenGoogleMapsReady(() => {
@@ -2445,16 +2511,35 @@
       }, 1800);
 
       /**
-       * Multi-Stop En-Route Rescue Queue & Waypoint Sequencer:
+       * Multi-Stop En-Route Rescue Queue & Road Waypoint Sequencer:
        * Orders active SOS alerts within Barangay San Rafael by shortest path from the Rescuer's GPS
-       * (Rescuer GPS -> Stop #1 -> Stop #2 -> ... -> Nearest Evacuation Center) so rescuers can rescue
-       * multiple residents along their route without ignoring nearby SOS calls.
+       * (Rescuer GPS -> Stop #1 -> Stop #2 -> ...) using real OSRM roads (with offline Haversine fallback),
+       * sorts the sliding SOS list in path order, and renders numbered Stop badges + floating Rescue Path HUD.
        */
+      let rescuerStopMarkers = [];
+
+      window.clearRescuerMultiStopRoute = function () {
+        const activeMap = window._activeEvacwarMap || mapInstance;
+        if (activeMap && typeof activeMap.getSource === 'function') {
+          try {
+            const src = activeMap.getSource('rescuer-multistop-route-src');
+            if (src) src.setData({ type: 'FeatureCollection', features: [] });
+          } catch (_) {}
+        }
+        rescuerStopMarkers.forEach(m => { try { m.remove(); } catch (_) {} });
+        rescuerStopMarkers = [];
+        const hud = document.getElementById('rescuerActivePathHud');
+        if (hud) hud.classList.add('hidden');
+        if (typeof window.clearEvakWarDirections === 'function') {
+          try { window.clearEvakWarDirections(); } catch (_) {}
+        }
+      };
+
       window.computeRescuerMultiStopQueue = function () {
         const rPos = (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number')
           ? { lat: Number(window._lastKnownUserGps.lat), lng: Number(window._lastKnownUserGps.lng) }
           : { lat: 13.51037, lng: 123.34810 };
-        const myUid = Number(document.getElementById('staff-map-server-data')?.getAttribute('data-current-user-id') || window.currentUserId || 0);
+        const myUid = getActiveRescuerUserId();
 
         const rawAlerts = [];
         const seenIds = new Set();
@@ -2471,7 +2556,6 @@
           if (!isFinite(lat) || !isFinite(lng)) return;
           if (typeof window.isInsideBarangaySanRafael === 'function' && !window.isInsideBarangaySanRafael(lat, lng)) return;
           const handledBy = a.handled_by ? Number(a.handled_by) : null;
-          // Include SOS assigned to this rescuer OR unassigned/auto-acknowledged SOS within the barangay
           if (handledBy && myUid && handledBy !== myUid && ['RESPONDING', 'RESCUED'].includes(st)) return;
           seenIds.add(String(sid));
           rawAlerts.push({
@@ -2484,7 +2568,6 @@
           });
         });
 
-        // Nearest-neighbor path sequencing starting from Rescuer's current GPS position
         const orderedStops = [];
         const pool = [...rawAlerts];
         let curLat = rPos.lat;
@@ -2499,7 +2582,6 @@
             const dKm = (typeof window.computeHaversineKm === 'function')
               ? window.computeHaversineKm(curLat, curLng, cand.lat, cand.lng)
               : Math.hypot(cand.lat - curLat, cand.lng - curLng) * 111;
-            // Prioritize stops already assigned to this rescuer, plus any stop right along the path
             const score = cand.isMine ? dKm : (dKm + 0.15);
             if (score < bestScore) {
               bestScore = score;
@@ -2528,61 +2610,107 @@
         const bar = document.getElementById('rescuerMultiStopQueueBar');
         const stepsEl = document.getElementById('rescuerQueueStepsContainer');
         const sumEl = document.getElementById('rescuerQueueSummaryPill');
-        if (!bar || !stepsEl) return;
+        const feedList = document.getElementById('sosFeedList');
 
         const q = window.computeRescuerMultiStopQueue();
         if (!q || !Array.isArray(q.stops) || q.stops.length === 0) {
-          bar.classList.add('hidden');
+          if (bar) bar.classList.add('hidden');
           return;
         }
 
-        bar.classList.remove('hidden');
+        if (bar) bar.classList.remove('hidden');
         const totalMins = Math.max(1, Math.ceil((q.totalKm / 24) * 60));
         if (sumEl) {
-          sumEl.textContent = `${q.stops.length} ${q.stops.length === 1 ? 'Stop' : 'Stops Along Route'} • ${(q.totalKm * 1000 < 1000) ? Math.round(q.totalKm * 1000) + ' m' : q.totalKm.toFixed(2) + ' km'} • ~${totalMins} min`;
+          sumEl.textContent = `${q.stops.length} ${q.stops.length === 1 ? 'Stop' : 'Stops'} • ${(q.totalKm * 1000 < 1000) ? Math.round(q.totalKm * 1000) + ' m' : q.totalKm.toFixed(2) + ' km'} • ~${totalMins} min`;
         }
 
-        stepsEl.innerHTML = q.stops.map((st, idx) => {
-          const distStr = st.legDistKm * 1000 < 1000 ? `${Math.round(st.legDistKm * 1000)}m` : `${st.legDistKm.toFixed(2)}km`;
-          const arrowHtml = idx < q.stops.length - 1 ? `<i class="ph ph-arrow-right text-emerald-400 font-bold"></i>` : '';
-          return `
-            <button type="button" data-lat="${st.lat}" data-lng="${st.lng}" data-sos-id="${st.id}" onclick="flyToSosAndFocus(this)"
-              class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border ${idx === 0 ? 'border-emerald-400 text-white' : 'border-slate-700 text-slate-200'} flex items-center gap-1.5 cursor-pointer transition-all">
-              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black ${idx === 0 ? 'bg-emerald-500 text-slate-950' : 'bg-indigo-600 text-white'}">STOP #${st.stopNumber}</span>
-              <span class="font-extrabold text-xs">${st.name}</span>
-              <span class="font-mono text-[10px] text-emerald-300">(+${distStr} • ~${st.etaMins}m)</span>
-            </button>
-            ${arrowHtml}
-          `;
-        }).join('');
+        if (stepsEl) {
+          stepsEl.innerHTML = q.stops.map((st, idx) => {
+            const distStr = st.legDistKm * 1000 < 1000 ? `${Math.round(st.legDistKm * 1000)}m` : `${st.legDistKm.toFixed(2)}km`;
+            const arrowHtml = idx < q.stops.length - 1 ? `<i class="ph ph-arrow-right text-emerald-400 font-bold"></i>` : '';
+            return `
+              <button type="button" data-lat="${st.lat}" data-lng="${st.lng}" data-sos-id="${st.id}" onclick="flyToSosAndFocus(this)"
+                class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border ${idx === 0 ? 'border-emerald-400 text-white' : 'border-slate-700 text-slate-200'} flex items-center gap-1.5 cursor-pointer transition-all">
+                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black ${idx === 0 ? 'bg-emerald-500 text-slate-950' : 'bg-indigo-600 text-white'}">STOP #${st.stopNumber}</span>
+                <span class="font-extrabold text-xs">${st.name}</span>
+                <span class="font-mono text-[10px] text-emerald-300">(+${distStr} • ~${st.etaMins}m)</span>
+              </button>
+              ${arrowHtml}
+            `;
+          }).join('');
+        }
+
+        // Decorate & reorder SOS cards inside the sliding bottom sheet in exact Stop #1 -> Stop #2 order
+        if (feedList) {
+          q.stops.forEach((st, idx) => {
+            const card = document.getElementById(`sos_card_${st.id}`);
+            if (!card) return;
+            const slot = card.querySelector('.sos-stop-badge-slot');
+            if (slot) {
+              const distStr = st.legDistKm * 1000 < 1000 ? `${Math.round(st.legDistKm * 1000)} m` : `${st.legDistKm.toFixed(2)} km`;
+              const pathLabel = idx === 0
+                ? (st.isMine ? 'Nearest • Auto-Assigned' : 'Nearest to You')
+                : (st.isMine ? 'Auto-Assigned Along Path' : `+${distStr} Along Path`);
+              slot.innerHTML = `
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${idx === 0 ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'}">STOP #${st.stopNumber}</span>
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/90 text-slate-700 border border-slate-200">${distStr} • ~${st.etaMins} min</span>
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold ${st.isMine ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}">${pathLabel}</span>
+              `;
+            }
+            feedList.appendChild(card);
+          });
+        }
       };
 
-      window.drawRescuerMultiStopRoute = function (autoZoom = false) {
+      window.drawRescuerMultiStopRoute = async function (autoZoom = false) {
         window.updateRescuerMultiStopQueue();
         const q = window.computeRescuerMultiStopQueue();
-        if (!q || !q.stops || q.stops.length === 0) return;
-
-        // If 1 stop, use standard road directions router
-        if (q.stops.length === 1 && typeof window.showEvakWarDirections === 'function') {
-          const s = q.stops[0];
-          window.showEvakWarDirections(s.lat, s.lng, `STOP #1: ${s.name}`);
+        if (!q || !q.stops || q.stops.length === 0) {
+          showSosToast('No active SOS signals to route right now.', 'info');
           return;
         }
 
-        // For 2+ stops along the path, draw the connected Multi-Stop Waypoint Route on MapLibre
-        const coords = [[q.rescuerPos.lng, q.rescuerPos.lat]];
-        q.stops.forEach((s) => coords.push([s.lng, s.lat]));
-        if (window._nearestEvacCenter && isFinite(parseFloat(window._nearestEvacCenter.latitude))) {
-          coords.push([parseFloat(window._nearestEvacCenter.longitude), parseFloat(window._nearestEvacCenter.latitude)]);
+        // Collapse sheet so rescuer sees the route clearly on the map
+        if (autoZoom && staffSheet && staffSheet.isExpanded) {
+          staffSheet.setCollapsed();
         }
 
-        const activeMap = window._activeEvacwarMap || map;
+        // Build SOS-only waypoints (Rescuer GPS -> Stop #1 -> Stop #2 -> ...) — NO evacuation center appended
+        const waypoints = [[q.rescuerPos.lng, q.rescuerPos.lat]];
+        q.stops.forEach((s) => waypoints.push([s.lng, s.lat]));
+
+        let routeGeometryCoords = waypoints;
+        let totalMeters = q.totalKm * 1000;
+        let totalSecs = Math.max(60, Math.round((q.totalKm / 24) * 3600));
+        let usedRoadRouting = false;
+
+        // Fetch real multi-stop road geometry via OSRM when online
+        if (navigator.onLine && waypoints.length >= 2) {
+          try {
+            const coordStr = waypoints.map(c => `${c[0].toFixed(6)},${c[1].toFixed(6)}`).join(';');
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 5000);
+            const resp = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`, { signal: ctrl.signal });
+            clearTimeout(tid);
+            if (resp.ok) {
+              const rData = await resp.json();
+              if (rData && rData.routes && rData.routes[0] && rData.routes[0].geometry && Array.isArray(rData.routes[0].geometry.coordinates)) {
+                routeGeometryCoords = rData.routes[0].geometry.coordinates;
+                totalMeters = Number(rData.routes[0].distance) || totalMeters;
+                totalSecs = Number(rData.routes[0].duration) || totalSecs;
+                usedRoadRouting = true;
+              }
+            }
+          } catch (_) {}
+        }
+
+        const activeMap = window._activeEvacwarMap || mapInstance;
         if (activeMap && typeof activeMap.getSource === 'function') {
           const multiGeoJson = {
             type: 'FeatureCollection',
             features: [{
               type: 'Feature',
-              geometry: { type: 'LineString', coordinates: coords }
+              geometry: { type: 'LineString', coordinates: routeGeometryCoords }
             }]
           };
           try {
@@ -2595,26 +2723,58 @@
                 id: 'rescuer-multistop-route-glow',
                 type: 'line',
                 source: 'rescuer-multistop-route-src',
-                paint: { 'line-color': '#10b981', 'line-width': 8, 'line-opacity': 0.28 }
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#10b981', 'line-width': 10, 'line-opacity': 0.28 }
               });
               activeMap.addLayer({
                 id: 'rescuer-multistop-route-line',
                 type: 'line',
                 source: 'rescuer-multistop-route-src',
-                paint: { 'line-color': '#10b981', 'line-width': 4, 'line-dasharray': [2, 1.5] }
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#059669', 'line-width': 5, 'line-opacity': 0.95 }
               });
             }
-            if (autoZoom && typeof maplibregl !== 'undefined' && coords.length >= 2) {
-              const b = new maplibregl.LngLatBounds(coords[0], coords[0]);
-              coords.forEach(c => b.extend(c));
-              activeMap.fitBounds(b, { padding: 70, maxZoom: 17, duration: 900 });
+
+            // Render numbered STOP #1, STOP #2 badges on MapLibre
+            rescuerStopMarkers.forEach(m => { try { m.remove(); } catch (_) {} });
+            rescuerStopMarkers = [];
+            if (typeof maplibregl !== 'undefined') {
+              q.stops.forEach((st, idx) => {
+                const badgeEl = document.createElement('div');
+                badgeEl.style.cssText = `background:${idx === 0 ? '#059669' : '#4f46e5'};color:#fff;font-weight:900;font-size:11px;padding:3px 7px;border-radius:9999px;border:2px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.35);white-space:nowrap;pointer-events:none;`;
+                badgeEl.textContent = `STOP #${st.stopNumber}`;
+                const m = new maplibregl.Marker({ element: badgeEl, offset: [0, -34] })
+                  .setLngLat([st.lng, st.lat])
+                  .addTo(activeMap);
+                rescuerStopMarkers.push(m);
+              });
+
+              if (autoZoom && routeGeometryCoords.length >= 2) {
+                const b = new maplibregl.LngLatBounds(routeGeometryCoords[0], routeGeometryCoords[0]);
+                routeGeometryCoords.forEach(c => b.extend(c));
+                activeMap.fitBounds(b, { padding: { top: 110, bottom: 110, left: 40, right: 40 }, maxZoom: 17, duration: 900 });
+              }
             }
           } catch (_) {}
         }
-        // Also route road directions to Stop #1 right away
-        if (typeof window.showEvakWarDirections === 'function') {
+
+        // Update floating Active Rescue Path HUD
+        const hud = document.getElementById('rescuerActivePathHud');
+        const hudPrimary = document.getElementById('rescuerHudPrimary');
+        const hudSecondary = document.getElementById('rescuerHudSecondary');
+        if (hud && hudPrimary && hudSecondary) {
           const s1 = q.stops[0];
-          window.showEvakWarDirections(s1.lat, s1.lng, `STOP #1 of ${q.stops.length}: ${s1.name}`);
+          const totalDistTxt = totalMeters < 1000 ? `${Math.round(totalMeters)} m` : `${(totalMeters / 1000).toFixed(2)} km`;
+          const totalMinTxt = Math.max(1, Math.ceil(totalSecs / 60));
+          hudPrimary.textContent = `STOP #1: ${s1.name} • ${totalDistTxt} • ~${totalMinTxt} min`;
+          if (q.stops.length > 1) {
+            const s2 = q.stops[1];
+            const s2Dist = s2.legDistKm * 1000 < 1000 ? `${Math.round(s2.legDistKm * 1000)}m` : `${s2.legDistKm.toFixed(2)}km`;
+            hudSecondary.textContent = `Next along path: STOP #2 ${s2.name} (+${s2Dist})${q.stops.length > 2 ? ` + ${q.stops.length - 2} more` : ''}${usedRoadRouting ? ' • Road Route' : ' • Offline Direct'}`;
+          } else {
+            hudSecondary.textContent = `${usedRoadRouting ? 'Live Road Route' : 'Offline Direct Path'} • Tap Stop to Update Status`;
+          }
+          hud.classList.remove('hidden');
         }
       };
 
@@ -2664,7 +2824,14 @@
             }
             if (data.alert) addOrUpdateSosMarker(data.alert, false); else setTimeout(() => window.location.reload(), 600);
             setTimeout(() => {
-              if (typeof window.drawRescuerMultiStopRoute === 'function') window.drawRescuerMultiStopRoute(false);
+              if (nextStatus === 'ACKNOWLEDGED' || nextStatus === 'RESPONDING') {
+                if (typeof window.drawRescuerMultiStopRoute === 'function') window.drawRescuerMultiStopRoute(true);
+              } else if (nextStatus === 'RESOLVED') {
+                if (typeof window.clearRescuerMultiStopRoute === 'function') window.clearRescuerMultiStopRoute();
+                if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
+              } else if (typeof window.drawRescuerMultiStopRoute === 'function') {
+                window.drawRescuerMultiStopRoute(false);
+              }
             }, 350);
           } else {
             showSosToast(data.message || 'Unable to update SOS status.', 'error');

@@ -917,6 +917,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Standby GPS heartbeat so nearest-rescuer auto-assignment always uses real live coordinates
+  socket.on('rescuer:standby_location', async (data) => {
+    try {
+      const sUserId = Number((session && session.userId) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userId) || 0);
+      if (!sUserId || !data) return;
+      const lat = Number(data.latitude !== undefined ? data.latitude : data.lat);
+      const lng = Number(data.longitude !== undefined ? data.longitude : data.lng);
+      if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return;
+      const sName = (session && session.userName) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userName) || 'Emergency Rescuer';
+      rescuerTracker.updateRescuerLocation(null, {
+        rescuer_user_id: sUserId,
+        rescuer_name: sName,
+        rescuer_role: 'Emergency Rescuer',
+        latitude: lat,
+        longitude: lng,
+        accuracy: Number(data.accuracy || 0)
+      });
+    } catch (_) {}
+  });
+
   socket.on('sos:cancel', async (data) => {
     try {
       if (!data) return;

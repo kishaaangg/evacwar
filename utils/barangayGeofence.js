@@ -156,8 +156,10 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
       ORDER BY s.staff_type = 'RESCUER' DESC, u.id ASC
     `).catch(() => [[]]);
 
-    // 2. Fetch live tracked rescuer GPS positions from rescuerTracker
-    const liveTracked = rescuerTracker.getActiveRescuers() || [];
+    // 2. Fetch live tracked rescuer GPS positions from rescuerTracker (both active responders AND standby rescuers)
+    const liveTracked = (typeof rescuerTracker.getAllKnownRescuers === 'function')
+      ? rescuerTracker.getAllKnownRescuers()
+      : (rescuerTracker.getActiveRescuers() || []);
     const liveByUserId = new Map();
     liveTracked.forEach((tr) => {
       if (tr && tr.rescuer_user_id && isFinite(tr.latitude) && isFinite(tr.longitude)) {

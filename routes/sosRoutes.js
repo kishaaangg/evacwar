@@ -31,6 +31,35 @@ router.get('/rescuers/active', requireAuth, requireRole(['staff', 'admin']), (re
   }
 });
 
+// POST /api/sos/rescuer/location - Standby / live GPS heartbeat for rescuers so nearest-rescuer auto-assign uses real coordinates
+router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', 'admin', 'barangay_council']), (req, res) => {
+  try {
+    const { latitude, longitude, accuracy, sos_id } = req.body || {};
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) {
+      return res.status(400).json({ success: false, message: 'Valid GPS coordinates required.' });
+    }
+    const uid = Number((req.session && req.session.userId) || req.headers['x-evakwar-mobile-user-id'] || 0);
+    if (!uid) {
+      return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    }
+    const rName = (req.session && req.session.userName) || req.headers['x-evakwar-mobile-name'] || 'Emergency Rescuer';
+    rescuerTracker.updateRescuerLocation(sos_id ? Number(sos_id) : null, {
+      rescuer_user_id: uid,
+      rescuer_name: rName,
+      rescuer_role: 'Emergency Rescuer',
+      latitude: lat,
+      longitude: lng,
+      accuracy: Number(accuracy || 0)
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating standby rescuer location:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sos/resident/active - Retrieve active SOS alert for current session user (strictly resident only)
 router.get('/resident/active', requireAuth, requireRole(['resident']), async (req, res) => {
   try {

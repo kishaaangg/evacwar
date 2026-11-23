@@ -218,184 +218,47 @@
                   <img loading="lazy" src="<%= hero3dImage %>" decoding="async" alt="<%= isRescuer ? 'Emergency Rescuer' : 'Evacuation Staff' %>"
                     class="relative z-10 w-full h-full max-h-[205px] xs:max-h-[220px] sm:max-h-[235px] md:max-h-[250px] object-contain object-bottom drop-shadow-2xl translate-y-[2px]" />
                 </div>
-              </div>              <!-- 1. RESCUER EMERGENCY RADAR (FORCED EVACUATION ONLY) -->
-              <style>
-                .radar-scrollbar::-webkit-scrollbar {
-                  width: 4px;
-                }
-                .radar-scrollbar::-webkit-scrollbar-track {
-                  background: rgba(255, 255, 255, 0.04);
-                  border-radius: 9999px;
-                }
-                .radar-scrollbar::-webkit-scrollbar-thumb {
-                  background: rgba(239, 68, 68, 0.35);
-                  border-radius: 9999px;
-                }
-                .radar-scrollbar::-webkit-scrollbar-thumb:hover {
-                  background: rgba(239, 68, 68, 0.7);
-                }
-              </style>
-
-              <!-- 1. RESCUER EMERGENCY RADAR (FORCED EVACUATION ONLY) -->
-              <% if (isRescuer || isBoth) { %>
-                <div
-                  id="dashSosRadarSection"
-                  class="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/98 to-slate-950 text-white rounded-3xl p-3.5 xs:p-4 sm:p-5 shadow-2xl border border-red-500/30 flex flex-col min-h-[300px] sm:min-h-[330px] space-y-3">
-                  <!-- Ambient glowing tactical backdrop -->
-                  <div class="absolute -top-16 -right-16 w-56 h-56 bg-red-600/15 rounded-full blur-3xl pointer-events-none"></div>
-                  <div class="absolute -bottom-16 -left-16 w-56 h-56 bg-rose-600/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                  <!-- Header & Full Map Shortcut (Responsive <= 450px) -->
-                  <div class="relative z-10 flex items-center justify-between gap-2 xs:gap-3 pb-3 border-b border-white/10 shrink-0">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                      <div class="relative flex items-center justify-center shrink-0">
-                        <div class="w-9 h-9 xs:w-10 xs:h-10 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-red-600/30">
-                          <i class="ph ph-warning-octagon"></i>
-                        </div>
-                        <span id="dashRadarPulseDot" class="absolute -top-1 -right-1 flex h-3 w-3 <%= (locals.activeSosAlerts && locals.activeSosAlerts.length > 0) ? '' : 'hidden' %>">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-slate-900"></span>
-                        </span>
-                      </div>
-                      <div class="min-w-0">
-                        <div class="flex items-center gap-1.5 xs:gap-2 flex-wrap">
-                          <h2 class="font-black text-white text-sm xs:text-base sm:text-lg tracking-tight truncate">SOS Emergency Radar</h2>
-                          <span
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] xs:text-[11px] font-black uppercase tracking-wider <%= (locals.activeSosAlerts && locals.activeSosAlerts.length > 0) ? 'bg-red-500 text-white shadow-xs' : 'bg-slate-800 text-slate-300 border border-slate-700' %>"
-                            id="activeSosCountBadge">
-                            <% if (locals.activeSosAlerts && locals.activeSosAlerts.length > 0) { %>
-                              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                            <% } %>
-                            <%= (locals.activeSosAlerts && locals.activeSosAlerts.length) ? locals.activeSosAlerts.length : 0 %> Active <%= (locals.activeSosAlerts && locals.activeSosAlerts.length === 1) ? 'Signal' : 'Signals' %>
-                          </span>
-                        </div>
-                        <p class="text-[10.5px] xs:text-xs text-red-300/80 font-medium truncate mt-0.5">
-                          Forced Evacuation Only • Live Telemetry
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- Tactical Map Action -->
-                    <a href="<%= isRescuer ? '/rescuer/map' : '/staff/map' %>"
-                      class="inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 xs:px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs transition-all shrink-0 border border-white/10 cursor-pointer shadow-xs">
-                      <i class="ph ph-map-pin text-sm text-red-400"></i>
-                      <span class="hidden xs:inline">Full Map</span>
-                      <span class="xs:hidden text-[11px]">Map</span>
-                    </a>
+              </div>
+              <!-- 1. LIVE RESCUE DISPATCH READINESS STRIP (REPLACES BULKY RADAR) -->
+              <% const initialActiveSosCount = (locals.activeSosAlerts && Array.isArray(locals.activeSosAlerts)) ? locals.activeSosAlerts.length : 0; %>
+              <div id="rescuerDispatchStatusCard"
+                class="rounded-3xl p-3.5 sm:p-4 shadow-sm border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 <%= initialActiveSosCount > 0 ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white border-red-400/50 shadow-red-600/20' : 'bg-white text-slate-900 border-slate-200/90' %>">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div id="rescuerDispatchIconBox"
+                    class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-xs <%= initialActiveSosCount > 0 ? 'bg-white/20 text-white animate-pulse' : 'bg-emerald-50 text-emerald-600 border border-emerald-200/80' %>">
+                    <i id="rescuerDispatchIcon" class="ph <%= initialActiveSosCount > 0 ? 'ph-siren' : 'ph-shield-check' %>"></i>
                   </div>
-
-                  <!-- Active Alerts Card List (Scrollable, High Capacity, Responsive <= 450px) -->
-                  <div class="space-y-2 relative z-10 max-h-[380px] xs:max-h-[440px] overflow-y-auto pr-1 radar-scrollbar flex-1 <%= (locals.activeSosAlerts && locals.activeSosAlerts.length > 0) ? '' : 'hidden' %>" id="dashSosListContainer">
-                    <% if (locals.activeSosAlerts && locals.activeSosAlerts.length > 0) { %>
-                      <% locals.activeSosAlerts.forEach(alert => {
-                        const alertLat = alert.latitude || alert.lat || 13.5102;
-                        const alertLng = alert.longitude || alert.lng || 123.3470;
-                        const alertName = alert.name || (alert.first_name ? `${alert.first_name} ${alert.last_name || ''}`.trim() : 'Resident in Distress');
-                        const alertInitial = alertName.charAt(0).toUpperCase();
-                        let alertPhoto = alert.resident_profile_photo || alert.profile_photo || null;
-                        if (alertPhoto && !alertPhoto.startsWith('http') && !alertPhoto.startsWith('/')) {
-                          alertPhoto = `/uploads/profiles/${alertPhoto}`;
-                        }
-                        const isPending = alert.status === 'ACTIVE';
-                        const isAck = alert.status === 'ACKNOWLEDGED';
-                        const isResp = alert.status === 'RESPONDING';
-                        %>
-                        <a href="<%= isRescuer ? '/rescuer/map' : '/staff/map' %>?sos_id=<%= alert.id %>&lat=<%= alertLat %>&lng=<%= alertLng %>&focus=1"
-                          id="dash_sos_card_<%= alert.id %>"
-                          data-sos-id="<%= alert.id %>"
-                          data-resident-id="<%= alert.resident_id || alert.residentId || '' %>"
-                          class="block bg-white hover:bg-slate-50/95 active:scale-[0.99] rounded-2xl p-2.5 xs:p-3 border border-slate-200/90 hover:border-red-400 shadow-sm transition-all group cursor-pointer text-slate-900">
-                          <div class="flex items-center justify-between gap-2.5">
-                            <!-- Left: Compact Avatar -->
-                            <div class="w-9 h-9 xs:w-10 xs:h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-xs border border-slate-200">
-                              <% if (alertPhoto) { %>
-                                <img loading="lazy" src="<%= alertPhoto %>" alt="<%= alertName %>" class="w-full h-full object-cover"
-                                  onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
-                                <span class="hidden font-black"><%= alertInitial %></span>
-                              <% } else { %>
-                                <span class="font-black"><%= alertInitial %></span>
-                              <% } %>
-                            </div>
-
-                            <!-- Center: Resident details + clean wrapping metadata -->
-                            <div class="min-w-0 flex-1">
-                              <!-- Row 1: Name + Status Badge -->
-                              <div class="flex items-center gap-1.5 flex-wrap">
-                                <h3 class="font-black text-slate-950 text-xs xs:text-sm leading-tight truncate group-hover:text-red-700 transition-colors">
-                                  <%= alertName %>
-                                </h3>
-                                <div class="status-badge-wrapper inline-flex items-center">
-                                  <% if (isPending) { %>
-                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-100 text-red-700 border border-red-200 shrink-0 inline-flex items-center gap-1">
-                                      <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-                                      ACTIVE SOS
-                                    </span>
-                                  <% } else if (isAck) { %>
-                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 shrink-0 inline-flex items-center gap-0.5">
-                                      <i class="ph ph-check-circle text-[10px]"></i> ACKNOWLEDGED
-                                    </span>
-                                  <% } else if (isResp) { %>
-                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 shrink-0 inline-flex items-center gap-0.5">
-                                      <i class="ph ph-paper-plane-tilt text-[10px]"></i> RESPONDING
-                                    </span>
-                                  <% } else { %>
-                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0 inline-flex items-center gap-0.5">
-                                      <i class="ph ph-shield-check text-[10px]"></i> RESCUED
-                                    </span>
-                                  <% } %>
-                                </div>
-                              </div>
-
-                              <!-- Row 2: Metadata with responsive wrap (Never cut off phone or time!) -->
-                              <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5 leading-snug">
-                                <span class="font-bold text-rose-600 flex items-center gap-0.5 shrink-0">
-                                  <i class="ph ph-map-pin text-xs"></i>
-                                  <span><%= alert.barangay || 'San Rafael' %></span>
-                                </span>
-                                <span class="text-slate-300 shrink-0">•</span>
-                                <span class="font-mono text-[10.5px] text-slate-400 flex items-center gap-0.5 shrink-0">
-                                  <i class="ph ph-clock text-xs"></i>
-                                  <span><%= (locals.formatManilaTime ? locals.formatManilaTime(alert.created_at) : 'Just now') %></span>
-                                </span>
-                                <% if (alert.contact_number) { %>
-                                  <span class="text-slate-300 shrink-0">•</span>
-                                  <span class="text-slate-700 font-mono text-[10.5px] font-semibold flex items-center gap-0.5 shrink-0 hover:text-blue-600">
-                                    <i class="ph ph-phone text-xs text-slate-400"></i>
-                                    <span><%= alert.contact_number %></span>
-                                  </span>
-                                <% } %>
-                              </div>
-                            </div>
-
-                            <!-- Right: Tactical Action Pin Indicator (Compact & Responsive at 450px) -->
-                            <div class="w-8 h-8 rounded-xl bg-red-50 group-hover:bg-red-600 text-red-600 group-hover:text-white border border-red-200/90 group-hover:border-red-600 flex items-center justify-center transition-all shrink-0 shadow-2xs" title="Focus on map">
-                              <i class="ph ph-navigation-arrow-fill text-xs group-hover:scale-110 transition-transform"></i>
-                            </div>
-                          </div>
-                        </a>
-                      <% }) %>
-                    <% } %>
-                  </div>
-
-                  <!-- Empty State when 0 Active Signals (Spacious, Tactical & Balanced) -->
-                  <div
-                    id="dashSosEmptyState"
-                    class="flex-1 flex flex-col items-center justify-center p-6 text-center border border-white/10 rounded-2xl bg-white/5 space-y-2 relative z-10 min-h-[180px] <%= (locals.activeSosAlerts && locals.activeSosAlerts.length > 0) ? 'hidden' : '' %>">
-                    <div class="relative flex items-center justify-center">
-                      <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl shadow-inner">
-                        <i class="ph ph-shield-check"></i>
-                      </div>
-                      <span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-emerald-400/20"></span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <h2 id="rescuerDispatchTitle" class="font-black text-sm sm:text-base tracking-tight leading-tight">
+                        <%= initialActiveSosCount > 0 ? (initialActiveSosCount + ' Active SOS ' + (initialActiveSosCount === 1 ? 'Call' : 'Calls') + ' — Dispatch Ready') : 'Sector Clear • Standby Ready' %>
+                      </h2>
+                      <span id="rescuerGpsStandbyPill"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider <%= initialActiveSosCount > 0 ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700 border border-blue-200/70' %>">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span id="rescuerGpsStandbyText">GPS Standby</span>
+                      </span>
                     </div>
-                    <div class="space-y-0.5">
-                      <h3 class="font-black text-white text-sm">Sector All Clear</h3>
-                      <p class="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-                        Distress calls during forced evacuation will automatically appear here on this radar in real time.
-                      </p>
-                    </div>
+                    <p id="rescuerDispatchSub"
+                      class="text-[11px] sm:text-xs font-medium mt-0.5 truncate <%= initialActiveSosCount > 0 ? 'text-rose-100' : 'text-slate-500' %>">
+                      <%= initialActiveSosCount > 0 ? 'Tap Open SOS Map to view nearest auto-assigned rescue path & stops.' : 'Auto-assign is armed — nearest SOS alerts will route directly to your unit.' %>
+                    </p>
                   </div>
                 </div>
-              <% } %>
+
+                <div class="flex items-center gap-2 shrink-0">
+                  <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-black <%= initialActiveSosCount > 0 ? 'bg-black/20 text-white' : 'bg-slate-100 text-slate-700' %>">
+                    <span id="dashDispatchMineCount">0</span>
+                    <span class="text-[10px] font-bold uppercase opacity-80">Assigned</span>
+                  </div>
+                  <a href="/rescuer/map"
+                    id="rescuerDispatchMapBtn"
+                    class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-extrabold text-xs transition-all active:scale-95 shrink-0 shadow-xs <%= initialActiveSosCount > 0 ? 'bg-white text-red-700 hover:bg-rose-50' : 'bg-blue-600 hover:bg-blue-700 text-white' %>">
+                    <i class="ph ph-navigation-arrow-fill text-sm"></i>
+                    <span>Open SOS Map</span>
+                  </a>
+                </div>
+              </div>
 
                   <!-- 2. MY ASSIGNED SITES (CLEAN RESPONSIVE LAYOUT FOR SINGLE & MULTI-FACILITY) -->
                   <% if (!isRescuer) { %>
@@ -678,121 +541,58 @@
                             <% } %>
                               <% } %>
 
-                                <!-- 3. ROLE-SPECIFIC QUICK ACTION BUTTONS & WEATHER CAROUSEL -->
-                                <div>
-                                  <!-- Header Title & Swipe Controls Bar -->
-                                  <div class="flex items-center justify-between px-1 mb-2.5">
-                                    <div class="flex items-center gap-2">
-                                      <span
-                                        class="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs border border-amber-200/60 shrink-0">
-                                        <i class="ph ph-lightning"></i>
-                                      </span>
-                                      <h2
-                                        class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-600">
-                                        <%= isRescuer ? 'Rescuer Operational Quick Actions' : (isBoth
-                                          ? 'Staff & Rescuer Operational Actions' : 'Staff Quick Actions' ) %>
-                                      </h2>
-                                    </div>
+                                <!-- 3. RESCUER BENTO GRID (COMPACT WEATHER + STACKED ACTIONS + 3 BOTTOM TILES — NO HORIZONTAL SLIDING) -->
+                                <div class="space-y-2.5 sm:space-y-3">
+                                  <!-- TOP BENTO ROW: Left Compact Weather Card (7 cols) + Right Stacked 2 Cards (5 cols) -->
+                                  <div class="grid grid-cols-12 gap-2.5 sm:gap-3 items-stretch">
 
-                                    <div class="flex items-center gap-2.5">
-                                      <!-- Carousel Indicator Dots Inside Header -->
-                                      <div class="flex items-center gap-1.5" id="quickActionsDots">
-                                        <button type="button" aria-label="Slide 1 - Weather Telemetry"
-                                          class="qa-dot transition-all duration-300 rounded-full w-5 h-1.5 bg-blue-600 shadow-xs cursor-pointer"
-                                          data-qa-slide="0"></button>
-                                        <button type="button" aria-label="Slide 2 - Operational Actions"
-                                          class="qa-dot transition-all duration-300 rounded-full w-1.5 h-1.5 bg-slate-300 hover:bg-slate-400 cursor-pointer"
-                                          data-qa-slide="1"></button>
-                                      </div>
-
-                                      <span
-                                        class="text-[11px] font-bold text-slate-400 hidden xs:flex items-center gap-1">
-                                        <i class="ph ph-hand-swipe text-blue-600 animate-pulse"></i>
-                                        <span>Swipe</span>
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <!-- Swipable Track containing Square Weather Card & Square Quick Action Cards -->
-                                  <div id="quickActionsTrack"
-                                    class="w-full flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 pt-1 no-scrollbar touch-pan-x select-none cursor-grab active:cursor-grabbing"
-                                    style="scrollbar-width: none; -ms-overflow-style: none;">
-                                    <!-- =========================================================================
-                                         SLIDE 1: REGIONAL WEATHER TELEMETRY CARD (WIDER WITH SKY TINT)
-                                         ========================================================================= -->
+                                    <!-- LEFT LARGE SQUARE: COMPACT LIVE LOCAL WEATHER -->
                                     <div
-                                      class="qa-slide w-[325px] xs:w-[345px] sm:w-[370px] md:w-[390px] min-h-[305px] sm:min-h-[315px] shrink-0 snap-start bg-gradient-to-br from-[#ebf4ff] via-[#f0f7ff] to-[#e0efff] rounded-3xl border border-blue-200/90 shadow-[0_12px_28px_rgba(37,99,235,0.08)] p-4 sm:p-5 relative overflow-hidden font-heading flex flex-col justify-between transition-all"
-                                      data-slide-index="0">
-
-                                      <!-- Top Bar: Day, Location, Live Time, Radar Action & Telemetry Buttons -->
-                                      <div class="flex items-center justify-between gap-1.5">
+                                      class="col-span-7 bg-gradient-to-br from-[#ebf4ff] via-[#f2f8ff] to-[#dfeeff] rounded-3xl border border-blue-200/90 shadow-xs p-3 sm:p-4 relative overflow-hidden font-heading flex flex-col justify-between min-h-[185px] sm:min-h-[210px]">
+                                      <!-- Top Bar -->
+                                      <div class="flex items-start justify-between gap-1">
                                         <div class="min-w-0">
-                                          <div class="flex items-center gap-1.5">
-                                            <h3
-                                              class="font-bold text-slate-800 text-sm sm:text-base tracking-tight leading-tight truncate"
-                                              id="weatherDay">
+                                          <div class="flex items-center gap-1 flex-wrap">
+                                            <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               <%= currentDayName %>
                                             </h3>
-                                            <!-- Quick Weather Action Pill -->
-                                            <a href="/rescuer/typhoon"
-                                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 text-[10px] font-black uppercase tracking-wider border border-blue-300/50 transition-colors shrink-0"
-                                              title="Launch Live Typhoon & Weather Radar">
-                                              <i class="ph ph-cloud-rain text-xs"></i>
-                                              <span>Radar</span>
-                                            </a>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime"><%= currentTimeStr %></span>
                                           </div>
-                                          <div
-                                            class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate max-w-[145px]"
-                                            id="dashWeatherLocLabel">
-                                            <%= (locals.weather && locals.weather.location_name) ?
-                                              locals.weather.location_name : 'San Rafael, Baao' %>
+                                          <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
+                                            <%= (locals.weather && locals.weather.location_name) ? locals.weather.location_name : 'San Rafael, Baao' %>
                                           </div>
                                         </div>
                                         <div class="flex items-center gap-1 shrink-0">
-                                          <span class="font-semibold text-slate-700 text-xs tracking-tight"
-                                            id="weatherTime">
-                                            <%= currentTimeStr %>
-                                          </span>
-                                          <button type="button" onclick="useMyLocationDashboard(this)"
-                                            id="btnDashMyLocation"
-                                            class="w-7 h-7 rounded-full bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer shrink-0 border border-blue-100"
-                                            title="Use device GPS location">
-                                            <i class="ph ph-crosshair text-xs font-bold" id="dashLocIcon"></i>
+                                          <button type="button" onclick="useMyLocationDashboard(this)" id="btnDashMyLocation"
+                                            class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/90 hover:bg-blue-50 text-slate-700 hover:text-blue-700 flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer border border-blue-100"
+                                            title="Use GPS location">
+                                            <i class="ph ph-crosshair text-[11px] font-bold" id="dashLocIcon"></i>
                                           </button>
                                           <button type="button" onclick="refreshWeatherData(this)"
-                                            class="w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer shrink-0"
-                                            title="Refresh Telemetry">
-                                            <i class="ph ph-arrow-up-right text-xs font-bold"
-                                              id="weatherRefreshIcon"></i>
+                                            class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer"
+                                            title="Refresh Weather">
+                                            <i class="ph ph-arrows-clockwise text-[11px] font-bold" id="weatherRefreshIcon"></i>
                                           </button>
                                         </div>
                                       </div>
 
-                                      <!-- Middle: Temperature & 3D Volumetric Artwork -->
-                                      <div class="flex items-center justify-between gap-2 my-auto py-1">
+                                      <!-- Center: Temp & Compact Weather Artwork -->
+                                      <div class="flex items-center justify-between gap-1 my-1.5">
                                         <div class="min-w-0">
-                                          <div
-                                            class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none"
-                                            id="weatherTemp">
+                                          <div class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none" id="weatherTemp">
                                             <%= currentTemp %>°C
                                           </div>
-                                          <div
-                                            class="text-[11px] sm:text-xs font-semibold text-slate-600 mt-1 flex items-center gap-1"
-                                            id="weatherRealFeelContainer">
-                                            <span>Real feel <span id="weatherRealFeel" class="font-bold text-slate-800">
-                                                <%= realFeelTemp %>°C
-                                              </span></span>
+                                          <div class="text-[10px] sm:text-xs font-semibold text-slate-600 mt-1 truncate">
+                                            Feels <span id="weatherRealFeel" class="font-bold text-slate-800"><%= realFeelTemp %>°C</span>
+                                          </div>
+                                          <div class="text-[10px] font-bold text-blue-700 truncate mt-0.5" id="weatherStatus">
+                                            <%= weatherStatus %>
                                           </div>
                                         </div>
 
-                                        <!-- 3D Weather Artwork Container -->
-                                        <div id="weatherVisualContainer"
-                                          class="shrink-0 flex items-center justify-center select-none">
+                                        <div id="weatherVisualContainer" class="shrink-0 flex items-center justify-center select-none">
                                           <% if (isRainyWeather) { %>
-                                            <!-- 3D Daytime Sun + Puffy Cloud + Raindrops -->
-                                            <svg viewBox="0 0 140 120"
-                                              class="w-20 h-16 sm:w-22 sm:h-18 drop-shadow-md select-none pointer-events-none"
-                                              fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <svg viewBox="0 0 140 120" class="w-14 h-12 sm:w-20 sm:h-16 drop-shadow-sm select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
                                               <defs>
                                                 <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
                                                   <stop offset="0%" stop-color="#FFF5A0" />
@@ -800,446 +600,218 @@
                                                   <stop offset="75%" stop-color="#FF8A00" />
                                                   <stop offset="100%" stop-color="#FF5D00" />
                                                 </radialGradient>
-                                                <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%"
-                                                  height="140%">
-                                                  <feGaussianBlur stdDeviation="2" result="blur" />
-                                                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                                                </filter>
                                                 <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
                                                   <stop offset="0%" stop-color="#FFFFFF" />
-                                                  <stop offset="45%" stop-color="#F2F8FD" />
-                                                  <stop offset="85%" stop-color="#C5DDFB" />
+                                                  <stop offset="50%" stop-color="#F2F8FD" />
                                                   <stop offset="100%" stop-color="#A5C9F7" />
                                                 </linearGradient>
                                                 <linearGradient id="dashDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                                                   <stop offset="0%" stop-color="#73D0FF" />
                                                   <stop offset="100%" stop-color="#2196F3" />
                                                 </linearGradient>
-                                                <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%"
-                                                  height="145%">
-                                                  <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
-                                                    flood-opacity="0.22" />
-                                                </filter>
                                               </defs>
-                                              <!-- Radiant 3D Sun Behind Cloud -->
                                               <g transform="translate(88, 38)">
-                                                <g filter="url(#dashSunRayGlow)" opacity="0.95">
-                                                  <path
-                                                    d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
-                                                    fill="#FFA500" />
-                                                </g>
                                                 <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
-                                                <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
                                               </g>
-                                              <!-- Puffy Cloud in front of Sun -->
-                                              <g filter="url(#dashCloudSoftShadow)">
-                                                <path
-                                                  d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z"
-                                                  fill="url(#dashCloudGrad)" />
-                                                <ellipse cx="58" cy="28" rx="18" ry="10" fill="#FFFFFF"
-                                                  opacity="0.65" />
-                                                <ellipse cx="98" cy="44" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
-                                              </g>
-                                              <!-- 3D Blue Raindrops Falling -->
-                                              <path
-                                                d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M54 95 C52 98 51 103 53 106 C54 108 57 108 58 106 C60 103 58 98 56 95 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M72 90 C70 93 69 98 71 101 C72 103 75 103 76 101 C78 98 76 93 74 90 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M88 95 C86 98 85 103 87 106 C88 108 91 108 92 106 C94 103 92 98 90 95 Z"
-                                                fill="url(#dashDropGrad)" />
+                                              <path d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z" fill="url(#dashCloudGrad)" />
+                                              <path d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z" fill="url(#dashDropGrad)" />
+                                              <path d="M58 94 C56 97 55 102 57 105 C58 107 61 107 62 105 C64 102 62 97 60 94 Z" fill="url(#dashDropGrad)" />
+                                              <path d="M78 90 C76 93 75 98 77 101 C78 103 81 103 82 101 C84 98 82 93 80 90 Z" fill="url(#dashDropGrad)" />
                                             </svg>
-                                            <% } else { %>
-                                              <!-- 3D Sun & Cloud Illustration -->
-                                              <svg viewBox="0 0 140 120"
-                                                class="w-20 h-16 sm:w-22 sm:h-18 drop-shadow-md select-none pointer-events-none"
-                                                fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <defs>
-                                                  <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
-                                                    <stop offset="0%" stop-color="#FFF5A0" />
-                                                    <stop offset="30%" stop-color="#FFC800" />
-                                                    <stop offset="75%" stop-color="#FF8A00" />
-                                                    <stop offset="100%" stop-color="#FF5D00" />
-                                                  </radialGradient>
-                                                  <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%"
-                                                    height="140%">
-                                                    <feGaussianBlur stdDeviation="2" result="blur" />
-                                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                                                  </filter>
-                                                  <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%"
-                                                    y2="100%">
-                                                    <stop offset="0%" stop-color="#FFFFFF" />
-                                                    <stop offset="45%" stop-color="#F2F8FD" />
-                                                    <stop offset="85%" stop-color="#C5DDFB" />
-                                                    <stop offset="100%" stop-color="#A5C9F7" />
-                                                  </linearGradient>
-                                                  <linearGradient id="dashCloudWarmth" x1="80%" y1="10%" x2="20%"
-                                                    y2="90%">
-                                                    <stop offset="0%" stop-color="#FFE8A3" stop-opacity="0.6" />
-                                                    <stop offset="40%" stop-color="#FFD67A" stop-opacity="0.2" />
-                                                    <stop offset="100%" stop-color="#A5C9F7" stop-opacity="0" />
-                                                  </linearGradient>
-                                                  <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%"
-                                                    height="145%">
-                                                    <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
-                                                      flood-opacity="0.22" />
-                                                  </filter>
-                                                </defs>
-                                                <!-- 3D Sun Behind Cloud -->
-                                                <g transform="translate(88, 38)">
-                                                  <g filter="url(#dashSunRayGlow)" opacity="0.95">
-                                                    <path
-                                                      d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
-                                                      fill="#FFA500" />
-                                                  </g>
-                                                  <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
-                                                  <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
-                                                </g>
-                                                <!-- 3D Volumetric Cloud -->
-                                                <g filter="url(#dashCloudSoftShadow)">
-                                                  <path
-                                                    d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z"
-                                                    fill="url(#dashCloudGrad)" />
-                                                  <path
-                                                    d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z"
-                                                    fill="url(#dashCloudWarmth)" />
-                                                  <ellipse cx="58" cy="36" rx="18" ry="10" fill="#FFFFFF"
-                                                    opacity="0.65" />
-                                                  <ellipse cx="98" cy="52" rx="14" ry="8" fill="#FFFFFF"
-                                                    opacity="0.55" />
-                                                </g>
-                                              </svg>
-                                              <% } %>
+                                          <% } else { %>
+                                            <svg viewBox="0 0 140 120" class="w-14 h-12 sm:w-20 sm:h-16 drop-shadow-sm select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                              <defs>
+                                                <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
+                                                  <stop offset="0%" stop-color="#FFF5A0" />
+                                                  <stop offset="30%" stop-color="#FFC800" />
+                                                  <stop offset="75%" stop-color="#FF8A00" />
+                                                  <stop offset="100%" stop-color="#FF5D00" />
+                                                </radialGradient>
+                                                <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
+                                                  <stop offset="0%" stop-color="#FFFFFF" />
+                                                  <stop offset="50%" stop-color="#F2F8FD" />
+                                                  <stop offset="100%" stop-color="#A5C9F7" />
+                                                </linearGradient>
+                                              </defs>
+                                              <g transform="translate(88, 38)">
+                                                <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
+                                              </g>
+                                              <path d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z" fill="url(#dashCloudGrad)" />
+                                            </svg>
+                                          <% } %>
                                         </div>
                                       </div>
 
-                                      <!-- Bottom Stats: 3 Rounded Pill Cards with Soft Glass Backdrops -->
-                                      <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
-                                        <!-- Wind Pill -->
-                                        <div
-                                          class="bg-white/85 backdrop-blur-xs rounded-xl p-2 sm:p-2.5 flex flex-col justify-between border border-blue-200/60 shadow-2xs">
-                                          <i class="ph ph-wind text-blue-600 text-sm"></i>
-                                          <div class="mt-1">
-                                            <div
-                                              class="text-[9px] sm:text-[10px] font-semibold text-slate-500 leading-none">
-                                              Wind</div>
-                                            <div
-                                              class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5">
-                                              <span id="weatherWind">
-                                                <%= currentWind %>
-                                              </span> km/h
-                                            </div>
-                                          </div>
+                                      <!-- Compact Bottom Stats Strip -->
+                                      <div class="grid grid-cols-3 gap-1 sm:gap-1.5">
+                                        <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-blue-200/60 text-center">
+                                          <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Wind</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherWind"><%= currentWind %></span><span class="text-[9px] font-semibold">km/h</span></div>
                                         </div>
-
-                                        <!-- Temperature Pill -->
-                                        <div
-                                          class="bg-white/85 backdrop-blur-xs rounded-xl p-2 sm:p-2.5 flex flex-col justify-between border border-amber-200/60 shadow-2xs">
-                                          <i class="ph ph-thermometer-simple text-amber-500 text-sm"></i>
-                                          <div class="mt-1">
-                                            <div
-                                              class="text-[9px] sm:text-[10px] font-semibold text-slate-500 leading-none">
-                                              Temp</div>
-                                            <div
-                                              class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
-                                              id="weatherTempPill">
-                                              <%= currentTemp %>°C
-                                            </div>
-                                          </div>
+                                        <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-sky-200/60 text-center">
+                                          <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Rain</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherRain"><%= currentRainfall %></span><span class="text-[9px] font-semibold">mm</span></div>
                                         </div>
-
-                                        <!-- Rainfall Pill -->
-                                        <div
-                                          class="bg-white/85 backdrop-blur-xs rounded-xl p-2 sm:p-2.5 flex flex-col justify-between border border-sky-200/60 shadow-2xs">
-                                          <i class="ph ph-drop text-blue-500 text-sm"></i>
-                                          <div class="mt-1">
-                                            <div
-                                              class="text-[9px] sm:text-[10px] font-semibold text-slate-500 leading-none">
-                                              Rainfall</div>
-                                            <div
-                                              class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5">
-                                              <span id="weatherRain">
-                                                <%= currentRainfall %>
-                                              </span> mm
-                                            </div>
-                                          </div>
+                                        <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-indigo-200/60 text-center">
+                                          <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Humid</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate" id="weatherHumidity"><%= currentHumidity %>%</div>
                                         </div>
                                       </div>
 
                                       <!-- Hidden Telemetry Hooks -->
-                                      <span id="weatherStatus" class="hidden">
-                                        <%= weatherStatus %>
-                                      </span>
-                                      <span id="weatherHumidity" class="hidden">
-                                        <%= currentHumidity %>%
-                                      </span>
-                                      <span id="weatherUpdated" class="hidden">
-                                        <%= (locals.weather && locals.weather.formatted_time) ?
-                                          locals.weather.formatted_time : 'Just now' %>
-                                      </span>
+                                      <span id="weatherTempPill" class="hidden"><%= currentTemp %>°C</span>
+                                      <span id="weatherUpdated" class="hidden"><%= (locals.weather && locals.weather.formatted_time) ? locals.weather.formatted_time : 'Just now' %></span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 
-                                    <% if (isRescuer) { %>
-                                      <!-- =========================================================================
-                                           RESCUER QUICK ACTIONS (6 COLOR-THEMED LANDSCAPE TILES)
-                                           ========================================================================= -->
-                                      <div
-                                        class="qa-slide w-[325px] xs:w-[345px] sm:w-[370px] md:w-[390px] min-h-[305px] sm:min-h-[315px] shrink-0 snap-start grid grid-cols-2 gap-2 sm:gap-2.5"
-                                        data-slide-index="1">
-                                        <!-- 1. Active SOS Radar (Rose / Red Theme) -->
-                                        <a href="/rescuer/map"
-                                          class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#fff1f2] via-[#fff5f5] to-[#ffe4e6] border border-rose-200/90 hover:border-rose-400 shadow-xs hover:shadow-md hover:shadow-rose-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                          <div class="flex items-center justify-between gap-1">
-                                            <div
-                                              class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 to-red-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-rose-600/30">
-                                              <i class="ph ph-warning-octagon"></i>
-                                            </div>
-                                            <span
-                                              class="px-2 py-0.5 rounded-full bg-rose-600/10 text-rose-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-rose-200/60">Radar</span>
+                                    <!-- RIGHT STACKED 2 HORIZONTAL CARDS (5 cols) -->
+                                    <div class="col-span-5 flex flex-col gap-2.5 sm:gap-3">
+                                      <!-- Top-Right: SOS Rescue Map -->
+                                      <a href="/rescuer/map"
+                                        class="group flex-1 flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#fff1f2] via-[#fff5f6] to-[#ffe4e6] border border-rose-200/90 hover:border-rose-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                        <div class="flex items-center justify-between gap-1">
+                                          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-rose-600 to-red-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs shadow-rose-600/30">
+                                            <i class="ph ph-map-pin-line"></i>
                                           </div>
-                                          <div class="mt-1.5 sm:mt-2">
-                                            <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-rose-700 transition-colors leading-tight">Active SOS</span>
-                                            <span
-                                              class="text-[10px] sm:text-[11px] text-rose-900/60 font-semibold mt-0.5 block truncate">Distress Signals</span>
-                                          </div>
-                                        </a>
-
-                                        <!-- 2. Rescue Map Navigation (Indigo Theme) -->
-                                        <a href="/rescuer/map"
-                                          class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#eef2ff] via-[#f4f6ff] to-[#e0e7ff] border border-indigo-200/90 hover:border-indigo-400 shadow-xs hover:shadow-md hover:shadow-indigo-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                          <div class="flex items-center justify-between gap-1">
-                                            <div
-                                              class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-indigo-600/30">
-                                              <i class="ph ph-map-trifold"></i>
-                                            </div>
-                                            <span
-                                              class="px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-indigo-200/60">GPS</span>
-                                          </div>
-                                          <div class="mt-1.5 sm:mt-2">
-                                            <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-indigo-700 transition-colors leading-tight">Rescue Map</span>
-                                            <span
-                                              class="text-[10px] sm:text-[11px] text-indigo-900/60 font-semibold mt-0.5 block truncate">Field Navigation</span>
-                                          </div>
-                                        </a>
-
-                                        <!-- 3. LoRa Mesh Chat (Offline Radio Only) -->
-                                        <a href="/rescuer/chat"
-                                          class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-[#ede9fe] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md hover:shadow-purple-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                          <div class="flex items-center justify-between gap-1">
-                                            <div
-                                              class="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-purple-600/30">
-                                              <span class="chat-nav-red-dot hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse"></span>
-                                              <i class="ph ph-chats-circle"></i>
-                                            </div>
-                                            <span
-                                              class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">Offline</span>
-                                          </div>
-                                          <div class="mt-1.5 sm:mt-2">
-                                            <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">Offline LoRa Chat</span>
-                                            <span
-                                              class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Offline Radio Only</span>
-                                          </div>
-                                        </a>
-
-                                        <!-- 4. SOS Reports & Analytics (Amber / Orange Theme) -->
-                                        <a href="/rescuer/reports"
-                                          class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#fffbeb] via-[#fffdf5] to-[#fef3c7] border border-amber-200/90 hover:border-amber-400 shadow-xs hover:shadow-md hover:shadow-amber-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                          <div class="flex items-center justify-between gap-1">
-                                            <div
-                                              class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-amber-500/30">
-                                              <i class="ph ph-file-text"></i>
-                                            </div>
-                                            <span
-                                              class="px-2 py-0.5 rounded-full bg-amber-600/10 text-amber-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-amber-200/60">Reports</span>
-                                          </div>
-                                          <div class="mt-1.5 sm:mt-2">
-                                            <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-amber-700 transition-colors leading-tight">SOS Reports</span>
-                                            <span
-                                              class="text-[10px] sm:text-[11px] text-amber-900/60 font-semibold mt-0.5 block truncate">Incident Log & Stats</span>
-                                          </div>
-                                        </a>
-
-                                        <!-- 5. Unit Duty & Readiness (Emerald Theme) -->
-                                        <a href="/rescuer/profile"
-                                          class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#ecfdf5] via-[#f0fdf4] to-[#d1fae5] border border-emerald-200/90 hover:border-emerald-400 shadow-xs hover:shadow-md hover:shadow-emerald-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                          <div class="flex items-center justify-between gap-1">
-                                            <div
-                                              class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-emerald-600/30">
-                                              <i class="ph ph-shield-check"></i>
-                                            </div>
-                                            <span
-                                              class="px-2 py-0.5 rounded-full bg-emerald-600/10 text-emerald-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-emerald-200/60">Duty</span>
-                                          </div>
-                                          <div class="mt-1.5 sm:mt-2">
-                                            <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-emerald-700 transition-colors leading-tight">Field Unit</span>
-                                            <span
-                                              class="text-[10px] sm:text-[11px] text-emerald-900/60 font-semibold mt-0.5 block truncate">Status & Readiness</span>
-                                          </div>
-                                        </a>
-
-                                        <!-- 6. Rescuer ID & Credentials (Purple / Violet Theme) -->
-                                        <a href="/rescuer/profile"
-                                          class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#faf5ff] via-[#fbf8ff] to-[#f3e8ff] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md hover:shadow-purple-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                          <div class="flex items-center justify-between gap-1">
-                                            <div
-                                              class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-violet-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-purple-600/30">
-                                              <i class="ph ph-identification-card"></i>
-                                            </div>
-                                            <span
-                                              class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">Profile</span>
-                                          </div>
-                                          <div class="mt-1.5 sm:mt-2">
-                                            <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">Rescuer ID</span>
-                                            <span
-                                              class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Unit Credentials</span>
-                                          </div>
-                                        </a>
-                                      </div>
-
-                                      <% } else { %>
-                                        <!-- =========================================================================
-                                           EVACUATION STAFF QUICK ACTIONS (6 COLOR-THEMED LANDSCAPE TILES)
-                                           ========================================================================= -->
-                                        <div
-                                          class="qa-slide w-[325px] xs:w-[345px] sm:w-[370px] md:w-[390px] min-h-[305px] sm:min-h-[315px] shrink-0 snap-start grid grid-cols-2 gap-2 sm:gap-2.5"
-                                          data-slide-index="1">
-                                          <!-- 1. Scan QR Pass (Blue Theme) -->
-                                          <a href="/rescuer/qr<%= activeCenterId ? '?center_id=' + activeCenterId : '' %>"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#eff6ff] via-[#f0f7ff] to-[#dbeafe] border border-blue-200/90 hover:border-blue-400 shadow-xs hover:shadow-md hover:shadow-blue-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-blue-600/30">
-                                                <i class="ph ph-qr-code"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-blue-200/60">Pass</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-blue-700 transition-colors leading-tight">Scan
-                                                QR</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-blue-900/60 font-semibold mt-0.5 block truncate">Resident
-                                                Pass</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 2. Manual Check-In (Emerald / Teal Theme) -->
-                                          <a href="/rescuer/qr<%= activeCenterId ? '?center_id=' + activeCenterId : '' %>"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#ecfdf5] via-[#f0fdf4] to-[#d1fae5] border border-emerald-200/90 hover:border-emerald-400 shadow-xs hover:shadow-md hover:shadow-emerald-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-emerald-600/30">
-                                                <i class="ph ph-user-check"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-emerald-600/10 text-emerald-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-emerald-200/60">Search</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-emerald-700 transition-colors leading-tight">Manual
-                                                Check</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-emerald-900/60 font-semibold mt-0.5 block truncate">Name
-                                                & Phone</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 3. Evacuation Map (Rose / Red Theme) -->
-                                          <a href="/rescuer/map"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#fff1f2] via-[#fff5f5] to-[#ffe4e6] border border-rose-200/90 hover:border-rose-400 shadow-xs hover:shadow-md hover:shadow-rose-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 to-red-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-rose-600/30">
-                                                <i class="ph ph-map-pin"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-rose-600/10 text-rose-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-rose-200/60">Map</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-rose-700 transition-colors leading-tight">Evac
-                                                Map</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-rose-900/60 font-semibold mt-0.5 block truncate">Centers
-                                                & Hazards</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 4. LoRa Mesh Chat (Offline Radio Only) -->
-                                          <a href="/rescuer/chat"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-[#ede9fe] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md hover:shadow-purple-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-purple-600/30">
-                                                <span class="chat-nav-red-dot hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse"></span>
-                                                <i class="ph ph-chats-circle"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">Offline</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">Offline LoRa Chat</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Offline Radio Only</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 5. Walk-In Intake (Amber / Orange Theme) -->
-                                          <a href="/rescuer/qr?tab=walkin<%= activeCenterId ? '&center_id=' + activeCenterId : '' %>"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#fffbeb] via-[#fffdf5] to-[#fef3c7] border border-amber-200/90 hover:border-amber-400 shadow-xs hover:shadow-md hover:shadow-amber-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-amber-500/30">
-                                                <i class="ph ph-door"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-amber-600/10 text-amber-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-amber-200/60">Intake</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-amber-700 transition-colors leading-tight">Walk-In</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-amber-900/60 font-semibold mt-0.5 block truncate">New
-                                                Evacuee</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 6. My Sites & Reports (Indigo / Purple Theme) -->
-                                          <a href="/rescuer/reports<%= activeCenterId ? '?center_id=' + activeCenterId : '' %>"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#f5f3ff] via-[#f8f7ff] to-[#ede9fe] border border-indigo-200/90 hover:border-indigo-400 shadow-xs hover:shadow-md hover:shadow-indigo-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-indigo-600/30">
-                                                <i class="ph ph-buildings"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-indigo-200/60">Sites</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-indigo-700 transition-colors leading-tight">My
-                                                Sites</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-indigo-900/60 font-semibold mt-0.5 block truncate">Reports
-                                                & Roster</span>
-                                            </div>
-                                          </a>
+                                          <span id="dashBentoSosBadge"
+                                            class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider <%= initialActiveSosCount > 0 ? 'bg-red-600 text-white animate-pulse' : 'bg-rose-600/10 text-rose-700 border border-rose-200/70' %>">
+                                            <%= initialActiveSosCount > 0 ? (initialActiveSosCount + ' SOS') : 'LIVE' %>
+                                          </span>
                                         </div>
-                                        <% } %>
+                                        <div class="mt-2">
+                                          <span class="block font-black text-slate-900 text-xs sm:text-sm leading-tight group-hover:text-rose-700">SOS Map</span>
+                                          <span class="text-[10px] sm:text-[11px] text-rose-900/65 font-semibold block truncate mt-0.5">Rescue &amp; Path</span>
+                                        </div>
+                                      </a>
+
+                                      <!-- Bottom-Right: Offline LoRa Chat -->
+                                      <a href="/rescuer/chat"
+                                        class="group flex-1 flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-[#ede9fe] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                        <div class="flex items-center justify-between gap-1">
+                                          <div class="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs shadow-purple-600/30">
+                                            <span class="chat-nav-red-dot hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse"></span>
+                                            <i class="ph ph-chats-circle"></i>
+                                          </div>
+                                          <span class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/70">Offline</span>
+                                        </div>
+                                        <div class="mt-2">
+                                          <span class="block font-black text-slate-900 text-xs sm:text-sm leading-tight group-hover:text-purple-700">Offline LoRa Chat</span>
+                                          <span class="text-[10px] sm:text-[11px] text-purple-900/65 font-semibold block truncate mt-0.5">Offline Radio Only</span>
+                                        </div>
+                                      </a>
+                                    </div>
+                                  </div>
+
+                                  <!-- BOTTOM ROW: 3 EQUAL QUICK ACTION TILES -->
+                                  <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
+                                    <!-- 1. SOS Reports -->
+                                    <a href="/rescuer/reports"
+                                      class="group flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#fffbeb] via-[#fffdf5] to-[#fef3c7] border border-amber-200/90 hover:border-amber-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] min-h-[100px] sm:min-h-[112px]">
+                                      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-base sm:text-lg shadow-xs shadow-amber-500/30">
+                                        <i class="ph ph-file-text"></i>
+                                      </div>
+                                      <div class="mt-2">
+                                        <span class="block font-black text-slate-900 text-[11px] sm:text-sm leading-tight group-hover:text-amber-700">SOS Reports</span>
+                                        <span class="text-[9.5px] sm:text-[11px] text-amber-900/65 font-semibold block truncate mt-0.5">Incident Log</span>
+                                      </div>
+                                    </a>
+
+                                    <!-- 2. Typhoon Radar -->
+                                    <a href="/rescuer/typhoon"
+                                      class="group flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#f0f9ff] via-[#f5fbff] to-[#e0f2fe] border border-sky-200/90 hover:border-sky-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] min-h-[100px] sm:min-h-[112px]">
+                                      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center text-base sm:text-lg shadow-xs shadow-sky-600/30">
+                                        <i class="ph ph-cloud-lightning"></i>
+                                      </div>
+                                      <div class="mt-2">
+                                        <span class="block font-black text-slate-900 text-[11px] sm:text-sm leading-tight group-hover:text-sky-700">Typhoon</span>
+                                        <span class="text-[9.5px] sm:text-[11px] text-sky-900/65 font-semibold block truncate mt-0.5">Weather Radar</span>
+                                      </div>
+                                    </a>
+
+                                    <!-- 3. Unit Profile -->
+                                    <a href="/rescuer/profile"
+                                      class="group flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#ecfdf5] via-[#f0fdf4] to-[#d1fae5] border border-emerald-200/90 hover:border-emerald-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] min-h-[100px] sm:min-h-[112px]">
+                                      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base sm:text-lg shadow-xs shadow-emerald-600/30">
+                                        <i class="ph ph-identification-card"></i>
+                                      </div>
+                                      <div class="mt-2">
+                                        <span class="block font-black text-slate-900 text-[11px] sm:text-sm leading-tight group-hover:text-emerald-700">Unit Profile</span>
+                                        <span class="text-[9.5px] sm:text-[11px] text-emerald-900/65 font-semibold block truncate mt-0.5">ID &amp; Settings</span>
+                                      </div>
+                                    </a>
+                                  </div>
+                                </div>
+
+                                <!-- 4. OFFICIAL DOST-PAGASA WEATHER FORECAST (YOUTUBE EMBED — MATCHES RESIDENT DASHBOARD) -->
+                                <div class="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100 space-y-3.5 sm:space-y-4">
+                                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                    <div class="flex items-center gap-2.5">
+                                      <div class="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg shrink-0 shadow-2xs">
+                                        <i class="ph ph-youtube-logo"></i>
+                                      </div>
+                                      <div class="flex items-center gap-2 flex-wrap">
+                                        <h3 class="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                                          Official DOST-PAGASA Weather Forecast
+                                        </h3>
+                                        <div id="rescuerPagasaLiveBadge" class="flex items-center">
+                                          <% if (locals.weather && locals.weather.pagasa && locals.weather.pagasa.youtube && locals.weather.pagasa.youtube.isLive) { %>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs animate-pulse">
+                                              <span class="w-1.5 h-1.5 rounded-full bg-white"></span> LIVE
+                                            </span>
+                                          <% } %>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <a href="https://www.youtube.com/@dost_pagasa/videos" target="_blank" rel="noopener noreferrer"
+                                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors w-max shrink-0">
+                                      <i class="ph ph-youtube-logo text-sm"></i>
+                                      <span>PAGASA YouTube</span>
+                                      <i class="ph ph-arrow-up-right text-[10px]"></i>
+                                    </a>
+                                  </div>
+
+                                  <% const rPagasa = (locals.weather && locals.weather.pagasa) ? locals.weather.pagasa : null;
+                                     const rYt = (rPagasa && rPagasa.youtube) ? rPagasa.youtube : null;
+                                     const rHasValidVideo = Boolean(rYt && rYt.hasVideo && rYt.videoId && rYt.embedUrl);
+                                     const rPagasaEmbed = (rHasValidVideo && rYt.embedUrl) ? rYt.embedUrl : 'https://www.youtube-nocookie.com/embed/AgcXtAFRGkw?rel=0&autoplay=0&enablejsapi=1';
+                                     const rPagasaTitle = (rYt && rYt.title) ? rYt.title : 'Official DOST-PAGASA Weather Forecast';
+                                     const rPagasaPublished = (rYt && (rYt.formattedPublished || rYt.published)) ? (rYt.formattedPublished || rYt.published) : 'Daily Forecast Broadcast';
+                                  %>
+
+                                  <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 px-0.5">
+                                    <span id="rescuerPagasaVideoTitle" class="truncate font-semibold text-slate-700 max-w-[240px] sm:max-w-md" title="<%= rPagasaTitle %>">
+                                      <%= rPagasaTitle %>
+                                    </span>
+                                    <span id="rescuerPagasaVideoPublished" class="text-[10px] font-medium text-slate-500 shrink-0">
+                                      Issued: <%= rPagasaPublished %>
+                                    </span>
+                                  </div>
+
+                                  <div class="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-inner">
+                                    <iframe id="rescuerPagasaVideoIframe" src="<%= rPagasaEmbed %>" title="<%= rPagasaTitle %>"
+                                      class="absolute inset-0 w-full h-full border-0"
+                                      allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                      allowfullscreen></iframe>
+                                  </div>
+
+                                  <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
+                                    <p class="text-xs text-slate-500 font-medium text-center sm:text-left">
+                                      Official bulletins and typhoon track briefings from DOST-PAGASA.
+                                    </p>
+                                    <div class="flex flex-col sm:flex-row items-center gap-2 shrink-0">
+                                      <a href="https://www.facebook.com/PAGASA.DOST.GOV.PH/" target="_blank" rel="noopener noreferrer"
+                                        class="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95">
+                                        <i class="ph ph-facebook-logo text-base"></i>
+                                        <span>PAGASA Facebook</span>
+                                        <i class="ph ph-arrow-up-right text-xs opacity-80"></i>
+                                      </a>
+                                      <a href="https://bagong.pagasa.dost.gov.ph/" target="_blank" rel="noopener noreferrer"
+                                        class="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95">
+                                        <i class="ph ph-globe text-base"></i>
+                                        <span>PAGASA Website</span>
+                                        <i class="ph ph-arrow-up-right text-xs opacity-80"></i>
+                                      </a>
+                                    </div>
                                   </div>
                                 </div>
 
@@ -1948,7 +1520,7 @@
               const isRainy = st.includes('rain') || st.includes('drizzle') || st.includes('thunder') || st.includes('storm') || st.includes('shower');
               if (isRainy) {
                 visualContainer.innerHTML = `
-                  <svg viewBox="0 0 140 120" class="w-24 h-20 sm:w-28 sm:h-24 drop-shadow-md select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg viewBox="0 0 140 120" class="w-14 h-12 sm:w-20 sm:h-16 drop-shadow-sm select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                       <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
                         <stop offset="0%" stop-color="#FFF5A0" />
@@ -1993,7 +1565,7 @@
                   </svg>`;
               } else {
                 visualContainer.innerHTML = `
-                  <svg viewBox="0 0 140 120" class="w-24 h-20 sm:w-28 sm:h-24 drop-shadow-md select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg viewBox="0 0 140 120" class="w-14 h-12 sm:w-20 sm:h-16 drop-shadow-sm select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                       <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
                         <stop offset="0%" stop-color="#FFF5A0" />
@@ -2397,5 +1969,101 @@
                 }
               }, 750);
             }
+          })();
+
+          // Live Rescuer Dispatch Readiness Sync + Standby GPS Heartbeat (for nearest-rescuer auto-assign)
+          (function () {
+            function getRescuerUid() {
+              try {
+                const cached = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+                if (cached && (cached.user_id || cached.userId)) return Number(cached.user_id || cached.userId);
+              } catch (_) {}
+              return Number(window.currentUserId || '<%= (locals.staff && locals.staff.userId) || (locals.user && locals.user.id) || 0 %>' || 0);
+            }
+
+            async function syncRescuerDispatchStrip() {
+              try {
+                const res = await fetch('/api/sos/active');
+                if (!res.ok) return;
+                const data = await res.json();
+                const alerts = (data && data.success && Array.isArray(data.alerts)) ? data.alerts : [];
+                const activeCount = alerts.length;
+                const myUid = getRescuerUid();
+                const myCount = myUid ? alerts.filter(a => Number(a.handled_by || 0) === myUid).length : 0;
+
+                const card = document.getElementById('rescuerDispatchStatusCard');
+                const iconBox = document.getElementById('rescuerDispatchIconBox');
+                const icon = document.getElementById('rescuerDispatchIcon');
+                const title = document.getElementById('rescuerDispatchTitle');
+                const sub = document.getElementById('rescuerDispatchSub');
+                const mineEl = document.getElementById('dashDispatchMineCount');
+                const mapBtn = document.getElementById('rescuerDispatchMapBtn');
+                const bentoBadge = document.getElementById('dashBentoSosBadge');
+
+                if (mineEl) mineEl.textContent = String(myCount);
+                if (activeCount > 0) {
+                  if (card) card.className = 'rounded-3xl p-3.5 sm:p-4 shadow-sm border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white border-red-400/50 shadow-red-600/20';
+                  if (iconBox) iconBox.className = 'w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-xs bg-white/20 text-white animate-pulse';
+                  if (icon) icon.className = 'ph ph-siren';
+                  if (title) title.textContent = `${activeCount} Active SOS ${activeCount === 1 ? 'Call' : 'Calls'} — Dispatch Ready`;
+                  if (sub) {
+                    sub.className = 'text-[11px] sm:text-xs font-medium mt-0.5 truncate text-rose-100';
+                    sub.textContent = myCount > 0
+                      ? `${myCount} ${myCount === 1 ? 'rescue stop' : 'rescue stops'} auto-assigned to your path. Tap Open SOS Map.`
+                      : 'Tap Open SOS Map to view active SOS list and route nearest path.';
+                  }
+                  if (mapBtn) mapBtn.className = 'inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-extrabold text-xs transition-all active:scale-95 shrink-0 shadow-xs bg-white text-red-700 hover:bg-rose-50';
+                  if (bentoBadge) {
+                    bentoBadge.className = 'px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-red-600 text-white animate-pulse';
+                    bentoBadge.textContent = `${activeCount} SOS`;
+                  }
+                } else {
+                  if (card) card.className = 'rounded-3xl p-3.5 sm:p-4 shadow-sm border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white text-slate-900 border-slate-200/90';
+                  if (iconBox) iconBox.className = 'w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-xs bg-emerald-50 text-emerald-600 border border-emerald-200/80';
+                  if (icon) icon.className = 'ph ph-shield-check';
+                  if (title) title.textContent = 'Sector Clear • Standby Ready';
+                  if (sub) {
+                    sub.className = 'text-[11px] sm:text-xs font-medium mt-0.5 truncate text-slate-500';
+                    sub.textContent = 'Auto-assign is armed — nearest SOS alerts will route directly to your unit.';
+                  }
+                  if (mapBtn) mapBtn.className = 'inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-extrabold text-xs transition-all active:scale-95 shrink-0 shadow-xs bg-blue-600 hover:bg-blue-700 text-white';
+                  if (bentoBadge) {
+                    bentoBadge.className = 'px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-rose-600/10 text-rose-700 border border-rose-200/70';
+                    bentoBadge.textContent = 'LIVE';
+                  }
+                }
+              } catch (_) {}
+            }
+
+            syncRescuerDispatchStrip();
+            setInterval(syncRescuerDispatchStrip, 10000);
+            if (window.__appSocket) {
+              ['sos:new', 'sos_alert', 'sos:update_status', 'sos:resolve', 'sos:cancel'].forEach(ev => {
+                window.__appSocket.on(ev, () => setTimeout(syncRescuerDispatchStrip, 250));
+              });
+            }
+
+            // Standby GPS Heartbeat so server knows this rescuer's real coordinates for nearest auto-assign
+            function pingStandbyGps() {
+              if (!('geolocation' in navigator) || !navigator.onLine) return;
+              navigator.geolocation.getCurrentPosition((pos) => {
+                if (!pos || !pos.coords) return;
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                const acc = pos.coords.accuracy || 0;
+                const gpsTxt = document.getElementById('rescuerGpsStandbyText');
+                if (gpsTxt) gpsTxt.textContent = 'GPS Live';
+                if (window.__appSocket && window.__appSocket.connected) {
+                  window.__appSocket.emit('rescuer:standby_location', { latitude: lat, longitude: lng, accuracy: acc });
+                }
+                fetch('/api/sos/rescuer/location', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ latitude: lat, longitude: lng, accuracy: acc })
+                }).catch(() => {});
+              }, () => {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 });
+            }
+            setTimeout(pingStandbyGps, 1200);
+            setInterval(pingStandbyGps, 30000);
           })();
         </script>

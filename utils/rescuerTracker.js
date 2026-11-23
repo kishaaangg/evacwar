@@ -110,10 +110,38 @@ class RescuerTracker {
   }
 
   /**
-   * Retrieve all currently active rescuer locations.
+   * Retrieve all currently active rescuer locations (responding to an SOS).
    */
   getActiveRescuers() {
     return Array.from(this.activeRescuers.values());
+  }
+
+  /**
+   * Retrieve all known rescuer GPS locations (both active responders and standby rescuers pinged within maxAgeMs).
+   */
+  getAllKnownRescuers(maxAgeMs = 30 * 60 * 1000) {
+    const byUid = new Map();
+    const now = Date.now();
+
+    for (const record of this.activeRescuers.values()) {
+      if (record && record.rescuer_user_id && isFinite(Number(record.latitude)) && isFinite(Number(record.longitude))) {
+        byUid.set(Number(record.rescuer_user_id), record);
+      }
+    }
+
+    for (const [uid, record] of this.rescuersByUserId.entries()) {
+      if (!record || !isFinite(Number(record.latitude)) || !isFinite(Number(record.longitude))) continue;
+      const updatedMs = record.updated_at ? new Date(record.updated_at).getTime() : now;
+      if (isFinite(updatedMs) && (now - updatedMs) <= maxAgeMs) {
+        const existing = byUid.get(Number(uid));
+        const existingMs = existing && existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
+        if (!existing || updatedMs >= existingMs) {
+          byUid.set(Number(uid), record);
+        }
+      }
+    }
+
+    return Array.from(byUid.values());
   }
 
   /**
