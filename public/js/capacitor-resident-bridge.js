@@ -424,9 +424,10 @@
       }
     }
 
-    // Profile Avatar Photo vs Initial Fallback
+    // Profile Avatar Photo vs Initial Fallback (Settings, Welcome Card, and Sidebar)
     const avatarDisplay = document.getElementById('profile-avatar-display');
     const avatarFallback = document.getElementById('profile-avatar-fallback');
+    const sidebarFallback = document.getElementById('sidebarAvatarFallback');
     const pSrc = resolveCloudPhotoUrl(resident.profile_photo);
     if (pSrc) {
       if (avatarDisplay) {
@@ -434,8 +435,13 @@
         avatarDisplay.style.display = 'block';
       }
       if (avatarFallback) avatarFallback.classList.add('hidden');
-      document.querySelectorAll('img.resident-avatar-img, img#headerAvatarImg, img.user-profile-img').forEach(img => {
+      if (sidebarFallback) sidebarFallback.classList.add('hidden');
+      document.querySelectorAll('img.resident-avatar-img, img#residentWelcomeAvatarImg, img#sidebarAvatarImg, img#headerAvatarImg, img.user-profile-img').forEach(img => {
         img.src = pSrc;
+        img.style.display = 'block';
+      });
+      document.querySelectorAll('#residentUserAvatarInitial, .resident-avatar-initial').forEach(el => {
+        el.style.display = 'none';
       });
     } else {
       if (avatarDisplay) avatarDisplay.style.display = 'none';
@@ -443,6 +449,14 @@
         avatarFallback.textContent = initial;
         avatarFallback.classList.remove('hidden');
       }
+      if (sidebarFallback) sidebarFallback.classList.remove('hidden');
+      document.querySelectorAll('img.resident-avatar-img, img#residentWelcomeAvatarImg, img#sidebarAvatarImg').forEach(img => {
+        img.style.display = 'none';
+      });
+      document.querySelectorAll('#residentUserAvatarInitial, .resident-avatar-initial').forEach(el => {
+        el.textContent = initial;
+        el.style.display = 'flex';
+      });
     }
 
     // Populate Settings / Edit Profile Form inputs (matches both #id and [name="..."])
@@ -573,17 +587,23 @@
     setFormFieldValue('email', email);
     setFormFieldValue('occupation', occupation);
 
-    // Avatar Display + Modal Preview
+    // Avatar Display + Welcome Card + Sidebar + Modal Preview
     const avatarDisplay = document.getElementById('profile-avatar-display');
     const avatarFallback = document.getElementById('profile-avatar-fallback');
+    const sidebarFallback = document.getElementById('sidebarAvatarFallback');
     if (photoSrc) {
       if (avatarDisplay) {
         avatarDisplay.src = photoSrc;
         avatarDisplay.style.display = 'block';
       }
       if (avatarFallback) avatarFallback.classList.add('hidden');
-      document.querySelectorAll('img.staff-avatar-img, img#headerAvatarImg, img.user-profile-img, img#rescuerAvatarImg, img#staffModalAvatarPreview, img#rescuerModalAvatarPreview').forEach(img => {
+      if (sidebarFallback) sidebarFallback.classList.add('hidden');
+      document.querySelectorAll('img.staff-avatar-img, img.rescuer-avatar-img, img#staffWelcomeAvatarImg, img#rescuerWelcomeAvatarImg, img#sidebarAvatarImg, img#headerAvatarImg, img.user-profile-img, img#rescuerAvatarImg, img#staffModalAvatarPreview, img#rescuerModalAvatarPreview').forEach(img => {
         img.src = photoSrc;
+        img.style.display = 'block';
+      });
+      document.querySelectorAll('#staffUserAvatarInitial, .staff-avatar-initial, #rescuerAvatarInitial, .rescuer-avatar-initial').forEach(el => {
+        el.style.display = 'none';
       });
     } else {
       if (avatarDisplay) avatarDisplay.style.display = 'none';
@@ -591,6 +611,14 @@
         avatarFallback.textContent = initial;
         avatarFallback.classList.remove('hidden');
       }
+      if (sidebarFallback) sidebarFallback.classList.remove('hidden');
+      document.querySelectorAll('img.staff-avatar-img, img.rescuer-avatar-img, img#staffWelcomeAvatarImg, img#rescuerWelcomeAvatarImg, img#sidebarAvatarImg').forEach(img => {
+        img.style.display = 'none';
+      });
+      document.querySelectorAll('#staffUserAvatarInitial, .staff-avatar-initial, #rescuerAvatarInitial, .rescuer-avatar-initial').forEach(el => {
+        el.textContent = initial;
+        el.style.display = 'flex';
+      });
     }
   }
   global.hydrateCachedStaffProfile = hydrateCachedStaffProfile;

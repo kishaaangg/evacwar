@@ -5169,15 +5169,19 @@
           <!-- User Profile Section -->
           <div class="mb-3.5 rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-3.5 border border-white/[0.08] shadow-sm backdrop-blur-xs">
             <div class="flex items-center gap-3">
-              
-                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-1 ring-white/15 text-blue-300 shadow-inner">
+              <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-2 ring-blue-500/30 overflow-hidden shadow-inner">
+                <img loading="lazy" id="sidebarAvatarImg" src="" decoding="async" alt="Profile"
+                  style="display:none;"
+                  class="user-profile-img h-full w-full object-cover"
+                  onerror="this.style.display='none'; var fb = document.getElementById('sidebarAvatarFallback'); if (fb) fb.classList.remove('hidden');" />
+                <div id="sidebarAvatarFallback" class=" flex h-full w-full items-center justify-center text-blue-300">
                   <i class="ph ph-user text-2xl"></i>
-                  <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
                 </div>
-              
+                <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
+              </div>
               <div class="min-w-0 flex-1">
                 <div class="text-[11px] font-medium text-slate-400 leading-none mb-1">Welcome back,</div>
-                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Virgil Vasquez">
+                <div id="headerUserName" class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Virgil Vasquez">
                   Virgil Vasquez
                 </div>
                 <div class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/20">
@@ -5228,7 +5232,7 @@
                 <div class="nav-icon-box">
                   <i class="ph ph-chats-circle text-lg"></i>
                 </div>
-                <span data-i18n="nav_chat">LoRa Mesh Chat</span>
+                <span data-i18n="nav_chat">Offline LoRa Chat</span>
               </a>
               <a href="/staff/reports/index.html"
                 class="sidebar-link focus-ring inactive">
@@ -5289,8 +5293,9 @@
           <i class="ph ph-chats-circle text-lg"></i>
         </div>
         <div class="min-w-0 leading-tight">
-          <div class="flex items-center gap-1.5 truncate">
-            <h1 class="font-heading text-xs sm:text-sm font-extrabold text-white truncate">LoRa Group Chat</h1>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <h1 class="font-heading text-xs sm:text-sm font-extrabold text-white truncate">Offline LoRa Chat</h1>
+            <span class="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/35 shrink-0">Offline Only</span>
             <span class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 shrink-0">433.875 MHz</span>
           </div>
           <div class="text-[10px] text-slate-300 truncate mt-0.5">
@@ -5327,7 +5332,7 @@
     <div class="px-3 py-1.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between text-[10.5px] text-slate-600 shrink-0">
       <div class="flex items-center gap-1.5 truncate">
         <i class="ph ph-broadcast text-purple-600 text-xs"></i>
-        <span class="font-semibold text-slate-700 truncate">Off-Grid LoRa Radio Only (433.875 MHz)</span>
+        <span class="font-semibold text-slate-700 truncate">Offline Communication Only • 433.875 MHz LoRa Radio</span>
       </div>
       <button type="button" id="btnRefreshLoraChat" class="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer shrink-0">
         <i class="ph ph-arrows-clockwise text-xs"></i>
@@ -5339,7 +5344,7 @@
     <div id="loraOnlyWarningBanner" class="px-3 py-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2 text-[11px] text-amber-900 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
         <i class="ph ph-warning-circle text-amber-600 text-base shrink-0"></i>
-        <span class="font-semibold leading-snug">LoRa Mesh Chat works over LoRa radio only (Wi-Fi sending is disabled). Connect your LoRa node to chat.</span>
+        <span class="font-semibold leading-snug">Offline LoRa Chat is for offline radio communication only (no Wi-Fi/internet sending). Connect your LoRa node to chat.</span>
       </div>
       
         <button type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
@@ -5381,7 +5386,7 @@
         id="loraChatInput" data-offline-enabled="true" data-lora-chat="true"
         maxlength="140"
         autocomplete="off"
-        placeholder="Send via 433.875 MHz LoRa only..."
+        placeholder="Offline LoRa message only (433.875 MHz)..."
         class="flex-1 rounded-2xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 sm:py-3 text-[15px] sm:text-base text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all leading-normal min-h-[46px] sm:min-h-[50px]"
       />
       <button
@@ -5859,7 +5864,7 @@
           seq: 1,
           senderRole: 'Admin',
           senderName: 'Monette Bisenio',
-          text: 'San Rafael 433.875 MHz LoRa Mesh Group Chat is online. Residents, Staff, and Rescuers can communicate here even without internet.',
+          text: 'San Rafael Offline LoRa Chat (433.875 MHz) is for offline radio communication. Residents, Staff, and Rescuers can message here even with zero internet or cell signal.',
           timestamp: Date.now() - 60000,
           created_at: initIso,
           sent_at: initIso,
@@ -5946,8 +5951,8 @@
       // STRICTLY LORA ONLY: Do NOT allow sending over Wi-Fi/internet without LoRa hardware!
       if (!canLoRa) {
         const msg = isAdminRole
-          ? 'LoRa Mesh Chat works via LoRa hardware only (Wi-Fi sending disabled). Connect the COM3 Hall LoRa Gateway first.'
-          : 'LoRa Mesh Chat works via LoRa only and cannot send over Wi-Fi. Please connect your LoRa device via Bluetooth or USB-OTG.';
+          ? 'Offline LoRa Chat works over LoRa radio only (Wi-Fi sending disabled). Connect the COM3 Hall LoRa Gateway first.'
+          : 'Offline LoRa Chat is for offline radio communication only and cannot send over Wi-Fi. Connect your LoRa node via Bluetooth or USB-OTG.';
         if (typeof window.EvacWarToast === 'function') {
           window.EvacWarToast(msg, 'warning');
         } else {

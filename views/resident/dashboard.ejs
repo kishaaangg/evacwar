@@ -92,18 +92,12 @@
                 <div class="relative shrink-0">
                   <div
                     class="w-10 h-10 sm:w-11 sm:h-11 aspect-square rounded-full ring-2 ring-white/80 ring-offset-2 ring-offset-[#1e40af] shadow-md overflow-hidden bg-white/20 shrink-0 flex items-center justify-center backdrop-blur-xs">
-                    <% if (userPhoto) { %>
-                      <img loading="lazy" src="<%= userPhoto %>" decoding="async" alt="<%= fullName %>" class="w-full h-full object-cover"
-                        onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
-                      <span style="display:none;"
-                        class="w-full h-full flex items-center justify-center font-black text-sm text-white">
-                        <%= userInitial %>
-                      </span>
-                      <% } else { %>
-                        <span id="residentUserAvatarInitial" class="resident-avatar-initial w-full h-full flex items-center justify-center font-black text-sm text-white">
-                          <%= userInitial %>
-                        </span>
-                        <% } %>
+                    <img loading="lazy" id="residentWelcomeAvatarImg" src="<%= userPhoto || '' %>" decoding="async" alt="<%= fullName %>" style="<%= userPhoto ? '' : 'display:none;' %>" class="resident-avatar-img w-full h-full object-cover"
+                      onerror="this.style.display='none'; var fb = document.getElementById('residentUserAvatarInitial'); if (fb) fb.style.display='flex';" />
+                    <span id="residentUserAvatarInitial" style="<%= userPhoto ? 'display:none;' : '' %>"
+                      class="resident-avatar-initial w-full h-full flex items-center justify-center font-black text-sm text-white">
+                      <%= userInitial %>
+                    </span>
                   </div>
                   <!-- Online Status Dot on Avatar -->
                   <span
@@ -273,16 +267,16 @@
                 <a href="/resident/chat"
                   class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-purple-50 border-2 border-purple-300 hover:border-purple-600 shadow-sm hover:shadow-lg hover:shadow-purple-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
                   <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center gap-1.5 flex-wrap">
                       <h3
                         class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-purple-600 transition-colors">
-                        LORA CHAT
+                        OFFLINE LORA CHAT
                       </h3>
                       <span class="chat-nav-red-dot hidden w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse shrink-0"></span>
                     </div>
                     <p
-                      class="text-[10px] sm:text-sm md:text-base text-slate-600 font-bold mt-0.5 sm:mt-1 leading-tight">
-                      Off-Grid Mesh
+                      class="text-[10px] sm:text-sm md:text-base text-purple-700 font-bold mt-0.5 sm:mt-1 leading-tight">
+                      Offline Radio Only
                     </p>
                   </div>
                   <div

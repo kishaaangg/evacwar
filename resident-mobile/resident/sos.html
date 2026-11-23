@@ -5163,15 +5163,19 @@
           <!-- User Profile Section -->
           <div class="mb-3.5 rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-3.5 border border-white/[0.08] shadow-sm backdrop-blur-xs">
             <div class="flex items-center gap-3">
-              
-                <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-1 ring-white/15 text-blue-300 shadow-inner">
+              <div class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600/40 to-indigo-600/40 ring-2 ring-blue-500/30 overflow-hidden shadow-inner">
+                <img loading="lazy" id="sidebarAvatarImg" src="" decoding="async" alt="Profile"
+                  style="display:none;"
+                  class="user-profile-img h-full w-full object-cover"
+                  onerror="this.style.display='none'; var fb = document.getElementById('sidebarAvatarFallback'); if (fb) fb.classList.remove('hidden');" />
+                <div id="sidebarAvatarFallback" class=" flex h-full w-full items-center justify-center text-blue-300">
                   <i class="ph ph-user text-2xl"></i>
-                  <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
                 </div>
-              
+                <span class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 shadow-xs"></span>
+              </div>
               <div class="min-w-0 flex-1">
                 <div class="text-[11px] font-medium text-slate-400 leading-none mb-1">Welcome back,</div>
-                <div class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Resident">
+                <div id="headerUserName" class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Resident">
                   Resident
                 </div>
                 <div class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/20">
@@ -5226,7 +5230,7 @@
               <div class="nav-icon-box">
                 <i class="ph ph-chats-circle text-lg"></i>
               </div>
-              <span data-i18n="nav_chat">LoRa Mesh Chat</span>
+              <span data-i18n="nav_chat">Offline LoRa Chat</span>
             </a>
             <a href="/resident/sos/index.html"
               class="sidebar-link focus-ring !bg-red-600 !text-white shadow-md shadow-red-600/30">

@@ -88,18 +88,12 @@
                   <div class="relative shrink-0">
                     <div
                       class="w-10 h-10 sm:w-11 sm:h-11 aspect-square rounded-full ring-2 ring-white/80 ring-offset-2 ring-offset-[#1e40af] shadow-md overflow-hidden bg-white/20 shrink-0 flex items-center justify-center backdrop-blur-xs">
-                      <% if (userPhoto) { %>
-                        <img loading="lazy" src="<%= userPhoto %>" decoding="async" alt="<%= fullName %>" class="w-full h-full object-cover"
-                          onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
-                        <span style="display:none;"
-                          class="w-full h-full flex items-center justify-center font-black text-sm text-white">
-                          <%= staffInitial %>
-                        </span>
-                        <% } else { %>
-                          <span class="w-full h-full flex items-center justify-center font-black text-sm text-white">
-                            <%= staffInitial %>
-                          </span>
-                          <% } %>
+                      <img loading="lazy" id="staffWelcomeAvatarImg" src="<%= userPhoto || '' %>" decoding="async" alt="<%= fullName %>" style="<%= userPhoto ? '' : 'display:none;' %>" class="staff-avatar-img w-full h-full object-cover"
+                        onerror="this.style.display='none'; var fb = document.getElementById('staffUserAvatarInitial'); if (fb) fb.style.display='flex';" />
+                      <span id="staffUserAvatarInitial" style="<%= userPhoto ? 'display:none;' : '' %>"
+                        class="staff-avatar-initial w-full h-full flex items-center justify-center font-black text-sm text-white">
+                        <%= staffInitial %>
+                      </span>
                     </div>
                     <!-- Online Status Dot on Avatar -->
                     <span
@@ -118,7 +112,7 @@
                       <%= staffRoleLabel %>
                     </span>
                     <span class="text-white/35">•</span>
-                    <span class="text-blue-100 font-medium text-[10px] sm:text-xs truncate max-w-[120px] sm:max-w-none">
+                    <span class="staff-occupation-display text-blue-100 font-medium text-[10px] sm:text-xs truncate max-w-[120px] sm:max-w-none">
                       <%= staffOccupation %>
                     </span>
                     <span class="text-white/35 hidden xs:inline">•</span>
@@ -132,7 +126,7 @@
                 <div class="mt-3.5 sm:mt-4 z-20 max-w-[55%] xs:max-w-[58%] sm:max-w-[62%] md:max-w-[66%]">
                   <h1
                     class="text-lg xs:text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-xs">
-                    <%= timeGreeting %>, <%= staffFirstName %>! <span
+                    <%= timeGreeting %>, <span id="staffUserGreetingName" class="staff-first-name-display"><%= staffFirstName %></span>! <span
                           class="inline-block text-lg xs:text-xl sm:text-2xl">👋</span>
                   </h1>
                   <p
@@ -1161,13 +1155,13 @@
                                               <i class="ph ph-chats-circle"></i>
                                             </div>
                                             <span
-                                              class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">433 MHz</span>
+                                              class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">Offline</span>
                                           </div>
                                           <div class="mt-1.5 sm:mt-2">
                                             <span
-                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">LoRa Chat</span>
+                                              class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">Offline LoRa Chat</span>
                                             <span
-                                              class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Off-Grid Mesh</span>
+                                              class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Offline Radio Only</span>
                                           </div>
                                         </a>
 
@@ -1309,15 +1303,13 @@
                                                 <i class="ph ph-chats-circle"></i>
                                               </div>
                                               <span
-                                                class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">433 MHz</span>
+                                                class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">Offline</span>
                                             </div>
                                             <div class="mt-1.5 sm:mt-2">
                                               <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">LoRa
-                                                Chat</span>
+                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">Offline LoRa Chat</span>
                                               <span
-                                                class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Off-Grid
-                                                Mesh</span>
+                                                class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Offline Radio Only</span>
                                             </div>
                                           </a>
 

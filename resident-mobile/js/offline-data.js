@@ -1685,7 +1685,7 @@ window.OFFLINE_RESIDENTS = [
     "emergency_contact_name": "",
     "emergency_contact_phone": "",
     "qr_code_uuid": "9db14c19-d125-4dba-bb2b-95464131ad4b",
-    "profile_photo": "profile_3_1788763856113_7d1d8f30.png",
+    "profile_photo": "profile_3_1795426306244_2cc06515.jpg",
     "approval_status": "APPROVED",
     "members": []
   },
