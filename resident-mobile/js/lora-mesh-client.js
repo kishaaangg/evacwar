@@ -1205,14 +1205,93 @@
         if (this._processedWeatherAlertIds.has(alertId)) return;
         this._processedWeatherAlertIds.add(alertId);
 
+        // Compute full meteorological summary 100% OFFLINE from AHT20 + BMP280 sensor readings
+        const tC = weatherObj.temperature;
+        const rh = weatherObj.humidity;
+        const pHpa = weatherObj.pressure;
+
+        let heatIndexC = null;
+        if (tC != null && rh != null) {
+          const tF = (tC * 9) / 5 + 32;
+          let hiF = tF;
+          if (tF >= 80 && rh >= 40) {
+            hiF = -42.379 + 2.04901523 * tF + 10.14333127 * rh - 0.22475541 * tF * rh
+              - 0.00683783 * tF * tF - 0.05481717 * rh * rh
+              + 0.00122874 * tF * tF * rh + 0.00085282 * tF * rh * rh
+              - 0.00000199 * tF * tF * rh * rh;
+          }
+          heatIndexC = Math.round((((hiF - 32) * 5) / 9) * 10) / 10;
+        }
+
+        let dewPointC = null;
+        if (tC != null && rh != null && rh > 0) {
+          const gamma = Math.log(rh / 100) + (17.625 * tC) / (243.04 + tC);
+          dewPointC = Math.round(((243.04 * gamma) / (17.625 - gamma)) * 10) / 10;
+        }
+
+        let heatCat = 'Normal Heat';
+        if (heatIndexC != null) {
+          if (heatIndexC >= 52) heatCat = 'Extreme Danger Heat';
+          else if (heatIndexC >= 42) heatCat = 'Danger Heat';
+          else if (heatIndexC >= 33) heatCat = 'Extreme Caution Heat';
+          else if (heatIndexC >= 27) heatCat = 'Caution Heat';
+        }
+
+        let trendLabel = 'Steady';
+        try {
+          const prevP = parseFloat(localStorage.getItem('evw_last_lora_pressure') || '');
+          if (pHpa != null) {
+            if (Number.isFinite(prevP)) {
+              const delta = pHpa - prevP;
+              if (delta <= -1.5) trendLabel = 'Rapidly Falling';
+              else if (delta <= -0.5) trendLabel = 'Falling';
+              else if (delta >= 0.5) trendLabel = 'Rising';
+            }
+            localStorage.setItem('evw_last_lora_pressure', String(pHpa));
+          }
+        } catch (_) {}
+
+        let cond = 'Fair / Partly Cloudy';
+        let guidance = 'Stable local weather across Barangay San Rafael.';
+        let icon = '🌤️';
+        if (pHpa != null && pHpa < 1004) {
+          cond = 'Low Pressure / Storm Risk';
+          guidance = 'Low barometric pressure detected. Prepare emergency go-bag and monitor advisories.';
+          icon = '⛈️';
+        } else if (trendLabel === 'Rapidly Falling' || (pHpa != null && pHpa < 1008 && rh != null && rh >= 82)) {
+          cond = 'Rain / Squall Possible';
+          guidance = 'Dropping pressure and high humidity indicate possible rain showers.';
+          icon = '🌦️';
+        } else if (heatIndexC != null && heatIndexC >= 42) {
+          cond = 'Hot & Humid';
+          guidance = 'High heat index. Drink water frequently and avoid midday sun exposure.';
+          icon = '🔥';
+        } else if (rh != null && rh >= 85) {
+          cond = 'Humid / Overcast';
+          guidance = 'High humidity in San Rafael. Light rain showers possible.';
+          icon = '☁️';
+        }
+
+        const tText = tC != null ? `${tC.toFixed(1)}°C` : '--°C';
+        const hiText = heatIndexC != null ? ` (Feels ${heatIndexC.toFixed(1)}°C • ${heatCat})` : '';
+        const hText = rh != null ? `${Math.round(rh)}%` : '--%';
+        const dpText = dewPointC != null ? ` • Dew Pt ${dewPointC.toFixed(1)}°C` : '';
+        const pText = pHpa != null ? `${pHpa.toFixed(1)} hPa (${trendLabel})` : '-- hPa';
+
         const alertObj = {
           ...weatherObj,
           id: alertId,
           alertId,
           noSiren: true,
           url: '/typhoon',
-          title: '🌤️ LoRa Weather Sensor Update',
-          message: `Temp ${weatherObj.temperature != null ? weatherObj.temperature.toFixed(1) + '°C' : '--'} • Humidity ${weatherObj.humidity != null ? Math.round(weatherObj.humidity) + '%' : '--'} • Pressure ${weatherObj.pressure != null ? weatherObj.pressure.toFixed(1) + ' hPa' : '--'}`
+          condition: cond,
+          heatIndex: heatIndexC,
+          heatCategory: heatCat,
+          dewPoint: dewPointC,
+          pressureTrend: trendLabel,
+          guidance,
+          title: `${icon} San Rafael Weather: ${cond}`,
+          message: `Temp ${tText}${hiText} • Humidity ${hText}${dpText} • Pressure ${pText}. ${guidance}`
         };
         try {
           window.dispatchEvent(new CustomEvent('evakwar:lora-weather-alert', { detail: alertObj }));

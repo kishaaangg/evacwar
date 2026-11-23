@@ -19,6 +19,7 @@
     global.location.protocol === 'capacitor:' ||
     global.location.protocol === 'file:'
   );
+  const nativeFetch = typeof global.fetch === 'function' ? global.fetch.bind(global) : null;
 
   // Default Barangay Hall Server (Cloud Render primary, local LAN fallbacks)
   const DEFAULT_HALL_SERVER = 'https://evacwar.onrender.com';
@@ -279,8 +280,42 @@
   }
   seedOfflineMapDatabase();
 
+  function resolveCloudPhotoUrl(photo) {
+    if (!photo) return null;
+    const s = String(photo).trim();
+    if (!s) return null;
+    if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://')) return s;
+    const rel = s.startsWith('/') ? s : `/uploads/profiles/${s}`;
+    return isStaticBundle ? `${getHallServerUrl()}${rel}` : rel;
+  }
+
+  function setFormFieldValue(fieldName, val) {
+    const v = (val === undefined || val === null) ? '' : String(val);
+    const byId = document.getElementById(fieldName);
+    if (byId && byId.type !== 'file' && byId.type !== 'password' && byId.type !== 'checkbox' && byId.type !== 'radio') {
+      byId.value = v;
+    }
+    document.querySelectorAll(`input[name="${fieldName}"], select[name="${fieldName}"], textarea[name="${fieldName}"]`).forEach(el => {
+      if (el.type === 'file' || el.type === 'password' || el.type === 'checkbox' || el.type === 'radio') return;
+      el.value = v;
+    });
+  }
+
+  function setFormCheckValue(fieldName, val) {
+    const checked = Boolean(val && val !== '0' && val !== 'false');
+    const byId = document.getElementById(fieldName);
+    if (byId && byId.type === 'checkbox') byId.checked = checked;
+    document.querySelectorAll(`input[type="checkbox"][name="${fieldName}"]`).forEach(el => {
+      el.checked = checked;
+    });
+  }
+
   // 2. Dynamic Resident Profile & QR Hydrator
   function hydrateCachedResidentProfile() {
+    if (!isStaticBundle) return;
+    const curPath = global.location.pathname || '';
+    if (curPath.includes('/staff') || curPath.includes('/rescuer')) return;
+
     let resident = null;
     try {
       resident = JSON.parse(localStorage.getItem('evw_cached_resident') || 'null');
@@ -290,29 +325,41 @@
     if (resident.user_id || resident.id) {
       global.currentUserId = String(resident.user_id || resident.id);
     }
-    const fullName = resident.full_name || resident.name || (resident.first_name ? `${resident.first_name} ${resident.last_name || ''}`.trim() : 'Resident');
+    const fullName = [resident.first_name, resident.middle_name, resident.last_name].filter(Boolean).join(' ').trim()
+      || resident.full_name || resident.name || 'Resident';
+    const shortFullName = [resident.first_name, resident.last_name].filter(Boolean).join(' ').trim() || fullName;
     try {
-      localStorage.setItem('evw_user_full_name', fullName);
+      localStorage.setItem('evw_user_full_name', shortFullName);
       if (global.AndroidBleBridge && typeof global.AndroidBleBridge.setActiveUser === 'function') {
-        global.AndroidBleBridge.setActiveUser(fullName, 'Resident');
+        global.AndroidBleBridge.setActiveUser(shortFullName, 'Resident');
       }
     } catch (_) {}
-    const firstName = resident.first_name || (fullName ? fullName.split(' ')[0] : 'Resident');
+    const firstName = resident.first_name || (shortFullName ? shortFullName.split(' ')[0] : 'Resident');
     const lastName = resident.last_name || '';
     const email = resident.email || localStorage.getItem('evw_cached_email') || '';
-    const initial = (firstName || fullName || 'R').charAt(0).toUpperCase();
+    const initial = (firstName || shortFullName || 'R').charAt(0).toUpperCase();
     const contact = resident.contact_number || '';
     const address = resident.home_address || '';
     const barangay = resident.barangay || 'San Rafael';
     const familySize = resident.family_size || 1;
     const uuid = resident.qr_code_uuid || `evw-resident-${resident.id || 1}`;
 
+    let birthdateIso = '';
+    let birthdatePretty = 'Not specified';
+    if (resident.birthdate) {
+      const bd = new Date(resident.birthdate);
+      if (!isNaN(bd.getTime())) {
+        birthdateIso = bd.toISOString().split('T')[0];
+        birthdatePretty = bd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+    }
+
     // Text fields across headers, settings, and cards
     document.querySelectorAll('#residentUserGreetingName, .resident-first-name-display').forEach(el => {
       el.textContent = firstName;
     });
     document.querySelectorAll('.resident-name-display, #headerUserName, #profileFullName, #ownerName, .profile-hero-name, #displayFullName').forEach(el => {
-      el.textContent = fullName;
+      el.textContent = shortFullName;
     });
     document.querySelectorAll('#residentUserAvatarInitial, .resident-avatar-initial').forEach(el => {
       el.textContent = initial;
@@ -349,18 +396,47 @@
       qrFamTitle.textContent = lastName ? `${lastName} Family` : `${firstName} Family Pass`;
     }
 
+    // Personal Info Modal display spans
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    setText('piFullName', fullName);
+    const agePart = resident.age ? `${resident.age} yrs old` : '';
+    const sexPart = resident.sex || 'Male';
+    setText('piAgeSex', agePart ? `${agePart} • ${sexPart}` : sexPart);
+    setText('piBirthdate', birthdatePretty);
+    setText('piContact', contact || email || 'None');
+    setText('piFamilySize', `${familySize} member(s)`);
+    setText('piAddress', `${address ? address + ', ' : ''}Brgy. ${barangay}, Baao`);
+    setText('piEmergencyName', resident.emergency_contact_name || 'No emergency contact set');
+    const piEmergLink = document.getElementById('piEmergencyPhone');
+    const piEmergText = document.getElementById('piEmergencyPhoneText');
+    if (piEmergLink) {
+      if (resident.emergency_contact_phone) {
+        piEmergLink.href = `tel:${resident.emergency_contact_phone}`;
+        piEmergLink.classList.remove('hidden');
+        piEmergLink.classList.add('flex');
+        if (piEmergText) piEmergText.textContent = resident.emergency_contact_phone;
+      } else {
+        piEmergLink.classList.add('hidden');
+        piEmergLink.classList.remove('flex');
+      }
+    }
+
     // Profile Avatar Photo vs Initial Fallback
     const avatarDisplay = document.getElementById('profile-avatar-display');
     const avatarFallback = document.getElementById('profile-avatar-fallback');
-    if (resident.profile_photo) {
-      const pSrc = (resident.profile_photo.startsWith('http') || resident.profile_photo.startsWith('data:') || resident.profile_photo.startsWith('/'))
-        ? resident.profile_photo
-        : `/uploads/profiles/${resident.profile_photo}`;
+    const pSrc = resolveCloudPhotoUrl(resident.profile_photo);
+    if (pSrc) {
       if (avatarDisplay) {
         avatarDisplay.src = pSrc;
         avatarDisplay.style.display = 'block';
       }
       if (avatarFallback) avatarFallback.classList.add('hidden');
+      document.querySelectorAll('img.resident-avatar-img, img#headerAvatarImg, img.user-profile-img').forEach(img => {
+        img.src = pSrc;
+      });
     } else {
       if (avatarDisplay) avatarDisplay.style.display = 'none';
       if (avatarFallback) {
@@ -369,36 +445,28 @@
       }
     }
 
-    // Populate Settings / Edit Profile Form inputs if present on page
-    const setVal = (id, val) => {
-      const el = document.getElementById(id);
-      if (el && val !== undefined && val !== null) el.value = val;
-    };
-    const setCheck = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.checked = Boolean(val);
-    };
+    // Populate Settings / Edit Profile Form inputs (matches both #id and [name="..."])
+    setFormFieldValue('first_name', resident.first_name || '');
+    setFormFieldValue('middle_name', resident.middle_name || '');
+    setFormFieldValue('last_name', resident.last_name || '');
+    setFormFieldValue('contact_number', resident.contact_number || '');
+    setFormFieldValue('email', email);
+    setFormFieldValue('family_size', familySize);
+    setFormFieldValue('home_address', address);
+    setFormFieldValue('barangay', barangay);
+    setFormFieldValue('sex', resident.sex || 'Male');
+    setFormFieldValue('birthdate', birthdateIso);
+    setFormFieldValue('age', resident.age || '');
+    setFormFieldValue('emergency_contact_name', resident.emergency_contact_name || '');
+    setFormFieldValue('emergency_contact_phone', resident.emergency_contact_phone || '');
+    setFormFieldValue('serious_illness_details', resident.serious_illness_details || '');
 
-    setVal('first_name', resident.first_name);
-    setVal('middle_name', resident.middle_name);
-    setVal('last_name', resident.last_name);
-    setVal('contact_number', resident.contact_number);
-    setVal('email', email);
-    setVal('family_size', resident.family_size);
-    setVal('home_address', resident.home_address);
-    setVal('barangay', resident.barangay);
-    setVal('sex', resident.sex);
-    setVal('age', resident.age);
-    setVal('emergency_contact_name', resident.emergency_contact_name);
-    setVal('emergency_contact_phone', resident.emergency_contact_phone);
-
-    setCheck('is_4ps', resident.is_4ps);
-    setCheck('is_pregnant', resident.is_pregnant);
-    setCheck('is_lactating', resident.is_lactating);
-    setCheck('is_pwd', resident.is_pwd);
-    setCheck('is_single_head', resident.is_single_head);
-    setCheck('has_serious_illness', resident.has_serious_illness);
-    setVal('serious_illness_details', resident.serious_illness_details);
+    setFormCheckValue('is_4ps', resident.is_4ps);
+    setFormCheckValue('is_pregnant', resident.is_pregnant);
+    setFormCheckValue('is_lactating', resident.is_lactating);
+    setFormCheckValue('is_pwd', resident.is_pwd);
+    setFormCheckValue('is_single_head', resident.is_single_head);
+    setFormCheckValue('has_serious_illness', resident.has_serious_illness);
 
     // Dynamic QR Code Rendering for /resident/qr
     const qrImgs = document.querySelectorAll('img[alt*="QR Code"], img[alt*="Household QR"]');
@@ -411,9 +479,14 @@
 
     hydrateCachedMembersList();
   }
+  global.hydrateCachedResidentProfile = hydrateCachedResidentProfile;
 
   // Dynamic Staff & Rescuer Profile Hydrator
   function hydrateCachedStaffProfile() {
+    if (!isStaticBundle) return;
+    const curPath = global.location.pathname || '';
+    if (curPath.includes('/resident')) return;
+
     let staff = null;
     try {
       staff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
@@ -423,29 +496,32 @@
     if (staff.userId || staff.user_id || staff.id) {
       global.currentUserId = String(staff.userId || staff.user_id || staff.id);
     }
-    const isRescuer = staff.staff_type === 'RESCUER';
+    const isRescuer = String(staff.staff_type || '').toUpperCase() === 'RESCUER' || curPath.includes('/rescuer');
     global.__evwRole = isRescuer ? 'rescuer' : 'staff';
 
-    const fullName = staff.full_name || staff.name || (staff.first_name ? `${staff.first_name} ${staff.last_name || ''}`.trim() : (isRescuer ? 'Emergency Rescuer' : 'Evacuation Staff'));
+    const fullName = [staff.first_name, staff.middle_name, staff.last_name].filter(Boolean).join(' ').trim()
+      || staff.full_name || staff.name || (isRescuer ? 'Emergency Rescuer' : 'Evacuation Staff');
+    const shortFullName = [staff.first_name, staff.last_name].filter(Boolean).join(' ').trim() || fullName;
     try {
-      localStorage.setItem('evw_user_full_name', fullName);
+      localStorage.setItem('evw_user_full_name', shortFullName);
       if (global.AndroidBleBridge && typeof global.AndroidBleBridge.setActiveUser === 'function') {
-        global.AndroidBleBridge.setActiveUser(fullName, isRescuer ? 'Rescuer' : 'Staff');
+        global.AndroidBleBridge.setActiveUser(shortFullName, isRescuer ? 'Rescuer' : 'Staff');
       }
     } catch (_) {}
-    const firstName = staff.first_name || (fullName ? fullName.split(' ')[0] : 'Staff');
+    const firstName = staff.first_name || (shortFullName ? shortFullName.split(' ')[0] : (isRescuer ? 'Rescuer' : 'Staff'));
     const lastName = staff.last_name || '';
     const email = staff.email || localStorage.getItem('evw_cached_email') || '';
-    const initial = (firstName || fullName || 'S').charAt(0).toUpperCase();
+    const initial = (firstName || shortFullName || 'S').charAt(0).toUpperCase();
     const contact = staff.contact_number || '';
     const occupation = staff.occupation || (isRescuer ? 'Disaster Response Rescuer' : 'Evacuation Site Manager');
-    const photo = staff.profile_photo;
+    const staffType = staff.staff_type || (isRescuer ? 'RESCUER' : 'EVACUATION');
+    const photoSrc = resolveCloudPhotoUrl(staff.profile_photo);
 
     document.querySelectorAll('#staffUserGreetingName, .staff-first-name-display, #headerStaffName, #rescuerGreetingName, .rescuer-first-name-display').forEach(el => {
       el.textContent = firstName;
     });
     document.querySelectorAll('.staff-name-display, #headerUserName, #profileFullName, #ownerName, .profile-hero-name, #displayFullName, .rescuer-name-display').forEach(el => {
-      el.textContent = fullName;
+      el.textContent = shortFullName;
     });
     document.querySelectorAll('#staffUserAvatarInitial, .staff-avatar-initial, #rescuerAvatarInitial, .user-avatar-initial').forEach(el => {
       el.textContent = initial;
@@ -459,25 +535,65 @@
     document.querySelectorAll('#profileOccupationDisplay, .staff-occupation-display, #displayOccupation').forEach(el => {
       el.textContent = occupation;
     });
-
-    const setVal = (id, val) => {
+    const setText = (id, text) => {
       const el = document.getElementById(id);
-      if (el && val !== undefined && val !== null) el.value = val;
+      if (el) el.textContent = text;
     };
-    setVal('first_name', staff.first_name);
-    setVal('middle_name', staff.middle_name);
-    setVal('last_name', staff.last_name);
-    setVal('contact_number', staff.contact_number);
-    setVal('email', email);
-    setVal('occupation', occupation);
+    setText('staffTypeBadge', staffType);
+    if (staff.assigned_center_name) {
+      setText('staffAssignedCenterText', staff.assigned_center_name);
+    }
+    const staffNum = staff.staff_id || staff.id;
+    if (staffNum) {
+      setText('staffIdentityId', `#STF-${String(staffNum).padStart(4, '0')}`);
+    }
+    setText('staffIdentityRole', isRescuer ? 'Barangay Rescuer' : 'Barangay Staff');
+    setText('staffIdentityFirstName', staff.first_name || firstName);
+    const midRow = document.getElementById('staffIdentityMiddleNameRow');
+    if (midRow) {
+      if (staff.middle_name) {
+        midRow.classList.remove('hidden');
+        midRow.classList.add('flex');
+        setText('staffIdentityMiddleName', staff.middle_name);
+      } else {
+        midRow.classList.add('hidden');
+        midRow.classList.remove('flex');
+      }
+    }
+    setText('staffIdentityLastName', lastName);
+    setText('staffIdentityOccupation', occupation);
+    setText('staffIdentityContact', contact || 'Not set');
+    setText('staffIdentityEmail', email || 'N/A');
 
-    if (photo) {
-      const photoSrc = photo.startsWith('http') || photo.startsWith('data:') || photo.startsWith('/') ? photo : `/uploads/profiles/${photo}`;
-      document.querySelectorAll('img.staff-avatar-img, img#headerAvatarImg, img.user-profile-img, img#rescuerAvatarImg').forEach(img => {
+    // Populate Edit Staff / Rescuer Profile form inputs (matches both #id and [name="..."])
+    setFormFieldValue('first_name', staff.first_name || '');
+    setFormFieldValue('middle_name', staff.middle_name || '');
+    setFormFieldValue('last_name', staff.last_name || '');
+    setFormFieldValue('contact_number', contact);
+    setFormFieldValue('email', email);
+    setFormFieldValue('occupation', occupation);
+
+    // Avatar Display + Modal Preview
+    const avatarDisplay = document.getElementById('profile-avatar-display');
+    const avatarFallback = document.getElementById('profile-avatar-fallback');
+    if (photoSrc) {
+      if (avatarDisplay) {
+        avatarDisplay.src = photoSrc;
+        avatarDisplay.style.display = 'block';
+      }
+      if (avatarFallback) avatarFallback.classList.add('hidden');
+      document.querySelectorAll('img.staff-avatar-img, img#headerAvatarImg, img.user-profile-img, img#rescuerAvatarImg, img#staffModalAvatarPreview, img#rescuerModalAvatarPreview').forEach(img => {
         img.src = photoSrc;
       });
+    } else {
+      if (avatarDisplay) avatarDisplay.style.display = 'none';
+      if (avatarFallback) {
+        avatarFallback.textContent = initial;
+        avatarFallback.classList.remove('hidden');
+      }
     }
   }
+  global.hydrateCachedStaffProfile = hydrateCachedStaffProfile;
 
   // 3. Dynamic Household Members List Hydrator for /resident/qr
   function hydrateCachedMembersList() {
@@ -513,11 +629,7 @@
       const headName = `${resident.first_name || ''} ${resident.middle_name ? resident.middle_name + ' ' : ''}${resident.last_name || ''}`.trim() || resident.full_name || 'Resident';
       const headSex = resident.sex || 'Male';
       const headAge = resident.age ? ` • ${resident.age} yrs` : '';
-      const headPhoto = resident.profile_photo
-        ? ((resident.profile_photo.startsWith('http') || resident.profile_photo.startsWith('data:') || resident.profile_photo.startsWith('/'))
-          ? resident.profile_photo
-          : `/uploads/profiles/${resident.profile_photo}`)
-        : null;
+      const headPhoto = resolveCloudPhotoUrl(resident.profile_photo);
 
       html += `
         <div class="bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/40 rounded-2xl p-3 sm:p-4 shadow-xs border border-blue-200/90 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md hover:border-blue-400 transition-all">
@@ -590,115 +702,253 @@
     membersContainer.innerHTML = html;
   }
 
-  // Background server sync for logged-in mobile resident so profile & family members stay fresh
+  // Background server sync for logged-in mobile user (Resident, Staff, or Rescuer) so profile & family members stay fresh from MySQL
   async function syncMobileProfileFromServer() {
-    if (!isStaticBundle || !navigator.onLine) return;
-    const role = localStorage.getItem('evw_user_role') || '';
-    if (role && role !== 'resident') return;
-    if (!localStorage.getItem('evw_cached_resident')) return;
+    if (!isStaticBundle || !navigator.onLine || !nativeFetch) return;
+    const hasResident = Boolean(localStorage.getItem('evw_cached_resident'));
+    const hasStaff = Boolean(localStorage.getItem('evw_cached_staff'));
+    if (!hasResident && !hasStaff) return;
     try {
-      const res = await origFetch.call(global, getHallServerUrl() + '/api/mobile/me', {
+      const res = await nativeFetch(getHallServerUrl() + '/api/mobile/me', {
         method: 'GET',
         credentials: 'include',
         headers: getMobileAuthHeaders()
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (data && data.success && data.resident) {
-        localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
-        localStorage.setItem('evw_cached_members', JSON.stringify(Array.isArray(data.members) ? data.members : []));
-        hydrateCachedResidentProfile();
+      if (data && data.success) {
+        if (data.staff) {
+          localStorage.setItem('evw_cached_staff', JSON.stringify(data.staff));
+          if (data.staff.email) localStorage.setItem('evw_cached_email', data.staff.email);
+          hydrateCachedStaffProfile();
+        }
+        if (data.resident) {
+          localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
+          if (Array.isArray(data.members)) {
+            localStorage.setItem('evw_cached_members', JSON.stringify(data.members));
+          }
+          if (data.resident.email) localStorage.setItem('evw_cached_email', data.resident.email);
+          hydrateCachedResidentProfile();
+        }
       }
     } catch (_) {}
   }
+  global.syncMobileProfileFromServer = syncMobileProfileFromServer;
   if (isStaticBundle) {
     setTimeout(syncMobileProfileFromServer, 600);
   }
 
-  // 4. Offline & Online Form Submission Interceptor for Profile & Household Members
+  // 4. Offline & Online Form Submission Interceptor for Resident, Staff, Rescuer Profiles, Avatars, Passwords & Household Members
+  let formInterceptorsBound = false;
   function setupFormInterceptors() {
+    if (!isStaticBundle || formInterceptorsBound) return;
+    formInterceptorsBound = true;
+
+    const notifyUser = (msg) => {
+      if (typeof window.EvacWarToast === 'function') {
+        window.EvacWarToast(msg);
+      } else {
+        alert(msg);
+      }
+    };
+
+    const closeOpenModals = () => {
+      document.querySelectorAll('.modal, [id^="modal"]').forEach(m => {
+        if (m.classList.contains('active') || !m.classList.contains('hidden')) {
+          m.classList.add('hidden');
+          m.classList.remove('active');
+        }
+      });
+      document.body.classList.remove('overflow-hidden');
+    };
+
     document.addEventListener('submit', async (e) => {
       const form = e.target;
-      if (!form || !form.action) return;
+      if (!form) return;
 
       const act = form.getAttribute('action') || '';
+      const isProfileOrAuthForm =
+        act.includes('/resident/profile') ||
+        act.includes('/staff/profile') ||
+        act.includes('/rescuer/profile') ||
+        [
+          'formEditProfile',
+          'formEmergencyContact',
+          'formVulnerability',
+          'formChangePassword',
+          'avatarUploadForm',
+          'formEditStaffProfile',
+          'formStaffChangePassword'
+        ].includes(form.id);
 
-      // Intercept Resident Profile Updates (/resident/profile)
-      if (act.includes('/resident/profile') || form.id === 'formEditProfile' || form.id === 'formEmergencyContact' || form.id === 'avatarUploadForm') {
+      if (isProfileOrAuthForm) {
         e.preventDefault();
         e.stopPropagation();
 
         const formData = new FormData(form);
-        let resident = {};
+        const curPath = global.location.pathname || '';
+        const isStaffForm =
+          act.includes('/staff/profile') ||
+          act.includes('/rescuer/profile') ||
+          form.id === 'formEditStaffProfile' ||
+          form.id === 'formStaffChangePassword' ||
+          (form.id === 'avatarUploadForm' && (curPath.includes('/staff') || curPath.includes('/rescuer')));
+
+        const isPasswordForm =
+          form.id === 'formChangePassword' ||
+          form.id === 'formStaffChangePassword' ||
+          Boolean(formData.get('new_password'));
+
+        let cachedUser = {};
         try {
-          resident = JSON.parse(localStorage.getItem('evw_cached_resident') || '{}') || {};
+          cachedUser = JSON.parse(localStorage.getItem(isStaffForm ? 'evw_cached_staff' : 'evw_cached_resident') || '{}') || {};
         } catch (_) {}
 
-        // Read form entries into resident object
-        for (const [key, value] of formData.entries()) {
-          if (key === '_csrf' || key === 'returnTo') continue;
-          if (key === 'profile_photo' && value instanceof File && value.size > 0) {
-            // Read as data URL for instant offline avatar preview
-            try {
-              const reader = new FileReader();
-              reader.onload = (re) => {
-                resident.profile_photo = re.target.result;
-                localStorage.setItem('evw_cached_resident', JSON.stringify(resident));
-                hydrateCachedResidentProfile();
-              };
-              reader.readAsDataURL(value);
-            } catch (_) {}
-          } else {
-            resident[key] = value;
+        const userId = cachedUser.user_id || cachedUser.userId || 0;
+        const staffId = isStaffForm ? (cachedUser.staff_id || cachedUser.id || 0) : 0;
+        const residentId = !isStaffForm ? (cachedUser.resident_id || cachedUser.id || 0) : 0;
+        const roleTag = isStaffForm
+          ? (String(cachedUser.staff_type || '').toUpperCase() === 'RESCUER' || curPath.includes('/rescuer') ? 'rescuer' : 'staff')
+          : 'resident';
+
+        // Password Change Flow (always requires online MySQL verification)
+        if (isPasswordForm) {
+          const newPw = String(formData.get('new_password') || '');
+          const confirmPw = String(formData.get('confirm_password') || '');
+          if (newPw.length < 8 || !/[a-zA-Z]/.test(newPw) || !/[0-9]/.test(newPw)) {
+            notifyUser('Password must be at least 8 characters and include both letters and numbers.');
+            return false;
           }
+          if (newPw !== confirmPw) {
+            notifyUser('New password and confirmation do not match.');
+            return false;
+          }
+          if (!navigator.onLine || !nativeFetch) {
+            notifyUser('Internet connection is required to change your password.');
+            return false;
+          }
+
+          formData.set('user_id', String(userId));
+          formData.set('role', roleTag);
+          try {
+            const resp = await nativeFetch(`${getHallServerUrl()}/api/mobile/profile/update`, {
+              method: 'POST',
+              body: formData,
+              credentials: 'include',
+              headers: getMobileAuthHeaders()
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.success) {
+              notifyUser(data.message || 'Failed to update password.');
+              return false;
+            }
+            form.reset();
+            closeOpenModals();
+            notifyUser(data.message || 'Password updated successfully!');
+          } catch (err) {
+            notifyUser('Could not reach server to update password. Please try again.');
+          }
+          return false;
         }
 
-        // Recompute full name
-        const fn = resident.first_name || '';
-        const ln = resident.last_name || '';
-        resident.name = `${fn} ${ln}`.trim() || resident.name || 'Resident';
-        resident.full_name = resident.name;
-
-        // Persist locally immediately
-        try {
-          localStorage.setItem('evw_cached_resident', JSON.stringify(resident));
-          if (resident.email) localStorage.setItem('evw_cached_email', resident.email);
-        } catch (_) {}
-
-        hydrateCachedResidentProfile();
-
-        // Close any active modal
-        document.querySelectorAll('.modal, [id^="modal"]').forEach(m => {
-          if (m.classList.contains('active') || !m.classList.contains('hidden')) {
-            m.classList.add('hidden');
-            m.classList.remove('active');
-          }
-        });
-
-        // Show feedback toast
-        if (typeof window.EvacWarToast === 'function') {
-          window.EvacWarToast('✅ Profile details saved successfully!');
-        } else {
-          alert('Profile details saved successfully!');
+        // For Vulnerability checkbox form, explicitly include unchecked boxes as '0'
+        if (form.id === 'formVulnerability') {
+          ['is_4ps', 'is_pregnant', 'is_lactating', 'is_pwd', 'is_single_head', 'has_serious_illness'].forEach(flag => {
+            const cb = form.querySelector(`input[type="checkbox"][name="${flag}"]`);
+            formData.set(flag, cb && cb.checked ? '1' : '0');
+          });
         }
 
-        // Sync to server if online
-        if (navigator.onLine) {
-          const hallBase = getHallServerUrl();
-          formData.append('resident_id', resident.id || resident.resident_id || 0);
-          formData.append('user_id', resident.user_id || 0);
+        // Instant visual preview if uploading an avatar photo
+        const photoFile = formData.get('profile_photo');
+        const hasPhotoFile = Boolean(photoFile && photoFile instanceof File && photoFile.size > 0);
+        if (hasPhotoFile) {
+          try {
+            const reader = new FileReader();
+            reader.onload = (re) => {
+              const avatarDisplay = document.getElementById('profile-avatar-display');
+              const avatarFallback = document.getElementById('profile-avatar-fallback');
+              if (avatarDisplay) {
+                avatarDisplay.src = re.target.result;
+                avatarDisplay.style.display = 'block';
+              }
+              if (avatarFallback) avatarFallback.classList.add('hidden');
+            };
+            reader.readAsDataURL(photoFile);
+          } catch (_) {}
+        }
 
-          fetch(`${hallBase}/api/mobile/profile/update`, {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
-          }).then(r => r.json()).then(data => {
-            if (data && data.success && data.resident) {
+        // Attach identity fields for MySQL update
+        formData.set('user_id', String(userId));
+        formData.set('role', roleTag);
+        if (isStaffForm && staffId) formData.set('staff_id', String(staffId));
+        if (!isStaffForm && residentId) formData.set('resident_id', String(residentId));
+
+        // Online: persist directly to MySQL first, then update localStorage with server's authoritative row
+        if (navigator.onLine && nativeFetch) {
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const prevBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> Saving...';
+          }
+          try {
+            const resp = await nativeFetch(`${getHallServerUrl()}/api/mobile/profile/update`, {
+              method: 'POST',
+              body: formData,
+              credentials: 'include',
+              headers: getMobileAuthHeaders()
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.success) {
+              notifyUser(data.message || 'Could not save profile changes. Please try again.');
+              return false;
+            }
+            if (isStaffForm && data.staff) {
+              localStorage.setItem('evw_cached_staff', JSON.stringify(data.staff));
+              if (data.staff.email) localStorage.setItem('evw_cached_email', data.staff.email);
+              hydrateCachedStaffProfile();
+            } else if (!isStaffForm && data.resident) {
               localStorage.setItem('evw_cached_resident', JSON.stringify(data.resident));
+              if (data.resident.email) localStorage.setItem('evw_cached_email', data.resident.email);
               hydrateCachedResidentProfile();
             }
-          }).catch(err => console.warn('Background profile sync note:', err.message));
+            // Reset file input so same photo can be re-selected later if desired
+            form.querySelectorAll('input[type="file"]').forEach(fi => { fi.value = ''; });
+            closeOpenModals();
+            notifyUser(hasPhotoFile ? 'Profile photo updated!' : (data.message || 'Profile updated successfully!'));
+          } catch (err) {
+            notifyUser('Network error saving profile to server. Please check your connection and try again.');
+          } finally {
+            if (submitBtn && prevBtnHtml !== null) {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = prevBtnHtml;
+            }
+          }
+          return false;
         }
+
+        // Offline fallback: update local device cache so UI stays responsive
+        for (const [key, value] of formData.entries()) {
+          if (['_csrf', 'returnTo', 'user_id', 'staff_id', 'resident_id', 'role'].includes(key)) continue;
+          if (key === 'profile_photo') continue;
+          cachedUser[key] = value;
+        }
+        const fn = cachedUser.first_name || '';
+        const ln = cachedUser.last_name || '';
+        cachedUser.name = `${fn} ${ln}`.trim() || cachedUser.name;
+        cachedUser.full_name = cachedUser.name;
+
+        try {
+          localStorage.setItem(isStaffForm ? 'evw_cached_staff' : 'evw_cached_resident', JSON.stringify(cachedUser));
+          if (cachedUser.email) localStorage.setItem('evw_cached_email', cachedUser.email);
+        } catch (_) {}
+
+        if (isStaffForm) hydrateCachedStaffProfile();
+        else hydrateCachedResidentProfile();
+
+        closeOpenModals();
+        notifyUser('Saved offline on device. Connect to internet and save again to sync to database.');
         return false;
       }
 

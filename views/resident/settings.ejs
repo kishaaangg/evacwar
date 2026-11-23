@@ -77,16 +77,10 @@
                       profilePhotoSrc = (rawProfilePhoto.startsWith('http') || rawProfilePhoto.startsWith('/')) ? rawProfilePhoto : `/uploads/profiles/${rawProfilePhoto}`;
                     }
                   %>
-                  <% if (profilePhotoSrc) { %>
-                    <img loading="lazy" id="profile-avatar-display" src="<%= profilePhotoSrc %>" decoding="async" alt="<%= user.name %>" class="w-full h-full object-cover rounded-full aspect-square block bg-white" onerror="this.style.display='none'; document.getElementById('profile-avatar-fallback').classList.remove('hidden');" />
-                    <div id="profile-avatar-fallback" class="w-full h-full rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xl hidden">
-                      <%= (user.name || 'R').charAt(0).toUpperCase() %>
-                    </div>
-                  <% } else { %>
-                    <div class="w-full h-full rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xl">
-                      <%= (user.name || 'R').charAt(0).toUpperCase() %>
-                    </div>
-                  <% } %>
+                  <img loading="lazy" id="profile-avatar-display" src="<%= profilePhotoSrc || '' %>" decoding="async" alt="<%= user.name %>" style="<%= profilePhotoSrc ? '' : 'display:none;' %>" class="w-full h-full object-cover rounded-full aspect-square block bg-white" onerror="this.style.display='none'; var fb = document.getElementById('profile-avatar-fallback'); if (fb) fb.classList.remove('hidden');" />
+                  <div id="profile-avatar-fallback" class="w-full h-full rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xl <%= profilePhotoSrc ? 'hidden' : '' %>">
+                    <%= (user.name || 'R').charAt(0).toUpperCase() %>
+                  </div>
                 </div>
                 
                 <label for="photo-upload-input" title="Upload new photo" class="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer shadow-md transition-transform hover:scale-110 border-2 border-white">
@@ -553,29 +547,29 @@
         <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 space-y-2 profile-sub-bg">
           <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
             <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Full Legal Name</span>
-            <span class="font-bold text-slate-800 profile-text-dark text-right"><%= [locals.resident ? locals.resident.first_name : '', locals.resident ? locals.resident.middle_name : '', locals.resident ? locals.resident.last_name : ''].filter(Boolean).join(' ') || user.name %></span>
+            <span id="piFullName" class="font-bold text-slate-800 profile-text-dark text-right"><%= [locals.resident ? locals.resident.first_name : '', locals.resident ? locals.resident.middle_name : '', locals.resident ? locals.resident.last_name : ''].filter(Boolean).join(' ') || user.name %></span>
           </div>
           <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
             <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Age & Sex</span>
-            <span class="font-bold text-slate-800 profile-text-dark"><%= (locals.resident && locals.resident.age) ? (locals.resident.age + ' yrs old') : '' %> <%= (locals.resident && locals.resident.sex) ? ('• ' + locals.resident.sex) : 'Male' %></span>
+            <span id="piAgeSex" class="font-bold text-slate-800 profile-text-dark"><%= (locals.resident && locals.resident.age) ? (locals.resident.age + ' yrs old') : '' %> <%= (locals.resident && locals.resident.sex) ? ('• ' + locals.resident.sex) : 'Male' %></span>
           </div>
           <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
             <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Birthdate</span>
-            <span class="font-bold text-slate-800 profile-text-dark">
+            <span id="piBirthdate" class="font-bold text-slate-800 profile-text-dark">
               <%= locals.resident && locals.resident.birthdate ? new Date(locals.resident.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not specified' %>
             </span>
           </div>
           <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
             <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Contact Number</span>
-            <span class="font-bold text-slate-800 profile-text-dark"><%= locals.resident && locals.resident.contact_number ? locals.resident.contact_number : (user.email || 'None') %></span>
+            <span id="piContact" class="font-bold text-slate-800 profile-text-dark"><%= locals.resident && locals.resident.contact_number ? locals.resident.contact_number : (user.email || 'None') %></span>
           </div>
           <div class="flex justify-between items-center py-1 border-b border-slate-200/50">
             <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Household Size</span>
-            <span class="font-bold text-blue-600"><%= locals.resident ? (locals.resident.family_size || 1) : 1 %> member(s)</span>
+            <span id="piFamilySize" class="font-bold text-blue-600"><%= locals.resident ? (locals.resident.family_size || 1) : 1 %> member(s)</span>
           </div>
           <div class="flex justify-between items-center py-1">
             <span class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Home Address</span>
-            <span class="font-bold text-slate-800 text-right profile-text-dark"><%= locals.resident && locals.resident.home_address ? (locals.resident.home_address + ', ') : '' %>Brgy. <%= locals.resident && locals.resident.barangay ? locals.resident.barangay : 'San Rafael' %>, Baao</span>
+            <span id="piAddress" class="font-bold text-slate-800 text-right profile-text-dark"><%= locals.resident && locals.resident.home_address ? (locals.resident.home_address + ', ') : '' %>Brgy. <%= locals.resident && locals.resident.barangay ? locals.resident.barangay : 'San Rafael' %>, Baao</span>
           </div>
         </div>
 
@@ -619,12 +613,10 @@
         <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 space-y-1.5 profile-sub-bg">
           <div class="text-slate-400 font-semibold uppercase text-[10px] profile-text-muted">Emergency Next-of-Kin</div>
           <div class="flex items-center justify-between text-xs font-bold text-slate-800 profile-text-dark">
-            <span><%= (locals.resident && locals.resident.emergency_contact_name) ? locals.resident.emergency_contact_name : 'No emergency contact set' %></span>
-            <% if (locals.resident && locals.resident.emergency_contact_phone) { %>
-              <a href="tel:<%= locals.resident.emergency_contact_phone %>" class="text-emerald-700 hover:underline flex items-center gap-1">
-                <i class="ph ph-phone text-emerald-600"></i> <%= locals.resident.emergency_contact_phone %>
-              </a>
-            <% } %>
+            <span id="piEmergencyName"><%= (locals.resident && locals.resident.emergency_contact_name) ? locals.resident.emergency_contact_name : 'No emergency contact set' %></span>
+            <a id="piEmergencyPhone" href="<%= (locals.resident && locals.resident.emergency_contact_phone) ? ('tel:' + locals.resident.emergency_contact_phone) : '#' %>" class="<%= (locals.resident && locals.resident.emergency_contact_phone) ? 'flex' : 'hidden' %> text-emerald-700 hover:underline items-center gap-1">
+              <i class="ph ph-phone text-emerald-600"></i> <span id="piEmergencyPhoneText"><%= (locals.resident && locals.resident.emergency_contact_phone) || '' %></span>
+            </a>
           </div>
         </div>
 
@@ -714,7 +706,7 @@
         </button>
       </div>
 
-      <form action="/resident/profile" method="POST" class="p-5 space-y-4 text-xs font-bold text-slate-700">
+      <form id="formVulnerability" action="/resident/profile" method="POST" class="p-5 space-y-4 text-xs font-bold text-slate-700">
         <input type="hidden" name="_csrf" value="<%= locals.csrfToken || '' %>">
         
         <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 profile-sub-bg">
@@ -1034,10 +1026,22 @@
       }
     }
 
-    function openEditProfileModal() { openModal('modalEditProfile'); }
-    function openPersonalInfoModal() { openModal('modalPersonalInfo'); }
-    function openEmergencyContactModal() { openModal('modalEmergencyContact'); }
-    function openVulnerabilityModal() { openModal('modalVulnerability'); }
+    function openEditProfileModal() {
+      if (typeof window.hydrateCachedResidentProfile === 'function') window.hydrateCachedResidentProfile();
+      openModal('modalEditProfile');
+    }
+    function openPersonalInfoModal() {
+      if (typeof window.hydrateCachedResidentProfile === 'function') window.hydrateCachedResidentProfile();
+      openModal('modalPersonalInfo');
+    }
+    function openEmergencyContactModal() {
+      if (typeof window.hydrateCachedResidentProfile === 'function') window.hydrateCachedResidentProfile();
+      openModal('modalEmergencyContact');
+    }
+    function openVulnerabilityModal() {
+      if (typeof window.hydrateCachedResidentProfile === 'function') window.hydrateCachedResidentProfile();
+      openModal('modalVulnerability');
+    }
     function openChangePasswordModal() { openModal('modalChangePassword'); }
     function openNotificationsModal() { openModal('modalNotifications'); }
     function openLanguageModal() { openModal('modalLanguage'); }
@@ -1073,9 +1077,16 @@
           return;
         }
         
-        // Submit avatar form immediately
+        // Submit avatar form immediately (uses requestSubmit so native Capacitor bridge intercepts it)
         const form = document.getElementById('avatarUploadForm');
-        if (form) form.submit();
+        if (form) {
+          if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+          } else {
+            const ev = new Event('submit', { bubbles: true, cancelable: true });
+            if (form.dispatchEvent(ev)) form.submit();
+          }
+        }
       }
     }
 

@@ -34,6 +34,8 @@
 
   function registerServiceWorker() {
     if (isResidentNativeOrPortal()) {
+      // Native Android WebView should NEVER run a PWA Service Worker (prevents stale cached map/pages).
+      // Actively unregister all existing Service Workers and purge all SW caches.
       const hadController = Boolean('serviceWorker' in navigator && navigator.serviceWorker.controller);
       const tasks = [];
       if ('serviceWorker' in navigator) {

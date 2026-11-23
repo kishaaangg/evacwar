@@ -1628,8 +1628,14 @@
       }
     };
 
-    // Built-in In-App Directions & Route Renderer on MapLibre (Works Online via Road Routing & Offline via Direct Path)
+    // Built-in In-App Directions & Live Route-Trimming Navigation (Google Maps Style)
     window.clearEvakWarDirections = function () {
+      if (window._evakwarNavWatchId !== undefined && window._evakwarNavWatchId !== null && navigator.geolocation) {
+        try { navigator.geolocation.clearWatch(window._evakwarNavWatchId); } catch (_) {}
+        window._evakwarNavWatchId = null;
+      }
+      window._evakwarActiveNav = null;
+
       const map = window._activeEvakWarMap;
       if (map && typeof map.getSource === 'function') {
         const src = map.getSource('evakwar-directions-source');
@@ -1669,26 +1675,10 @@
         if (typeof staffSheet !== 'undefined' && staffSheet) staffSheet.isExpanded = false;
       }
 
-      // Create or update floating in-app Navigation HUD banner (positioned comfortably above mobile nav and bottom sheet)
+      // Create or update floating TOP Navigation HUD banner (ONLY shown while actively navigating)
       let hud = document.getElementById('evakwarDirectionsHud');
       const isMobile = window.innerWidth < 1024;
-      const hasBottomSheet = !!sheetEl;
-      const hasBottomNav = !!(document.getElementById('residentBottomNav') || document.getElementById('staffBottomNav') || document.querySelector('nav.fixed.bottom-0'));
-
-      let bottomOffset = '24px';
-      if (isMobile) {
-        if (hasBottomSheet) {
-          // Bottom nav (64px) + collapsed sheet handle (48px) = 112px.
-          // Place at 132px (+ safe area) so it floats completely above the sheet handle and SOS button with zero overlap.
-          bottomOffset = 'calc(132px + env(safe-area-inset-bottom, 0px))';
-        } else if (hasBottomNav) {
-          // Bottom nav (64px) + raised SOS circle (~88px).
-          // Place at 102px (+ safe area) so it floats completely above the SOS button.
-          bottomOffset = 'calc(102px + env(safe-area-inset-bottom, 0px))';
-        } else {
-          bottomOffset = 'calc(24px + env(safe-area-inset-bottom, 0px))';
-        }
-      }
+      const topOffset = isMobile ? '58px' : '72px';
 
       if (!hud && container) {
         hud = document.createElement('div');
@@ -1696,20 +1686,20 @@
         container.appendChild(hud);
       }
       if (hud) {
-        hud.style.cssText = `position:absolute;bottom:${bottomOffset};left:50%;transform:translateX(-50%);z-index:50;width:min(92%,440px);pointer-events:auto;transition:bottom 0.25s ease-out;`;
+        hud.style.cssText = `position:absolute;top:${topOffset};left:50%;transform:translateX(-50%);z-index:55;width:min(94%,460px);pointer-events:auto;transition:all 0.2s ease-out;`;
         hud.innerHTML = `
-          <div class="bg-white/95 backdrop-blur-md text-slate-900 rounded-2xl p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.18)] border border-slate-200/90 flex items-center justify-between gap-3">
+          <div class="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl px-3.5 py-2.5 shadow-[0_12px_32px_rgba(15,23,42,0.45)] border border-emerald-500/60 flex items-center justify-between gap-2.5">
             <div class="flex items-center gap-2.5 min-w-0">
-              <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <i class="ph ph-navigation-arrow text-lg animate-pulse"></i>
+              <div class="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                <i class="ph ph-navigation-arrow text-lg animate-pulse font-bold"></i>
               </div>
               <div class="min-w-0">
-                <div class="text-xs font-black text-slate-900 truncate">${destName}</div>
-                <div class="text-[11px] text-blue-600 font-bold">Calculating in-app route...</div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-emerald-400">Starting Navigation...</div>
+                <div class="text-xs font-black text-white truncate">${destName}</div>
               </div>
             </div>
-            <button type="button" onclick="window.clearEvakWarDirections()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer border border-slate-200">
-              Close
+            <button type="button" onclick="window.clearEvakWarDirections()" class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold shrink-0 cursor-pointer border border-white/15">
+              End
             </button>
           </div>
         `;
@@ -2090,35 +2080,52 @@
           }]
         };
 
-        if (!map.getSource('evakwar-directions-source')) {
-          map.addSource('evakwar-directions-source', {
-            type: 'geojson',
-            data: featureCollection
-          });
-          map.addLayer({
-            id: 'evakwar-directions-casing',
-            type: 'line',
-            source: 'evakwar-directions-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-              'line-color': '#1e3a8a',
-              'line-width': 9,
-              'line-opacity': 0.85
+        const applyRouteLayers = () => {
+          try {
+            if (!map.getSource('evakwar-directions-source')) {
+              map.addSource('evakwar-directions-source', {
+                type: 'geojson',
+                data: featureCollection
+              });
+              if (!map.getLayer('evakwar-directions-casing')) {
+                map.addLayer({
+                  id: 'evakwar-directions-casing',
+                  type: 'line',
+                  source: 'evakwar-directions-source',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#1e3a8a',
+                    'line-width': 9,
+                    'line-opacity': 0.85
+                  }
+                });
+              }
+              if (!map.getLayer('evakwar-directions-line')) {
+                map.addLayer({
+                  id: 'evakwar-directions-line',
+                  type: 'line',
+                  source: 'evakwar-directions-source',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#38bdf8',
+                    'line-width': 5,
+                    'line-opacity': 1
+                  }
+                });
+              }
+            } else {
+              map.getSource('evakwar-directions-source').setData(featureCollection);
             }
-          });
-          map.addLayer({
-            id: 'evakwar-directions-line',
-            type: 'line',
-            source: 'evakwar-directions-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-              'line-color': '#38bdf8',
-              'line-width': 5,
-              'line-opacity': 1
-            }
-          });
+          } catch (routeLayerErr) {
+            console.warn('[EvakWar Directions] Layer draw retry on load:', routeLayerErr && routeLayerErr.message);
+            if (typeof map.once === 'function') map.once('load', applyRouteLayers);
+          }
+        };
+
+        if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
+          map.once('load', applyRouteLayers);
         } else {
-          map.getSource('evakwar-directions-source').setData(featureCollection);
+          applyRouteLayers();
         }
 
         // Fit map bounds to show entire route
@@ -2135,41 +2142,141 @@
         }
       }
 
-      const distLabel = distMeters >= 1000 ? `${(distMeters / 1000).toFixed(2)} km` : `${distMeters} m`;
-      const walkMins = Math.max(1, Math.round(distMeters / 75));
-      const driveMins = Math.max(1, Math.round(distMeters / 400));
-      const routeBadgeHtml = usedAdminRoute
-        ? `<span class="px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-[10px] font-black">Admin Evacuation Route</span>`
-        : '';
+      const cleanDestTitle = String(destName || 'Evacuation Center').replace(/\s*\(Nearest.*?\)\s*/i, '').trim();
+      const formatRemKm = (meters) => {
+        const km = Math.max(0, meters) / 1000;
+        return `${km.toFixed(2)} km`;
+      };
 
-      if (hud) {
+      const renderNavHud = (remMeters, arrived) => {
+        if (!hud) return;
+        const kmStr = formatRemKm(remMeters);
+        const mins = Math.max(1, Math.round(remMeters / 75));
         hud.innerHTML = `
-          <div class="bg-white/95 backdrop-blur-md text-slate-900 rounded-2xl p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.18)] border border-slate-200/90 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 font-black shadow-sm">
-                <i class="ph ph-navigation-arrow text-xl"></i>
+          <div class="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl px-3.5 py-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.5)] border ${arrived ? 'border-emerald-400' : 'border-sky-400/70'} flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-9 h-9 rounded-xl ${arrived ? 'bg-emerald-500 text-slate-950' : 'bg-sky-500 text-slate-950'} flex items-center justify-center shrink-0 font-black shadow-sm">
+                <i class="ph ${arrived ? 'ph-check-circle' : 'ph-navigation-arrow'} text-lg font-bold"></i>
               </div>
               <div class="min-w-0">
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="text-xs sm:text-sm font-black text-slate-900 truncate">${destName}</span>
-                  <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black font-mono">${distLabel}</span>
-                  ${routeBadgeHtml}
+                <div class="text-[10px] font-black uppercase tracking-wider ${arrived ? 'text-emerald-400' : 'text-sky-300'} flex items-center gap-1.5">
+                  <span>${arrived ? 'Arrived at Evacuation Site' : 'Navigating to'}</span>
                 </div>
-                <div class="text-[11px] text-slate-700 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
-                  <span><i class="ph ph-person-simple-walk text-emerald-600"></i> ~${walkMins} min walk</span>
-                  <span class="text-slate-300">•</span>
-                  <span><i class="ph ph-car text-blue-600"></i> ~${driveMins} min drive</span>
-                  <span class="text-slate-300">•</span>
-                  <span class="font-mono text-[10px] text-indigo-700 font-bold">${dLat.toFixed(5)}°, ${dLng.toFixed(5)}°</span>
+                <div class="text-xs sm:text-sm font-black text-white truncate leading-tight">${cleanDestTitle}</div>
+                <div class="flex items-center gap-2 mt-0.5 text-[11px] font-extrabold">
+                  <span id="evakwarNavDistValue" class="text-emerald-400 font-mono">${arrived ? '0.00 km • Arrived' : kmStr + ' remaining'}</span>
+                  ${arrived ? '' : `<span class="text-slate-500">•</span><span class="text-slate-300">~${mins} min</span>`}
                 </div>
-                <div class="text-[10px] ${passedHazard ? 'text-amber-700 font-bold' : 'text-slate-500 font-medium'} truncate mt-0.5">${nextStepText}</div>
               </div>
             </div>
-            <button type="button" onclick="window.clearEvakWarDirections()" class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold shrink-0 cursor-pointer transition-colors">
-              Clear
+            <button type="button" onclick="window.clearEvakWarDirections()" class="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 text-rose-200 border border-rose-400/40 text-xs font-extrabold shrink-0 cursor-pointer transition-colors">
+              End
             </button>
           </div>
         `;
+      };
+
+      renderNavHud(distMeters, distMeters <= 30);
+
+      // Start Google-Maps-style live GPS tracking: trims the passed portion of the blue route behind the user
+      // and decreases remaining km in real time as the resident moves toward the evacuation center!
+      if (window._evakwarNavWatchId !== undefined && window._evakwarNavWatchId !== null && navigator.geolocation) {
+        try { navigator.geolocation.clearWatch(window._evakwarNavWatchId); } catch (_) {}
+        window._evakwarNavWatchId = null;
+      }
+
+      const fullRouteCoords = Array.isArray(routeGeometry && routeGeometry.coordinates) && routeGeometry.coordinates.length >= 2
+        ? routeGeometry.coordinates.slice()
+        : [[oLng, oLat], [dLng, dLat]];
+
+      window._evakwarActiveNav = {
+        destLat: dLat,
+        destLng: dLng,
+        destName: cleanDestTitle,
+        routeCoords: fullRouteCoords
+      };
+
+      const projectPointOnSegment = (px, py, ax, ay, bx, by) => {
+        const dx = bx - ax;
+        const dy = by - ay;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq <= 1e-12) return { lng: ax, lat: ay, t: 0 };
+        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+        return { lng: ax + t * dx, lat: ay + t * dy, t };
+      };
+
+      if (navigator.geolocation && typeof navigator.geolocation.watchPosition === 'function') {
+        window._evakwarNavWatchId = navigator.geolocation.watchPosition((livePos) => {
+          if (!window._evakwarActiveNav || !livePos || !livePos.coords) return;
+          const uLat = livePos.coords.latitude;
+          const uLng = livePos.coords.longitude;
+          if (!Number.isFinite(uLat) || !Number.isFinite(uLng)) return;
+
+          window._lastKnownUserGps = { lat: uLat, lng: uLng, isFallback: false };
+
+          // Move live origin blue dot
+          if (window._evakwarDirectionsOriginMarker && typeof window._evakwarDirectionsOriginMarker.setLngLat === 'function') {
+            window._evakwarDirectionsOriginMarker.setLngLat([uLng, uLat]);
+          }
+
+          // Project current GPS onto the remaining route and slice off all segments already passed behind the user
+          const coords = window._evakwarActiveNav.routeCoords;
+          let bestIdx = 0;
+          let bestProj = { lng: coords[0][0], lat: coords[0][1] };
+          let bestDistM = Infinity;
+
+          for (let i = 0; i < coords.length - 1; i++) {
+            const a = coords[i];
+            const b = coords[i + 1];
+            const proj = projectPointOnSegment(uLng, uLat, a[0], a[1], b[0], b[1]);
+            const dM = haversine([uLng, uLat], [proj.lng, proj.lat]);
+            if (dM < bestDistM) {
+              bestDistM = dM;
+              bestIdx = i;
+              bestProj = proj;
+            }
+          }
+
+          // Build trimmed remaining polyline starting at user's live position -> ahead to destination
+          const tail = coords.slice(bestIdx + 1);
+          const trimmedCoords = bestDistM <= 120
+            ? [[uLng, uLat], [bestProj.lng, bestProj.lat], ...tail]
+            : [[uLng, uLat], ...tail];
+
+          // Update stored routeCoords forward-only so passed path stays removed
+          if (trimmedCoords.length >= 2) {
+            window._evakwarActiveNav.routeCoords = trimmedCoords;
+          }
+
+          // Calculate remaining distance along the trimmed route (decreases in real time!)
+          let remMeters = 0;
+          for (let i = 0; i < trimmedCoords.length - 1; i++) {
+            remMeters += haversine(trimmedCoords[i], trimmedCoords[i + 1]);
+          }
+          const directToDestM = haversine([uLng, uLat], [dLng, dLat]);
+          if (directToDestM < remMeters && directToDestM <= 45) {
+            remMeters = directToDestM;
+          }
+
+          const arrived = remMeters <= 30 || directToDestM <= 30;
+
+          // Update blue route line on MapLibre with only the remaining path ahead
+          if (map && typeof map.getSource === 'function') {
+            const src = map.getSource('evakwar-directions-source');
+            if (src && typeof src.setData === 'function') {
+              src.setData({
+                type: 'FeatureCollection',
+                features: arrived ? [] : [{
+                  type: 'Feature',
+                  properties: {},
+                  geometry: { type: 'LineString', coordinates: trimmedCoords }
+                }]
+              });
+            }
+          }
+
+          renderNavHud(remMeters, arrived);
+        }, () => {}, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
       }
     };
 
@@ -2216,33 +2323,81 @@
       if (!Array.isArray(centersList) || centersList.length === 0) return null;
 
       const SAN_RAFAEL_DEFAULT = { lat: 13.51037, lng: 123.3481, isFallback: true };
-      const getUserCoords = () => new Promise((resolve) => {
-        if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number' && !window._lastKnownUserGps.isFallback) {
-          return resolve(window._lastKnownUserGps);
+      const getUserCoords = async () => {
+        const capGeo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+        if (capGeo && typeof capGeo.getCurrentPosition === 'function') {
+          try {
+            const pos = await capGeo.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
+            if (pos && pos.coords && Number.isFinite(pos.coords.latitude)) {
+              const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
+              window._lastKnownUserGps = c;
+              return c;
+            }
+          } catch (_) {}
         }
-        if (!navigator.geolocation) return resolve(SAN_RAFAEL_DEFAULT);
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
-            window._lastKnownUserGps = c;
-            resolve(c);
-          },
-          () => resolve(window._lastKnownUserGps || SAN_RAFAEL_DEFAULT),
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
-        );
-      });
+        if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number' && !window._lastKnownUserGps.isFallback) {
+          return window._lastKnownUserGps;
+        }
+        return await new Promise((resolve) => {
+          if (!navigator.geolocation) return resolve(SAN_RAFAEL_DEFAULT);
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
+              window._lastKnownUserGps = c;
+              resolve(c);
+            },
+            () => resolve(window._lastKnownUserGps || SAN_RAFAEL_DEFAULT),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+          );
+        });
+      };
 
       const userPos = await getUserCoords();
+      const validCenters = centersList
+        .map(center => {
+          if (!center) return null;
+          const cLat = parseFloat(center.latitude);
+          const cLng = parseFloat(center.longitude);
+          if (isNaN(cLat) || isNaN(cLng)) return null;
+          return { ...center, latitude: cLat, longitude: cLng, distanceKm: window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng) };
+        })
+        .filter(Boolean);
+
+      // When online, compute exact real road-route distances via OSRM Table API so the nearest center
+      // matches actual road travel distance (not straight-line coordinates)!
+      if (typeof navigator !== 'undefined' && navigator.onLine && validCenters.length > 0) {
+        try {
+          const coordStr = [
+            `${userPos.lng},${userPos.lat}`,
+            ...validCenters.map(c => `${c.longitude},${c.latitude}`)
+          ].join(';');
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 4500);
+          const resp = await fetch(
+            `https://router.project-osrm.org/table/v1/driving/${coordStr}?sources=0&annotations=distance`,
+            { signal: ctrl.signal }
+          );
+          clearTimeout(timer);
+          if (resp.ok) {
+            const data = await resp.json();
+            const row = data && Array.isArray(data.distances) && Array.isArray(data.distances[0]) ? data.distances[0] : null;
+            if (row && row.length >= validCenters.length + 1) {
+              validCenters.forEach((c, idx) => {
+                const roadMeters = row[idx + 1];
+                if (typeof roadMeters === 'number' && Number.isFinite(roadMeters) && roadMeters >= 0) {
+                  c.distanceKm = roadMeters / 1000;
+                }
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
       let nearest = null;
       let bestScore = Infinity;
 
-      centersList.forEach((center) => {
-        if (!center) return;
-        const cLat = parseFloat(center.latitude);
-        const cLng = parseFloat(center.longitude);
-        if (isNaN(cLat) || isNaN(cLng)) return;
-
-        const distKm = window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng);
+      validCenters.forEach((center) => {
+        const distKm = center.distanceKm;
         const distEl = document.getElementById(`distance-${center.id}`);
         if (distEl) distEl.textContent = `${distKm.toFixed(2)} km`;
         const popDistEl = document.getElementById(`popup-dist-${center.id}`);
@@ -2255,7 +2410,7 @@
         const score = isFull ? (distKm + 50) : distKm;
         if (score < bestScore) {
           bestScore = score;
-          nearest = { ...center, latitude: cLat, longitude: cLng, distanceKm: distKm };
+          nearest = center;
         }
       });
 
@@ -3884,7 +4039,22 @@
                             mutedArr = JSON.parse(localStorage.getItem('evw_muted_alert_ids') || '[]');
                           } catch (_) {}
 
-                          // If resident already acknowledged & muted this alert, keep silent and do not re-open modal!
+                          // If resident arrived via "Evacuate" notification tap (?auto_route=nearest), immediately silence & mute this alert
+                          const isFromEvacuateTap = Boolean(
+                            (window.location.search || '').includes('auto_route=nearest') ||
+                            (window.location.pathname || '').toLowerCase().includes('/evacuate')
+                          );
+                          if (isFromEvacuateTap) {
+                            if (alertIdStr && !mutedArr.includes(alertIdStr)) {
+                              mutedArr.push(alertIdStr);
+                              try { localStorage.setItem('evw_muted_alert_ids', JSON.stringify(mutedArr.slice(-50))); } catch (_) {}
+                            }
+                            if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();
+                            if (typeof window.updateSystemAlertBanner === 'function') window.updateSystemAlertBanner(alertData);
+                            return;
+                          }
+
+                          // If resident already acknowledged & muted this alert, keep silent!
                           if (alertIdStr && mutedArr.includes(alertIdStr)) {
                             console.log('[EvakWar] Alert is acknowledged/muted. Siren kept silent:', alertIdStr);
                             if (typeof window.updateSystemAlertBanner === 'function') {
@@ -3893,16 +4063,14 @@
                             return;
                           }
 
-                          // 1. ALWAYS Open Emergency Warning Modal so resident sees disaster info & acknowledge button!
-                          if (typeof window.openGlobalEmergencyModal === 'function') {
-                            window.openGlobalEmergencyModal(alertData);
-                          }
+                          // 1. Update live system alert banner (no full-screen popup modal)
                           if (typeof window.updateSystemAlertBanner === 'function') {
                             window.updateSystemAlertBanner(alertData);
                           }
 
-                          // If siren is already playing for this alert in this session, do not restart
-                          if (alertIdStr && window.__evwCurrentPlayingSirenId === alertIdStr) {
+                          // Deduplicate: never re-trigger the same alert ID twice (prevents duplicate notifications & siren restarts)
+                          const lastTriggeredId = (() => { try { return localStorage.getItem('evw_last_triggered_alert_id') || ''; } catch (_) { return ''; } })();
+                          if (alertIdStr && (window.__evwCurrentPlayingSirenId === alertIdStr || lastTriggeredId === alertIdStr)) {
                             return;
                           }
                           window.__evwCurrentPlayingSirenId = alertIdStr || alarmKey;
@@ -3913,13 +4081,20 @@
                           try {
                             localStorage.setItem('evw_active_alert', JSON.stringify(alertData));
                             localStorage.setItem('evw_last_lora_alert', JSON.stringify(alertData));
-                            if (alertData.alertId || alertData.id) {
-                              localStorage.setItem('evw_last_triggered_alert_id', String(alertData.alertId || alertData.id));
+                            if (alertIdStr) {
+                              localStorage.setItem('evw_last_triggered_alert_id', alertIdStr);
                             }
                           } catch (_) {}
 
-                          // Step A2: Trigger Native Android Emergency Siren (STREAM_ALARM) + Hardware Vibrator + Heads-Up Notification!
-                          if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeEmergencyAlarm === 'function') {
+                          // Step A2: In Native Android App, LoraMeshService ALREADY polls Render 24/7 and posts the ONE
+                          // single native notification (with Evacuate + Silence Siren buttons) & siren.
+                          // NEVER re-call triggerNativeEmergencyAlarm from WebView for online Socket.IO alerts —
+                          // doing so caused a 2nd duplicate notification (without Evacuate) and restarted the siren!
+                          const isOfflineLoraOnlyAlert = Boolean(
+                            !navigator.onLine &&
+                            (alertData.source === 'LORA_OFFLINE' || alertData.fromLoRa === true || String(alertData.via || '').toUpperCase().includes('LORA'))
+                          );
+                          if (isOfflineLoraOnlyAlert && window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeEmergencyAlarm === 'function') {
                             try {
                               window.AndroidBleBridge.triggerNativeEmergencyAlarm(
                                 String(alertData.title || 'EMERGENCY EVACUATION ALERT'),
@@ -4034,133 +4209,31 @@
                             }
                           }
 
-                          // Step F: Open Full-Screen Emergency Warning Modal with Safe Evacuation Route Guidance
-                          if (typeof window.openGlobalEmergencyModal === 'function') {
-                            window.openGlobalEmergencyModal(alertData);
+                          // Step F: In-app full-screen emergency alert modal has been disabled per design;
+                          // alerts are delivered via native push notifications, notification bell, and top banner only.
+                          if (typeof window.updateSystemAlertBanner === 'function') {
+                            window.updateSystemAlertBanner(alertData);
                           }
                         };
 
-                        // ---- 5. Full-Screen Minimalist Emergency Warning Modal ----
+                        // ---- 5. Global Emergency Warning Modal (Disabled — Banner & Notifications Only) ----
 
                         window.openGlobalEmergencyModal = function (data) {
                           if (!data) return;
 
-                          // Update live system alert banner
+                          // Keep top system alert banner updated without popping a full-screen modal
                           if (typeof window.updateSystemAlertBanner === 'function') {
                             window.updateSystemAlertBanner(data);
                           }
 
-                          // Do NOT display popup modal on admin side
-                          if (currentUserRole === 'admin') return;
-
-                          activeAlertId = data.id || Date.now();
-
-                          const sev = (data.severity || 'RED').toUpperCase();
-                          let themeColor = '#ef4444'; // Red
-                          let badgeText = 'CRITICAL RED ALERT';
-                          let badgeBg = 'rgba(239, 68, 68, 0.18)';
-                          let iconClass = 'ph-siren';
-
-                          if (sev === 'ORANGE' || sev === 'WARNING') {
-                            themeColor = '#f97316';
-                            badgeText = 'ORANGE WARNING';
-                            badgeBg = 'rgba(249, 115, 22, 0.18)';
-                            iconClass = 'ph-warning-circle';
-                          } else if (sev === 'YELLOW') {
-                            themeColor = '#eab308';
-                            badgeText = 'YELLOW WATCH';
-                            badgeBg = 'rgba(234, 179, 8, 0.18)';
-                            iconClass = 'ph-warning';
-                          } else if (sev === 'GREEN') {
-                            themeColor = '#10b981';
-                            badgeText = 'ALL CLEAR';
-                            badgeBg = 'rgba(16, 185, 129, 0.18)';
-                            iconClass = 'ph-check-circle';
-                          } else if (sev === 'BLUE') {
-                            themeColor = '#3b82f6';
-                            badgeText = 'ADVISORY';
-                            badgeBg = 'rgba(59, 130, 246, 0.18)';
-                            iconClass = 'ph-info';
-                          }
-
-                          let modal = document.getElementById('realtimeEmergencyModal');
-                          if (!modal) {
-                            modal = document.createElement('div');
-                            modal.id = 'realtimeEmergencyModal';
-                            document.body.appendChild(modal);
-                          } else if (modal.parentElement !== document.body) {
-                            document.body.appendChild(modal);
-                          }
-
-                          modal.style.cssText = 'position: fixed !important; inset: 0px !important; width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: rgba(2, 6, 23, 0.94) !important; backdrop-filter: blur(10px) !important; padding: 16px !important; box-sizing: border-box !important; margin: 0 !important;';
-
-                          const sentTime = data.sent_at ? new Date(data.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                          const evacCenter = data.evacCenter || 'San Rafael Evacuation Center';
-                          const targetArea = (data.barangay && data.barangay !== 'all' && data.barangay !== 'ALL') ? data.barangay : 'Barangay San Rafael';
-                          const cleanTitle = (data.title || 'Official Emergency Alert').replace(/^[🚨⚠️⚡📢\s]+/, '');
-                          const cleanMessage = (data.message || 'Proceed immediately to your designated evacuation center and follow barangay instructions.').trim();
-
-                          modal.innerHTML = `
-                            <div style="position: relative; width: 100%; max-width: 440px; background: #080d1a; color: #ffffff; border-radius: 20px; border: 2px solid ${themeColor}; box-shadow: 0 0 35px ${themeColor}33, 0 25px 50px -12px rgba(0,0,0,0.85); overflow: hidden; display: flex; flex-direction: column; font-family: inherit;">
-                              
-                              <!-- Sleek Top HUD Header -->
-                              <div style="padding: 12px 16px; background: rgba(15, 23, 42, 0.85); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                  <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 9999px; background: ${badgeBg}; border: 1px solid ${themeColor}; font-size: 11px; font-weight: 900; letter-spacing: 0.05em; color: ${themeColor}; text-transform: uppercase;">
-                                    <i class="ph ${iconClass}" style="font-size: 13px;"></i>
-                                    <span>${badgeText}</span>
-                                  </span>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; font-weight: 700;">
-                                  <span>⏰ Broadcast Time:</span>
-                                  <span style="color: #ffffff; font-weight: 900;">${sentTime}</span>
-                                </div>
-                              </div>
-
-                              <!-- Minimalist Alert Content Focusing on Urgency & Instructions -->
-                              <div style="padding: 20px 20px 16px 20px; display: flex; flex-direction: column; gap: 12px;">
-                                <!-- Alert Headline -->
-                                <h2 style="font-size: 20px; font-weight: 900; line-height: 1.25; margin: 0; color: #ffffff; letter-spacing: -0.01em;">
-                                  ${cleanTitle}
-                                </h2>
-
-                                <!-- Alert Core Instruction (Clean & High Contrast) -->
-                                <div style="font-size: 13.5px; line-height: 1.5; color: #f1f5f9; background: rgba(15, 23, 42, 0.65); padding: 12px 14px; border-radius: 12px; border-left: 3px solid ${themeColor};">
-                                  ${cleanMessage}
-                                </div>
-
-                                <!-- Dynamic Safe Route Guidance Strip -->
-                                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.28); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: #cbd5e1;">
-                                  <div style="display: flex; align-items: center; gap: 8px;">
-                                    <i class="ph ph-navigation-arrow" style="font-size: 16px; color: #34d399;"></i>
-                                    <span style="font-weight: 700;">Nearest Evacuation Route:</span>
-                                  </div>
-                                  <strong style="color: #34d399; font-weight: 800; font-size: 11px; text-transform: uppercase;">Auto-Detects Nearest by GPS</strong>
-                                </div>
-                              </div>
-
-                              <!-- Action Buttons -->
-                              <div style="padding: 12px 20px 18px 20px; background: rgba(8, 13, 26, 0.95); border-top: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 8px;">
-                                <a href="${(window.Capacitor && window.Capacitor.isNativePlatform()) ? '/resident/evacuation/index.html' : '/resident/evacuation'}?auto_route=nearest"
-                                   onclick="window.stopEmergencyAlertSound(); if (window.AndroidBleBridge && typeof window.AndroidBleBridge.stopNativeEmergencyAlarm === 'function') { try { window.AndroidBleBridge.stopNativeEmergencyAlarm(); } catch(_) {} } window.closeGlobalEmergencyModal && window.closeGlobalEmergencyModal();"
-                                   style="width: 100%; padding: 12px 16px; border-radius: 12px; background: #10b981; color: #022c22; font-size: 13px; font-weight: 900; text-decoration: none; text-align: center; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);">
-                                  <i class="ph ph-navigation-arrow" style="font-size: 16px;"></i>
-                                  <span>Navigate to Nearest Evacuation Center</span>
-                                </a>
-                                <button type="button" onclick="window.closeGlobalEmergencyModal()"
-                                        style="width: 100%; padding: 10px 16px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); color: #cbd5e1; font-size: 12px; font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                                  <i class="ph ph-bell-slash" style="font-size: 14px;"></i>
-                                  <span>Acknowledge & Mute Siren</span>
-                                </button>
-                              </div>
-
-                            </div>
-                          `;
+                          // Remove any existing modal DOM element if present
+                          const existingModal = document.getElementById('realtimeEmergencyModal');
+                          if (existingModal) existingModal.remove();
                         };
 
                         window.triggerEmergencyModal = function (title, msg, sev, alertId) {
-                          if (typeof window.openGlobalEmergencyModal === 'function') {
-                            window.openGlobalEmergencyModal({
+                          if (typeof window.updateSystemAlertBanner === 'function') {
+                            window.updateSystemAlertBanner({
                               title: title || 'EMERGENCY EVACUATION ORDER',
                               message: msg || 'Proceed immediately to your nearest designated evacuation facility.',
                               severity: sev || 'RED',
@@ -4170,10 +4243,12 @@
                           }
                         };
 
-                        // Auto-pop modal if app was opened via notification tap
+                        // Clear any pending notification alert without popping a modal
                         try {
-                          if (window.__pendingNotificationAlert && typeof window.openGlobalEmergencyModal === 'function') {
-                            window.openGlobalEmergencyModal(window.__pendingNotificationAlert);
+                          if (window.__pendingNotificationAlert) {
+                            if (typeof window.updateSystemAlertBanner === 'function') {
+                              window.updateSystemAlertBanner(window.__pendingNotificationAlert);
+                            }
                             window.__pendingNotificationAlert = null;
                           }
                         } catch (_) {}
@@ -4871,6 +4946,37 @@
                             });
                           }
 
+                          // Play a soft, minimal two-tone notification chime (G5 -> C6, calm non-alarm sound, works 100% offline)
+                          if (typeof window.playMinimalWeatherChime !== 'function') {
+                            window.playMinimalWeatherChime = function () {
+                              try {
+                                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                                if (!AudioCtx) return;
+                                const ctx = window.__evwChimeCtx || (window.__evwChimeCtx = new AudioCtx());
+                                if (ctx.state === 'suspended') {
+                                  ctx.resume().catch(() => {});
+                                }
+                                const nowT = ctx.currentTime;
+                                const playNote = (freq, startOffset, duration, peakGain) => {
+                                  const osc = ctx.createOscillator();
+                                  const gain = ctx.createGain();
+                                  osc.type = 'sine';
+                                  osc.frequency.setValueAtTime(freq, nowT + startOffset);
+                                  gain.gain.setValueAtTime(0.0001, nowT + startOffset);
+                                  gain.gain.exponentialRampToValueAtTime(peakGain, nowT + startOffset + 0.015);
+                                  gain.gain.exponentialRampToValueAtTime(0.0001, nowT + startOffset + duration);
+                                  osc.connect(gain);
+                                  gain.connect(ctx.destination);
+                                  osc.start(nowT + startOffset);
+                                  osc.stop(nowT + startOffset + duration + 0.02);
+                                };
+                                playNote(783.99, 0.0, 0.16, 0.13);   // Soft G5
+                                playNote(1046.50, 0.11, 0.26, 0.11); // Soft C6
+                              } catch (_) {}
+                            };
+                          }
+                          window.playMinimalWeatherChime();
+
                           // Native Android non-siren notification (only if not already posted directly by LoraMeshService)
                           if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeWeatherNotification === 'function') {
                             try {
@@ -4881,7 +4987,7 @@
                               const n = new Notification(title, {
                                 body: message,
                                 icon: '/icons/icon-192x192.png',
-                                silent: true,
+                                silent: false,
                                 tag: 'evw-weather-' + alertId
                               });
                               n.onclick = () => {
@@ -5340,7 +5446,7 @@
       const ageMs = readingTsMs > 0 ? Math.max(0, refNowMs - readingTsMs) : 999999999;
       const isRelayOnline = (typeof state.relayOnline === 'boolean')
         ? state.relayOnline
-        : Boolean(rawCurrent && !rawCurrent.i2cBusWarning && readingTsMs > 0 && ageMs <= 150000);
+        : Boolean(rawCurrent && !rawCurrent.i2cBusWarning && readingTsMs > 0 && ageMs <= (35 * 60 * 1000));
 
       const pillTempEl = document.getElementById('weatherToggleSensorTemp');
       if (pillTempEl) {
@@ -5574,11 +5680,11 @@
               }
               renderSensorDashboard(data);
             } else {
-              // Relay is offline on server -> check if we received a fresh direct RF packet locally within 2.5 minutes
+              // Relay is offline on server -> check if we received a fresh direct RF packet locally within 35 minutes
               let localCur = null;
               try { localCur = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); } catch (_) {}
               const localTs = (localCur && localCur.timestampMs) || 0;
-              if (localCur && !localCur.i2cBusWarning && localTs > 0 && (Date.now() - localTs) <= 150000) {
+              if (localCur && !localCur.i2cBusWarning && localTs > 0 && (Date.now() - localTs) <= (35 * 60 * 1000)) {
                 renderSensorDashboard({ relayOnline: true, current: localCur, history: data.history || [] });
               } else {
                 renderSensorDashboard({ relayOnline: false, current: null, history: [] });

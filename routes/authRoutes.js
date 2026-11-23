@@ -80,7 +80,13 @@ router.post('/api/mobile/login', async (req, res) => {
     const offlineHash = crypto.createHash('sha256').update(String(password) + ':' + salt).digest('hex');
 
     // 1. Check if user is Staff or Rescuer (role === 'staff' or linked staff row)
-    const [staffRows] = await db.query('SELECT * FROM staff WHERE user_id = ? LIMIT 1', [user.id]);
+    const [staffRows] = await db.query(
+      `SELECT s.*, ec.name AS assigned_center_name, ec.address AS assigned_center_address
+       FROM staff s
+       LEFT JOIN evacuation_centers ec ON s.assigned_center_id = ec.id
+       WHERE s.user_id = ? LIMIT 1`,
+      [user.id]
+    );
     const staffRecord = staffRows && staffRows[0] ? staffRows[0] : null;
 
     if (user.role === 'staff' || staffRecord) {
@@ -112,6 +118,8 @@ router.post('/api/mobile/login', async (req, res) => {
         role: 'staff',
         staff_type: staffType,
         assigned_center_id: staffRecord ? staffRecord.assigned_center_id : null,
+        assigned_center_name: staffRecord ? (staffRecord.assigned_center_name || 'San Rafael Evacuation Center') : 'San Rafael Evacuation Center',
+        assigned_center_address: staffRecord ? (staffRecord.assigned_center_address || 'Barangay San Rafael, Baao, Camarines Sur') : 'Barangay San Rafael, Baao, Camarines Sur',
         contact_number: staffRecord ? (staffRecord.contact_number || '') : '',
         occupation: staffRecord ? (staffRecord.occupation || '') : '',
         profile_photo: sPhoto
@@ -236,8 +244,9 @@ router.post('/api/mobile/login', async (req, res) => {
 });
 
 // =========================================================================
+// =========================================================================
 // GET /api/mobile/me
-// Fetches the authenticated mobile resident's latest profile & family members
+// Fetches the authenticated mobile user's latest profile (Resident, Staff, or Rescuer)
 // =========================================================================
 router.get('/api/mobile/me', async (req, res) => {
   try {
@@ -250,10 +259,57 @@ router.get('/api/mobile/me', async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
     const user = uRows[0];
+    const roleLower = String(user.role || '').toLowerCase();
+
+    // Support Staff & Rescuer accounts
+    if (roleLower === 'staff' || roleLower === 'rescuer' || roleLower === 'barangay_council') {
+      const [sRows] = await db.query(
+        `SELECT s.*, ec.name AS assigned_center_name
+         FROM staff s
+         LEFT JOIN evacuation_centers ec ON s.assigned_center_id = ec.id
+         WHERE s.user_id = ? LIMIT 1`,
+        [user.id]
+      );
+      const staff = sRows && sRows[0] ? sRows[0] : null;
+      if (!staff) {
+        return res.json({ success: true, role: roleLower, staff: null });
+      }
+      const fullName = `${staff.first_name || ''} ${staff.middle_name ? staff.middle_name + ' ' : ''}${staff.last_name || ''}`.trim() || 'Staff Member';
+      const resolvedPhoto = staff.profile_photo
+        ? (staff.profile_photo.startsWith('http') || staff.profile_photo.startsWith('/')
+          ? staff.profile_photo
+          : `/uploads/profiles/${staff.profile_photo}`)
+        : null;
+      const isRescuer = String(staff.staff_type || '').toUpperCase() === 'RESCUER' || roleLower === 'rescuer';
+      return res.json({
+        success: true,
+        role: isRescuer ? 'rescuer' : 'staff',
+        staff: {
+          id: staff.id,
+          staff_id: staff.id,
+          user_id: user.id,
+          userId: user.id,
+          name: fullName,
+          full_name: fullName,
+          first_name: staff.first_name || '',
+          middle_name: staff.middle_name || '',
+          last_name: staff.last_name || '',
+          email: user.email,
+          role: isRescuer ? 'rescuer' : 'staff',
+          staff_type: staff.staff_type || (isRescuer ? 'RESCUER' : 'EVACUATION'),
+          occupation: staff.occupation || (isRescuer ? 'Emergency Rescuer' : 'Evacuation Site Staff'),
+          contact_number: staff.contact_number || '',
+          assigned_center_id: staff.assigned_center_id || null,
+          assigned_center_name: staff.assigned_center_name || 'Unassigned',
+          profile_photo: resolvedPhoto
+        }
+      });
+    }
+
     const [rRows] = await db.query('SELECT * FROM residents WHERE user_id = ? LIMIT 1', [user.id]);
     const resident = rRows && rRows[0] ? rRows[0] : null;
     if (!resident) {
-      return res.json({ success: true, resident: null, members: [] });
+      return res.json({ success: true, role: 'resident', resident: null, members: [] });
     }
     const [members] = await db.query('SELECT * FROM household_members WHERE resident_id = ? ORDER BY id ASC', [resident.id]);
     const fullName = `${resident.first_name || ''} ${resident.last_name || ''}`.trim() || 'Resident';
@@ -264,13 +320,14 @@ router.get('/api/mobile/me', async (req, res) => {
       : null;
     return res.json({
       success: true,
+      role: 'resident',
       resident: {
         id: resident.id,
         user_id: user.id,
         resident_id: resident.id,
         name: fullName,
         full_name: fullName,
-        first_name: resident.first_name || 'Resident',
+        first_name: resident.first_name || '',
         middle_name: resident.middle_name || '',
         last_name: resident.last_name || '',
         email: user.email,
@@ -307,18 +364,141 @@ router.get('/api/mobile/me', async (req, res) => {
 
 // =========================================================================
 // POST /api/mobile/profile/update
-// Updates resident profile info in MySQL (personal info, contact, vulnerabilities)
+// Updates profile info, avatar photo, and password in MySQL for Residents, Staff & Rescuers
 // =========================================================================
 router.post('/api/mobile/profile/update', upload.single('profile_photo'), async (req, res) => {
   try {
-    const userId = req.body.user_id || req.body.userId || (req.session && req.session.userId);
-    const residentId = req.body.resident_id || req.body.residentId || (req.session && req.session.residentId);
+    const userId = Number(
+      req.body.user_id ||
+      req.body.userId ||
+      (req.session && req.session.userId) ||
+      req.headers['x-evakwar-mobile-user-id'] ||
+      0
+    );
+    const residentId = Number(req.body.resident_id || req.body.residentId || (req.session && req.session.residentId) || 0);
+    const staffId = Number(req.body.staff_id || req.body.staffId || 0);
 
-    if (!userId && !residentId) {
-      return res.status(400).json({ success: false, message: 'Missing user_id or resident_id.' });
+    if (!userId && !residentId && !staffId) {
+      return res.status(400).json({ success: false, message: 'Missing authenticated user ID.' });
     }
 
-    // Locate resident record
+    // Look up user account first
+    let userRow = null;
+    if (userId) {
+      const [uRows] = await db.query('SELECT id, email, role, password_hash FROM users WHERE id = ? LIMIT 1', [userId]);
+      userRow = uRows && uRows[0] ? uRows[0] : null;
+    }
+
+    // 1. Handle Password Change (for ANY role: Resident, Staff, Rescuer, Admin)
+    const { current_password, new_password, confirm_password } = req.body;
+    if (current_password || new_password || confirm_password) {
+      if (!userRow) {
+        return res.status(404).json({ success: false, message: 'User account not found.' });
+      }
+      if (!current_password || !new_password || !confirm_password) {
+        return res.status(400).json({ success: false, message: 'Please fill out all password fields.' });
+      }
+      if (new_password !== confirm_password) {
+        return res.status(400).json({ success: false, message: 'New password and confirmation password do not match.' });
+      }
+      if (String(new_password).length < 8 || !/[a-zA-Z]/.test(new_password) || !/[0-9]/.test(new_password)) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 8 characters with both letters and numbers.' });
+      }
+      const bcrypt = require('bcryptjs');
+      const isMatch = await bcrypt.compare(String(current_password), userRow.password_hash);
+      if (!isMatch) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+      }
+      const salt = await bcrypt.genSalt(10);
+      const newHash = await bcrypt.hash(String(new_password), salt);
+      await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userRow.id]);
+      return res.json({ success: true, message: 'Password updated successfully!' });
+    }
+
+    // Guard against dummy build-time placeholder emails accidentally overwriting real emails
+    const PLACEHOLDER_EMAILS = new Set(['resident@sanrafael.gov.ph', 'staff@sanrafael.gov.ph', 'rescuer@sanrafael.gov.ph']);
+    const validateAndUpdateEmail = async (targetUserId, currentEmail) => {
+      if (!req.body.email || !targetUserId) return currentEmail;
+      const cleanEmail = String(req.body.email).trim().toLowerCase();
+      if (!cleanEmail || cleanEmail === String(currentEmail || '').toLowerCase()) return currentEmail;
+      if (PLACEHOLDER_EMAILS.has(cleanEmail) && currentEmail && !PLACEHOLDER_EMAILS.has(String(currentEmail).toLowerCase())) {
+        return currentEmail;
+      }
+      const [dup] = await db.query('SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1', [cleanEmail, targetUserId]);
+      if (dup && dup.length > 0) {
+        throw new Error('That email address is already used by another account.');
+      }
+      await db.query('UPDATE users SET email = ? WHERE id = ?', [cleanEmail, targetUserId]);
+      return cleanEmail;
+    };
+
+    const roleLower = String((userRow && userRow.role) || req.body.role || '').toLowerCase();
+
+    // 2. Staff & Rescuer Profile Update (MySQL `staff` + `users`)
+    if (roleLower === 'staff' || roleLower === 'rescuer' || roleLower === 'barangay_council' || (staffId && !residentId)) {
+      const [sRows] = staffId
+        ? await db.query('SELECT * FROM staff WHERE id = ? LIMIT 1', [staffId])
+        : await db.query('SELECT * FROM staff WHERE user_id = ? LIMIT 1', [userId]);
+      if (!sRows || sRows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Staff record not found.' });
+      }
+      const curStaff = sRows[0];
+      if (!userRow && curStaff.user_id) {
+        const [uRows2] = await db.query('SELECT id, email, role FROM users WHERE id = ? LIMIT 1', [curStaff.user_id]);
+        userRow = uRows2 && uRows2[0] ? uRows2[0] : null;
+      }
+
+      const firstName = (req.body.first_name !== undefined && String(req.body.first_name).trim() !== '') ? String(req.body.first_name).trim() : curStaff.first_name;
+      const middleName = req.body.middle_name !== undefined ? String(req.body.middle_name).trim() : curStaff.middle_name;
+      const lastName = (req.body.last_name !== undefined && String(req.body.last_name).trim() !== '') ? String(req.body.last_name).trim() : curStaff.last_name;
+      const occupation = req.body.occupation !== undefined ? String(req.body.occupation).trim() : curStaff.occupation;
+      const contact = req.body.contact_number !== undefined ? String(req.body.contact_number).trim() : curStaff.contact_number;
+      let profilePhoto = curStaff.profile_photo;
+      if (req.file && req.file.filename) {
+        profilePhoto = req.file.filename;
+      }
+
+      let updatedEmail = userRow ? userRow.email : '';
+      try {
+        updatedEmail = await validateAndUpdateEmail(curStaff.user_id, updatedEmail);
+      } catch (emailErr) {
+        return res.status(400).json({ success: false, message: emailErr.message });
+      }
+
+      await db.query(
+        `UPDATE staff SET first_name = ?, middle_name = ?, last_name = ?, occupation = ?, contact_number = ?, profile_photo = ? WHERE id = ?`,
+        [firstName, middleName || null, lastName, occupation || null, contact || null, profilePhoto, curStaff.id]
+      );
+
+      const [updatedStaffRows] = await db.query(
+        `SELECT s.*, ec.name AS assigned_center_name FROM staff s LEFT JOIN evacuation_centers ec ON s.assigned_center_id = ec.id WHERE s.id = ? LIMIT 1`,
+        [curStaff.id]
+      );
+      const upd = updatedStaffRows[0];
+      const fullName = `${upd.first_name || ''} ${upd.middle_name ? upd.middle_name + ' ' : ''}${upd.last_name || ''}`.trim();
+      const resolvedPhoto = upd.profile_photo
+        ? (upd.profile_photo.startsWith('http') || upd.profile_photo.startsWith('/') ? upd.profile_photo : `/uploads/profiles/${upd.profile_photo}`)
+        : null;
+      const isRescuer = String(upd.staff_type || '').toUpperCase() === 'RESCUER' || roleLower === 'rescuer';
+
+      return res.json({
+        success: true,
+        message: 'Profile updated successfully!',
+        role: isRescuer ? 'rescuer' : 'staff',
+        staff: {
+          ...upd,
+          staff_id: upd.id,
+          userId: upd.user_id,
+          name: fullName,
+          full_name: fullName,
+          email: updatedEmail,
+          role: isRescuer ? 'rescuer' : 'staff',
+          profile_photo: resolvedPhoto
+        }
+      });
+    }
+
+    // 3. Resident Profile Update (MySQL `residents` + `users`)
     let query = 'SELECT * FROM residents WHERE id = ? LIMIT 1';
     let param = residentId;
     if (!residentId) {
@@ -330,16 +510,30 @@ router.post('/api/mobile/profile/update', upload.single('profile_photo'), async 
       return res.status(404).json({ success: false, message: 'Resident record not found.' });
     }
     const current = rows[0];
+    if (!userRow && current.user_id) {
+      const [uRows3] = await db.query('SELECT id, email, role FROM users WHERE id = ? LIMIT 1', [current.user_id]);
+      userRow = uRows3 && uRows3[0] ? uRows3[0] : null;
+    }
 
-    const firstName = req.body.first_name !== undefined ? String(req.body.first_name).trim() : current.first_name;
+    const firstName = (req.body.first_name !== undefined && String(req.body.first_name).trim() !== '') ? String(req.body.first_name).trim() : current.first_name;
     const middleName = req.body.middle_name !== undefined ? String(req.body.middle_name).trim() : current.middle_name;
-    const lastName = req.body.last_name !== undefined ? String(req.body.last_name).trim() : current.last_name;
+    const lastName = (req.body.last_name !== undefined && String(req.body.last_name).trim() !== '') ? String(req.body.last_name).trim() : current.last_name;
     const contact = req.body.contact_number !== undefined ? String(req.body.contact_number).trim() : current.contact_number;
     const address = req.body.home_address !== undefined ? String(req.body.home_address).trim() : current.home_address;
     const barangay = req.body.barangay !== undefined ? String(req.body.barangay).trim() : (current.barangay || 'San Rafael');
     const sex = req.body.sex !== undefined ? req.body.sex : current.sex;
-    const birthdate = req.body.birthdate !== undefined ? req.body.birthdate : current.birthdate;
-    const age = req.body.age !== undefined ? (parseInt(req.body.age, 10) || current.age) : current.age;
+    const birthdate = req.body.birthdate !== undefined ? (String(req.body.birthdate).trim() || null) : current.birthdate;
+    let age = req.body.age !== undefined ? (parseInt(req.body.age, 10) || current.age) : current.age;
+    if (req.body.birthdate !== undefined && birthdate && (req.body.age === undefined || req.body.age === '')) {
+      const bDate = new Date(birthdate);
+      if (!isNaN(bDate.getTime())) {
+        const now = new Date();
+        let computed = now.getFullYear() - bDate.getFullYear();
+        const mDiff = now.getMonth() - bDate.getMonth();
+        if (mDiff < 0 || (mDiff === 0 && now.getDate() < bDate.getDate())) computed--;
+        if (computed >= 0 && computed <= 130) age = computed;
+      }
+    }
     const familySize = req.body.family_size !== undefined ? (parseInt(req.body.family_size, 10) || current.family_size) : current.family_size;
     const vulnerability = req.body.vulnerability !== undefined ? String(req.body.vulnerability).trim() : current.vulnerability;
 
@@ -354,8 +548,15 @@ router.post('/api/mobile/profile/update', upload.single('profile_photo'), async 
     const emergPhone = req.body.emergency_contact_phone !== undefined ? String(req.body.emergency_contact_phone).trim() : current.emergency_contact_phone;
 
     let profilePhoto = current.profile_photo;
-    if (req.file) {
+    if (req.file && req.file.filename) {
       profilePhoto = req.file.filename;
+    }
+
+    let updatedEmail = userRow ? userRow.email : '';
+    try {
+      updatedEmail = await validateAndUpdateEmail(current.user_id, updatedEmail);
+    } catch (emailErr) {
+      return res.status(400).json({ success: false, message: emailErr.message });
     }
 
     await db.query(`
@@ -389,24 +590,26 @@ router.post('/api/mobile/profile/update', upload.single('profile_photo'), async 
       emergPhone || null, profilePhoto, current.id
     ]);
 
-    // If email is provided and changed, update users table
-    if (req.body.email && current.user_id) {
-      const cleanEmail = String(req.body.email).trim().toLowerCase();
-      await db.query('UPDATE users SET email = ? WHERE id = ?', [cleanEmail, current.user_id]).catch(() => {});
-    }
-
-    // Return updated resident profile
+    // Return updated resident profile WITH live email & resolved profile_photo path
     const [updatedRows] = await db.query('SELECT * FROM residents WHERE id = ?', [current.id]);
     const updated = updatedRows[0];
     const fullName = `${updated.first_name || ''} ${updated.last_name || ''}`.trim();
+    const resolvedPhoto = updated.profile_photo
+      ? (updated.profile_photo.startsWith('http') || updated.profile_photo.startsWith('/') ? updated.profile_photo : `/uploads/profiles/${updated.profile_photo}`)
+      : null;
 
     return res.json({
       success: true,
       message: 'Profile updated successfully!',
+      role: 'resident',
       resident: {
         ...updated,
+        resident_id: updated.id,
         name: fullName,
-        full_name: fullName
+        full_name: fullName,
+        email: updatedEmail,
+        role: 'resident',
+        profile_photo: resolvedPhoto
       }
     });
   } catch (err) {
