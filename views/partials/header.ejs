@@ -4110,7 +4110,22 @@
                             mutedArr = JSON.parse(localStorage.getItem('evw_muted_alert_ids') || '[]');
                           } catch (_) {}
 
-                          // If resident already acknowledged & muted this alert, keep silent and do not re-open modal!
+                          // If resident arrived via "Evacuate" notification tap (?auto_route=nearest), immediately silence & mute this alert
+                          const isFromEvacuateTap = Boolean(
+                            (window.location.search || '').includes('auto_route=nearest') ||
+                            (window.location.pathname || '').toLowerCase().includes('/evacuate')
+                          );
+                          if (isFromEvacuateTap) {
+                            if (alertIdStr && !mutedArr.includes(alertIdStr)) {
+                              mutedArr.push(alertIdStr);
+                              try { localStorage.setItem('evw_muted_alert_ids', JSON.stringify(mutedArr.slice(-50))); } catch (_) {}
+                            }
+                            if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();
+                            if (typeof window.updateSystemAlertBanner === 'function') window.updateSystemAlertBanner(alertData);
+                            return;
+                          }
+
+                          // If resident already acknowledged & muted this alert, keep silent!
                           if (alertIdStr && mutedArr.includes(alertIdStr)) {
                             console.log('[EvakWar] Alert is acknowledged/muted. Siren kept silent:', alertIdStr);
                             if (typeof window.updateSystemAlertBanner === 'function') {
@@ -4119,16 +4134,14 @@
                             return;
                           }
 
-                          // 1. ALWAYS Open Emergency Warning Modal so resident sees disaster info & acknowledge button!
-                          if (typeof window.openGlobalEmergencyModal === 'function') {
-                            window.openGlobalEmergencyModal(alertData);
-                          }
+                          // 1. Update live system alert banner (no full-screen popup modal)
                           if (typeof window.updateSystemAlertBanner === 'function') {
                             window.updateSystemAlertBanner(alertData);
                           }
 
-                          // If siren is already playing for this alert in this session, do not restart
-                          if (alertIdStr && window.__evwCurrentPlayingSirenId === alertIdStr) {
+                          // Deduplicate: never re-trigger the same alert ID twice (prevents duplicate notifications & siren restarts)
+                          const lastTriggeredId = (() => { try { return localStorage.getItem('evw_last_triggered_alert_id') || ''; } catch (_) { return ''; } })();
+                          if (alertIdStr && (window.__evwCurrentPlayingSirenId === alertIdStr || lastTriggeredId === alertIdStr)) {
                             return;
                           }
                           window.__evwCurrentPlayingSirenId = alertIdStr || alarmKey;
@@ -4139,13 +4152,20 @@
                           try {
                             localStorage.setItem('evw_active_alert', JSON.stringify(alertData));
                             localStorage.setItem('evw_last_lora_alert', JSON.stringify(alertData));
-                            if (alertData.alertId || alertData.id) {
-                              localStorage.setItem('evw_last_triggered_alert_id', String(alertData.alertId || alertData.id));
+                            if (alertIdStr) {
+                              localStorage.setItem('evw_last_triggered_alert_id', alertIdStr);
                             }
                           } catch (_) {}
 
-                          // Step A2: Trigger Native Android Emergency Siren (STREAM_ALARM) + Hardware Vibrator + Heads-Up Notification!
-                          if (window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeEmergencyAlarm === 'function') {
+                          // Step A2: In Native Android App, LoraMeshService ALREADY polls Render 24/7 and posts the ONE
+                          // single native notification (with Evacuate + Silence Siren buttons) & siren.
+                          // NEVER re-call triggerNativeEmergencyAlarm from WebView for online Socket.IO alerts —
+                          // doing so caused a 2nd duplicate notification (without Evacuate) and restarted the siren!
+                          const isOfflineLoraOnlyAlert = Boolean(
+                            !navigator.onLine &&
+                            (alertData.source === 'LORA_OFFLINE' || alertData.fromLoRa === true || String(alertData.via || '').toUpperCase().includes('LORA'))
+                          );
+                          if (isOfflineLoraOnlyAlert && window.AndroidBleBridge && typeof window.AndroidBleBridge.triggerNativeEmergencyAlarm === 'function') {
                             try {
                               window.AndroidBleBridge.triggerNativeEmergencyAlarm(
                                 String(alertData.title || 'EMERGENCY EVACUATION ALERT'),
