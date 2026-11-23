@@ -24,14 +24,39 @@
   
   function isResidentNativeOrPortal() {
     return Boolean(
-      window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+      (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+      typeof window.AndroidBleBridge !== 'undefined' ||
+      typeof window.AndroidSettingsBridge !== 'undefined' ||
+      typeof window.AndroidUsbSerialBridge !== 'undefined' ||
+      /; wv\)/i.test(navigator.userAgent || '')
     );
   }
 
   function registerServiceWorker() {
     if (isResidentNativeOrPortal()) {
+      // Native Android WebView should NEVER run a PWA Service Worker (prevents stale cached map/pages).
+      // Actively unregister all existing Service Workers and purge all SW caches.
+      const hadController = Boolean('serviceWorker' in navigator && navigator.serviceWorker.controller);
+      const tasks = [];
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+        tasks.push(
+          navigator.serviceWorker.getRegistrations()
+            .then(regs => Promise.all(regs.map(r => r.unregister())))
+            .catch(() => {})
+        );
+      }
+      if ('caches' in window && typeof caches.keys === 'function') {
+        tasks.push(
+          caches.keys()
+            .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+            .catch(() => {})
+        );
+      }
+      if (hadController && !sessionStorage.getItem('evw_native_sw_purged')) {
+        sessionStorage.setItem('evw_native_sw_purged', '1');
+        Promise.all(tasks).finally(() => {
+          try { window.location.reload(); } catch (_) {}
+        });
       }
       return;
     }
