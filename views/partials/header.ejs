@@ -1628,8 +1628,14 @@
       }
     };
 
-    // Built-in In-App Directions & Route Renderer on MapLibre (Works Online via Road Routing & Offline via Direct Path)
+    // Built-in In-App Directions & Live Route-Trimming Navigation (Google Maps Style)
     window.clearEvakWarDirections = function () {
+      if (window._evakwarNavWatchId !== undefined && window._evakwarNavWatchId !== null && navigator.geolocation) {
+        try { navigator.geolocation.clearWatch(window._evakwarNavWatchId); } catch (_) {}
+        window._evakwarNavWatchId = null;
+      }
+      window._evakwarActiveNav = null;
+
       const map = window._activeEvakWarMap;
       if (map && typeof map.getSource === 'function') {
         const src = map.getSource('evakwar-directions-source');
@@ -1669,26 +1675,10 @@
         if (typeof staffSheet !== 'undefined' && staffSheet) staffSheet.isExpanded = false;
       }
 
-      // Create or update floating in-app Navigation HUD banner (positioned comfortably above mobile nav and bottom sheet)
+      // Create or update floating TOP Navigation HUD banner (ONLY shown while actively navigating)
       let hud = document.getElementById('evakwarDirectionsHud');
       const isMobile = window.innerWidth < 1024;
-      const hasBottomSheet = !!sheetEl;
-      const hasBottomNav = !!(document.getElementById('residentBottomNav') || document.getElementById('staffBottomNav') || document.querySelector('nav.fixed.bottom-0'));
-
-      let bottomOffset = '24px';
-      if (isMobile) {
-        if (hasBottomSheet) {
-          // Bottom nav (64px) + collapsed sheet handle (48px) = 112px.
-          // Place at 132px (+ safe area) so it floats completely above the sheet handle and SOS button with zero overlap.
-          bottomOffset = 'calc(132px + env(safe-area-inset-bottom, 0px))';
-        } else if (hasBottomNav) {
-          // Bottom nav (64px) + raised SOS circle (~88px).
-          // Place at 102px (+ safe area) so it floats completely above the SOS button.
-          bottomOffset = 'calc(102px + env(safe-area-inset-bottom, 0px))';
-        } else {
-          bottomOffset = 'calc(24px + env(safe-area-inset-bottom, 0px))';
-        }
-      }
+      const topOffset = isMobile ? '58px' : '72px';
 
       if (!hud && container) {
         hud = document.createElement('div');
@@ -1696,20 +1686,20 @@
         container.appendChild(hud);
       }
       if (hud) {
-        hud.style.cssText = `position:absolute;bottom:${bottomOffset};left:50%;transform:translateX(-50%);z-index:50;width:min(92%,440px);pointer-events:auto;transition:bottom 0.25s ease-out;`;
+        hud.style.cssText = `position:absolute;top:${topOffset};left:50%;transform:translateX(-50%);z-index:55;width:min(94%,460px);pointer-events:auto;transition:all 0.2s ease-out;`;
         hud.innerHTML = `
-          <div class="bg-white/95 backdrop-blur-md text-slate-900 rounded-2xl p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.18)] border border-slate-200/90 flex items-center justify-between gap-3">
+          <div class="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl px-3.5 py-2.5 shadow-[0_12px_32px_rgba(15,23,42,0.45)] border border-emerald-500/60 flex items-center justify-between gap-2.5">
             <div class="flex items-center gap-2.5 min-w-0">
-              <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <i class="ph ph-navigation-arrow text-lg animate-pulse"></i>
+              <div class="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                <i class="ph ph-navigation-arrow text-lg animate-pulse font-bold"></i>
               </div>
               <div class="min-w-0">
-                <div class="text-xs font-black text-slate-900 truncate">${destName}</div>
-                <div class="text-[11px] text-blue-600 font-bold">Calculating in-app route...</div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-emerald-400">Starting Navigation...</div>
+                <div class="text-xs font-black text-white truncate">${destName}</div>
               </div>
             </div>
-            <button type="button" onclick="window.clearEvakWarDirections()" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer border border-slate-200">
-              Close
+            <button type="button" onclick="window.clearEvakWarDirections()" class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold shrink-0 cursor-pointer border border-white/15">
+              End
             </button>
           </div>
         `;
@@ -2152,41 +2142,141 @@
         }
       }
 
-      const distLabel = distMeters >= 1000 ? `${(distMeters / 1000).toFixed(2)} km` : `${distMeters} m`;
-      const walkMins = Math.max(1, Math.round(distMeters / 75));
-      const driveMins = Math.max(1, Math.round(distMeters / 400));
-      const routeBadgeHtml = usedAdminRoute
-        ? `<span class="px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-[10px] font-black">Admin Evacuation Route</span>`
-        : '';
+      const cleanDestTitle = String(destName || 'Evacuation Center').replace(/\s*\(Nearest.*?\)\s*/i, '').trim();
+      const formatRemKm = (meters) => {
+        const km = Math.max(0, meters) / 1000;
+        return `${km.toFixed(2)} km`;
+      };
 
-      if (hud) {
+      const renderNavHud = (remMeters, arrived) => {
+        if (!hud) return;
+        const kmStr = formatRemKm(remMeters);
+        const mins = Math.max(1, Math.round(remMeters / 75));
         hud.innerHTML = `
-          <div class="bg-white/95 backdrop-blur-md text-slate-900 rounded-2xl p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.18)] border border-slate-200/90 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 font-black shadow-sm">
-                <i class="ph ph-navigation-arrow text-xl"></i>
+          <div class="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl px-3.5 py-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.5)] border ${arrived ? 'border-emerald-400' : 'border-sky-400/70'} flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-9 h-9 rounded-xl ${arrived ? 'bg-emerald-500 text-slate-950' : 'bg-sky-500 text-slate-950'} flex items-center justify-center shrink-0 font-black shadow-sm">
+                <i class="ph ${arrived ? 'ph-check-circle' : 'ph-navigation-arrow'} text-lg font-bold"></i>
               </div>
               <div class="min-w-0">
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="text-xs sm:text-sm font-black text-slate-900 truncate">${destName}</span>
-                  <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black font-mono">${distLabel}</span>
-                  ${routeBadgeHtml}
+                <div class="text-[10px] font-black uppercase tracking-wider ${arrived ? 'text-emerald-400' : 'text-sky-300'} flex items-center gap-1.5">
+                  <span>${arrived ? 'Arrived at Evacuation Site' : 'Navigating to'}</span>
                 </div>
-                <div class="text-[11px] text-slate-700 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
-                  <span><i class="ph ph-person-simple-walk text-emerald-600"></i> ~${walkMins} min walk</span>
-                  <span class="text-slate-300">•</span>
-                  <span><i class="ph ph-car text-blue-600"></i> ~${driveMins} min drive</span>
-                  <span class="text-slate-300">•</span>
-                  <span class="font-mono text-[10px] text-indigo-700 font-bold">${dLat.toFixed(5)}°, ${dLng.toFixed(5)}°</span>
+                <div class="text-xs sm:text-sm font-black text-white truncate leading-tight">${cleanDestTitle}</div>
+                <div class="flex items-center gap-2 mt-0.5 text-[11px] font-extrabold">
+                  <span id="evakwarNavDistValue" class="text-emerald-400 font-mono">${arrived ? '0.00 km • Arrived' : kmStr + ' remaining'}</span>
+                  ${arrived ? '' : `<span class="text-slate-500">•</span><span class="text-slate-300">~${mins} min</span>`}
                 </div>
-                <div class="text-[10px] ${passedHazard ? 'text-amber-700 font-bold' : 'text-slate-500 font-medium'} truncate mt-0.5">${nextStepText}</div>
               </div>
             </div>
-            <button type="button" onclick="window.clearEvakWarDirections()" class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-extrabold shrink-0 cursor-pointer transition-colors">
-              Clear
+            <button type="button" onclick="window.clearEvakWarDirections()" class="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 text-rose-200 border border-rose-400/40 text-xs font-extrabold shrink-0 cursor-pointer transition-colors">
+              End
             </button>
           </div>
         `;
+      };
+
+      renderNavHud(distMeters, distMeters <= 30);
+
+      // Start Google-Maps-style live GPS tracking: trims the passed portion of the blue route behind the user
+      // and decreases remaining km in real time as the resident moves toward the evacuation center!
+      if (window._evakwarNavWatchId !== undefined && window._evakwarNavWatchId !== null && navigator.geolocation) {
+        try { navigator.geolocation.clearWatch(window._evakwarNavWatchId); } catch (_) {}
+        window._evakwarNavWatchId = null;
+      }
+
+      const fullRouteCoords = Array.isArray(routeGeometry && routeGeometry.coordinates) && routeGeometry.coordinates.length >= 2
+        ? routeGeometry.coordinates.slice()
+        : [[oLng, oLat], [dLng, dLat]];
+
+      window._evakwarActiveNav = {
+        destLat: dLat,
+        destLng: dLng,
+        destName: cleanDestTitle,
+        routeCoords: fullRouteCoords
+      };
+
+      const projectPointOnSegment = (px, py, ax, ay, bx, by) => {
+        const dx = bx - ax;
+        const dy = by - ay;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq <= 1e-12) return { lng: ax, lat: ay, t: 0 };
+        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+        return { lng: ax + t * dx, lat: ay + t * dy, t };
+      };
+
+      if (navigator.geolocation && typeof navigator.geolocation.watchPosition === 'function') {
+        window._evakwarNavWatchId = navigator.geolocation.watchPosition((livePos) => {
+          if (!window._evakwarActiveNav || !livePos || !livePos.coords) return;
+          const uLat = livePos.coords.latitude;
+          const uLng = livePos.coords.longitude;
+          if (!Number.isFinite(uLat) || !Number.isFinite(uLng)) return;
+
+          window._lastKnownUserGps = { lat: uLat, lng: uLng, isFallback: false };
+
+          // Move live origin blue dot
+          if (window._evakwarDirectionsOriginMarker && typeof window._evakwarDirectionsOriginMarker.setLngLat === 'function') {
+            window._evakwarDirectionsOriginMarker.setLngLat([uLng, uLat]);
+          }
+
+          // Project current GPS onto the remaining route and slice off all segments already passed behind the user
+          const coords = window._evakwarActiveNav.routeCoords;
+          let bestIdx = 0;
+          let bestProj = { lng: coords[0][0], lat: coords[0][1] };
+          let bestDistM = Infinity;
+
+          for (let i = 0; i < coords.length - 1; i++) {
+            const a = coords[i];
+            const b = coords[i + 1];
+            const proj = projectPointOnSegment(uLng, uLat, a[0], a[1], b[0], b[1]);
+            const dM = haversine([uLng, uLat], [proj.lng, proj.lat]);
+            if (dM < bestDistM) {
+              bestDistM = dM;
+              bestIdx = i;
+              bestProj = proj;
+            }
+          }
+
+          // Build trimmed remaining polyline starting at user's live position -> ahead to destination
+          const tail = coords.slice(bestIdx + 1);
+          const trimmedCoords = bestDistM <= 120
+            ? [[uLng, uLat], [bestProj.lng, bestProj.lat], ...tail]
+            : [[uLng, uLat], ...tail];
+
+          // Update stored routeCoords forward-only so passed path stays removed
+          if (trimmedCoords.length >= 2) {
+            window._evakwarActiveNav.routeCoords = trimmedCoords;
+          }
+
+          // Calculate remaining distance along the trimmed route (decreases in real time!)
+          let remMeters = 0;
+          for (let i = 0; i < trimmedCoords.length - 1; i++) {
+            remMeters += haversine(trimmedCoords[i], trimmedCoords[i + 1]);
+          }
+          const directToDestM = haversine([uLng, uLat], [dLng, dLat]);
+          if (directToDestM < remMeters && directToDestM <= 45) {
+            remMeters = directToDestM;
+          }
+
+          const arrived = remMeters <= 30 || directToDestM <= 30;
+
+          // Update blue route line on MapLibre with only the remaining path ahead
+          if (map && typeof map.getSource === 'function') {
+            const src = map.getSource('evakwar-directions-source');
+            if (src && typeof src.setData === 'function') {
+              src.setData({
+                type: 'FeatureCollection',
+                features: arrived ? [] : [{
+                  type: 'Feature',
+                  properties: {},
+                  geometry: { type: 'LineString', coordinates: trimmedCoords }
+                }]
+              });
+            }
+          }
+
+          renderNavHud(remMeters, arrived);
+        }, () => {}, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
       }
     };
 
