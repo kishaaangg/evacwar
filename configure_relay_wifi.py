@@ -122,9 +122,14 @@ def main():
         node.writeConfig("mqtt")
         time.sleep(0.5)
 
-        print(f"  4/5 Enabling AHT20 + BMP280 Environment Telemetry (every {args.interval}s)...")
+        print("  4/5 Enabling AHT20 + BMP280 Environment Telemetry & LoRa OK-to-MQTT...")
+        node.localConfig.lora.config_ok_to_mqtt = True
+        node.localConfig.lora.ignore_mqtt = False
+        node.writeConfig("lora")
+        time.sleep(0.4)
         node.moduleConfig.telemetry.environment_measurement_enabled = True
         node.moduleConfig.telemetry.environment_update_interval = max(30, int(args.interval))
+        node.moduleConfig.telemetry.device_update_interval = 120
         node.writeConfig("telemetry")
         time.sleep(0.5)
 
