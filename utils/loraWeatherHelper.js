@@ -265,8 +265,21 @@ function buildWeatherAlertFromReading(reading, alertIdOverride = null) {
   const tempText = reading.temperature != null ? `${Number(reading.temperature).toFixed(1)}°C` : '--°C';
   const humText = reading.humidity != null ? `${Math.round(Number(reading.humidity))}%` : '--%';
   const pressText = reading.pressure != null ? `${Number(reading.pressure).toFixed(1)} hPa` : '-- hPa';
-  const title = '🌤️ LoRa Weather Sensor Update';
-  const message = `Temp ${tempText} • Humidity ${humText} • Pressure ${pressText}`;
+  const hiText = reading.heatIndex != null ? `${Number(reading.heatIndex).toFixed(1)}°C` : null;
+  const dpText = reading.dewPoint != null ? `${Number(reading.dewPoint).toFixed(1)}°C` : null;
+  const condText = reading.condition || 'Local Weather Update';
+  const heatCat = reading.heatCategory || '';
+  const trendText = reading.pressureTrend || 'Steady';
+  const guidanceText = reading.guidance || 'Monitor local Barangay San Rafael weather updates.';
+
+  const icon = (reading.advisoryLevel === 'WARNING' || /storm|squall|heavy rain/i.test(condText))
+    ? '⛈️'
+    : (/rain|overcast|cloud/i.test(condText) ? '🌦️' : (/danger|hot/i.test(heatCat) ? '🔥' : '🌤️'));
+
+  const title = `${icon} San Rafael Weather: ${condText}`;
+  const feelsPart = hiText ? ` (Feels ${hiText}${heatCat ? ' • ' + heatCat : ''})` : '';
+  const dpPart = dpText ? ` • Dew Pt ${dpText}` : '';
+  const message = `Temp ${tempText}${feelsPart} • Humidity ${humText}${dpPart} • Pressure ${pressText} (${trendText}). ${guidanceText}`;
 
   return {
     id,
@@ -283,6 +296,7 @@ function buildWeatherAlertFromReading(reading, alertIdOverride = null) {
     humidity: reading.humidity,
     pressure: reading.pressure,
     heatIndex: reading.heatIndex,
+    heatCategory: reading.heatCategory,
     dewPoint: reading.dewPoint,
     pressureTrend: reading.pressureTrend,
     nodeId: reading.nodeId || '!0f778ab0',
