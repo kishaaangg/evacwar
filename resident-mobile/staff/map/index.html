@@ -3380,6 +3380,12 @@
 
               window.showGlobalDistressNotification = function(sosData) {
                 if (!sosData) return;
+                // Strictly block SOS banners on Evacuation Site Staff pages/roles (Admin & Rescuer only)
+                try {
+                  const p = (window.location.pathname || '').toLowerCase();
+                  const cachedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
+                  if (p.includes('/staff') || cachedRole === 'staff') return;
+                } catch (_) {}
                 const sosId = sosData.id || sosData.sos_id || ('temp_' + Date.now());
                 const resId = sosData.resident_id || sosData.residentId || '';
 
@@ -4827,23 +4833,33 @@
                             window.appSocket.emit('sos:incoming_mesh', normalizedSos);
                           }
 
-                          // If Admin, Rescuer, or Staff account, notify with high priority audio, distress banner, and notification drawer
-                          const isAdminOrStaffOrRescuer = Boolean(
+                          // STRICT ROLE ISOLATION: Notify ONLY Admin or Rescuer accounts for SOS (NEVER Site Staff or Residents!)
+                          let isSiteStaffOnly = false;
+                          try {
+                            const pPath = (window.location.pathname || '').toLowerCase();
+                            const savedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
+                            const cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+                            if (pPath.includes('/staff') || savedRole === 'staff') {
+                              isSiteStaffOnly = true;
+                            } else if (cachedStaff && String(cachedStaff.staff_type || '').toUpperCase() !== 'RESCUER' && !pPath.includes('/rescuer') && !pPath.includes('/admin')) {
+                              isSiteStaffOnly = true;
+                            }
+                          } catch (_) {}
+
+                          const isAdminOrRescuer = !isSiteStaffOnly && Boolean(
                             currentUserRole === 'admin' ||
-                            currentUserRole === 'staff' ||
                             currentUserRole === 'rescuer' ||
-                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
-                            localStorage.getItem('evw_cached_staff') ||
-                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
+                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer')) ||
+                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer')))
                           );
 
-                          if (isAdminOrStaffOrRescuer) {
+                          if (isAdminOrRescuer) {
                             const residentName = normalizedSos.name;
                             const zone = normalizedSos.barangay;
                             const emType = normalizedSos.sos_type;
                             const mapUrl = (currentUserRole === 'admin' || (window.location.pathname || '').includes('/admin'))
                               ? '/admin/evacuation'
-                              : ((window.location.pathname || '').includes('/staff') ? '/staff/map' : '/rescuer/map');
+                              : '/rescuer/map';
 
                             // Trigger Admin/Staff global distress pop-up notification banner + chime
                             if (normalizedSos.status === 'CANCELLED') {
@@ -5486,19 +5502,7 @@
                   </div>
                 </div>
 
-                <!-- 6. SOS Distress Alert -->
-                <div class="flex items-center gap-2.5 pt-0.5">
-                  <div class="w-6 h-6 flex items-center justify-center shrink-0 relative">
-                    <span
-                      class="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-red-400 opacity-75"></span>
-                    <span
-                      class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 border border-white shadow-xs"></span>
-                  </div>
-                  <div class="flex flex-col min-w-0">
-                    <span class="font-bold text-slate-800 leading-tight">SOS Distress Alert</span>
-                    <span class="text-[10px] text-slate-500">Live emergency distress signal</span>
-                  </div>
-                </div>
+                
               </div>
             </div>
           </div>
@@ -6616,33 +6620,29 @@
         try { centersData = JSON.parse(document.getElementById('centers-data').textContent || '[]'); } catch (e) { }
         renderStaffCenters(centersData, map);
 
-        // Render Active SOS Distress Markers from embedded data and live endpoint
-        let activeSos = [];
-        try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
-        if (Array.isArray(activeSos)) {
-          activeSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+        // Evacuation Site Staff map shows ONLY Evacuation Centers, Routes & Hazards (strictly NO SOS alerts)
+        const isSiteStaffRescuer = false;
+        if (isSiteStaffRescuer) {
+          let activeSos = [];
+          try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
+          if (Array.isArray(activeSos)) {
+            activeSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+          }
+          if (window.__pendingSosAlerts && window.__pendingSosAlerts.length > 0) {
+            window.__pendingSosAlerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+            window.__pendingSosAlerts = [];
+          }
+          fetch('/api/sos/active')
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && Array.isArray(data.alerts)) {
+                data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+                checkUrlForSosFocus();
+              }
+            })
+            .catch(() => checkUrlForSosFocus());
+          setTimeout(checkUrlForSosFocus, 500);
         }
-
-        // Process any queued SOS alerts that arrived while mapInstance was loading
-        if (window.__pendingSosAlerts && window.__pendingSosAlerts.length > 0) {
-          window.__pendingSosAlerts.forEach(alert => addOrUpdateSosMarker(alert, false));
-          window.__pendingSosAlerts = [];
-        }
-
-        fetch('/api/sos/active')
-          .then(res => res.json())
-          .then(data => {
-            if (data.success && Array.isArray(data.alerts)) {
-              data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
-              checkUrlForSosFocus();
-            }
-          })
-          .catch(err => {
-            console.error("Error fetching active SOS on staff map:", err);
-            checkUrlForSosFocus();
-          });
-
-        setTimeout(checkUrlForSosFocus, 500);
 
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
@@ -7391,38 +7391,29 @@
           }
         });
 
-        // Live SOS Emergency Signals (Unconditionally active for all tactical map views)
-        socket.on('sos:new', function (data) {
-          handleIncomingSosAlert(data, true);
-        });
-
-        socket.on('sos_alert', function (data) {
-          handleIncomingSosAlert(data, true);
-        });
-
-        socket.on('sos:update', function (data) {
-          if (data) handleIncomingSosAlert(data, false);
-        });
-
-        socket.on('sos:cancel', function (data) {
-          showSosToast('SOS Alert Cancelled by Resident', 'info');
-          removeSosMarker(data ? (data.id || data.sos_id) : null, data ? (data.resident_id || data.residentId) : null);
-        });
-
-        socket.on('sos:resolve', function (data) {
-          removeSosMarker(data ? (data.id || data.sos_id) : null, data ? (data.resident_id || data.residentId) : null);
-        });
-
-        socket.on('sos:update_status', function (data) {
-          if (data) {
-            const status = (data.status || '').toUpperCase();
-            if (status === 'RESOLVED' || status === 'CANCELLED') {
-              removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
-            } else {
-              handleIncomingSosAlert(data, false);
+        // Evacuation Site Staff map does NOT display SOS alerts (strictly Rescuer/Admin only)
+        if (false) {
+          socket.on('sos:new', function (data) { handleIncomingSosAlert(data, true); });
+          socket.on('sos_alert', function (data) { handleIncomingSosAlert(data, true); });
+          socket.on('sos:update', function (data) { if (data) handleIncomingSosAlert(data, false); });
+          socket.on('sos:cancel', function (data) {
+            showSosToast('SOS Alert Cancelled by Resident', 'info');
+            removeSosMarker(data ? (data.id || data.sos_id) : null, data ? (data.resident_id || data.residentId) : null);
+          });
+          socket.on('sos:resolve', function (data) {
+            removeSosMarker(data ? (data.id || data.sos_id) : null, data ? (data.resident_id || data.residentId) : null);
+          });
+          socket.on('sos:update_status', function (data) {
+            if (data) {
+              const status = (data.status || '').toUpperCase();
+              if (status === 'RESOLVED' || status === 'CANCELLED') {
+                removeSosMarker(data.id || data.sos_id, data.resident_id || data.residentId);
+              } else {
+                handleIncomingSosAlert(data, false);
+              }
             }
-          }
-        });
+          });
+        }
 
         socket.on('map_features_updated', (data) => {
           if (mapInstance) {
@@ -7436,43 +7427,16 @@
           }
         });
 
-        // 433.875 MHz LoRa Mesh SOS Inbound Receiver (100% Offline / Off-Grid)
-        window.addEventListener('evakwar:lora-sos', function (ev) {
-          const pkt = ev && ev.detail;
-          if (!pkt) return;
-          console.log('[Staff Map] 🚨 Processing LoRa Mesh SOS packet:', pkt);
-          const sosAlertObj = {
-            id: pkt.sosId || ('lora_' + (pkt.residentId || Date.now())),
-            sos_id: pkt.sosId || ('lora_' + (pkt.residentId || Date.now())),
-            resident_id: pkt.residentId || 0,
-            residentId: pkt.residentId || 0,
-            name: pkt.residentName || pkt.sender || 'Resident in Distress',
-            residentName: pkt.residentName || pkt.sender || 'Resident in Distress',
-            contact_number: pkt.contact || '',
-            emergency_type: pkt.emergencyType || 'EMERGENCY',
-            barangay: pkt.zone || pkt.barangay || 'San Rafael',
-            latitude: pkt.latitude || 13.456,
-            longitude: pkt.longitude || 123.361,
-            status: 'PENDING',
-            transport: 'LORA_MESH_433MHZ',
-            is_lora: true,
-            created_at: new Date().toISOString()
-          };
-          if (typeof handleIncomingSosAlert === 'function') {
-            handleIncomingSosAlert(sosAlertObj, true);
-          }
-        });
-
-        // Resilience Heartbeat: catch up live data if tab was sleeping or network dropped
+        // Resilience Heartbeat: keep Evacuation Centers fresh for Site Staff (NO SOS polling for Site Staff)
         setInterval(() => {
           fetchAndRefreshCenters();
-          fetchAndRefreshSosAlerts();
+          if (false) fetchAndRefreshSosAlerts();
         }, 12000);
 
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) {
             fetchAndRefreshCenters();
-            fetchAndRefreshSosAlerts();
+            if (false) fetchAndRefreshSosAlerts();
           }
         });
       }
@@ -7655,26 +7619,23 @@
           renderStaffCenters(centersData, map);
         }
 
-        // Render Active SOS Distress Markers immediately from embedded data
-        let activeSos = [];
-        try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
-        if (Array.isArray(activeSos)) {
-          activeSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+        // Render Active SOS Distress Markers ONLY if Rescuer (strictly hidden for Evacuation Site Staff)
+        if (false) {
+          let activeSos = [];
+          try { activeSos = JSON.parse(document.getElementById('active-sos-data').textContent || '[]'); } catch (e) { }
+          if (Array.isArray(activeSos)) {
+            activeSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+          }
+          fetch('/api/sos/active')
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && Array.isArray(data.alerts)) {
+                data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
+                checkUrlForSosFocus();
+              }
+            })
+            .catch(() => checkUrlForSosFocus());
         }
-
-        // Parallel non-blocking fresh SOS fetch
-        fetch('/api/sos/active')
-          .then(res => res.json())
-          .then(data => {
-            if (data.success && Array.isArray(data.alerts)) {
-              data.alerts.forEach(alert => addOrUpdateSosMarker(alert, false));
-              checkUrlForSosFocus();
-            }
-          })
-          .catch(err => {
-            console.warn('[Evacwar MapLibre] Offline mode SOS fetch notice:', err.message);
-            checkUrlForSosFocus();
-          });
 
         map.on('load', () => {
           renderStaffDrawnFeatures(initialFeatures, map);

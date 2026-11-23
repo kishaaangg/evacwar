@@ -1255,8 +1255,8 @@ public class LoraMeshService extends Service {
                 role = prefs.getString("user_role", "");
             }
             String roleLower = role != null ? role.trim().toLowerCase() : "";
-            // Strictly notify Rescuer / Staff / Admin accounts only (never alert other residents)
-            if (!roleLower.contains("rescuer") && !roleLower.contains("staff") && !roleLower.contains("admin")) {
+            // Strictly notify Rescuer / Admin accounts only (NEVER alert Site Staff or Residents)
+            if (!roleLower.contains("rescuer") && !roleLower.contains("admin")) {
                 return;
             }
 
@@ -1360,7 +1360,7 @@ public class LoraMeshService extends Service {
                 }
                 launchIntent.setAction(Intent.ACTION_MAIN);
                 launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                launchIntent.putExtra("navigate_to", "/resident/chat");
+                launchIntent.putExtra("navigate_to", "/chat");
                 launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

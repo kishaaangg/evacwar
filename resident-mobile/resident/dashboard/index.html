@@ -3376,6 +3376,12 @@
 
               window.showGlobalDistressNotification = function(sosData) {
                 if (!sosData) return;
+                // Strictly block SOS banners on Evacuation Site Staff pages/roles (Admin & Rescuer only)
+                try {
+                  const p = (window.location.pathname || '').toLowerCase();
+                  const cachedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
+                  if (p.includes('/staff') || cachedRole === 'staff') return;
+                } catch (_) {}
                 const sosId = sosData.id || sosData.sos_id || ('temp_' + Date.now());
                 const resId = sosData.resident_id || sosData.residentId || '';
 
@@ -4823,23 +4829,33 @@
                             window.appSocket.emit('sos:incoming_mesh', normalizedSos);
                           }
 
-                          // If Admin, Rescuer, or Staff account, notify with high priority audio, distress banner, and notification drawer
-                          const isAdminOrStaffOrRescuer = Boolean(
+                          // STRICT ROLE ISOLATION: Notify ONLY Admin or Rescuer accounts for SOS (NEVER Site Staff or Residents!)
+                          let isSiteStaffOnly = false;
+                          try {
+                            const pPath = (window.location.pathname || '').toLowerCase();
+                            const savedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
+                            const cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+                            if (pPath.includes('/staff') || savedRole === 'staff') {
+                              isSiteStaffOnly = true;
+                            } else if (cachedStaff && String(cachedStaff.staff_type || '').toUpperCase() !== 'RESCUER' && !pPath.includes('/rescuer') && !pPath.includes('/admin')) {
+                              isSiteStaffOnly = true;
+                            }
+                          } catch (_) {}
+
+                          const isAdminOrRescuer = !isSiteStaffOnly && Boolean(
                             currentUserRole === 'admin' ||
-                            currentUserRole === 'staff' ||
                             currentUserRole === 'rescuer' ||
-                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
-                            localStorage.getItem('evw_cached_staff') ||
-                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
+                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer')) ||
+                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer')))
                           );
 
-                          if (isAdminOrStaffOrRescuer) {
+                          if (isAdminOrRescuer) {
                             const residentName = normalizedSos.name;
                             const zone = normalizedSos.barangay;
                             const emType = normalizedSos.sos_type;
                             const mapUrl = (currentUserRole === 'admin' || (window.location.pathname || '').includes('/admin'))
                               ? '/admin/evacuation'
-                              : ((window.location.pathname || '').includes('/staff') ? '/staff/map' : '/rescuer/map');
+                              : '/rescuer/map';
 
                             // Trigger Admin/Staff global distress pop-up notification banner + chime
                             if (normalizedSos.status === 'CANCELLED') {
@@ -5548,7 +5564,7 @@
                         </span>
                         <span class="text-slate-300 shrink-0">•</span>
                         <span id="weatherLastUpdatedText" class="text-slate-400 shrink-0 truncate">
-                          Updated 7:12 PM
+                          Updated 7:46 PM
                         </span>
                       </div>
                     </div>

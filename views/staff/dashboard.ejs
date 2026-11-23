@@ -218,7 +218,8 @@
                   <img loading="lazy" src="<%= hero3dImage %>" decoding="async" alt="<%= isRescuer ? 'Emergency Rescuer' : 'Evacuation Staff' %>"
                     class="relative z-10 w-full h-full max-h-[205px] xs:max-h-[220px] sm:max-h-[235px] md:max-h-[250px] object-contain object-bottom drop-shadow-2xl translate-y-[2px]" />
                 </div>
-              </div>              <!-- 1. RESCUER EMERGENCY RADAR (FORCED EVACUATION ONLY) -->
+              </div>
+              <!-- 1. RESCUER EMERGENCY RADAR (FORCED EVACUATION ONLY) -->
               <% if (isRescuer || isBoth) { %>
                 <div
                   class="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 text-white rounded-3xl p-3.5 xs:p-4 sm:p-6 shadow-2xl border border-red-500/30 space-y-3.5 sm:space-y-4">
@@ -1745,7 +1746,7 @@
               }
             });
 
-            const isRescuerUser = (window.userStaffType === 'RESCUER' || window.location.pathname.startsWith('/rescuer') || window.location.pathname.startsWith('/staff'));
+            const isRescuerUser = (window.userStaffType === 'RESCUER' || window.location.pathname.startsWith('/rescuer'));
             if (isRescuerUser) {
               function showStaffSosBanner(sosData) {
                 if (typeof window.showGlobalDistressNotification === 'function') {
@@ -2401,5 +2402,27 @@
                 }
               }, 750);
             }
+          })();
+
+          // Live 2-Hour LoRa Relay Weather Sensor Integration (works 100% online & offline for Site Staff)
+          (function () {
+            function applyLoraWeatherReading(sensor) {
+              if (!sensor || (sensor.temperature == null && sensor.humidity == null)) return;
+              updateStaffWeatherUI({
+                temperature: sensor.temperature,
+                apparent_temperature: sensor.temperature != null ? Math.round(Number(sensor.temperature)) : null,
+                humidity: sensor.humidity != null ? Math.round(Number(sensor.humidity)) : null,
+                weather_status: sensor.summary || 'LoRa Sensor Live',
+                location_name: 'San Rafael Relay (LoRa)',
+                formatted_time: 'LoRa Live'
+              });
+            }
+            window.addEventListener('evakwar:lora-weather', (ev) => {
+              if (ev && ev.detail) applyLoraWeatherReading(ev.detail);
+            });
+            try {
+              const cachedWth = JSON.parse(localStorage.getItem('evw_lora_weather_latest') || 'null');
+              if (cachedWth && !navigator.onLine) applyLoraWeatherReading(cachedWth);
+            } catch (_) {}
           })();
         </script>

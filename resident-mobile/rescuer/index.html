@@ -3380,6 +3380,12 @@
 
               window.showGlobalDistressNotification = function(sosData) {
                 if (!sosData) return;
+                // Strictly block SOS banners on Evacuation Site Staff pages/roles (Admin & Rescuer only)
+                try {
+                  const p = (window.location.pathname || '').toLowerCase();
+                  const cachedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
+                  if (p.includes('/staff') || cachedRole === 'staff') return;
+                } catch (_) {}
                 const sosId = sosData.id || sosData.sos_id || ('temp_' + Date.now());
                 const resId = sosData.resident_id || sosData.residentId || '';
 
@@ -4827,23 +4833,33 @@
                             window.appSocket.emit('sos:incoming_mesh', normalizedSos);
                           }
 
-                          // If Admin, Rescuer, or Staff account, notify with high priority audio, distress banner, and notification drawer
-                          const isAdminOrStaffOrRescuer = Boolean(
+                          // STRICT ROLE ISOLATION: Notify ONLY Admin or Rescuer accounts for SOS (NEVER Site Staff or Residents!)
+                          let isSiteStaffOnly = false;
+                          try {
+                            const pPath = (window.location.pathname || '').toLowerCase();
+                            const savedRole = (localStorage.getItem('evw_user_role') || '').toLowerCase();
+                            const cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null');
+                            if (pPath.includes('/staff') || savedRole === 'staff') {
+                              isSiteStaffOnly = true;
+                            } else if (cachedStaff && String(cachedStaff.staff_type || '').toUpperCase() !== 'RESCUER' && !pPath.includes('/rescuer') && !pPath.includes('/admin')) {
+                              isSiteStaffOnly = true;
+                            }
+                          } catch (_) {}
+
+                          const isAdminOrRescuer = !isSiteStaffOnly && Boolean(
                             currentUserRole === 'admin' ||
-                            currentUserRole === 'staff' ||
                             currentUserRole === 'rescuer' ||
-                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer' || window.__evwRole === 'staff')) ||
-                            localStorage.getItem('evw_cached_staff') ||
-                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer') || window.location.pathname.includes('/staff')))
+                            (window.__evwRole && (window.__evwRole === 'admin' || window.__evwRole === 'rescuer')) ||
+                            (window.location.pathname && (window.location.pathname.includes('/admin') || window.location.pathname.includes('/rescuer')))
                           );
 
-                          if (isAdminOrStaffOrRescuer) {
+                          if (isAdminOrRescuer) {
                             const residentName = normalizedSos.name;
                             const zone = normalizedSos.barangay;
                             const emType = normalizedSos.sos_type;
                             const mapUrl = (currentUserRole === 'admin' || (window.location.pathname || '').includes('/admin'))
                               ? '/admin/evacuation'
-                              : ((window.location.pathname || '').includes('/staff') ? '/staff/map' : '/rescuer/map');
+                              : '/rescuer/map';
 
                             // Trigger Admin/Staff global distress pop-up notification banner + chime
                             if (normalizedSos.status === 'CANCELLED') {
@@ -5444,7 +5460,7 @@
                                             <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               Monday
                                             </h3>
-                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">7:12 pm</span>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">7:46 pm</span>
                                           </div>
                                           <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
                                             San Rafael, Baao
@@ -5528,7 +5544,7 @@
 
                                       <!-- Hidden Telemetry Hooks -->
                                       <span id="weatherTempPill" class="hidden">27°C</span>
-                                      <span id="weatherUpdated" class="hidden">7:12 PM</span>
+                                      <span id="weatherUpdated" class="hidden">7:46 PM</span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 
@@ -6826,5 +6842,25 @@
             }
             setTimeout(pingStandbyGps, 1200);
             setInterval(pingStandbyGps, 30000);
+
+            // Live 2-Hour LoRa Relay Weather Sensor Integration (works 100% online & offline for Rescuers)
+            function applyLoraWeatherReading(sensor) {
+              if (!sensor || (sensor.temperature == null && sensor.humidity == null)) return;
+              updateStaffWeatherUI({
+                temperature: sensor.temperature,
+                apparent_temperature: sensor.temperature != null ? Math.round(Number(sensor.temperature)) : null,
+                humidity: sensor.humidity != null ? Math.round(Number(sensor.humidity)) : null,
+                weather_status: sensor.summary || 'LoRa Sensor Live',
+                location_name: 'San Rafael Relay (LoRa)',
+                formatted_time: 'LoRa Live'
+              });
+            }
+            window.addEventListener('evakwar:lora-weather', (ev) => {
+              if (ev && ev.detail) applyLoraWeatherReading(ev.detail);
+            });
+            try {
+              const cachedWth = JSON.parse(localStorage.getItem('evw_lora_weather_latest') || 'null');
+              if (cachedWth && !navigator.onLine) applyLoraWeatherReading(cachedWth);
+            } catch (_) {}
           })();
         </script>

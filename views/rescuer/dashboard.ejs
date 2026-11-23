@@ -2097,5 +2097,25 @@
             }
             setTimeout(pingStandbyGps, 1200);
             setInterval(pingStandbyGps, 30000);
+
+            // Live 2-Hour LoRa Relay Weather Sensor Integration (works 100% online & offline for Rescuers)
+            function applyLoraWeatherReading(sensor) {
+              if (!sensor || (sensor.temperature == null && sensor.humidity == null)) return;
+              updateStaffWeatherUI({
+                temperature: sensor.temperature,
+                apparent_temperature: sensor.temperature != null ? Math.round(Number(sensor.temperature)) : null,
+                humidity: sensor.humidity != null ? Math.round(Number(sensor.humidity)) : null,
+                weather_status: sensor.summary || 'LoRa Sensor Live',
+                location_name: 'San Rafael Relay (LoRa)',
+                formatted_time: 'LoRa Live'
+              });
+            }
+            window.addEventListener('evakwar:lora-weather', (ev) => {
+              if (ev && ev.detail) applyLoraWeatherReading(ev.detail);
+            });
+            try {
+              const cachedWth = JSON.parse(localStorage.getItem('evw_lora_weather_latest') || 'null');
+              if (cachedWth && !navigator.onLine) applyLoraWeatherReading(cachedWth);
+            } catch (_) {}
           })();
         </script>

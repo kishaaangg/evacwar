@@ -242,41 +242,46 @@ public class MainActivity extends BridgeActivity {
                                     "  try {\n" +
                                     "    var rawNav = '" + safeNavTo + "';\n" +
                                     "    var p = (window.location.pathname || '').toLowerCase();\n" +
-                                    "    if (rawNav.indexOf('/evacuation') !== -1 || rawNav.indexOf('auto_route=nearest') !== -1) {\n" +
+                                    "    var rRole = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
+                                    "    var rolePrefix = (rRole === 'staff' || rRole === 'barangay_council') ? '/staff' : (rRole === 'rescuer' ? '/rescuer' : '/resident');\n" +
+                                    "    var isCap = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
+                                    "    if (rawNav.indexOf('/rescuer/map') !== -1) {\n" +
+                                    "      if (p.indexOf('/rescuer/map') !== -1) return;\n" +
+                                    "      if (typeof window.navigateToEvakWar === 'function') {\n" +
+                                    "        window.navigateToEvakWar('/rescuer/map');\n" +
+                                    "      } else {\n" +
+                                    "        window.location.href = isCap ? '/rescuer/map/index.html' : '/rescuer/map';\n" +
+                                    "      }\n" +
+                                    "    } else if (rawNav.indexOf('/evacuation') !== -1 || rawNav.indexOf('auto_route=nearest') !== -1) {\n" +
                                     "      if (typeof window.stopEmergencyAlertSound === 'function') window.stopEmergencyAlertSound();\n" +
                                     "      if (typeof window.closeGlobalEmergencyModal === 'function') window.closeGlobalEmergencyModal();\n" +
                                     "      if (p.indexOf('/evacuation') !== -1 || p.indexOf('/map') !== -1) {\n" +
-                                    "        if (typeof window.findAndRouteNearestEvacCenter === 'function') {\n" +
+                                    "        if (rRole !== 'rescuer' && typeof window.findAndRouteNearestEvacCenter === 'function') {\n" +
                                     "          window.findAndRouteNearestEvacCenter(true);\n" +
                                     "        }\n" +
                                     "        return;\n" +
                                     "      }\n" +
-                                    "      var rEv = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
-                                    "      var evTarget = (rEv === 'staff' || rEv === 'barangay_council') ? '/staff/map?auto_route=nearest' : (rEv === 'rescuer' ? '/rescuer/map?auto_route=nearest' : '/resident/evacuation?auto_route=nearest');\n" +
+                                    "      var evTarget = (rRole === 'staff' || rRole === 'barangay_council') ? '/staff/map?auto_route=nearest' : (rRole === 'rescuer' ? '/rescuer/map' : '/resident/evacuation?auto_route=nearest');\n" +
                                     "      if (typeof window.navigateToEvakWar === 'function') {\n" +
                                     "        window.navigateToEvakWar(evTarget);\n" +
                                     "      } else {\n" +
-                                    "        var isCapEv = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
-                                    "        var evDest = isCapEv ? (evTarget.split('?')[0] + '/index.html?auto_route=nearest') : evTarget;\n" +
+                                    "        var evParts = evTarget.split('?');\n" +
+                                    "        var evDest = isCap ? (evParts[0] + '/index.html' + (evParts[1] ? '?' + evParts[1] : '')) : evTarget;\n" +
                                     "        window.location.href = evDest;\n" +
                                     "      }\n" +
                                     "    } else if (rawNav.indexOf('/typhoon') !== -1 || rawNav.indexOf('/weather') !== -1) {\n" +
-                                    "      var r = (localStorage.getItem('evw_user_role') || 'resident').toLowerCase();\n" +
-                                    "      var rolePrefix = (r === 'staff' || r === 'barangay_council') ? '/staff' : (r === 'rescuer' ? '/rescuer' : '/resident');\n" +
                                     "      var target = rolePrefix + '/typhoon?view=sensor';\n" +
                                     "      if (typeof window.navigateToEvakWar === 'function') {\n" +
                                     "        window.navigateToEvakWar(target);\n" +
                                     "      } else {\n" +
-                                    "        var isCap = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
                                     "        window.location.href = isCap ? (rolePrefix + '/typhoon/index.html?view=sensor') : target;\n" +
                                     "      }\n" +
-                                    "    } else if (!p.includes('/chat')) {\n" +
+                                    "    } else if (rawNav.indexOf('/chat') !== -1 && !p.includes('/chat')) {\n" +
+                                    "      var chatTarget = rolePrefix + '/chat';\n" +
                                     "      if (typeof window.navigateToEvakWar === 'function') {\n" +
-                                    "        window.navigateToEvakWar(rawNav);\n" +
+                                    "        window.navigateToEvakWar(chatTarget);\n" +
                                     "      } else {\n" +
-                                    "        var isCap2 = (window.location.protocol === 'file:' || window.location.hostname === 'localhost');\n" +
-                                    "        var dest = isCap2 ? '/resident/chat/index.html' : rawNav;\n" +
-                                    "        window.location.href = dest;\n" +
+                                    "        window.location.href = isCap ? (rolePrefix + '/chat/index.html') : chatTarget;\n" +
                                     "      }\n" +
                                     "    }\n" +
                                     "  } catch(e) {}\n" +
