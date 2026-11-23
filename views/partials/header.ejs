@@ -2090,35 +2090,52 @@
           }]
         };
 
-        if (!map.getSource('evakwar-directions-source')) {
-          map.addSource('evakwar-directions-source', {
-            type: 'geojson',
-            data: featureCollection
-          });
-          map.addLayer({
-            id: 'evakwar-directions-casing',
-            type: 'line',
-            source: 'evakwar-directions-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-              'line-color': '#1e3a8a',
-              'line-width': 9,
-              'line-opacity': 0.85
+        const applyRouteLayers = () => {
+          try {
+            if (!map.getSource('evakwar-directions-source')) {
+              map.addSource('evakwar-directions-source', {
+                type: 'geojson',
+                data: featureCollection
+              });
+              if (!map.getLayer('evakwar-directions-casing')) {
+                map.addLayer({
+                  id: 'evakwar-directions-casing',
+                  type: 'line',
+                  source: 'evakwar-directions-source',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#1e3a8a',
+                    'line-width': 9,
+                    'line-opacity': 0.85
+                  }
+                });
+              }
+              if (!map.getLayer('evakwar-directions-line')) {
+                map.addLayer({
+                  id: 'evakwar-directions-line',
+                  type: 'line',
+                  source: 'evakwar-directions-source',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#38bdf8',
+                    'line-width': 5,
+                    'line-opacity': 1
+                  }
+                });
+              }
+            } else {
+              map.getSource('evakwar-directions-source').setData(featureCollection);
             }
-          });
-          map.addLayer({
-            id: 'evakwar-directions-line',
-            type: 'line',
-            source: 'evakwar-directions-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-              'line-color': '#38bdf8',
-              'line-width': 5,
-              'line-opacity': 1
-            }
-          });
+          } catch (routeLayerErr) {
+            console.warn('[EvakWar Directions] Layer draw retry on load:', routeLayerErr && routeLayerErr.message);
+            if (typeof map.once === 'function') map.once('load', applyRouteLayers);
+          }
+        };
+
+        if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
+          map.once('load', applyRouteLayers);
         } else {
-          map.getSource('evakwar-directions-source').setData(featureCollection);
+          applyRouteLayers();
         }
 
         // Fit map bounds to show entire route
