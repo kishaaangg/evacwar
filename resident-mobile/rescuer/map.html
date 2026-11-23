@@ -5347,6 +5347,15 @@
                     <span class="hidden xl:inline">My Location</span>
                   </button>
 
+                  <!-- Rescuer LoRa Node Status / Quick Pair Pill -->
+                  <button id="rescuerLoraNodePill" type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
+                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-purple-50 text-purple-800 border border-purple-200/90 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
+                    title="Connect / Status of Rescuer 433.875 MHz LoRa Node">
+                    <span id="rescuerLoraDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <i class="ph ph-broadcast text-sm text-purple-600"></i>
+                    <span id="rescuerLoraText">LoRa Node</span>
+                  </button>
+
                   <!-- Rescue Multi-Stop Path Auto-Router Button (Rescuer SOS Only — No Nearest Evac) -->
                   <button id="btnRescuerMultiRoute" type="button" onclick="window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
                     class="bg-rose-600 hover:bg-rose-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
@@ -7111,29 +7120,111 @@
           }
         });
 
-        // 433.875 MHz LoRa Mesh SOS Inbound Receiver (100% Offline / Off-Grid)
+        // 433.875 MHz LoRa Mesh SOS Inbound Receiver (100% Offline / Off-Grid via Rescuer Node)
+        function hydrateOfflineLoraSosOnMap() {
+          try {
+            const cached = JSON.parse(localStorage.getItem('evw_lora_active_sos') || '[]');
+            if (Array.isArray(cached) && cached.length > 0) {
+              cached.forEach(pkt => {
+                if (!pkt) return;
+                const st = String(pkt.status || 'ACTIVE').toUpperCase();
+                if (st === 'RESOLVED' || st === 'CANCELLED') return;
+                addOrUpdateSosMarker({
+                  ...pkt,
+                  id: pkt.sosId || pkt.id || ('lora_' + (pkt.residentId || Date.now())),
+                  sos_id: pkt.sosId || pkt.id,
+                  resident_id: pkt.residentId || pkt.resident_id || 0,
+                  name: pkt.residentName || pkt.name || 'Resident in Distress',
+                  status: st,
+                  barangay: pkt.barangay || 'San Rafael (433.875 MHz LoRa)',
+                  transport: 'LORA_MESH_433MHZ',
+                  is_lora: true
+                }, false, false);
+              });
+              if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
+            }
+          } catch (_) {}
+        }
+        setTimeout(hydrateOfflineLoraSosOnMap, 650);
+
+        // Live Rescuer LoRa Node Pill Sync
+        function updateRescuerLoraNodePill() {
+          const pill = document.getElementById('rescuerLoraNodePill');
+          const dot = document.getElementById('rescuerLoraDot');
+          const txt = document.getElementById('rescuerLoraText');
+          if (!pill || !dot || !txt) return;
+          const lora = window.evakwarLoraClient;
+          const isBle = Boolean(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
+          const isUsb = Boolean(window.AndroidUsbSerialBridge && typeof window.AndroidUsbSerialBridge.isConnected === 'function' && window.AndroidUsbSerialBridge.isConnected());
+          const isConnected = isBle || isUsb || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL'));
+          if (isConnected) {
+            pill.className = 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer';
+            dot.className = 'w-2 h-2 rounded-full bg-emerald-200 animate-pulse';
+            txt.textContent = isUsb ? 'LoRa USB' : 'LoRa Live';
+          } else {
+            pill.className = 'bg-white/95 backdrop-blur-md shadow-md hover:bg-purple-50 text-purple-800 border border-purple-200/90 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer';
+            dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+            txt.textContent = 'Pair LoRa';
+          }
+        }
+        updateRescuerLoraNodePill();
+        setInterval(updateRescuerLoraNodePill, 2500);
+        window.addEventListener('evakwar:lora-status', updateRescuerLoraNodePill);
+
         window.addEventListener('evakwar:lora-sos', function (ev) {
           const pkt = ev && ev.detail;
           if (!pkt) return;
-          console.log('[Rescuer Map] 🚨 Processing LoRa Mesh SOS packet:', pkt);
+          console.log('[Rescuer Map] 🚨 Processing LoRa Mesh SOS packet via Rescuer Node:', pkt);
           const sosAlertObj = {
-            id: pkt.sosId || ('lora_' + (pkt.residentId || Date.now())),
-            sos_id: pkt.sosId || ('lora_' + (pkt.residentId || Date.now())),
-            resident_id: pkt.residentId || 0,
-            residentId: pkt.residentId || 0,
-            name: pkt.residentName || pkt.sender || 'Resident in Distress',
-            residentName: pkt.residentName || pkt.sender || 'Resident in Distress',
+            id: pkt.sosId || pkt.id || ('lora_' + (pkt.residentId || Date.now())),
+            sos_id: pkt.sosId || pkt.id || ('lora_' + (pkt.residentId || Date.now())),
+            resident_id: pkt.residentId || pkt.resident_id || 0,
+            residentId: pkt.residentId || pkt.resident_id || 0,
+            name: pkt.residentName || pkt.name || pkt.sender || 'Resident in Distress',
+            residentName: pkt.residentName || pkt.name || pkt.sender || 'Resident in Distress',
             contact_number: pkt.contact || '',
             emergency_type: pkt.emergencyType || 'EMERGENCY',
-            barangay: pkt.zone || pkt.barangay || 'San Rafael',
-            latitude: pkt.latitude || 13.456,
-            longitude: pkt.longitude || 123.361,
-            status: 'PENDING',
+            barangay: pkt.zone || pkt.barangay || 'San Rafael (433.875 MHz LoRa)',
+            latitude: parseFloat(pkt.latitude) || 13.51024,
+            longitude: parseFloat(pkt.longitude) || 123.34701,
+            status: 'ACTIVE',
             transport: 'LORA_MESH_433MHZ',
             is_lora: true,
-            created_at: new Date().toISOString()
+            created_at: pkt.created_at || new Date().toISOString()
           };
           handleIncomingSosAlert(sosAlertObj, true);
+          if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
+        });
+
+        window.addEventListener('evakwar:lora-cancel', function (ev) {
+          const pkt = ev && ev.detail;
+          if (!pkt) return;
+          removeSosMarker(pkt.sosId || pkt.id, pkt.residentId || pkt.resident_id);
+          if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
+          showSosToast('Resident cancelled SOS via 433.875 MHz LoRa.', 'info');
+        });
+
+        window.addEventListener('evakwar:lora-ack', function (ev) {
+          const pkt = ev && ev.detail;
+          if (!pkt) return;
+          const st = String(pkt.status || 'ACKNOWLEDGED').toUpperCase();
+          if (st === 'RESOLVED' || st === 'CANCELLED') {
+            removeSosMarker(pkt.sosId, pkt.residentId);
+          } else {
+            const matchObj = Object.values(sosMarkersMap || {}).find(m =>
+              (pkt.sosId && String(m.id) === String(pkt.sosId)) ||
+              (pkt.residentId && Number(m.resident_id) === Number(pkt.residentId))
+            );
+            if (matchObj && matchObj.alertData) {
+              const updated = Object.assign({}, matchObj.alertData, {
+                status: st,
+                handler_name: pkt.responderName || matchObj.alertData.handler_name,
+                responder_name: pkt.responderName || matchObj.alertData.responder_name
+              });
+              addOrUpdateSosMarker(updated, false, false);
+            }
+          }
+          if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
         });
 
         // Resilience Heartbeat: catch up live data if tab was sleeping or network dropped
@@ -7817,13 +7908,100 @@
           ? { lat: window._lastKnownUserGps.lat, lng: window._lastKnownUserGps.lng }
           : { lat: 13.51037, lng: 123.34810 };
 
-        btnEl.disabled = true; btnEl.classList.add('opacity-50');
-        try {
-          if (window.evakwarLoraClient && window.evakwarLoraClient.isConnected && typeof window.evakwarLoraClient.sendText === 'function') {
-            const rName = (localStorage.getItem('evw_user_full_name') || 'Rescuer Unit').replace(/\|/g, '/').slice(0, 22);
-            const pkt = `EVW|ACK|${sosId}|0|${nextStatus}|${rName}|${Number(rCoords.lat).toFixed(5)},${Number(rCoords.lng).toFixed(5)}`;
-            window.evakwarLoraClient.sendText(pkt).catch(() => {});
+        // Look up full SOS alert record (to get exact resident_id for LoRa ACK matching)
+        let matchedAlert = null;
+        Object.values(sosMarkersMap || {}).forEach((m) => {
+          const a = (m && m.alertData) ? m.alertData : m;
+          if (a && (String(a.id) === String(sosId) || String(a.sos_id) === String(sosId))) {
+            matchedAlert = a;
           }
+        });
+        const cardEl = document.getElementById('sos_card_' + sosId);
+        const residentId = Number(
+          (matchedAlert && (matchedAlert.resident_id || matchedAlert.residentId)) ||
+          (cardEl && cardEl.getAttribute('data-resident-id')) ||
+          0
+        );
+        const rName = (localStorage.getItem('evw_user_full_name') || 'Rescuer Unit').replace(/\|/g, '/').trim().slice(0, 24);
+        const myUid = getActiveRescuerUserId();
+
+        btnEl.disabled = true; btnEl.classList.add('opacity-50');
+
+        // 1. ALWAYS transmit over Rescuer LoRa Node (433.875 MHz BLE / USB-OTG) if paired!
+        let sentViaLoRaNode = false;
+        const lora = window.evakwarLoraClient;
+        const isNativeBle = Boolean(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
+        const isNativeUsb = Boolean(window.AndroidUsbSerialBridge && typeof window.AndroidUsbSerialBridge.isConnected === 'function' && window.AndroidUsbSerialBridge.isConnected());
+        const hasLoraHardware = isNativeBle || isNativeUsb || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL'));
+
+        if (hasLoraHardware && lora && typeof lora.sendSosAck === 'function') {
+          try {
+            const txRes = await lora.sendSosAck({
+              sosId: sosId,
+              residentId: residentId,
+              status: nextStatus,
+              rescuerName: rName,
+              latitude: rCoords.lat,
+              longitude: rCoords.lng
+            });
+            sentViaLoRaNode = Boolean(txRes && txRes.success);
+          } catch (loraErr) {
+            console.warn('[Rescuer LoRa Node] ACK TX note:', loraErr.message);
+          }
+        }
+
+        // Helper to apply local UI & offline cache update when pure off-grid LoRa SOS or offline
+        const applyLocalOfflineUpdate = () => {
+          try {
+            let stored = JSON.parse(localStorage.getItem('evw_lora_active_sos') || '[]');
+            if (Array.isArray(stored)) {
+              if (nextStatus === 'RESOLVED' || nextStatus === 'CANCELLED') {
+                stored = stored.filter(a => String(a.sosId || a.id) !== String(sosId));
+              } else {
+                stored = stored.map(a => String(a.sosId || a.id) === String(sosId)
+                  ? Object.assign({}, a, { status: nextStatus, handled_by: myUid || a.handled_by, handler_name: rName, responder_name: rName })
+                  : a);
+              }
+              localStorage.setItem('evw_lora_active_sos', JSON.stringify(stored));
+            }
+          } catch (_) {}
+
+          if (nextStatus === 'RESOLVED') {
+            removeSosMarker(sosId, residentId);
+            if (typeof window.clearRescuerMultiStopRoute === 'function') window.clearRescuerMultiStopRoute();
+          } else if (matchedAlert) {
+            const updatedLocal = Object.assign({}, matchedAlert, {
+              status: nextStatus,
+              handled_by: myUid || matchedAlert.handled_by,
+              handler_name: rName,
+              responder_name: rName
+            });
+            addOrUpdateSosMarker(updatedLocal, false, false);
+            if (nextStatus === 'ACKNOWLEDGED' || nextStatus === 'RESPONDING') {
+              setTimeout(() => {
+                if (typeof window.drawRescuerMultiStopRoute === 'function') window.drawRescuerMultiStopRoute(true);
+              }, 250);
+            }
+          }
+          if (typeof window.updateRescuerMultiStopQueue === 'function') window.updateRescuerMultiStopQueue();
+        };
+
+        // Pure off-grid LoRa SOS (not in MySQL) OR offline mode: complete immediately via Rescuer LoRa Node!
+        const isPureLoraId = String(sosId).startsWith('lora_');
+        if (!navigator.onLine || isPureLoraId) {
+          applyLocalOfflineUpdate();
+          showSosToast(
+            sentViaLoRaNode
+              ? `📡 Sent ${nextStatus} via Rescuer LoRa Node (433.875 MHz)!`
+              : `Saved ${nextStatus} locally. Connect Rescuer LoRa Node to transmit off-grid.`,
+            sentViaLoRaNode ? 'success' : 'info'
+          );
+          btnEl.disabled = false; btnEl.classList.remove('opacity-50');
+          return;
+        }
+
+        // 2. Online dual-path sync to MySQL + Socket.IO
+        try {
           const res = await fetch('/rescuer/sos/status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7831,7 +8009,12 @@
           });
           const data = await res.json();
           if (data.success) {
-            showSosToast(data.message || 'Status updated!', 'success');
+            showSosToast(
+              sentViaLoRaNode
+                ? `✅ ${data.message || 'Status updated'} (+ Sent via LoRa Node)`
+                : (data.message || 'Status updated!'),
+              'success'
+            );
             if (nextStatus === 'ACKNOWLEDGED' || nextStatus === 'RESPONDING' || nextStatus === 'RESCUED') {
               if (window.EvakWarRescuerTracker) window.EvakWarRescuerTracker.startTracking(Number(sosId));
             } else if (nextStatus === 'RESOLVED') {
@@ -7857,7 +8040,13 @@
             btnEl.disabled = false; btnEl.classList.remove('opacity-50');
           }
         } catch (err) {
-          showSosToast('Offline / LoRa ACK transmitted', 'info');
+          applyLocalOfflineUpdate();
+          showSosToast(
+            sentViaLoRaNode
+              ? `📡 Offline: Sent ${nextStatus} via Rescuer LoRa Node (433.875 MHz)!`
+              : 'Offline: Updated locally (pair Rescuer LoRa Node for RF ACK).',
+            sentViaLoRaNode ? 'success' : 'info'
+          );
           btnEl.disabled = false; btnEl.classList.remove('opacity-50');
         }
       }

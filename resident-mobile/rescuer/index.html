@@ -5444,7 +5444,7 @@
                                             <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               Monday
                                             </h3>
-                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">6:26 pm</span>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">7:12 pm</span>
                                           </div>
                                           <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
                                             San Rafael, Baao
@@ -5528,7 +5528,7 @@
 
                                       <!-- Hidden Telemetry Hooks -->
                                       <span id="weatherTempPill" class="hidden">27°C</span>
-                                      <span id="weatherUpdated" class="hidden">6:25 PM</span>
+                                      <span id="weatherUpdated" class="hidden">7:12 PM</span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 
@@ -6712,10 +6712,34 @@
 
             async function syncRescuerDispatchStrip() {
               try {
-                const res = await fetch('/api/sos/active');
-                if (!res.ok) return;
-                const data = await res.json();
-                const alerts = (data && data.success && Array.isArray(data.alerts)) ? data.alerts : [];
+                let alerts = [];
+                if (navigator.onLine) {
+                  try {
+                    const res = await fetch('/api/sos/active');
+                    if (res.ok) {
+                      const data = await res.json();
+                      if (data && data.success && Array.isArray(data.alerts)) {
+                        alerts = data.alerts;
+                      }
+                    }
+                  } catch (_) {}
+                }
+                // Merge offline LoRa SOS alerts received via Rescuer Node (works 100% off-grid!)
+                try {
+                  const loraSos = JSON.parse(localStorage.getItem('evw_lora_active_sos') || '[]');
+                  if (Array.isArray(loraSos)) {
+                    loraSos.forEach(ls => {
+                      if (!ls) return;
+                      const st = String(ls.status || 'ACTIVE').toUpperCase();
+                      if (st === 'RESOLVED' || st === 'CANCELLED') return;
+                      const exists = alerts.some(a =>
+                        String(a.id) === String(ls.sosId || ls.id) ||
+                        (ls.residentId && Number(a.resident_id) === Number(ls.residentId))
+                      );
+                      if (!exists) alerts.push(ls);
+                    });
+                  }
+                } catch (_) {}
                 const activeCount = alerts.length;
                 const myUid = getRescuerUid();
                 const myCount = myUid ? alerts.filter(a => Number(a.handled_by || 0) === myUid).length : 0;
@@ -6771,6 +6795,14 @@
                 window.__appSocket.on(ev, () => setTimeout(syncRescuerDispatchStrip, 250));
               });
             }
+            ['evakwar:lora-sos', 'evakwar:lora-cancel', 'evakwar:lora-ack'].forEach(ev => {
+              window.addEventListener(ev, () => {
+                if (ev === 'evakwar:lora-sos' && typeof playDistressChime === 'function') {
+                  try { playDistressChime(); } catch (_) {}
+                }
+                syncRescuerDispatchStrip();
+              });
+            });
 
             // Standby GPS Heartbeat so server knows this rescuer's real coordinates for nearest auto-assign
             function pingStandbyGps() {

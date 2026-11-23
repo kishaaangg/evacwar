@@ -446,6 +446,10 @@
     return (
       nm.includes('meshtastic') ||
       nm.includes('res1') ||
+      nm.includes('res2') ||
+      nm.includes('rsc') ||
+      nm.includes('rescuer') ||
+      nm.includes('stf1') ||
       nm.includes('rel1') ||
       nm.includes('hall') ||
       nm.includes('f4e2') ||
@@ -923,9 +927,112 @@
       this.emit('packet', { ...parsed, transport: sourceTransport, receivedAt: new Date().toISOString() });
 
       if (parsed.type === 'ACK') {
+        // Persist ACK status into local offline LoRa SOS cache so Rescuer/Resident UIs stay synced off-grid
+        try {
+          let storedSos = JSON.parse(localStorage.getItem('evw_lora_active_sos') || '[]');
+          if (Array.isArray(storedSos) && storedSos.length > 0) {
+            const stUpper = String(parsed.status || 'ACKNOWLEDGED').toUpperCase();
+            if (stUpper === 'RESOLVED' || stUpper === 'CANCELLED') {
+              storedSos = storedSos.filter(a =>
+                String(a.sosId || a.id) !== String(parsed.sosId) &&
+                !(parsed.residentId && Number(a.residentId || a.resident_id) === Number(parsed.residentId))
+              );
+            } else {
+              storedSos = storedSos.map(a => {
+                const matchId = parsed.sosId && String(a.sosId || a.id) === String(parsed.sosId);
+                const matchRes = parsed.residentId && Number(a.residentId || a.resident_id) === Number(parsed.residentId);
+                if (matchId || matchRes) {
+                  return Object.assign({}, a, {
+                    status: stUpper,
+                    handler_name: parsed.responderName || a.handler_name,
+                    responder_name: parsed.responderName || a.responder_name,
+                    rescuer_lat: parsed.rescuerLat != null ? parsed.rescuerLat : a.rescuer_lat,
+                    rescuer_lng: parsed.rescuerLng != null ? parsed.rescuerLng : a.rescuer_lng,
+                    updated_at: new Date().toISOString()
+                  });
+                }
+                return a;
+              });
+            }
+            localStorage.setItem('evw_lora_active_sos', JSON.stringify(storedSos.slice(-30)));
+          }
+        } catch (_) {}
+
+        try {
+          window.dispatchEvent(new CustomEvent('evakwar:lora-ack', {
+            detail: { ...parsed, transport: sourceTransport || 'LORA_433MHZ', viaLoRa: true }
+          }));
+        } catch (_) {}
+
         this.emit('ack', parsed);
+      } else if (parsed.type === 'CAN' || (parsed.type === 'SOS' && (parsed.statusCode === 'CAN' || parsed.command === 'CANCEL_SOS'))) {
+        try {
+          let storedSos = JSON.parse(localStorage.getItem('evw_lora_active_sos') || '[]');
+          if (Array.isArray(storedSos)) {
+            storedSos = storedSos.filter(a =>
+              String(a.sosId || a.id) !== String(parsed.sosId) &&
+              !(parsed.residentId && Number(a.residentId || a.resident_id) === Number(parsed.residentId))
+            );
+            localStorage.setItem('evw_lora_active_sos', JSON.stringify(storedSos));
+          }
+        } catch (_) {}
+
+        try {
+          window.dispatchEvent(new CustomEvent('evakwar:lora-cancel', {
+            detail: { ...parsed, status: 'CANCELLED', transport: sourceTransport || 'LORA_433MHZ', viaLoRa: true }
+          }));
+        } catch (_) {}
+
+        this.emit('sos', { ...parsed, status: 'CANCELLED' });
       } else if (parsed.type === 'SOS') {
-        this.emit('sos', parsed);
+        const sosKey = String(parsed.msgId || parsed.sosId || `${parsed.residentId || 0}_${parsed.latitude}_${parsed.longitude}`);
+        this._processedSosIds = this._processedSosIds || new Set();
+        const isUpdate = parsed.statusCode === 'UPD';
+        if (!isUpdate && this._processedSosIds.has(sosKey)) {
+          return;
+        }
+        this._processedSosIds.add(sosKey);
+
+        const sosObj = {
+          ...parsed,
+          id: parsed.sosId || ('lora_' + (parsed.residentId || sosKey)),
+          sosId: parsed.sosId || ('lora_' + (parsed.residentId || sosKey)),
+          sos_id: parsed.sosId || ('lora_' + (parsed.residentId || sosKey)),
+          residentId: parsed.residentId || 0,
+          resident_id: parsed.residentId || 0,
+          name: parsed.name || 'Resident in Distress',
+          residentName: parsed.name || 'Resident in Distress',
+          status: 'ACTIVE',
+          barangay: 'San Rafael (433.875 MHz LoRa)',
+          transport: sourceTransport || 'LORA_MESH_433MHZ',
+          viaLoRa: true,
+          is_lora: true,
+          created_at: new Date().toISOString()
+        };
+
+        // Persist so Rescuer sees incoming LoRa SOS immediately even if they switch from Dashboard/Chat to Map
+        try {
+          let storedSos = JSON.parse(localStorage.getItem('evw_lora_active_sos') || '[]');
+          if (!Array.isArray(storedSos)) storedSos = [];
+          const idx = storedSos.findIndex(a =>
+            String(a.sosId || a.id) === String(sosObj.sosId) ||
+            (sosObj.residentId && Number(a.residentId || a.resident_id) === Number(sosObj.residentId))
+          );
+          if (idx >= 0) {
+            storedSos[idx] = Object.assign({}, storedSos[idx], sosObj, {
+              status: storedSos[idx].status && storedSos[idx].status !== 'ACTIVE' ? storedSos[idx].status : 'ACTIVE'
+            });
+          } else {
+            storedSos.unshift(sosObj);
+          }
+          localStorage.setItem('evw_lora_active_sos', JSON.stringify(storedSos.slice(0, 30)));
+        } catch (_) {}
+
+        try {
+          window.dispatchEvent(new CustomEvent('evakwar:lora-sos', { detail: sosObj }));
+        } catch (_) {}
+
+        this.emit('sos', sosObj);
       } else if (parsed.type === 'MSG') {
         const msgId = String(parsed.msgId || parsed.id || '').trim();
         this._processedChatIds = this._processedChatIds || new Set();
@@ -2301,9 +2408,9 @@
           const hexStr = bytesToHex(protoBytes);
           const ok = window.AndroidBleBridge.writeHex(hexStr);
 
-          // For high-priority SOS / Cancel SOS frames, schedule a 2nd RF burst 2.1s later
-          // (after the 805ms SF11 LoRa airtime completes) so RF collisions can never drop an SOS!
-          if (rawEvwPacket && (rawEvwPacket.startsWith('EVW|SOS|') || rawEvwPacket.startsWith('EVW|CAN|'))) {
+          // For high-priority SOS / Cancel SOS / Rescuer ACK frames, schedule a 2nd RF burst 2.1s later
+          // (after the 805ms SF11 LoRa airtime completes) so RF collisions can never drop an SOS or ACK!
+          if (rawEvwPacket && (rawEvwPacket.startsWith('EVW|SOS|') || rawEvwPacket.startsWith('EVW|CAN|') || rawEvwPacket.startsWith('EVW|ACK|'))) {
             setTimeout(() => {
               try {
                 if (window.AndroidBleBridge && typeof window.AndroidBleBridge.writeHex === 'function') {
@@ -2449,6 +2556,35 @@
         pinMode,
         vulnCode,
         statusCode
+      });
+    }
+
+    /**
+     * Convenience alias for transmitting raw EVW|... frames over active LoRa Node (BLE / USB-OTG / Wi-Fi)
+     */
+    async sendText(rawEvwPacket, metadata = {}) {
+      return await this.sendPacket(rawEvwPacket, metadata);
+    }
+
+    /**
+     * Formats and transmits a Rescuer SOS Acknowledgment / Status Update over 433.875 MHz LoRa RF
+     * (`EVW|ACK|<sosId>|<residentId>|<status>|<rescuerName>|<lat>,<lng>`)
+     */
+    async sendSosAck({ sosId, residentId = 0, status = 'ACKNOWLEDGED', rescuerName = 'Rescuer Unit', latitude = null, longitude = null }) {
+      const sId = sosId || 0;
+      const resId = residentId || 0;
+      const cleanStatus = String(status || 'ACKNOWLEDGED').toUpperCase().replace(/\|/g, '');
+      const cleanName = String(rescuerName || 'Rescuer Unit').replace(/\|/g, '/').trim().slice(0, 24);
+      const hasCoords = (latitude !== null && longitude !== null && isFinite(Number(latitude)) && isFinite(Number(longitude)));
+      const coordSuffix = hasCoords ? `|${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}` : '';
+      const rawPacket = `EVW|ACK|${sId}|${resId}|${cleanStatus}|${cleanName}${coordSuffix}`;
+      return await this.sendPacket(rawPacket, {
+        sosId: sId,
+        resident_id: resId,
+        status: cleanStatus,
+        responderName: cleanName,
+        rescuerLat: hasCoords ? Number(latitude) : null,
+        rescuerLng: hasCoords ? Number(longitude) : null
       });
     }
 

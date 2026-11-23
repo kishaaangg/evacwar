@@ -380,14 +380,19 @@ function parseEvwPacket(rawText) {
   }
 
   if (type === 'ACK') {
+    const coordParts = (parts[6] || '').split(',');
+    const rLat = coordParts.length >= 2 ? parseFloat(coordParts[0]) : null;
+    const rLng = coordParts.length >= 2 ? parseFloat(coordParts[1]) : null;
     return {
       type: 'ACK',
       command: 'ACK_SOS',
       raw: trimmed,
-      sosId: parts[2] ? Number(parts[2]) : null,
+      sosId: parts[2] ? (isNaN(Number(parts[2])) ? parts[2] : Number(parts[2])) : null,
       residentId: parts[3] ? Number(parts[3]) : null,
-      status: parts[4] || 'ACKNOWLEDGED',
-      responderName: parts[5] || 'Barangay Hall'
+      status: String(parts[4] || 'ACKNOWLEDGED').toUpperCase().trim(),
+      responderName: String(parts[5] || 'Rescuer Unit').trim(),
+      rescuerLat: (rLat !== null && isFinite(rLat)) ? rLat : null,
+      rescuerLng: (rLng !== null && isFinite(rLng)) ? rLng : null
     };
   }
 
@@ -1125,6 +1130,125 @@ async function handleInboundLoRaPacket(req, res) {
     gatewayStatus.lastPacket = parsed.raw;
     gatewayStatus.lastRssi = rssi;
     gatewayStatus.lastSnr = snr;
+
+    // Handle RESCUER NODE LORA ACK / STATUS UPDATE (`EVW|ACK|<sosId>|<resId>|<status>|<rescuerName>|<lat>,<lng>`)
+    if (parsed.type === 'ACK') {
+      const responderName = String(parsed.responderName || 'Rescuer Unit').trim();
+      // Ignore Hall Gateway's own echoed ACK frames to prevent loops
+      if (responderName.toLowerCase().includes('hall gateway') || responderName.toLowerCase().includes('!d88b1a58')) {
+        return res.json({ success: true, ignored: 'gateway_echo' });
+      }
+
+      const cleanStatus = ['ACKNOWLEDGED', 'RESPONDING', 'RESCUED', 'RESOLVED', 'CANCELLED'].includes(parsed.status)
+        ? parsed.status
+        : 'ACKNOWLEDGED';
+
+      let targetAlert = null;
+      if (parsed.sosId && !isNaN(Number(parsed.sosId)) && Number(parsed.sosId) > 0) {
+        targetAlert = await SosModel.getById(Number(parsed.sosId)).catch(() => null);
+      }
+      if (!targetAlert && parsed.residentId && Number(parsed.residentId) > 0) {
+        targetAlert = await SosModel.getActiveByResidentId(Number(parsed.residentId)).catch(() => null);
+      }
+
+      // Resolve rescuer user_id from staff table if name matches
+      let rescuerUserId = null;
+      try {
+        const [stRows] = await db.execute(
+          `SELECT user_id FROM staff WHERE LOWER(TRIM(CONCAT_WS(' ', first_name, last_name))) = LOWER(?) LIMIT 1`,
+          [responderName]
+        ).catch(() => [[]]);
+        if (stRows && stRows[0] && stRows[0].user_id) {
+          rescuerUserId = Number(stRows[0].user_id);
+        }
+      } catch (_) {}
+
+      if (targetAlert && targetAlert.id) {
+        const loraNote = `Updated via Rescuer LoRa Node (${responderName} • 433.875 MHz)`;
+        try {
+          if (rescuerUserId) {
+            await db.execute(
+              `UPDATE sos_alerts SET status = ?, handled_by = COALESCE(handled_by, ?), responder_notes = ?, updated_at = NOW() WHERE id = ?`,
+              [cleanStatus, rescuerUserId, loraNote, targetAlert.id]
+            );
+          } else {
+            await db.execute(
+              `UPDATE sos_alerts SET status = ?, responder_notes = ?, updated_at = NOW() WHERE id = ?`,
+              [cleanStatus, loraNote, targetAlert.id]
+            );
+          }
+        } catch (dbErr) {
+          console.warn('[LoRa ACK] DB update warning:', dbErr.message);
+        }
+
+        const updatedAlert = (await SosModel.getById(targetAlert.id).catch(() => null)) || { ...targetAlert, status: cleanStatus };
+        const hasCoords = parsed.rescuerLat !== null && parsed.rescuerLng !== null;
+
+        if (cleanStatus === 'RESOLVED' || cleanStatus === 'CANCELLED') {
+          rescuerTracker.clearRescuerLocation(targetAlert.id);
+          if (req.io) {
+            req.io.to('staff_admin_channel').emit('rescuer:location_cleared', { sos_id: Number(targetAlert.id) });
+            req.io.emit('sos:resolve', { id: Number(targetAlert.id), sos_id: Number(targetAlert.id), resident_id: updatedAlert.resident_id || null, status: cleanStatus, via: 'LORA_MESH' });
+            req.io.emit('sos:update_status', { id: Number(targetAlert.id), sos_id: Number(targetAlert.id), resident_id: updatedAlert.resident_id || null, status: cleanStatus, responder_name: responderName, via: 'LORA_MESH', alert: updatedAlert });
+          }
+        } else {
+          if (hasCoords) {
+            const locPayload = {
+              sos_id: Number(targetAlert.id),
+              rescuer_user_id: rescuerUserId || updatedAlert.handled_by || null,
+              rescuer_name: responderName,
+              rescuer_role: 'Emergency Rescuer (LoRa)',
+              latitude: parsed.rescuerLat,
+              longitude: parsed.rescuerLng,
+              accuracy: 15,
+              status: cleanStatus,
+              via: 'LORA_MESH',
+              updated_at: new Date().toISOString()
+            };
+            rescuerTracker.updateRescuerLocation(targetAlert.id, locPayload);
+            if (req.io) {
+              req.io.emit('rescuer:location_update', {
+                ...locPayload,
+                resident_id: updatedAlert.resident_id || null,
+                resident_lat: Number(updatedAlert.latitude) || null,
+                resident_lng: Number(updatedAlert.longitude) || null
+              });
+            }
+          }
+          if (req.io) {
+            req.io.emit('sos:update_status', {
+              id: Number(targetAlert.id),
+              sos_id: Number(targetAlert.id),
+              resident_id: updatedAlert.resident_id ? Number(updatedAlert.resident_id) : null,
+              status: cleanStatus,
+              handled_by: updatedAlert.handled_by || rescuerUserId || null,
+              responder_name: responderName,
+              rescuer_lat: hasCoords ? parsed.rescuerLat : null,
+              rescuer_lng: hasCoords ? parsed.rescuerLng : null,
+              via: 'LORA_MESH',
+              alert: updatedAlert
+            });
+          }
+        }
+
+        return res.json({ success: true, status: cleanStatus, alert: updatedAlert, via: 'LORA_MESH' });
+      }
+
+      // Even if SOS isn't in MySQL yet (pure off-grid LoRa SOS), broadcast status update to connected clients
+      if (req.io) {
+        req.io.emit('sos:update_status', {
+          id: parsed.sosId,
+          sos_id: parsed.sosId,
+          resident_id: parsed.residentId || null,
+          status: cleanStatus,
+          responder_name: responderName,
+          rescuer_lat: parsed.rescuerLat,
+          rescuer_lng: parsed.rescuerLng,
+          via: 'LORA_MESH'
+        });
+      }
+      return res.json({ success: true, status: cleanStatus, via: 'LORA_MESH' });
+    }
 
     // Handle CANCEL packet
     if (parsed.statusCode === 'CAN' || parsed.command === 'CANCEL_SOS') {

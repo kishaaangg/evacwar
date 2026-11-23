@@ -93,6 +93,7 @@ public class LoraMeshService extends Service {
     private static final int SERVICE_NOTIFICATION_ID   = 4331;
     private static final int EMERGENCY_NOTIFICATION_ID = 4339;
     private static final int WEATHER_NOTIFICATION_ID   = 4345;
+    private static final int RESCUER_SOS_NOTIFICATION_ID = 4350;
     private static final int CHAT_NOTIFICATION_ID      = 8800;
     private static final String SERVICE_CHANNEL_ID           = "lora-mesh-service-channel";
     private static final String EMERGENCY_RED_CHANNEL_ID     = "evw_emergency_red_v4";
@@ -139,6 +140,12 @@ public class LoraMeshService extends Service {
         }
         if (role != null && !role.trim().isEmpty()) {
             activeUserRole = role.trim();
+            try {
+                if (instance != null) {
+                    instance.getSharedPreferences("evakwar_prefs", Context.MODE_PRIVATE)
+                            .edit().putString("user_role", activeUserRole).apply();
+                }
+            } catch (Exception ignored) {}
         }
     }
 
@@ -908,6 +915,15 @@ public class LoraMeshService extends Service {
                 // Trigger standard EvakWar notification
                 showChatNotificationStatic(LoraMeshService.this, msgId, sRole, sName, text);
             } catch (Exception ignored) {}
+        } else if (packet.startsWith("EVW|SOS|")) {
+            // EVW|SOS|msgId|resId|lat,lng,acc|pinMode|vuln|status|name -> High-priority Rescuer LoRa SOS alert
+            try {
+                String[] parts = packet.split("\\|");
+                String msgId = parts.length > 2 ? parts[2].trim() : String.valueOf(System.currentTimeMillis());
+                String coords = parts.length > 4 ? parts[4].trim() : "";
+                String resName = parts.length > 8 ? parts[8].trim() : "Resident in Distress";
+                showRescuerSosNotificationStatic(LoraMeshService.this, msgId, resName, coords);
+            } catch (Exception ignored) {}
         } else if (packet.startsWith("EVW|WTH_ALT|")) {
             // EVW|WTH_ALT|id|tsSec|temp|hum|press|summary -> Notify only, NO SIREN, tap opens Weather page
             try {
@@ -1227,6 +1243,61 @@ public class LoraMeshService extends Service {
                     .setContentIntent(pi);
 
             nm.notify(WEATHER_NOTIFICATION_ID, nb.build());
+        } catch (Exception ignored) {}
+    }
+
+    public static void showRescuerSosNotificationStatic(Context context, String msgId, String residentName, String coords) {
+        if (context == null) return;
+        try {
+            String role = activeUserRole;
+            if (role == null || role.trim().isEmpty()) {
+                SharedPreferences prefs = context.getSharedPreferences("evakwar_prefs", Context.MODE_PRIVATE);
+                role = prefs.getString("user_role", "");
+            }
+            String roleLower = role != null ? role.trim().toLowerCase() : "";
+            // Strictly notify Rescuer / Staff / Admin accounts only (never alert other residents)
+            if (!roleLower.contains("rescuer") && !roleLower.contains("staff") && !roleLower.contains("admin")) {
+                return;
+            }
+
+            if (msgId != null && !msgId.trim().isEmpty()) {
+                String dedupeKey = "SOS_" + msgId.trim();
+                if (mutedAlertKeys.contains(dedupeKey)) return;
+                mutedAlertKeys.add(dedupeKey);
+            }
+
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (launchIntent == null) launchIntent = new Intent(context, MainActivity.class);
+            launchIntent.setAction(Intent.ACTION_MAIN);
+            launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            launchIntent.putExtra("navigate_to", "/rescuer/map");
+            launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                piFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getActivity(context, 209, launchIntent, piFlags);
+
+            String cleanName = (residentName != null && !residentName.isEmpty()) ? residentName : "Resident in Distress";
+            String coordNote = (coords != null && !coords.isEmpty()) ? (" • GPS " + coords) : "";
+            String notifTitle = "🚨 LoRa SOS: " + cleanName;
+            String notifBody = "Received via 433.875 MHz Rescuer Node" + coordNote + ". Tap to open SOS Map & acknowledge.";
+
+            NotificationCompat.Builder nb = new NotificationCompat.Builder(context, EMERGENCY_OTHER_CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                    .setContentTitle(notifTitle)
+                    .setContentText(notifBody)
+                    .setStyle(new NotificationCompat.BigTextStyle().setBigContentTitle(notifTitle).bigText(notifBody))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setAutoCancel(true)
+                    .setContentIntent(pi);
+
+            nm.notify(RESCUER_SOS_NOTIFICATION_ID, nb.build());
         } catch (Exception ignored) {}
     }
 
