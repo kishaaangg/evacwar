@@ -14,8 +14,14 @@ const {
 } = require('../utils/validators');
 const { setNoCacheHeaders } = require('../middleware/authMiddleware');
 
-exports.getWelcome = (_req, res) => {
+exports.getWelcome = (req, res) => {
   setNoCacheHeaders(res);
+  // Inside the native Android APK WebView, skip the public website Welcome/Download page and go straight to /login
+  const ua = String((req && req.headers && req.headers['user-agent']) || '');
+  const isAndroidAppWebView = /; wv\)/i.test(ua) || String((req && req.headers && req.headers['x-requested-with']) || '').includes('ph.gov.baao.evakwar');
+  if (isAndroidAppWebView) {
+    return res.redirect('/login');
+  }
   res.render("auth/welcome", {
     ...sharedSimData(),
     user: res.locals.user || { name: "Guest", role: "guest" },
