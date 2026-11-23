@@ -29,12 +29,15 @@ exports.getWelcome = (req, res) => {
   });
 };
 
-exports.getLogin = (_req, res) => {
+exports.getLogin = (req, res) => {
   setNoCacheHeaders(res);
+  const ua = String((req && req.headers && req.headers['user-agent']) || '');
+  const isNativeApp = /; wv\)/i.test(ua) || String((req && req.headers && req.headers['x-requested-with']) || '').includes('ph.gov.baao.evakwar');
   res.render("auth/login", {
     ...sharedSimData(),
+    isNativeApp,
     user: res.locals.user || { name: "Guest", role: "guest" },
-    page: { title: "Login" }
+    page: { title: isNativeApp ? "EvakWar Login" : "Login" }
   });
 };
 

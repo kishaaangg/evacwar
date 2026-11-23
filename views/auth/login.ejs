@@ -34,8 +34,8 @@
             class="hidden md:flex w-16 h-16 bg-blue-600 rounded-2xl items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30 transform hover:scale-105 transition-transform">
             <i class="ph ph-shield-check text-3xl text-white"></i>
           </div>
-          <h1 class="text-2xl sm:text-3xl font-black font-heading text-slate-900 mb-1">Admin Portal Login</h1>
-          <p class="text-xs sm:text-sm text-slate-500 font-medium">Sign in to the Evacwar Command Center</p>
+          <h1 id="loginHeading" class="text-2xl sm:text-3xl font-black font-heading text-slate-900 mb-1"><%= locals.isNativeApp ? 'EvakWar Login' : 'Admin Portal Login' %></h1>
+          <p id="loginSubtitle" class="text-xs sm:text-sm text-slate-500 font-medium"><%= locals.isNativeApp ? 'Sign in as Resident, Staff, or Rescuer' : 'Sign in to the Evacwar Command Center' %></p>
         </div>
 
         <!-- Inline success toast for registration -->
@@ -96,6 +96,35 @@
             <i class="ph ph-arrow-right font-bold text-base"></i>
           </button>
         </form>
+
+        <!-- Resident Registration Link (Visible in Native Mobile App) -->
+        <div id="nativeRegisterRow" class="<%= locals.isNativeApp ? '' : 'hidden' %> mt-5 pt-4 border-t border-slate-100 text-center">
+          <p class="text-xs text-slate-500 font-medium">
+            Don't have a resident account yet?
+            <a href="/register" class="font-extrabold text-blue-600 hover:text-blue-700 underline ml-1">Register Here</a>
+          </p>
+        </div>
+
+        <script>
+          // Also enforce Resident/Multi-User Login branding on client if running inside Android WebView bridge
+          (function () {
+            const isNative = Boolean(
+              typeof window.AndroidBleBridge !== 'undefined' ||
+              typeof window.AndroidSettingsBridge !== 'undefined' ||
+              typeof window.AndroidUsbSerialBridge !== 'undefined' ||
+              (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+              /; wv\)/i.test(navigator.userAgent || '')
+            );
+            if (isNative) {
+              const h = document.getElementById('loginHeading');
+              const s = document.getElementById('loginSubtitle');
+              const r = document.getElementById('nativeRegisterRow');
+              if (h) h.textContent = 'EvakWar Login';
+              if (s) s.textContent = 'Sign in as Resident, Staff, or Rescuer';
+              if (r) r.classList.remove('hidden');
+            }
+          })();
+        </script>
 
         <script>
           function togglePasswordVisibility(fieldId, btn) {
