@@ -2323,21 +2323,34 @@
       if (!Array.isArray(centersList) || centersList.length === 0) return null;
 
       const SAN_RAFAEL_DEFAULT = { lat: 13.51037, lng: 123.3481, isFallback: true };
-      const getUserCoords = () => new Promise((resolve) => {
-        if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number' && !window._lastKnownUserGps.isFallback) {
-          return resolve(window._lastKnownUserGps);
+      const getUserCoords = async () => {
+        const capGeo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+        if (capGeo && typeof capGeo.getCurrentPosition === 'function') {
+          try {
+            const pos = await capGeo.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 });
+            if (pos && pos.coords && Number.isFinite(pos.coords.latitude)) {
+              const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
+              window._lastKnownUserGps = c;
+              return c;
+            }
+          } catch (_) {}
         }
-        if (!navigator.geolocation) return resolve(SAN_RAFAEL_DEFAULT);
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
-            window._lastKnownUserGps = c;
-            resolve(c);
-          },
-          () => resolve(window._lastKnownUserGps || SAN_RAFAEL_DEFAULT),
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
-        );
-      });
+        if (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number' && typeof window._lastKnownUserGps.lng === 'number' && !window._lastKnownUserGps.isFallback) {
+          return window._lastKnownUserGps;
+        }
+        return await new Promise((resolve) => {
+          if (!navigator.geolocation) return resolve(SAN_RAFAEL_DEFAULT);
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, isFallback: false };
+              window._lastKnownUserGps = c;
+              resolve(c);
+            },
+            () => resolve(window._lastKnownUserGps || SAN_RAFAEL_DEFAULT),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+          );
+        });
+      };
 
       const userPos = await getUserCoords();
       let nearest = null;
