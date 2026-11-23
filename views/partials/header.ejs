@@ -2353,16 +2353,51 @@
       };
 
       const userPos = await getUserCoords();
+      const validCenters = centersList
+        .map(center => {
+          if (!center) return null;
+          const cLat = parseFloat(center.latitude);
+          const cLng = parseFloat(center.longitude);
+          if (isNaN(cLat) || isNaN(cLng)) return null;
+          return { ...center, latitude: cLat, longitude: cLng, distanceKm: window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng) };
+        })
+        .filter(Boolean);
+
+      // When online, compute exact real road-route distances via OSRM Table API so the nearest center
+      // matches actual road travel distance (not straight-line coordinates)!
+      if (typeof navigator !== 'undefined' && navigator.onLine && validCenters.length > 0) {
+        try {
+          const coordStr = [
+            `${userPos.lng},${userPos.lat}`,
+            ...validCenters.map(c => `${c.longitude},${c.latitude}`)
+          ].join(';');
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 4500);
+          const resp = await fetch(
+            `https://router.project-osrm.org/table/v1/driving/${coordStr}?sources=0&annotations=distance`,
+            { signal: ctrl.signal }
+          );
+          clearTimeout(timer);
+          if (resp.ok) {
+            const data = await resp.json();
+            const row = data && Array.isArray(data.distances) && Array.isArray(data.distances[0]) ? data.distances[0] : null;
+            if (row && row.length >= validCenters.length + 1) {
+              validCenters.forEach((c, idx) => {
+                const roadMeters = row[idx + 1];
+                if (typeof roadMeters === 'number' && Number.isFinite(roadMeters) && roadMeters >= 0) {
+                  c.distanceKm = roadMeters / 1000;
+                }
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
       let nearest = null;
       let bestScore = Infinity;
 
-      centersList.forEach((center) => {
-        if (!center) return;
-        const cLat = parseFloat(center.latitude);
-        const cLng = parseFloat(center.longitude);
-        if (isNaN(cLat) || isNaN(cLng)) return;
-
-        const distKm = window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng);
+      validCenters.forEach((center) => {
+        const distKm = center.distanceKm;
         const distEl = document.getElementById(`distance-${center.id}`);
         if (distEl) distEl.textContent = `${distKm.toFixed(2)} km`;
         const popDistEl = document.getElementById(`popup-dist-${center.id}`);
@@ -2375,7 +2410,7 @@
         const score = isFull ? (distKm + 50) : distKm;
         if (score < bestScore) {
           bestScore = score;
-          nearest = { ...center, latitude: cLat, longitude: cLng, distanceKm: distKm };
+          nearest = center;
         }
       });
 
