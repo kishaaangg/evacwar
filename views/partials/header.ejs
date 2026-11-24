@@ -3087,8 +3087,81 @@
           </button>
         </div>
 
-        <!-- Connection Choices (Internet vs LoRa Bluetooth) -->
+        <!-- Connection Choices (Role-Aware: Admin Laptop USB Gateway vs Mobile Resident/Rescuer/Staff) -->
         <div class="p-5 space-y-3">
+          <% if (user && user.role === 'admin') { %>
+          <!-- ADMIN 1. LoRa USB Gateway (Plugged to Laptop - Works WITH or WITHOUT Wi-Fi!) -->
+          <div class="p-3.5 rounded-2xl bg-slate-800/80 border border-cyan-500/40 hover:border-cyan-400 transition-all flex flex-col gap-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-400/30">
+                  <i class="ph ph-plugs-connected text-xl"></i>
+                </div>
+                <div>
+                  <div class="font-black text-xs sm:text-sm text-white flex items-center gap-1.5 flex-wrap">
+                    <span>1. LoRa Gateway (USB Cable / COM Port)</span>
+                    <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300">Recommended • Works with Wi-Fi</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Plug the Admin ESP32 LoRa node into your laptop via USB. Receives &amp; sends 433.875 MHz LoRa SOS, Alerts, and Chat — works alongside Wi-Fi or 100% offline.</p>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-1 border-t border-white/5">
+              <button type="button" onclick="window.connectGlobalLoraOtg && window.connectGlobalLoraOtg();"
+                class="flex-1 py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm">
+                <i class="ph ph-usb text-sm"></i> Connect LoRa USB Gateway
+              </button>
+            </div>
+          </div>
+
+          <!-- ADMIN 2. LoRa Mesh (Bluetooth Wireless Backup) -->
+          <div class="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-indigo-500/60 transition-all flex flex-col gap-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-400/30">
+                  <i class="ph ph-bluetooth text-xl"></i>
+                </div>
+                <div>
+                  <div class="font-black text-xs sm:text-sm text-white flex items-center gap-1.5 flex-wrap">
+                    <span>2. LoRa Mesh (Bluetooth)</span>
+                    <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300">Wireless Backup</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Connect wirelessly to a nearby ESP32 LoRa node via laptop Bluetooth. PIN: <code>123456</code></p>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-1 border-t border-white/5">
+              <button type="button" onclick="window.connectGlobalLoraBle && window.connectGlobalLoraBle(); window.closeLoraHardwarePicker();"
+                class="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
+                <i class="ph ph-bluetooth text-sm"></i> Connect LoRa (Bluetooth)
+              </button>
+            </div>
+          </div>
+
+          <!-- ADMIN 3. Internet / Cloud Server Sync -->
+          <div class="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-emerald-500/60 transition-all flex flex-col gap-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-400/30">
+                  <i class="ph ph-globe text-xl"></i>
+                </div>
+                <div>
+                  <div class="font-black text-xs sm:text-sm text-white flex items-center gap-1.5 flex-wrap">
+                    <span>3. Internet (Wi-Fi / Cloud Server)</span>
+                    <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">Dual-Mode Ready</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Keep Wi-Fi ON to receive online SOS &amp; alerts while your USB LoRa Gateway handles offline nodes simultaneously.</p>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-1 border-t border-white/5">
+              <button type="button" onclick="window.switchToInternetMode && window.switchToInternetMode();"
+                class="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer">
+                <i class="ph ph-arrows-clockwise text-sm"></i> Refresh Cloud &amp; Gateway Status
+              </button>
+            </div>
+          </div>
+          <% } else { %>
           <!-- 1. Internet (Wi-Fi / Mobile Data) -->
           <div class="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-emerald-500/60 transition-all flex flex-col gap-2.5">
             <div class="flex items-center justify-between">
@@ -3144,6 +3217,7 @@
               </button>
             </div>
           </div>
+          <% } %>
         </div>
 
         <div class="px-5 py-3 bg-slate-950/60 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
