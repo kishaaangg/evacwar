@@ -85,15 +85,6 @@
                     <span class="hidden xl:inline">My Location</span>
                   </button>
 
-                  <!-- Rescuer LoRa Node Status / Quick Pair Pill -->
-                  <button id="rescuerLoraNodePill" type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
-                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-purple-50 text-purple-800 border border-purple-200/90 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
-                    title="Connect / Status of Rescuer 433.875 MHz LoRa Node">
-                    <span id="rescuerLoraDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <i class="ph ph-broadcast text-sm text-purple-600"></i>
-                    <span id="rescuerLoraText">LoRa Node</span>
-                  </button>
-
                   <!-- Rescue Multi-Stop Path Auto-Router Button (Rescuer SOS Only — No Nearest Evac) -->
                   <button id="btnRescuerMultiRoute" type="button" onclick="window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
                     class="bg-rose-600 hover:bg-rose-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
@@ -407,9 +398,9 @@
                               </div>
                               <% } else if (alert.status==='ACTIVE' ) { %>
                                 <div
-                                  class="bg-white/90 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
-                                  <i class="ph ph-clock text-red-500 shrink-0"></i>
-                                  <span>Situation: <strong>Awaiting Staff Acknowledgment</strong></span>
+                                  class="bg-emerald-50/90 rounded-xl p-2 border border-emerald-200 text-xs flex items-center gap-1.5 text-emerald-800 shadow-2xs">
+                                  <i class="ph ph-sparkle-fill text-emerald-600 shrink-0"></i>
+                                  <span><strong>Auto-Assigned to Your Unit (Nearest Rescuer)</strong></span>
                                 </div>
                                 <% } %>
 
@@ -434,19 +425,13 @@
                                         <span>Assigned to <strong class="text-slate-800"><%= alert.handler_name || 'Another Rescuer' %></strong></span>
                                       </div>
                                     <% } else { %>
-                                      <% if (alert.status==='ACTIVE' ) { %>
+                                      <% if (alert.status==='ACTIVE' || alert.status==='ACKNOWLEDGED' ) { %>
                                         <button type="button" data-sos-id="<%= alert.id %>"
-                                          data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)"
-                                          class="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
-                                          <i class="ph ph-check-circle"></i> Acknowledge
+                                          data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)"
+                                          class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
+                                          <i class="ph ph-navigation-arrow"></i> Start Rescue &amp; Route
                                         </button>
-                                        <% } else if (alert.status==='ACKNOWLEDGED' ) { %>
-                                          <button type="button" data-sos-id="<%= alert.id %>"
-                                            data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)"
-                                            class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
-                                            <i class="ph ph-navigation-arrow"></i> Dispatch Rescuer
-                                          </button>
-                                          <% } else if (alert.status==='RESPONDING' ) { %>
+                                        <% } else if (alert.status==='RESPONDING' ) { %>
                                             <button type="button" data-sos-id="<%= alert.id %>" data-next-status="RESCUED"
                                               onclick="handleSosLifecycleBtn(this)"
                                               class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer">
@@ -612,11 +597,24 @@
         return staffInfoWindow;
       }
 
+      function getActiveRescuerIdentity() {
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null'); } catch (_) {}
+        const uid = Number((cached && (cached.user_id || cached.userId)) || window.currentUserId || localStorage.getItem('evw_user_id') || 0);
+        const name = (cached && (cached.full_name || `${cached.first_name || ''} ${cached.last_name || ''}`.trim())) || localStorage.getItem('evw_user_full_name') || "<%= locals.user ? locals.user.name : 'Emergency Rescuer' %>";
+        const rawPhoto = (cached && cached.profile_photo) || "<%= (locals.staffMember && staffMember.profile_photo) ? staffMember.profile_photo : '' %>";
+        const photo = (typeof window.resolveEvakWarProfilePhotoUrl === 'function')
+          ? window.resolveEvakWarProfilePhotoUrl(rawPhoto)
+          : (typeof resolveSosPhotoUrl === 'function' ? resolveSosPhotoUrl(rawPhoto) : rawPhoto);
+        return { userId: uid, name: name || 'Emergency Rescuer', photo: photo || null };
+      }
+
       function updateStaffLiveLocation(coords, autoFly = false, targetMap = null) {
         if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
         const { latitude, longitude, accuracy } = coords;
         lastKnownRescuerCoords = coords;
         window._lastKnownUserGps = { lat: latitude, lng: longitude, isFallback: false };
+        const me = getActiveRescuerIdentity();
 
         // Report live standby GPS to backend so nearest-rescuer auto-assign always uses real coordinates
         const nowPing = Date.now();
@@ -625,13 +623,26 @@
           try {
             const sock = window.__staffSocket || window.__appSocket;
             if (sock && sock.connected) {
-              sock.emit('rescuer:standby_location', { latitude, longitude, accuracy: accuracy || 0 });
+              sock.emit('rescuer:standby_location', {
+                userId: me.userId,
+                rescuer_name: me.name,
+                rescuer_photo: me.photo,
+                latitude,
+                longitude,
+                accuracy: accuracy || 0
+              });
             }
             if (navigator.onLine) {
               fetch('/api/sos/rescuer/location', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ latitude, longitude, accuracy: accuracy || 0 })
+                body: JSON.stringify({
+                  rescuer_name: me.name,
+                  rescuer_photo: me.photo,
+                  latitude,
+                  longitude,
+                  accuracy: accuracy || 0
+                })
               }).catch(() => {});
             }
           } catch (_) {}
@@ -642,7 +653,7 @@
 
         const activeMap = targetMap || mapInstance;
 
-        // MapLibre handler
+        // MapLibre handler — always render Rescuer's Profile Picture Marker instead of plain blue dot
         if (activeMap && typeof activeMap.getLayer === 'function') {
           if (autoFly && typeof activeMap.flyTo === 'function') {
             activeMap.flyTo({
@@ -655,7 +666,7 @@
           }
           const popupHtml = `
             <div style="font-family: system-ui; padding: 6px; text-align: center;">
-              <div style="font-weight: 800; color: #1e293b; font-size: 13px;">Rescuer Location</div>
+              <div style="font-weight: 800; color: #1e293b; font-size: 13px;">${me.name} (You)</div>
               <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 2px;">Accuracy: ±${Math.round(accuracy || 0)}m</div>
               <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">${latitude.toFixed(5)}, ${longitude.toFixed(5)}</div>
             </div>
@@ -665,11 +676,27 @@
             if (userGpsMarker.getPopup && userGpsMarker.getPopup()) {
               userGpsMarker.getPopup().setHTML(popupHtml);
             }
+            // Refresh profile photo inside existing marker element if photo loaded after initial boot
+            if (me.photo && typeof userGpsMarker.getElement === 'function') {
+              const mEl = userGpsMarker.getElement();
+              const existingImg = mEl && mEl.querySelector('.evw-rescuer-marker-img');
+              if (!existingImg && typeof window.createMaplibreRescuerMarkerEl === 'function') {
+                const freshEl = window.createMaplibreRescuerMarkerEl({ isSelf: true, rescuer_name: me.name, rescuer_photo: me.photo });
+                mEl.innerHTML = freshEl.innerHTML;
+              } else if (existingImg && existingImg.getAttribute('src') !== me.photo) {
+                existingImg.setAttribute('src', me.photo);
+                existingImg.style.display = 'block';
+                const initDiv = mEl.querySelector('.evw-rescuer-marker-initials');
+                if (initDiv) initDiv.style.display = 'none';
+              }
+            }
           } else if (typeof maplibregl !== 'undefined') {
-            const el = typeof window.createMaplibreGpsMarkerEl === 'function' ? window.createMaplibreGpsMarkerEl() : document.createElement('div');
-            userGpsMarker = new maplibregl.Marker({ element: el })
+            const el = typeof window.createMaplibreRescuerMarkerEl === 'function'
+              ? window.createMaplibreRescuerMarkerEl({ isSelf: true, rescuer_name: me.name, rescuer_photo: me.photo })
+              : (typeof window.createMaplibreGpsMarkerEl === 'function' ? window.createMaplibreGpsMarkerEl() : document.createElement('div'));
+            userGpsMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
               .setLngLat([longitude, latitude])
-              .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(popupHtml))
+              .setPopup(new maplibregl.Popup({ offset: 22 }).setHTML(popupHtml))
               .addTo(activeMap);
           }
           return;
@@ -1266,6 +1293,21 @@
 
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
+
+        // Automatically plot Rescuer's Profile Picture GPS Marker on map load and start live GPS tracking
+        try {
+          const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+          if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
+            updateStaffLiveLocation({ latitude: Number(lastGps.lat), longitude: Number(lastGps.lng), accuracy: Number(lastGps.acc || 15) }, false, map);
+          } else {
+            updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+          }
+        } catch (_) {
+          updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+        }
+        setTimeout(() => {
+          locateStaffUser(map, false);
+        }, 400);
       }
 
       // Audio Chime generator using Web Audio API
@@ -1446,11 +1488,42 @@
 
         const sosId = (sosAlert.id !== undefined && sosAlert.id !== null) ? sosAlert.id : (sosAlert.sos_id !== undefined && sosAlert.sos_id !== null ? sosAlert.sos_id : null);
         const resId = (sosAlert.resident_id !== undefined && sosAlert.resident_id !== null) ? sosAlert.resident_id : (sosAlert.residentId || null);
-        const status = (sosAlert.status || 'ACTIVE').toUpperCase();
+        let status = (sosAlert.status || 'ACTIVE').toUpperCase();
 
         if (status === 'RESOLVED' || status === 'CANCELLED') {
           removeSosMarker(sosId, resId);
           return;
+        }
+
+        // Seamless Auto-Assignment on Rescuer Map: if an active SOS arrives without a handler yet, auto-match to this Rescuer Unit!
+        const me = getActiveRescuerIdentity();
+        const withinBgy = (typeof window.isInsideBarangaySanRafael === 'function') ? window.isInsideBarangaySanRafael(lat, lng) : true;
+        if (withinBgy && status === 'ACTIVE' && !sosAlert.handled_by && !sosAlert.handler_name && !sosAlert.responder_name) {
+          status = 'ACKNOWLEDGED';
+          sosAlert.status = 'ACKNOWLEDGED';
+          sosAlert.handled_by = me.userId || sosAlert.handled_by || null;
+          sosAlert.handler_name = me.name;
+          sosAlert.responder_name = me.name;
+          sosAlert.rescuer_photo = me.photo || null;
+          sosAlert.handler_photo = me.photo || null;
+          sosAlert.auto_assigned = true;
+
+          // Sync auto-assignment to server / LoRa in background (once per SOS ID)
+          window.__autoClaimedSosIds = window.__autoClaimedSosIds || new Set();
+          const claimKey = String(sosId || resId || '');
+          if (claimKey && !window.__autoClaimedSosIds.has(claimKey)) {
+            window.__autoClaimedSosIds.add(claimKey);
+            const rCoords = (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number')
+              ? { lat: window._lastKnownUserGps.lat, lng: window._lastKnownUserGps.lng }
+              : { lat: 13.51037, lng: 123.34810 };
+            if (navigator.onLine && sosId && !String(sosId).startsWith('lora_')) {
+              fetch('/rescuer/sos/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: sosId, status: 'ACKNOWLEDGED', rescuer_lat: rCoords.lat, rescuer_lng: rCoords.lng })
+              }).catch(() => {});
+            }
+          }
         }
 
         const resName = (sosAlert.first_name ? `${sosAlert.first_name} ${sosAlert.last_name || ''}`.trim() : (sosAlert.name || 'Resident in Distress'));
@@ -1492,6 +1565,7 @@
             item.popupHtml = popupHtml;
             item.id = sosId || item.id;
             item.resident_id = resId || item.resident_id;
+            item.alertData = Object.assign({}, item.alertData || {}, sosAlert);
 
             // If status changed, update marker element styling
             if (item.status !== status && typeof window.createMaplibreSosMarkerEl === 'function') {
@@ -1558,7 +1632,8 @@
               id: sosId,
               resident_id: resId,
               popupHtml,
-              status
+              status,
+              alertData: Object.assign({}, sosAlert)
             };
             if (openPopup) {
               marker.togglePopup();
@@ -1779,29 +1854,29 @@
           statusBadgeClass = 'bg-emerald-600 text-white';
         }
 
-        const handlerName = alert.handler_name || alert.responder_name || (alert.handler ? alert.handler.name : null);
+        const me = getActiveRescuerIdentity();
+        const handlerName = alert.handler_name || alert.responder_name || (alert.handler ? alert.handler.name : null) || me.name;
         const handlerContact = alert.handler_contact || (alert.handler ? alert.handler.contact : null);
+        const handlerPhoto = resolveSosPhotoUrl(alert.rescuer_photo || alert.handler_photo || (isMine ? me.photo : null));
+        const handlerInitial = (handlerName || 'R').charAt(0).toUpperCase();
+        const handlerAvatarHtml = handlerPhoto
+          ? `<img src="${handlerPhoto}" class="w-5 h-5 rounded-full object-cover border border-emerald-500 shrink-0" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" /><span class="hidden w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">${handlerInitial}</span>`
+          : `<span class="w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">${handlerInitial}</span>`;
+
         let handlerBoxHtml = '';
         if (handlerName) {
           const isAutoEnRoute = String(alert.responder_notes || '').toLowerCase().includes('en-route') || alert.auto_assigned_type === 'EN_ROUTE_MULTI_RESCUE';
           handlerBoxHtml = `
             <div class="bg-white/95 rounded-xl p-2 border ${isOther ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200'} text-xs flex items-center justify-between gap-2 shadow-2xs">
               <div class="flex items-center gap-1.5 min-w-0">
-                <i class="ph ${isOther ? 'ph-user-circle text-amber-600' : 'ph-user-check text-emerald-600'} font-bold shrink-0"></i>
-                <span class="text-slate-600 truncate">${isMine ? (isAutoEnRoute ? '<strong class="text-indigo-700">Auto-Assigned Along Path (You)</strong>' : '<strong class="text-emerald-700">Auto-Assigned Nearest (You)</strong>') : `Assigned: <strong class="text-slate-900">${handlerName}</strong>`}</span>
+                ${handlerAvatarHtml}
+                <span class="text-slate-600 truncate">${(isMine || !isAssigned) ? (isAutoEnRoute ? `<strong class="text-indigo-700">Auto-Assigned Along Path: ${handlerName} (You)</strong>` : `<strong class="text-emerald-700">Auto-Assigned Nearest: ${handlerName} (You)</strong>`) : `Auto-Assigned: <strong class="text-slate-900">${handlerName}</strong>`}</span>
               </div>
               ${handlerContact ? `
                 <a href="tel:${handlerContact}" class="text-blue-600 hover:underline font-mono font-bold shrink-0 flex items-center gap-0.5">
                   <i class="ph ph-phone text-[10px]"></i> ${handlerContact}
                 </a>
               ` : ''}
-            </div>
-          `;
-        } else if (status === 'ACTIVE') {
-          handlerBoxHtml = `
-            <div class="bg-white/95 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
-              <i class="ph ph-siren text-red-500 shrink-0"></i>
-              <span>Awaiting nearest rescuer acknowledgment</span>
             </div>
           `;
         }
@@ -1822,9 +1897,7 @@
           `;
         } else {
           let primaryBtnHtml = '';
-          if (status === 'ACTIVE') {
-            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-check-circle"></i> Acknowledge</button>`;
-          } else if (status === 'ACKNOWLEDGED') {
+          if (status === 'ACTIVE' || status === 'ACKNOWLEDGED') {
             primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-navigation-arrow"></i> Start Rescue &amp; Route</button>`;
           } else if (status === 'RESPONDING') {
             primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESCUED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-shield-check"></i> Mark Rescued</button>`;
@@ -2132,30 +2205,6 @@
         }
         setTimeout(hydrateOfflineLoraSosOnMap, 650);
 
-        // Live Rescuer LoRa Node Pill Sync
-        function updateRescuerLoraNodePill() {
-          const pill = document.getElementById('rescuerLoraNodePill');
-          const dot = document.getElementById('rescuerLoraDot');
-          const txt = document.getElementById('rescuerLoraText');
-          if (!pill || !dot || !txt) return;
-          const lora = window.evakwarLoraClient;
-          const isBle = Boolean(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
-          const isUsb = Boolean(window.AndroidUsbSerialBridge && typeof window.AndroidUsbSerialBridge.isConnected === 'function' && window.AndroidUsbSerialBridge.isConnected());
-          const isConnected = isBle || isUsb || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL'));
-          if (isConnected) {
-            pill.className = 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer';
-            dot.className = 'w-2 h-2 rounded-full bg-emerald-200 animate-pulse';
-            txt.textContent = isUsb ? 'LoRa USB' : 'LoRa Live';
-          } else {
-            pill.className = 'bg-white/95 backdrop-blur-md shadow-md hover:bg-purple-50 text-purple-800 border border-purple-200/90 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer';
-            dot.className = 'w-2 h-2 rounded-full bg-amber-400';
-            txt.textContent = 'Pair LoRa';
-          }
-        }
-        updateRescuerLoraNodePill();
-        setInterval(updateRescuerLoraNodePill, 2500);
-        window.addEventListener('evakwar:lora-status', updateRescuerLoraNodePill);
-
         window.addEventListener('evakwar:lora-sos', function (ev) {
           const pkt = ev && ev.detail;
           if (!pkt) return;
@@ -2444,6 +2493,21 @@
 
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
+
+        // Automatically plot Rescuer's Profile Picture GPS Marker on map load and start live GPS tracking
+        try {
+          const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+          if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
+            updateStaffLiveLocation({ latitude: Number(lastGps.lat), longitude: Number(lastGps.lng), accuracy: Number(lastGps.acc || 15) }, false, map);
+          } else {
+            updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+          }
+        } catch (_) {
+          updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+        }
+        setTimeout(() => {
+          locateStaffUser(map, false);
+        }, 400);
       }
 
       let staffSheet = null;

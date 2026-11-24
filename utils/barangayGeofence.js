@@ -6,6 +6,7 @@
 
 const db = require('../config/db');
 const rescuerTracker = require('./rescuerTracker');
+const onlineTracker = require('./onlineTracker');
 
 // Official Barangay San Rafael (Ikpan) Boundary Polygon ([lng, lat] pairs)
 const SAN_RAFAEL_BOUNDARY_RING = [
@@ -146,15 +147,17 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
     // 1. Fetch all active/registered rescuers from database
     const [rescuerRows] = await db.execute(`
       SELECT u.id AS user_id, u.email, u.role,
-             s.id AS staff_id, s.first_name, s.last_name, s.contact_number, s.staff_type,
+             s.id AS staff_id, s.first_name, s.last_name, s.contact_number, s.staff_type, s.profile_photo, s.occupation,
              ec.latitude AS center_lat, ec.longitude AS center_lng
       FROM users u
       INNER JOIN staff s ON u.id = s.user_id
       LEFT JOIN evacuation_centers ec ON s.assigned_center_id = ec.id
       WHERE (s.staff_type IN ('RESCUER', 'BOTH') OR u.role = 'rescuer')
-        AND COALESCE(s.approval_status, 'APPROVED') = 'APPROVED'
       ORDER BY s.staff_type = 'RESCUER' DESC, u.id ASC
-    `).catch(() => [[]]);
+    `).catch((dbErr) => {
+      console.warn('[barangayGeofence] rescuer query warning:', dbErr.message);
+      return [[]];
+    });
 
     // 2. Fetch live tracked rescuer GPS positions from rescuerTracker (both active responders AND standby rescuers)
     const liveTracked = (typeof rescuerTracker.getAllKnownRescuers === 'function')
@@ -178,6 +181,8 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
     const candidates = (rescuerRows || []).map((r) => {
       const uid = Number(r.user_id);
       const tracked = liveByUserId.get(uid);
+      const isOnlineSocket = Boolean(onlineTracker && typeof onlineTracker.isUserOnline === 'function' && onlineTracker.isUserOnline(uid));
+      const isLiveOnline = Boolean(tracked || isOnlineSocket);
       const rLat = tracked && isFinite(Number(tracked.latitude))
         ? Number(tracked.latitude)
         : (isFinite(Number(r.center_lat)) && Number(r.center_lat) !== 0 ? Number(r.center_lat) : BARANGAY_HALL_COORDS.lat);
@@ -185,6 +190,10 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
         ? Number(tracked.longitude)
         : (isFinite(Number(r.center_lng)) && Number(r.center_lng) !== 0 ? Number(r.center_lng) : BARANGAY_HALL_COORDS.lng);
       const fullName = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'Emergency Rescuer';
+      let photo = (tracked && tracked.rescuer_photo) || r.profile_photo || null;
+      if (photo && !String(photo).startsWith('http') && !String(photo).startsWith('/')) {
+        photo = `/uploads/profiles/${photo}`;
+      }
       const assignedAlerts = (activeSosRows || []).filter((a) => Number(a.handled_by) === uid);
       const distKm = computeHaversineKm(rLat, rLng, nLat, nLng);
 
@@ -208,10 +217,14 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
       return {
         user_id: uid,
         name: fullName,
+        photo,
+        contact_number: r.contact_number || null,
+        role: r.occupation || 'Emergency Rescuer',
         latitude: rLat,
         longitude: rLng,
         distanceKm: distKm,
         assignedCount: assignedAlerts.length,
+        isLiveOnline,
         isEnRouteMatch,
         minDetourKm
       };
@@ -222,7 +235,10 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
     // Priority 1: A rescuer whose active path passes right through/near the new SOS ("dadaanan lang niya")
     const enRouteCandidates = candidates
       .filter((c) => c.isEnRouteMatch)
-      .sort((a, b) => a.distanceKm - b.distanceKm);
+      .sort((a, b) => {
+        if (a.isLiveOnline !== b.isLiveOnline) return a.isLiveOnline ? -1 : 1;
+        return a.distanceKm - b.distanceKm;
+      });
     if (enRouteCandidates.length > 0) {
       return {
         ...enRouteCandidates[0],
@@ -230,8 +246,9 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
       };
     }
 
-    // Priority 2: Nearest rescuer by Haversine distance (with a slight preference for unassigned rescuers if distances are very close)
+    // Priority 2: Nearest live/online rescuer first, then nearest registered rescuer by Haversine distance
     candidates.sort((a, b) => {
+      if (a.isLiveOnline !== b.isLiveOnline) return a.isLiveOnline ? -1 : 1;
       const scoreA = a.distanceKm + a.assignedCount * 0.25;
       const scoreB = b.distanceKm + b.assignedCount * 0.25;
       return scoreA - scoreB;

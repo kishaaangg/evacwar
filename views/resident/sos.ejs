@@ -847,7 +847,8 @@
                 // Compute & show Estimated Time of Arrival (ETA) immediately using Haversine formula
                 updateRescuerEtaDisplay({
                   status: (alertData && alertData.status) || 'ACTIVE',
-                  responderName: (alertData && (alertData.handler_name || alertData.responderName)) || 'Barangay Rescue Team',
+                  responderName: (alertData && (alertData.handler_name || alertData.responder_name || alertData.responderName)) || 'Barangay Rescue Team',
+                  rescuerPhoto: (alertData && (alertData.rescuer_photo || alertData.handler_photo)) || (window._lastRescuerCoords && window._lastRescuerCoords.photo) || null,
                   rescuerLat: (alertData && alertData.rescuer_lat) || window._lastRescuerCoords?.lat || 13.51037,
                   rescuerLng: (alertData && alertData.rescuer_lng) || window._lastRescuerCoords?.lng || 123.34810
                 });
@@ -862,7 +863,7 @@
                *   ETA_foot    = (d / 4.5 km/h) * 60
                */
               let rescuerMapMarker = null;
-              function updateRescuerEtaDisplay({ status = 'RESPONDING', responderName = 'Barangay Rescue Team', rescuerLat = 13.51037, rescuerLng = 123.34810 } = {}) {
+              function updateRescuerEtaDisplay({ status = 'RESPONDING', responderName = 'Barangay Rescue Team', rescuerPhoto = null, rescuerLat = 13.51037, rescuerLng = 123.34810 } = {}) {
                 const etaCard = document.getElementById('rescuerEtaCard');
                 if (!etaCard) return;
                 const st = String(status || 'ACTIVE').toUpperCase();
@@ -876,7 +877,8 @@
                 const resLng = isValidCoordinate(currentLat, currentLng) ? Number(currentLng) : 123.34701;
                 const rLat = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLat) : 13.51037;
                 const rLng = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLng) : 123.34810;
-                window._lastRescuerCoords = { lat: rLat, lng: rLng, name: responderName, status: st };
+                const resolvedPhoto = rescuerPhoto || (window._lastRescuerCoords && window._lastRescuerCoords.photo) || null;
+                window._lastRescuerCoords = { lat: rLat, lng: rLng, name: responderName, photo: resolvedPhoto, status: st };
 
                 const toRad = (deg) => (Number(deg) * Math.PI) / 180;
                 const R = 6371; // km
@@ -950,25 +952,26 @@
                     : 'text-slate-500 font-bold flex flex-col items-center gap-0.5';
                 });
 
-                // Render Moving Rescuer Pin + Live Route Line to Resident's House on #sosResidentMap
+                // Render Moving Rescuer Profile Picture Pin + Live Route Line to Resident's House on #sosResidentMap
                 if (map && typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
                   const pillText = `${responderName} • ~${vehicleEtaMins}m (${distLabel})`;
+                  const el = (typeof window.createMaplibreRescuerMarkerEl === 'function')
+                    ? window.createMaplibreRescuerMarkerEl({
+                        rescuer_name: responderName,
+                        rescuer_photo: resolvedPhoto,
+                        pill_text: pillText
+                      })
+                    : document.createElement('div');
                   if (!rescuerMapMarker) {
-                    const el = document.createElement('div');
-                    el.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none;';
-                    el.innerHTML = `
-                      <div class="rescuer-eta-pill" style="background:#0f172a;color:#34d399;border:1.5px solid #10b981;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:900;white-space:nowrap;box-shadow:0 4px 10px rgba(0,0,0,0.45);margin-bottom:3px;">${pillText}</div>
-                      <div style="width:30px;height:30px;border-radius:50%;background:#10b981;border:3px solid #ffffff;box-shadow:0 0 14px rgba(16,185,129,0.9);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:15px;font-weight:900;">
-                        <i class="ph ph-navigation-arrow"></i>
-                      </div>
-                    `;
                     rescuerMapMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
                       .setLngLat([rLng, rLat])
                       .addTo(map);
                   } else {
                     rescuerMapMarker.setLngLat([rLng, rLat]);
-                    const pillEl = rescuerMapMarker.getElement && rescuerMapMarker.getElement().querySelector('.rescuer-eta-pill');
-                    if (pillEl) pillEl.textContent = pillText;
+                    const mEl = rescuerMapMarker.getElement && rescuerMapMarker.getElement();
+                    if (mEl) {
+                      mEl.innerHTML = el.innerHTML;
+                    }
                   }
 
                   // Draw / update live dashed route line between Rescuer GPS and Resident GPS
@@ -1366,6 +1369,7 @@
                     }
                     setSosNormalState();
                   } else {
+                    const rPhoto = data.rescuer_photo || data.handler_photo || (data.alert && (data.alert.rescuer_photo || data.alert.handler_photo)) || null;
                     if (!activeSosAlert && isMine) {
                       setSosActiveState({
                         id: data.id || data.sos_id || Date.now(),
@@ -1375,15 +1379,17 @@
                         longitude: currentLng || 123.34701,
                         status: status,
                         responder_name: responder,
+                        rescuer_photo: rPhoto,
                         rescuer_lat: data.rescuer_lat,
                         rescuer_lng: data.rescuer_lng
                       });
                     }
-                    if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
-                    if (sosCardSubtext) sosCardSubtext.textContent = `${responder} updated your SOS status to ${status}. Help is on the way!`;
+                    if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status === 'ACKNOWLEDGED' ? 'AUTO-ASSIGNED' : status} (${responder})`;
+                    if (sosCardSubtext) sosCardSubtext.textContent = `${responder} is assigned to your SOS (${status}). Help is on the way!`;
                     updateRescuerEtaDisplay({
                       status: status,
                       responderName: responder,
+                      rescuerPhoto: rPhoto,
                       rescuerLat: data.rescuer_lat,
                       rescuerLng: data.rescuer_lng
                     });
@@ -1392,12 +1398,15 @@
 
                 socket.on('rescuer:location_update', (data) => {
                   if (!data || !activeSosAlert) return;
-                  if (isValidCoordinate(data.lat, data.lng)) {
+                  const rLat = data.latitude !== undefined ? data.latitude : data.lat;
+                  const rLng = data.longitude !== undefined ? data.longitude : data.lng;
+                  if (isValidCoordinate(rLat, rLng)) {
                     updateRescuerEtaDisplay({
-                      status: window._lastRescuerCoords ? window._lastRescuerCoords.status : (activeSosAlert.status || 'RESPONDING'),
-                      responderName: data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : 'Rescuer Unit'),
-                      rescuerLat: Number(data.lat),
-                      rescuerLng: Number(data.lng)
+                      status: data.status || (window._lastRescuerCoords ? window._lastRescuerCoords.status : (activeSosAlert.status || 'RESPONDING')),
+                      responderName: data.rescuer_name || data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : 'Rescuer Unit'),
+                      rescuerPhoto: data.rescuer_photo || (window._lastRescuerCoords ? window._lastRescuerCoords.photo : null),
+                      rescuerLat: Number(rLat),
+                      rescuerLng: Number(rLng)
                     });
                   }
                 });

@@ -18,16 +18,21 @@ class RescuerTracker {
     const lng = Number(data && (data.longitude !== undefined ? data.longitude : data.lng));
     if (data && data.rescuer_user_id && isFinite(lat) && isFinite(lng)) {
       const uid = Number(data.rescuer_user_id);
+      const prevUser = this.rescuersByUserId.get(uid) || {};
+      const resolvedPhoto = data.rescuer_photo || prevUser.rescuer_photo || null;
+      const resolvedName = data.rescuer_name || prevUser.rescuer_name || 'Emergency Rescuer';
+      const resolvedRole = data.rescuer_role || prevUser.rescuer_role || 'Emergency Rescuer';
       this.rescuersByUserId.set(uid, {
+        ...prevUser,
         rescuer_user_id: uid,
-        rescuer_name: data.rescuer_name || 'Emergency Rescuer',
-        rescuer_role: data.rescuer_role || 'Emergency Rescuer',
-        rescuer_photo: data.rescuer_photo || null,
+        rescuer_name: resolvedName,
+        rescuer_role: resolvedRole,
+        rescuer_photo: resolvedPhoto,
         latitude: lat,
         longitude: lng,
         lat: lat,
         lng: lng,
-        accuracy: Number(data.accuracy || 0),
+        accuracy: Number(data.accuracy || prevUser.accuracy || 0),
         updated_at: new Date().toISOString()
       });
 
@@ -36,9 +41,13 @@ class RescuerTracker {
         if (record && Number(record.rescuer_user_id) === uid) {
           this.activeRescuers.set(otherSosId, {
             ...record,
+            rescuer_name: resolvedName,
+            rescuer_photo: resolvedPhoto || record.rescuer_photo || null,
             latitude: lat,
             longitude: lng,
-            accuracy: Number(data.accuracy || 0),
+            lat: lat,
+            lng: lng,
+            accuracy: Number(data.accuracy || record.accuracy || 0),
             updated_at: new Date().toISOString()
           });
         }

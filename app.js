@@ -707,6 +707,9 @@ io.on('connection', (socket) => {
 
   // Authorize staff and admin sockets into dedicated channel for rescuer telemetry
   const sess = socket.request && socket.request.session;
+  if (sess && sess.userId) {
+    onlineTracker.addUserSocket(sess.userId, socket.id);
+  }
   if (sess && ['admin', 'staff', 'barangay_council'].includes(sess.role)) {
     socket.join('staff_admin_channel');
   }
@@ -789,6 +792,7 @@ io.on('connection', (socket) => {
             lng: created.rescuer_lng || 123.34810
           });
         } catch (_e) {}
+        const rPhoto = created.rescuer_photo || created.handler_photo || null;
         io.emit('sos:update_status', {
           id: Number(created.id),
           sos_id: Number(created.id),
@@ -796,11 +800,30 @@ io.on('connection', (socket) => {
           status: created.status || 'ACKNOWLEDGED',
           handled_by: created.handled_by || null,
           responder_name: created.responder_name,
+          handler_name: created.handler_name || created.responder_name,
+          rescuer_photo: rPhoto,
+          handler_photo: rPhoto,
           rescuer_lat: created.rescuer_lat || 13.51037,
           rescuer_lng: created.rescuer_lng || 123.34810,
           auto_assigned: true,
           auto_assigned_type: created.auto_assigned_type || 'NEAREST_RESCUER',
           alert: created
+        });
+        io.emit('rescuer:location_update', {
+          sos_id: Number(created.id),
+          rescuer_user_id: created.handled_by || null,
+          rescuer_name: created.responder_name,
+          rescuer_role: 'Emergency Rescuer',
+          rescuer_photo: rPhoto,
+          latitude: created.rescuer_lat || 13.51037,
+          longitude: created.rescuer_lng || 123.34810,
+          lat: created.rescuer_lat || 13.51037,
+          lng: created.rescuer_lng || 123.34810,
+          status: created.status || 'ACKNOWLEDGED',
+          resident_id: created.resident_id ? Number(created.resident_id) : null,
+          resident_lat: Number(created.latitude) || null,
+          resident_lng: Number(created.longitude) || null,
+          updated_at: new Date().toISOString()
         });
       }
       NotificationModel.invalidateCache();
@@ -879,8 +902,8 @@ io.on('connection', (socket) => {
       const sosAlert = await SosModel.getById(data.sos_id);
       if (!sosAlert) return;
 
-      // Only track while active and in RESPONDING or RESCUED state
-      if (!['RESPONDING', 'RESCUED'].includes(sosAlert.status)) {
+      // Track while active in ACKNOWLEDGED, RESPONDING, or RESCUED state
+      if (!['ACKNOWLEDGED', 'RESPONDING', 'RESCUED'].includes(sosAlert.status)) {
         rescuerTracker.clearRescuerLocation(data.sos_id);
         io.to('staff_admin_channel').emit('rescuer:location_cleared', { sos_id: Number(data.sos_id) });
         return;
@@ -900,6 +923,8 @@ io.on('connection', (socket) => {
         rescuer_photo: photo,
         latitude: lat,
         longitude: lng,
+        lat: lat,
+        lng: lng,
         accuracy: Number(data.accuracy || 0),
         status: sosAlert.status,
         updated_at: new Date().toISOString()
@@ -920,19 +945,49 @@ io.on('connection', (socket) => {
   // Standby GPS heartbeat so nearest-rescuer auto-assignment always uses real live coordinates
   socket.on('rescuer:standby_location', async (data) => {
     try {
-      const sUserId = Number((session && session.userId) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userId) || 0);
+      const sUserId = Number((sess && sess.userId) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userId) || (data && data.userId) || 0);
       if (!sUserId || !data) return;
       const lat = Number(data.latitude !== undefined ? data.latitude : data.lat);
       const lng = Number(data.longitude !== undefined ? data.longitude : data.lng);
       if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return;
-      const sName = (session && session.userName) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userName) || 'Emergency Rescuer';
+      const sName = data.rescuer_name || (sess && sess.userName) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userName) || 'Emergency Rescuer';
+      let sPhoto = data.rescuer_photo || null;
+      if (!sPhoto) {
+        const cached = rescuerTracker.getRescuerLocation(sUserId);
+        if (cached && cached.rescuer_photo) {
+          sPhoto = cached.rescuer_photo;
+        } else {
+          const [pRows] = await db.execute('SELECT first_name, last_name, profile_photo FROM staff WHERE user_id = ? LIMIT 1', [sUserId]).catch(() => [[]]);
+          if (pRows && pRows.length > 0 && pRows[0].profile_photo) {
+            sPhoto = pRows[0].profile_photo;
+          }
+        }
+      }
+      if (sPhoto && !String(sPhoto).startsWith('http') && !String(sPhoto).startsWith('/')) {
+        sPhoto = `/uploads/profiles/${sPhoto}`;
+      }
       rescuerTracker.updateRescuerLocation(null, {
         rescuer_user_id: sUserId,
         rescuer_name: sName,
+        rescuer_photo: sPhoto,
         rescuer_role: 'Emergency Rescuer',
         latitude: lat,
         longitude: lng,
         accuracy: Number(data.accuracy || 0)
+      });
+      io.emit('rescuer:location_update', {
+        sos_id: `standby_${sUserId}`,
+        rescuer_user_id: sUserId,
+        rescuer_name: sName,
+        rescuer_photo: sPhoto,
+        rescuer_role: 'Emergency Rescuer',
+        latitude: lat,
+        longitude: lng,
+        lat: lat,
+        lng: lng,
+        accuracy: Number(data.accuracy || 0),
+        status: 'STANDBY',
+        updated_at: new Date().toISOString()
       });
     } catch (_) {}
   });

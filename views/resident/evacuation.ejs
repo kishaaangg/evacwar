@@ -1308,6 +1308,78 @@
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) fetchAndRefreshResidentCenters();
         });
+
+        // Plot Live Rescuer Profile Picture Markers on Resident Evacuation Map
+        const residentRescuerMarkers = {};
+        function plotResidentMapRescuer(rData) {
+          if (!rData || !map || typeof maplibregl === 'undefined') return;
+          const rLat = parseFloat(rData.latitude !== undefined ? rData.latitude : (rData.lat !== undefined ? rData.lat : rData.rescuer_lat));
+          const rLng = parseFloat(rData.longitude !== undefined ? rData.longitude : (rData.lng !== undefined ? rData.lng : rData.rescuer_lng));
+          if (!isFinite(rLat) || !isFinite(rLng)) return;
+          const st = String(rData.status || 'RESPONDING').toUpperCase();
+          const key = rData.rescuer_user_id ? `u_${rData.rescuer_user_id}` : String(rData.sos_id || rData.id || 'default');
+          if (st === 'RESOLVED' || st === 'CANCELLED') {
+            if (residentRescuerMarkers[key]) {
+              try { residentRescuerMarkers[key].remove(); } catch (_) {}
+              delete residentRescuerMarkers[key];
+            }
+            return;
+          }
+          const rName = rData.rescuer_name || rData.handler_name || rData.responder_name || 'Emergency Rescuer';
+          const rPhoto = rData.rescuer_photo || rData.handler_photo || null;
+          const el = (typeof window.createMaplibreRescuerMarkerEl === 'function')
+            ? window.createMaplibreRescuerMarkerEl({ rescuer_name: rName, rescuer_photo: rPhoto })
+            : document.createElement('div');
+          const popupHtml = `
+            <div style="font-family: system-ui; padding: 6px; text-align: center;">
+              <div style="font-weight: 800; color: #0f172a; font-size: 13px;">${rName}</div>
+              <div style="font-size: 11px; color: #059669; font-weight: 700; margin-top: 2px;">Barangay Emergency Rescuer</div>
+            </div>
+          `;
+          if (residentRescuerMarkers[key]) {
+            residentRescuerMarkers[key].setLngLat([rLng, rLat]);
+            const mEl = residentRescuerMarkers[key].getElement && residentRescuerMarkers[key].getElement();
+            if (mEl) mEl.innerHTML = el.innerHTML;
+          } else {
+            residentRescuerMarkers[key] = new maplibregl.Marker({ element: el, anchor: 'center' })
+              .setLngLat([rLng, rLat])
+              .setPopup(new maplibregl.Popup({ offset: 22 }).setHTML(popupHtml))
+              .addTo(map);
+          }
+        }
+
+        socket.on('rescuer:location_update', (data) => {
+          plotResidentMapRescuer(data);
+        });
+        socket.on('sos:update_status', (data) => {
+          if (data && (data.rescuer_lat || (data.alert && data.alert.rescuer_lat))) {
+            plotResidentMapRescuer({
+              sos_id: data.id || data.sos_id,
+              rescuer_user_id: data.handled_by || (data.alert && data.alert.handled_by),
+              rescuer_name: data.responder_name || data.handler_name || (data.alert && data.alert.handler_name),
+              rescuer_photo: data.rescuer_photo || data.handler_photo || (data.alert && (data.alert.rescuer_photo || data.alert.handler_photo)),
+              latitude: data.rescuer_lat || (data.alert && data.alert.rescuer_lat),
+              longitude: data.rescuer_lng || (data.alert && data.alert.rescuer_lng),
+              status: data.status
+            });
+          }
+        });
+        fetch('/api/sos/resident/active')
+          .then(r => r.json())
+          .then(d => {
+            if (d && d.success && d.activeSos && (d.activeSos.handled_by || d.activeSos.handler_name)) {
+              plotResidentMapRescuer({
+                sos_id: d.activeSos.id,
+                rescuer_user_id: d.activeSos.handled_by,
+                rescuer_name: d.activeSos.handler_name || d.activeSos.responder_name,
+                rescuer_photo: d.activeSos.rescuer_photo || d.activeSos.handler_photo,
+                latitude: d.activeSos.rescuer_lat || 13.51037,
+                longitude: d.activeSos.rescuer_lng || 123.34810,
+                status: d.activeSos.status
+              });
+            }
+          })
+          .catch(() => {});
       }
 
       return map;

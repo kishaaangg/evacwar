@@ -80,9 +80,11 @@ const SosModel = {
               [lat, lng, accuracy || 0, resolvedName, activeId]
             );
             // If not yet assigned to a rescuer, auto-assign nearest / en-route rescuer now
+            let autoAssignedNow = null;
             if (!existing[0].handled_by) {
               const autoRescuer = await findNearestRescuerForSos(lat, lng);
               if (autoRescuer && autoRescuer.user_id) {
+                autoAssignedNow = autoRescuer;
                 const autoNotes = autoRescuer.assignmentType === 'EN_ROUTE_MULTI_RESCUE'
                   ? `Auto-assigned to En-Route Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`
                   : `Auto-assigned to Nearest Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`;
@@ -93,6 +95,8 @@ const SosModel = {
                 rescuerTracker.updateRescuerLocation(activeId, {
                   rescuer_user_id: autoRescuer.user_id,
                   rescuer_name: autoRescuer.name,
+                  rescuer_photo: autoRescuer.photo || null,
+                  rescuer_role: autoRescuer.role || 'Emergency Rescuer',
                   latitude: autoRescuer.latitude,
                   longitude: autoRescuer.longitude,
                   status: 'ACKNOWLEDGED'
@@ -105,6 +109,13 @@ const SosModel = {
               if (tr) {
                 existingAlert.rescuer_lat = Number(tr.latitude || tr.lat);
                 existingAlert.rescuer_lng = Number(tr.longitude || tr.lng);
+                if (!existingAlert.handler_photo && tr.rescuer_photo) existingAlert.handler_photo = tr.rescuer_photo;
+              }
+              existingAlert.rescuer_photo = existingAlert.handler_photo || (autoAssignedNow && autoAssignedNow.photo) || null;
+              existingAlert.responder_name = existingAlert.handler_name || (autoAssignedNow && autoAssignedNow.name) || 'Barangay Rescue Team';
+              if (autoAssignedNow) {
+                existingAlert.auto_assigned = true;
+                existingAlert.auto_assigned_type = autoAssignedNow.assignmentType;
               }
             }
             return existingAlert;
@@ -146,13 +157,18 @@ const SosModel = {
           rescuerTracker.updateRescuerLocation(result.insertId, {
             rescuer_user_id: autoRescuer.user_id,
             rescuer_name: autoRescuer.name,
+            rescuer_photo: autoRescuer.photo || null,
+            rescuer_role: autoRescuer.role || 'Emergency Rescuer',
             latitude: autoRescuer.latitude,
             longitude: autoRescuer.longitude,
             status: initialStatus
           });
           createdAlert.rescuer_lat = autoRescuer.latitude;
           createdAlert.rescuer_lng = autoRescuer.longitude;
+          createdAlert.rescuer_photo = autoRescuer.photo || createdAlert.handler_photo || null;
+          createdAlert.handler_photo = createdAlert.handler_photo || autoRescuer.photo || null;
           createdAlert.responder_name = autoRescuer.name;
+          createdAlert.handler_name = createdAlert.handler_name || autoRescuer.name;
           createdAlert.auto_assigned = true;
           createdAlert.auto_assigned_type = autoRescuer.assignmentType;
         }

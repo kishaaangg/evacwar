@@ -1301,7 +1301,7 @@ async function handleInboundLoRaPacket(req, res) {
       }
 
       const sosUniqueId = parsed.sosId || parsed.msgId || Date.now();
-      const payload = {
+      let payload = {
         id: sosUniqueId,
         resident_id: resolvedResId,
         name: displayName,
@@ -1321,7 +1321,49 @@ async function handleInboundLoRaPacket(req, res) {
         vuln_code: parsed.vulnCode
       };
 
-      // 1. INSTANT DISPATCH TO ADMIN DASHBOARD & EVACUATION MAP IN 0ms (Never block for DB!)
+      // Resolve resident & auto-assign nearest rescuer immediately (with 2500ms timeout guard) so sos:new ALREADY carries the assigned rescuer!
+      let createdLoRaSos = null;
+      if (parsed.statusCode !== 'UPD') {
+        try {
+          createdLoRaSos = await Promise.race([
+            (async () => {
+              if (resolvedResId) {
+                const [rRows] = await db.execute(
+                  `SELECT id, first_name, last_name, barangay, profile_photo, contact_number FROM residents WHERE id = ? OR user_id = ? LIMIT 1`,
+                  [resolvedResId, resolvedResId]
+                ).catch(() => [[]]);
+                if (rRows && rRows.length > 0) {
+                  payload.resident_id = rRows[0].id || resolvedResId;
+                  payload.name = `${rRows[0].first_name || ''} ${rRows[0].last_name || ''}`.trim() || displayName;
+                  payload.resident_profile_photo = rRows[0].profile_photo || null;
+                  payload.contact_number = rRows[0].contact_number || null;
+                }
+              }
+              return await SosModel.createAlert({
+                resident_id: payload.resident_id,
+                name: payload.name,
+                latitude: parsed.latitude,
+                longitude: parsed.longitude,
+                accuracy: parsed.accuracy || 10
+              });
+            })(),
+            new Promise((resolve) => setTimeout(() => resolve(null), 2500))
+          ]);
+        } catch (_) {}
+      }
+
+      if (createdLoRaSos && !createdLoRaSos.error) {
+        payload = Object.assign({}, payload, createdLoRaSos, {
+          via: 'LORA_MESH_433MHZ',
+          lora_node: senderNodeId,
+          lora_relay: relayNode,
+          lora_hops: hopsUsed,
+          lora_rssi: rssi,
+          lora_snr: snr
+        });
+      }
+
+      // 1. DISPATCH TO ADMIN, RESCUER & RESIDENT MAPS (already carrying auto-assigned rescuer!)
       if (req.io) {
         if (parsed.statusCode === 'UPD') {
           req.io.emit('sos:update', payload);
@@ -1329,10 +1371,47 @@ async function handleInboundLoRaPacket(req, res) {
           req.io.emit('sos:new', payload);
           req.io.emit('sos_alert', payload);
           req.io.emit('sos:alert', payload);
+          if (payload.auto_assigned && payload.responder_name) {
+            const rPhoto = payload.rescuer_photo || payload.handler_photo || null;
+            req.io.emit('sos:update_status', {
+              id: Number(payload.id),
+              sos_id: Number(payload.id),
+              resident_id: payload.resident_id ? Number(payload.resident_id) : null,
+              status: payload.status || 'ACKNOWLEDGED',
+              handled_by: payload.handled_by || null,
+              responder_name: payload.responder_name,
+              handler_name: payload.handler_name || payload.responder_name,
+              rescuer_photo: rPhoto,
+              handler_photo: rPhoto,
+              rescuer_lat: payload.rescuer_lat || 13.51037,
+              rescuer_lng: payload.rescuer_lng || 123.34810,
+              auto_assigned: true,
+              auto_assigned_type: payload.auto_assigned_type || 'NEAREST_RESCUER',
+              alert: payload
+            });
+            req.io.emit('rescuer:location_update', {
+              sos_id: Number(payload.id),
+              rescuer_user_id: payload.handled_by || null,
+              rescuer_name: payload.responder_name,
+              rescuer_role: 'Emergency Rescuer',
+              rescuer_photo: rPhoto,
+              latitude: payload.rescuer_lat || 13.51037,
+              longitude: payload.rescuer_lng || 123.34810,
+              lat: payload.rescuer_lat || 13.51037,
+              lng: payload.rescuer_lng || 123.34810,
+              status: payload.status || 'ACKNOWLEDGED',
+              resident_id: payload.resident_id ? Number(payload.resident_id) : null,
+              resident_lat: Number(payload.latitude) || null,
+              resident_lng: Number(payload.longitude) || null,
+              updated_at: new Date().toISOString()
+            });
+          }
           req.io.emit('notification:new', {
             type: 'sos',
-            title: `🚨 LoRa SOS: ${displayName}`,
-            message: `Distress signal received via 433.875 MHz LoRa (${senderNodeId})`,
+            title: `🚨 LoRa SOS: ${payload.name || displayName}`,
+            message: payload.responder_name
+              ? `Auto-assigned to ${payload.responder_name} via 433.875 MHz LoRa (${senderNodeId})`
+              : `Distress signal received via 433.875 MHz LoRa (${senderNodeId})`,
             alert: payload,
             created_at: new Date().toISOString()
           });
@@ -1350,53 +1429,17 @@ async function handleInboundLoRaPacket(req, res) {
         });
       }
 
-      // 2. Queue Gateway ACK frame immediately for 433.875 MHz RF broadcast
-      const ackPacket = `EVW|ACK|${payload.id}|${resolvedResId}|ACTIVE|Hall Gateway (!d88b1a58)`;
-      enqueueLoRaPacket(ackPacket, { type: 'SOS_GATEWAY_RECEIVED', sosId: payload.id });
-
-      // 3. Asynchronous DB lookup and persistence in background (non-blocking)
-      (async () => {
-        try {
-          if (resolvedResId) {
-            const [rRows] = await db.execute(
-              `SELECT id, first_name, last_name, barangay FROM residents WHERE id = ? OR user_id = ? LIMIT 1`,
-              [resolvedResId, resolvedResId]
-            ).catch(() => [[]]);
-            if (rRows && rRows.length > 0) {
-              payload.resident_id = rRows[0].id || resolvedResId;
-              payload.name = `${rRows[0].first_name || ''} ${rRows[0].last_name || ''}`.trim() || displayName;
-            }
-          }
-          const createdLoRaSos = await SosModel.createAlert({
-            resident_id: payload.resident_id,
-            name: payload.name,
-            latitude: parsed.latitude,
-            longitude: parsed.longitude,
-            accuracy: parsed.accuracy || 10
-          }).catch(() => null);
-          if (createdLoRaSos && !createdLoRaSos.error && createdLoRaSos.auto_assigned && createdLoRaSos.responder_name) {
-            queueOutboundSosAck(createdLoRaSos, createdLoRaSos.status || 'ACKNOWLEDGED', createdLoRaSos.responder_name, {
-              lat: createdLoRaSos.rescuer_lat || 13.51037,
-              lng: createdLoRaSos.rescuer_lng || 123.34810
-            });
-            if (req.io) {
-              req.io.emit('sos:update_status', {
-                id: Number(createdLoRaSos.id),
-                sos_id: Number(createdLoRaSos.id),
-                resident_id: createdLoRaSos.resident_id ? Number(createdLoRaSos.resident_id) : null,
-                status: createdLoRaSos.status || 'ACKNOWLEDGED',
-                handled_by: createdLoRaSos.handled_by || null,
-                responder_name: createdLoRaSos.responder_name,
-                rescuer_lat: createdLoRaSos.rescuer_lat || 13.51037,
-                rescuer_lng: createdLoRaSos.rescuer_lng || 123.34810,
-                auto_assigned: true,
-                auto_assigned_type: createdLoRaSos.auto_assigned_type || 'NEAREST_RESCUER',
-                alert: createdLoRaSos
-              });
-            }
-          }
-        } catch (_) {}
-      })();
+      // 2. Queue Gateway ACK frame immediately for 433.875 MHz RF broadcast (with auto-assigned rescuer & coords!)
+      let ackPacket;
+      if (payload.auto_assigned && payload.responder_name) {
+        ackPacket = queueOutboundSosAck(payload, payload.status || 'ACKNOWLEDGED', payload.responder_name, {
+          lat: payload.rescuer_lat || 13.51037,
+          lng: payload.rescuer_lng || 123.34810
+        });
+      } else {
+        ackPacket = `EVW|ACK|${payload.id}|${payload.resident_id || resolvedResId}|ACTIVE|Hall Gateway (!d88b1a58)`;
+        enqueueLoRaPacket(ackPacket, { type: 'SOS_GATEWAY_RECEIVED', sosId: payload.id });
+      }
 
       return res.json({
         success: true,

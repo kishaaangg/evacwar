@@ -2042,18 +2042,27 @@
     }
 
     function buildRescuerPopupHtml(rescuerData) {
-      const rescuerName = rescuerData.rescuer_name || 'Emergency Rescuer';
+      const rescuerName = rescuerData.rescuer_name || rescuerData.handler_name || 'Emergency Rescuer';
       const rescuerRole = rescuerData.rescuer_role || 'Emergency Response Staff';
       const status = (rescuerData.status || 'RESPONDING').toUpperCase();
-      const photo = rescuerData.rescuer_photo;
+      const rawPhoto = rescuerData.rescuer_photo || rescuerData.handler_photo || rescuerData.profile_photo || null;
+      const photo = (typeof window.resolveEvakWarProfilePhotoUrl === 'function')
+        ? window.resolveEvakWarProfilePhotoUrl(rawPhoto)
+        : rawPhoto;
       const timeStr = rescuerData.updated_at ? (window.formatManilaTime ? window.formatManilaTime(rescuerData.updated_at) : 'Just now') : 'Just now';
-      const sosId = rescuerData.sos_id || '';
+      const sosId = (rescuerData.sos_id && !String(rescuerData.sos_id).startsWith('standby_')) ? rescuerData.sos_id : '';
 
       let statusBadgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
       let statusLabel = 'DISPATCHED';
       if (status === 'RESCUED') {
         statusBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
         statusLabel = 'RESCUING';
+      } else if (status === 'ACKNOWLEDGED') {
+        statusBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        statusLabel = 'AUTO-ASSIGNED';
+      } else if (status === 'STANDBY') {
+        statusBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
+        statusLabel = 'ON STANDBY';
       } else if (status === 'RESPONDING') {
         statusBadgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
         statusLabel = 'DISPATCHED';
@@ -2117,9 +2126,9 @@
       const lat = parseFloat(rescuerData.latitude || rescuerData.lat);
       if (isNaN(lng) || isNaN(lat)) return;
 
-      const sosId = rescuerData.sos_id || rescuerData.id;
-      if (!sosId) return;
-      const markerKey = `rescuer_${sosId}`;
+      const sosId = rescuerData.sos_id || rescuerData.id || (rescuerData.rescuer_user_id ? `standby_${rescuerData.rescuer_user_id}` : null);
+      if (!sosId && !rescuerData.rescuer_user_id) return;
+      const markerKey = rescuerData.rescuer_user_id ? `rescuer_u_${rescuerData.rescuer_user_id}` : `rescuer_${sosId}`;
 
       const status = (rescuerData.status || 'RESPONDING').toUpperCase();
       if (status === 'RESOLVED' || status === 'CANCELLED') {
@@ -2139,9 +2148,15 @@
           if (item.popup && typeof item.popup.setHTML === 'function') {
             item.popup.setHTML(popupHtml);
           }
+          if (typeof window.createMaplibreRescuerMarkerEl === 'function' && typeof item.marker.getElement === 'function') {
+            const freshEl = window.createMaplibreRescuerMarkerEl(rescuerData);
+            const curEl = item.marker.getElement();
+            if (curEl) curEl.innerHTML = freshEl.innerHTML;
+          }
           item.popupHtml = popupHtml;
           item.pos = [lng, lat];
           item.status = status;
+          item.sos_id = sosId;
         } else if (typeof maplibregl !== 'undefined') {
           const el = (typeof window.createMaplibreRescuerMarkerEl === 'function')
             ? window.createMaplibreRescuerMarkerEl(rescuerData)
@@ -3108,7 +3123,21 @@
         const socket = window.__appSocket || (window.__appSocket = io());
 
         socket.on('sos:new', (data) => {
-          if (data) addOrUpdateSosMarker(data, true);
+          if (data) {
+            addOrUpdateSosMarker(data, true);
+            if (data.handled_by || data.responder_name || data.handler_name) {
+              addOrUpdateRescuerMarker({
+                sos_id: data.id || data.sos_id,
+                rescuer_user_id: data.handled_by || null,
+                rescuer_name: data.handler_name || data.responder_name || 'Emergency Rescuer',
+                rescuer_photo: data.rescuer_photo || data.handler_photo || null,
+                latitude: data.rescuer_lat || 13.51037,
+                longitude: data.rescuer_lng || 123.34810,
+                status: data.status || 'ACKNOWLEDGED',
+                updated_at: data.updated_at || new Date().toISOString()
+              }, false);
+            }
+          }
         });
 
         socket.on('sos:update', (data) => {
@@ -3124,7 +3153,20 @@
                 window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
               }
             } else {
-              addOrUpdateSosMarker(data.alert || data, false);
+              const alertObj = data.alert || data;
+              addOrUpdateSosMarker(alertObj, false);
+              if (data.handled_by || data.responder_name || alertObj.handled_by || alertObj.handler_name) {
+                addOrUpdateRescuerMarker({
+                  sos_id: data.id || data.sos_id || alertObj.id,
+                  rescuer_user_id: data.handled_by || alertObj.handled_by || null,
+                  rescuer_name: data.responder_name || data.handler_name || alertObj.handler_name || 'Emergency Rescuer',
+                  rescuer_photo: data.rescuer_photo || data.handler_photo || alertObj.rescuer_photo || alertObj.handler_photo || null,
+                  latitude: data.rescuer_lat || alertObj.rescuer_lat || 13.51037,
+                  longitude: data.rescuer_lng || alertObj.rescuer_lng || 123.34810,
+                  status: status || 'ACKNOWLEDGED',
+                  updated_at: new Date().toISOString()
+                }, false);
+              }
             }
           }
         });
@@ -3826,7 +3868,21 @@
         const socket = window.__appSocket || (window.__appSocket = io());
 
         socket.on('sos:new', (data) => {
-          if (data) addOrUpdateSosMarker(data, true);
+          if (data) {
+            addOrUpdateSosMarker(data, true);
+            if (data.handled_by || data.responder_name || data.handler_name) {
+              addOrUpdateRescuerMarker({
+                sos_id: data.id || data.sos_id,
+                rescuer_user_id: data.handled_by || null,
+                rescuer_name: data.handler_name || data.responder_name || 'Emergency Rescuer',
+                rescuer_photo: data.rescuer_photo || data.handler_photo || null,
+                latitude: data.rescuer_lat || 13.51037,
+                longitude: data.rescuer_lng || 123.34810,
+                status: data.status || 'ACKNOWLEDGED',
+                updated_at: data.updated_at || new Date().toISOString()
+              }, false);
+            }
+          }
         });
 
         socket.on('sos:update', (data) => {
@@ -3842,7 +3898,20 @@
                 window.dismissGlobalDistressBanner(data.id || data.sos_id, data.resident_id || data.residentId);
               }
             } else {
-              addOrUpdateSosMarker(data.alert || data, false);
+              const alertObj = data.alert || data;
+              addOrUpdateSosMarker(alertObj, false);
+              if (data.handled_by || data.responder_name || alertObj.handled_by || alertObj.handler_name) {
+                addOrUpdateRescuerMarker({
+                  sos_id: data.id || data.sos_id || alertObj.id,
+                  rescuer_user_id: data.handled_by || alertObj.handled_by || null,
+                  rescuer_name: data.responder_name || data.handler_name || alertObj.handler_name || 'Emergency Rescuer',
+                  rescuer_photo: data.rescuer_photo || data.handler_photo || alertObj.rescuer_photo || alertObj.handler_photo || null,
+                  latitude: data.rescuer_lat || alertObj.rescuer_lat || 13.51037,
+                  longitude: data.rescuer_lng || alertObj.rescuer_lng || 123.34810,
+                  status: status || 'ACKNOWLEDGED',
+                  updated_at: new Date().toISOString()
+                }, false);
+              }
             }
           }
         });

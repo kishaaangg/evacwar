@@ -797,43 +797,119 @@
       return false;
     };
 
-    // Shared Modern UI Builder for SOS Distress Popups (Clean, Compact & Space-Efficient)
+    // Shared helper to resolve profile photo URLs across web and native Capacitor APK bundle
+    window.resolveEvakWarProfilePhotoUrl = function (rawPhoto) {
+      if (!rawPhoto) return null;
+      const s = String(rawPhoto).trim();
+      if (!s || s === 'null' || s === 'undefined') return null;
+      if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+      const rel = s.startsWith('/') ? s : `/uploads/profiles/${s}`;
+      const isStaticBundle = window.location.hostname === 'localhost' && window.location.port !== '8080';
+      if (isStaticBundle) {
+        const base = (localStorage.getItem('evw_server_url') || 'https://evacwar.onrender.com').replace(/\/$/, '');
+        return `${base}${rel}`;
+      }
+      return rel;
+    };
+
+    // Shared Modern UI Builder for SOS Distress Popups (Clean, Compact & User-Friendly Auto-Assignment)
     window.buildSosPopupHtml = function (sosAlert, role = 'admin') {
       const lat = Number(sosAlert.latitude);
       const lng = Number(sosAlert.longitude);
       const accuracy = Math.round(sosAlert.accuracy || 0);
-      const status = (sosAlert.status || 'ACTIVE').toUpperCase();
+      let status = (sosAlert.status || 'ACTIVE').toUpperCase();
       const resName = sosAlert.first_name ? `${sosAlert.first_name} ${sosAlert.last_name || ''}`.trim() : (sosAlert.name || 'Resident in Distress');
       const contactNum = sosAlert.contact_number || sosAlert.phone || '';
       const timeStr = sosAlert.created_at ? window.formatManilaTime(sosAlert.created_at) : window.formatManilaTime(new Date());
 
-      let statusBadgeClass = 'bg-red-700 text-white';
-      if (status === 'ACKNOWLEDGED') statusBadgeClass = 'bg-amber-500 text-white';
-      else if (status === 'RESPONDING') statusBadgeClass = 'bg-indigo-600 text-white';
-      else if (status === 'RESCUED') statusBadgeClass = 'bg-emerald-600 text-white';
+      let cachedStaff = null;
+      try { cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null'); } catch (_) {}
+      const currentUserId = Number(
+        window.currentUserId ||
+        (cachedStaff && (cachedStaff.user_id || cachedStaff.userId)) ||
+        localStorage.getItem('evw_user_id') ||
+        0
+      );
+      const myStaffName = (cachedStaff && (cachedStaff.full_name || `${cachedStaff.first_name || ''} ${cachedStaff.last_name || ''}`.trim())) || localStorage.getItem('evw_user_full_name') || '';
+      const myStaffPhoto = window.resolveEvakWarProfilePhotoUrl(cachedStaff && cachedStaff.profile_photo);
 
-      const currentUserId = Number(window.currentUserId || 0);
-      const userRole = String(window.userRole || '').toLowerCase();
-      const alertHandledBy = (sosAlert.handled_by !== null && sosAlert.handled_by !== undefined && sosAlert.handled_by !== '') ? Number(sosAlert.handled_by) : null;
-      const isAssigned = alertHandledBy && alertHandledBy > 0;
-      const isMine = isAssigned && (alertHandledBy === currentUserId);
-      // Only lock out other rescuers if another rescuer is ALREADY actively RESPONDING/RESCUED (so en-route rescuers can pick up ACKNOWLEDGED/ACTIVE SOS along their path!)
-      const isAssignedToOther = isAssigned && !isMine && (userRole !== 'admin') && ['RESPONDING', 'RESCUED'].includes(status);
-      const handlerName = sosAlert.handler_name || sosAlert.responder_name || (sosAlert.handler ? sosAlert.handler.name : null);
+      const userRole = String(window.userRole || localStorage.getItem('evw_user_role') || role || '').toLowerCase();
+      const isRescuerViewer = (role === 'rescuer' || role === 'staff' || userRole === 'rescuer' || userRole === 'staff');
+
+      let alertHandledBy = (sosAlert.handled_by !== null && sosAlert.handled_by !== undefined && sosAlert.handled_by !== '') ? Number(sosAlert.handled_by) : null;
+      let handlerName = sosAlert.handler_name || sosAlert.responder_name || (sosAlert.handler ? sosAlert.handler.name : null);
+      let handlerPhoto = window.resolveEvakWarProfilePhotoUrl(sosAlert.rescuer_photo || sosAlert.handler_photo || (sosAlert.handler && sosAlert.handler.photo));
+
+      // If viewing as Rescuer and alert is unassigned ACTIVE (e.g., direct offline LoRa SOS), auto-match to this Rescuer unit for seamless 1-tap dispatch
+      if (isRescuerViewer && !alertHandledBy && !handlerName) {
+        alertHandledBy = currentUserId || alertHandledBy;
+        handlerName = myStaffName || 'Your Rescuer Unit';
+        handlerPhoto = handlerPhoto || myStaffPhoto;
+        if (status === 'ACTIVE') status = 'ACKNOWLEDGED';
+      }
+
+      const isAssigned = Boolean((alertHandledBy && alertHandledBy > 0) || handlerName);
+      const isMine = Boolean(
+        (alertHandledBy && currentUserId && alertHandledBy === currentUserId) ||
+        (isRescuerViewer && handlerName && myStaffName && handlerName.toLowerCase() === myStaffName.toLowerCase()) ||
+        (isRescuerViewer && handlerName === 'Your Rescuer Unit')
+      );
+      if (isMine && !handlerPhoto && myStaffPhoto) {
+        handlerPhoto = myStaffPhoto;
+      }
+
+      // Only lock out other rescuers if another rescuer is ALREADY actively RESPONDING/RESCUED
+      const isAssignedToOther = isAssigned && !isMine && (userRole !== 'admin' && role !== 'admin') && ['RESPONDING', 'RESCUED'].includes(status);
       const isWithinBarangay = window.isInsideBarangaySanRafael ? window.isInsideBarangaySanRafael(lat, lng) : true;
 
-      const photoUrl = (sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo)
-        ? ((sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo).startsWith('http') || (sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo).startsWith('/')
-          ? (sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo)
-          : `/uploads/profiles/${sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo}`)
-        : null;
+      // Compute distance from Rescuer GPS (or assigned rescuer coords) to SOS
+      let distBadgeText = '';
+      try {
+        const refLat = (window._lastKnownUserGps && isFinite(window._lastKnownUserGps.lat))
+          ? Number(window._lastKnownUserGps.lat)
+          : (isFinite(Number(sosAlert.rescuer_lat)) ? Number(sosAlert.rescuer_lat) : 13.51037);
+        const refLng = (window._lastKnownUserGps && isFinite(window._lastKnownUserGps.lng))
+          ? Number(window._lastKnownUserGps.lng)
+          : (isFinite(Number(sosAlert.rescuer_lng)) ? Number(sosAlert.rescuer_lng) : 123.34810);
+        if (isFinite(lat) && isFinite(lng) && typeof window.computeHaversineKm === 'function') {
+          const dKm = window.computeHaversineKm(refLat, refLng, lat, lng);
+          const dM = Math.round(dKm * 1000);
+          const etaM = Math.max(1, Math.ceil((dKm / 24) * 60));
+          distBadgeText = `${dM < 1000 ? dM + ' m' : dKm.toFixed(2) + ' km'} • ~${etaM} min`;
+        }
+      } catch (_) {}
+
+      let statusBadgeClass = 'bg-red-700 text-white';
+      let statusDisplayLabel = status;
+      if (status === 'ACKNOWLEDGED') {
+        statusBadgeClass = 'bg-emerald-600 text-white';
+        statusDisplayLabel = 'AUTO-ASSIGNED';
+      } else if (status === 'RESPONDING') {
+        statusBadgeClass = 'bg-indigo-600 text-white';
+        statusDisplayLabel = 'EN ROUTE';
+      } else if (status === 'RESCUED') {
+        statusBadgeClass = 'bg-emerald-600 text-white';
+        statusDisplayLabel = 'RESCUED';
+      }
+
+      const photoUrl = window.resolveEvakWarProfilePhotoUrl(sosAlert.resident_profile_photo || sosAlert.profile_photo || sosAlert.user_profile_photo);
 
       const photoHtml = photoUrl
-        ? `<img src="${photoUrl}" alt="${resName}" class="w-8 h-8 rounded-full object-cover border border-red-500/80 shrink-0 shadow-xs">`
+        ? `<img src="${photoUrl}" alt="${resName}" class="w-8 h-8 rounded-full object-cover border border-red-500/80 shrink-0 shadow-xs" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');"><div class="hidden w-8 h-8 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs border border-white/60"><i class="ph ph-warning-octagon"></i></div>`
         : `<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs border border-white/60"><i class="ph ph-warning-octagon"></i></div>`;
 
+      const handlerInitial = (handlerName || 'R').charAt(0).toUpperCase();
+      const handlerAvatarHtml = handlerPhoto
+        ? `<img src="${handlerPhoto}" alt="${handlerName || 'Rescuer'}" class="w-5 h-5 rounded-full object-cover border border-emerald-500 shrink-0" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');"><span class="hidden w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">${handlerInitial}</span>`
+        : `<span class="w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">${handlerInitial}</span>`;
+
+      const isEnRouteAssign = String(sosAlert.responder_notes || '').toLowerCase().includes('en-route') || sosAlert.auto_assigned_type === 'EN_ROUTE_MULTI_RESCUE';
+      const assignmentModeLabel = isEnRouteAssign
+        ? 'Auto-Assigned (Along Rescue Path)'
+        : 'Auto-Assigned (Nearest Rescuer)';
+
       return `
-        <div class="font-sans w-[242px] sm:w-[252px] bg-white text-slate-800 p-0 m-0 overflow-hidden leading-tight">
+        <div class="font-sans w-[248px] sm:w-[258px] bg-white text-slate-800 p-0 m-0 overflow-hidden leading-tight">
           <!-- Compact Emergency Distress Header -->
           <div class="px-2.5 py-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white pr-7 shadow-xs">
             <div class="flex items-center justify-between gap-1 mb-0.5">
@@ -845,11 +921,12 @@
                 <span class="truncate">SOS EMERGENCY</span>
               </div>
               <span class="px-1.5 py-0.5 rounded ${statusBadgeClass} text-[9px] font-black uppercase tracking-tight shadow-xs shrink-0">
-                ${status}
+                ${statusDisplayLabel}
               </span>
             </div>
-            <div class="text-[9.5px] text-red-100 font-medium flex items-center gap-1 opacity-90">
-              <i class="ph ph-clock text-[9.5px]"></i> Sent: ${timeStr}
+            <div class="text-[9.5px] text-red-100 font-medium flex items-center justify-between gap-1 opacity-95">
+              <span><i class="ph ph-clock text-[9.5px]"></i> ${timeStr}</span>
+              ${distBadgeText ? `<span class="font-extrabold bg-black/25 px-1.5 py-0.5 rounded text-white">${distBadgeText}</span>` : ''}
             </div>
           </div>
 
@@ -879,32 +956,31 @@
               </div>
             </div>
 
-            <!-- Situation & Assigned Responder -->
-            ${status === 'ACTIVE' ? `
-              <div class="bg-red-50/90 rounded-xl px-2 py-1 border border-red-200/80 text-[10px] flex items-center justify-between">
-                <span class="text-slate-600 font-semibold flex items-center gap-1">
-                  <span class="relative flex h-1.5 w-1.5 shrink-0">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-600"></span>
+            <!-- User-Friendly Auto-Assignment & Situation Card -->
+            ${(handlerName || status !== 'ACTIVE') ? `
+              <div class="bg-emerald-50/90 rounded-xl px-2 py-1.5 border border-emerald-200 text-[10px] space-y-1">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="font-extrabold text-emerald-800 flex items-center gap-1">
+                    <i class="ph ph-sparkle-fill text-emerald-600 text-[11px]"></i>
+                    ${status === 'RESPONDING' ? 'Rescuer En Route' : (status === 'RESCUED' ? 'Resident Rescued' : assignmentModeLabel)}
                   </span>
-                  Situation:
-                </span>
-                <span class="font-black text-red-700 uppercase tracking-tight text-[10px]">Awaiting Acknowledgment</span>
+                </div>
+                <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-emerald-200/70">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    ${handlerAvatarHtml}
+                    <span class="font-extrabold text-slate-900 truncate text-[10.5px]">${handlerName || 'Assigned Rescuer'}${isMine ? ' (You)' : ''}</span>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded bg-emerald-600 text-white font-black text-[8.5px] uppercase shrink-0">
+                    ${status === 'RESPONDING' ? 'DISPATCHED' : (status === 'RESCUED' ? 'ON SITE' : 'ASSIGNED')}
+                  </span>
+                </div>
               </div>
             ` : `
-              <div class="bg-slate-50/90 rounded-xl px-2 py-1 border border-slate-200/80 text-[10px] space-y-0.5">
-                <div class="flex items-center justify-between">
-                  <span class="font-semibold text-slate-500 flex items-center gap-1">
-                    <i class="ph ph-activity text-blue-600 text-[10px]"></i> Situation:
-                  </span>
-                  <span class="font-bold text-slate-800 uppercase text-[9.5px]">${status === 'ACKNOWLEDGED' ? 'Acknowledged' : (status === 'RESPONDING' ? 'Dispatched / En Route' : (status === 'RESCUED' ? 'Rescued' : status))}</span>
-                </div>
-                <div class="flex items-center justify-between pt-0.5 border-t border-slate-200/60">
-                  <span class="font-semibold text-slate-500 flex items-center gap-1">
-                    <i class="ph ph-user-check text-emerald-600 text-[10px]"></i> Assigned:
-                  </span>
-                  <span class="font-bold text-emerald-800 truncate max-w-[120px] text-[9.5px]">${handlerName || 'Assigned Staff'}${isMine ? ' (You)' : ''}</span>
-                </div>
+              <div class="bg-amber-50/90 rounded-xl px-2 py-1.5 border border-amber-200/80 text-[10px] flex items-center justify-between">
+                <span class="text-amber-900 font-bold flex items-center gap-1">
+                  <i class="ph ph-radar text-amber-600 text-xs"></i>
+                  Auto-Assigning Nearest Rescuer...
+                </span>
               </div>
             `}
           </div>
@@ -918,35 +994,31 @@
               </div>
             ` : `
             <div class="grid grid-cols-2 gap-1 text-xs">
-              <button type="button" data-dest-lat="${lat}" data-dest-lng="${lng}" data-dest-name="${String('SOS: ' + resName).replace(/"/g, '&quot;')}" onclick="window.showEvakWarDirections(this.getAttribute('data-dest-lat'), this.getAttribute('data-dest-lng'), this.getAttribute('data-dest-name'))" class="py-1 px-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
-                <i class="ph ph-navigation-arrow text-xs shrink-0"></i> Navigate
+              <button type="button" data-dest-lat="${lat}" data-dest-lng="${lng}" data-dest-name="${String('SOS: ' + resName).replace(/"/g, '&quot;')}" onclick="window.showEvakWarDirections(this.getAttribute('data-dest-lat'), this.getAttribute('data-dest-lng'), this.getAttribute('data-dest-name'))" class="py-1.5 px-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
+                <i class="ph ph-navigation-arrow text-xs shrink-0"></i> Route
               </button>
 
               ${(role === 'staff' || role === 'rescuer') ? `
                 ${isAssignedToOther ? `
-                  <div class="py-1 px-1.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 border border-slate-200 truncate shadow-2xs" title="Assigned to ${handlerName || 'Another Rescuer'}">
+                  <div class="py-1.5 px-1.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 border border-slate-200 truncate shadow-2xs" title="Assigned to ${handlerName || 'Another Rescuer'}">
                     <i class="ph ph-lock-key text-slate-400 text-xs shrink-0"></i>
-                    <span class="truncate">Assigned: ${handlerName || 'Another Rescuer'}</span>
+                    <span class="truncate">${handlerName || 'Other Unit'}</span>
                   </div>
-                ` : status === 'ACTIVE' ? `
-                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)" class="py-1 px-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
-                    <i class="ph ph-check-circle text-xs shrink-0"></i> Acknowledge
-                  </button>
-                ` : status === 'ACKNOWLEDGED' ? `
-                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="py-1 px-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
-                    <i class="ph ph-paper-plane-tilt text-xs shrink-0"></i> Dispatch
+                ` : (status === 'ACTIVE' || status === 'ACKNOWLEDGED') ? `
+                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="py-1.5 px-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
+                    <i class="ph ph-paper-plane-tilt text-xs shrink-0"></i> Start Rescue
                   </button>
                 ` : status === 'RESPONDING' ? `
-                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="RESCUED" onclick="handleSosLifecycleBtn(this)" class="py-1 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
-                    <i class="ph ph-shield-check text-xs shrink-0"></i> Rescued
+                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="RESCUED" onclick="handleSosLifecycleBtn(this)" class="py-1.5 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
+                    <i class="ph ph-shield-check text-xs shrink-0"></i> Mark Rescued
                   </button>
                 ` : `
-                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="RESOLVED" onclick="handleSosLifecycleBtn(this)" class="py-1 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
+                  <button type="button" data-sos-id="${sosAlert.id}" data-next-status="RESOLVED" onclick="handleSosLifecycleBtn(this)" class="py-1.5 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10.5px] flex items-center justify-center gap-1 shadow-xs transition-all truncate cursor-pointer active:scale-98">
                     <i class="ph ph-check-circle text-xs shrink-0"></i> Resolve
                   </button>
                 `}
               ` : `
-                <button type="button" onclick="resolveSosAlert(${sosAlert.id})" class="py-1 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
+                <button type="button" onclick="resolveSosAlert(${sosAlert.id})" class="py-1.5 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
                   <i class="ph ph-check-circle text-xs shrink-0"></i> Mark Resolved
                 </button>
               `}
@@ -1540,22 +1612,32 @@
       el.className = 'Evacwar-maplibre-rescuer-marker';
       el.style.cursor = 'pointer';
 
-      const name = data.rescuer_name || 'Rescuer';
-      const photo = data.rescuer_photo;
+      let cachedStaff = null;
+      try { cachedStaff = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null'); } catch (_) {}
+
+      const name = data.rescuer_name || data.name || data.handler_name || (cachedStaff && (cachedStaff.full_name || `${cachedStaff.first_name || ''} ${cachedStaff.last_name || ''}`.trim())) || localStorage.getItem('evw_user_full_name') || 'Rescuer';
+      const rawPhoto = data.rescuer_photo || data.handler_photo || data.profile_photo || data.photo || (data.isSelf && cachedStaff ? cachedStaff.profile_photo : null);
+      const photo = (typeof window.resolveEvakWarProfilePhotoUrl === 'function')
+        ? window.resolveEvakWarProfilePhotoUrl(rawPhoto)
+        : rawPhoto;
       const initials = name.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'R';
+      const pillLabel = data.pill_text || '';
 
       const photoHtml = photo
-        ? `<img src="${photo}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"><div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; font-weight: 900; color: #1e3a8a; font-size: 13px; background: #dbeafe;">${initials}</div>`
-        : `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #1e3a8a; font-size: 13px; background: #dbeafe;">${initials}</div>`;
+        ? `<img src="${photo}" alt="${name}" class="evw-rescuer-marker-img" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"><div class="evw-rescuer-marker-initials" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; font-weight: 900; color: #1e3a8a; font-size: 13px; background: #dbeafe;">${initials}</div>`
+        : `<div class="evw-rescuer-marker-initials" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #1e3a8a; font-size: 13px; background: #dbeafe;">${initials}</div>`;
 
       el.innerHTML = `
-        <div style="position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;">
-          <span style="position: absolute; inset: -4px; border-radius: 50%; background: rgba(59, 130, 246, 0.45); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-          <div style="position: relative; width: 42px; height: 42px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.35); overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 2; background: #ffffff;">
-            ${photoHtml}
-          </div>
-          <div style="position: absolute; bottom: -2px; right: -2px; z-index: 3; width: 18px; height: 18px; border-radius: 50%; background: #2563eb; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 256 256" fill="#ffffff"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm45.66-93.66a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32-11.32L148.69,136H88a8,8,0,0,1,0-16h60.69l-18.35-18.34a8,8,0,0,1,11.32-11.32Z"></path></svg>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          ${pillLabel ? `<div class="rescuer-eta-pill" style="background:#0f172a;color:#34d399;border:1.5px solid #10b981;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:900;white-space:nowrap;box-shadow:0 4px 10px rgba(0,0,0,0.45);margin-bottom:4px;">${pillLabel}</div>` : ''}
+          <div style="position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;">
+            <span style="position: absolute; inset: -4px; border-radius: 50%; background: rgba(37, 99, 235, 0.45); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+            <div style="position: relative; width: 42px; height: 42px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.35); overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 2; background: #ffffff;">
+              ${photoHtml}
+            </div>
+            <div style="position: absolute; bottom: -2px; right: -2px; z-index: 3; width: 18px; height: 18px; border-radius: 50%; background: #2563eb; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 256 256" fill="#ffffff"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm45.66-93.66a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32-11.32L148.69,136H88a8,8,0,0,1,0-16h60.69l-18.35-18.34a8,8,0,0,1,11.32-11.32Z"></path></svg>
+            </div>
           </div>
         </div>`;
       return el;
@@ -1747,15 +1829,24 @@
       const oLat = origin.lat;
       const oLng = origin.lng;
 
-      // Place or update origin GPS marker on MapLibre map
+      // Place or update origin GPS marker on MapLibre map (use Rescuer Profile Picture marker if viewer is a Rescuer!)
       if (typeof maplibregl !== 'undefined') {
         if (window._evakwarDirectionsOriginMarker && typeof window._evakwarDirectionsOriginMarker.remove === 'function') {
           window._evakwarDirectionsOriginMarker.remove();
+          window._evakwarDirectionsOriginMarker = null;
         }
-        const originEl = window.createMaplibreGpsMarkerEl ? window.createMaplibreGpsMarkerEl() : document.createElement('div');
-        window._evakwarDirectionsOriginMarker = new maplibregl.Marker({ element: originEl, anchor: 'center' })
-          .setLngLat([oLng, oLat])
-          .addTo(map);
+        const isRescuerPage = window.location.pathname.indexOf('/rescuer') !== -1 ||
+          String(window.userRole || localStorage.getItem('evw_user_role') || '').toLowerCase() === 'rescuer';
+        if (isRescuerPage && typeof userGpsMarker !== 'undefined' && userGpsMarker && typeof userGpsMarker.setLngLat === 'function') {
+          userGpsMarker.setLngLat([oLng, oLat]);
+        } else {
+          const originEl = (isRescuerPage && typeof window.createMaplibreRescuerMarkerEl === 'function')
+            ? window.createMaplibreRescuerMarkerEl({ isSelf: true })
+            : (window.createMaplibreGpsMarkerEl ? window.createMaplibreGpsMarkerEl() : document.createElement('div'));
+          window._evakwarDirectionsOriginMarker = new maplibregl.Marker({ element: originEl, anchor: 'center' })
+            .setLngLat([oLng, oLat])
+            .addTo(map);
+        }
       }
 
       const pointInPolygon = (pt, ring) => {
@@ -5363,15 +5454,6 @@
                     <span class="hidden xl:inline">My Location</span>
                   </button>
 
-                  <!-- Rescuer LoRa Node Status / Quick Pair Pill -->
-                  <button id="rescuerLoraNodePill" type="button" onclick="window.openLoraHardwarePicker && window.openLoraHardwarePicker()"
-                    class="bg-white/95 backdrop-blur-md shadow-md hover:bg-purple-50 text-purple-800 border border-purple-200/90 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
-                    title="Connect / Status of Rescuer 433.875 MHz LoRa Node">
-                    <span id="rescuerLoraDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <i class="ph ph-broadcast text-sm text-purple-600"></i>
-                    <span id="rescuerLoraText">LoRa Node</span>
-                  </button>
-
                   <!-- Rescue Multi-Stop Path Auto-Router Button (Rescuer SOS Only — No Nearest Evac) -->
                   <button id="btnRescuerMultiRoute" type="button" onclick="window.drawRescuerMultiStopRoute && window.drawRescuerMultiStopRoute(true)"
                     class="bg-rose-600 hover:bg-rose-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer"
@@ -5643,11 +5725,24 @@
         return staffInfoWindow;
       }
 
+      function getActiveRescuerIdentity() {
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem('evw_cached_staff') || 'null'); } catch (_) {}
+        const uid = Number((cached && (cached.user_id || cached.userId)) || window.currentUserId || localStorage.getItem('evw_user_id') || 0);
+        const name = (cached && (cached.full_name || `${cached.first_name || ''} ${cached.last_name || ''}`.trim())) || localStorage.getItem('evw_user_full_name') || "Staff Three";
+        const rawPhoto = (cached && cached.profile_photo) || "";
+        const photo = (typeof window.resolveEvakWarProfilePhotoUrl === 'function')
+          ? window.resolveEvakWarProfilePhotoUrl(rawPhoto)
+          : (typeof resolveSosPhotoUrl === 'function' ? resolveSosPhotoUrl(rawPhoto) : rawPhoto);
+        return { userId: uid, name: name || 'Emergency Rescuer', photo: photo || null };
+      }
+
       function updateStaffLiveLocation(coords, autoFly = false, targetMap = null) {
         if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
         const { latitude, longitude, accuracy } = coords;
         lastKnownRescuerCoords = coords;
         window._lastKnownUserGps = { lat: latitude, lng: longitude, isFallback: false };
+        const me = getActiveRescuerIdentity();
 
         // Report live standby GPS to backend so nearest-rescuer auto-assign always uses real coordinates
         const nowPing = Date.now();
@@ -5656,13 +5751,26 @@
           try {
             const sock = window.__staffSocket || window.__appSocket;
             if (sock && sock.connected) {
-              sock.emit('rescuer:standby_location', { latitude, longitude, accuracy: accuracy || 0 });
+              sock.emit('rescuer:standby_location', {
+                userId: me.userId,
+                rescuer_name: me.name,
+                rescuer_photo: me.photo,
+                latitude,
+                longitude,
+                accuracy: accuracy || 0
+              });
             }
             if (navigator.onLine) {
               fetch('/api/sos/rescuer/location', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ latitude, longitude, accuracy: accuracy || 0 })
+                body: JSON.stringify({
+                  rescuer_name: me.name,
+                  rescuer_photo: me.photo,
+                  latitude,
+                  longitude,
+                  accuracy: accuracy || 0
+                })
               }).catch(() => {});
             }
           } catch (_) {}
@@ -5673,7 +5781,7 @@
 
         const activeMap = targetMap || mapInstance;
 
-        // MapLibre handler
+        // MapLibre handler — always render Rescuer's Profile Picture Marker instead of plain blue dot
         if (activeMap && typeof activeMap.getLayer === 'function') {
           if (autoFly && typeof activeMap.flyTo === 'function') {
             activeMap.flyTo({
@@ -5686,7 +5794,7 @@
           }
           const popupHtml = `
             <div style="font-family: system-ui; padding: 6px; text-align: center;">
-              <div style="font-weight: 800; color: #1e293b; font-size: 13px;">Rescuer Location</div>
+              <div style="font-weight: 800; color: #1e293b; font-size: 13px;">${me.name} (You)</div>
               <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-top: 2px;">Accuracy: ±${Math.round(accuracy || 0)}m</div>
               <div style="font-size: 10px; color: #64748b; margin-top: 2px; font-family: monospace;">${latitude.toFixed(5)}, ${longitude.toFixed(5)}</div>
             </div>
@@ -5696,11 +5804,27 @@
             if (userGpsMarker.getPopup && userGpsMarker.getPopup()) {
               userGpsMarker.getPopup().setHTML(popupHtml);
             }
+            // Refresh profile photo inside existing marker element if photo loaded after initial boot
+            if (me.photo && typeof userGpsMarker.getElement === 'function') {
+              const mEl = userGpsMarker.getElement();
+              const existingImg = mEl && mEl.querySelector('.evw-rescuer-marker-img');
+              if (!existingImg && typeof window.createMaplibreRescuerMarkerEl === 'function') {
+                const freshEl = window.createMaplibreRescuerMarkerEl({ isSelf: true, rescuer_name: me.name, rescuer_photo: me.photo });
+                mEl.innerHTML = freshEl.innerHTML;
+              } else if (existingImg && existingImg.getAttribute('src') !== me.photo) {
+                existingImg.setAttribute('src', me.photo);
+                existingImg.style.display = 'block';
+                const initDiv = mEl.querySelector('.evw-rescuer-marker-initials');
+                if (initDiv) initDiv.style.display = 'none';
+              }
+            }
           } else if (typeof maplibregl !== 'undefined') {
-            const el = typeof window.createMaplibreGpsMarkerEl === 'function' ? window.createMaplibreGpsMarkerEl() : document.createElement('div');
-            userGpsMarker = new maplibregl.Marker({ element: el })
+            const el = typeof window.createMaplibreRescuerMarkerEl === 'function'
+              ? window.createMaplibreRescuerMarkerEl({ isSelf: true, rescuer_name: me.name, rescuer_photo: me.photo })
+              : (typeof window.createMaplibreGpsMarkerEl === 'function' ? window.createMaplibreGpsMarkerEl() : document.createElement('div'));
+            userGpsMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
               .setLngLat([longitude, latitude])
-              .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(popupHtml))
+              .setPopup(new maplibregl.Popup({ offset: 22 }).setHTML(popupHtml))
               .addTo(activeMap);
           }
           return;
@@ -6297,6 +6421,21 @@
 
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
+
+        // Automatically plot Rescuer's Profile Picture GPS Marker on map load and start live GPS tracking
+        try {
+          const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+          if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
+            updateStaffLiveLocation({ latitude: Number(lastGps.lat), longitude: Number(lastGps.lng), accuracy: Number(lastGps.acc || 15) }, false, map);
+          } else {
+            updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+          }
+        } catch (_) {
+          updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+        }
+        setTimeout(() => {
+          locateStaffUser(map, false);
+        }, 400);
       }
 
       // Audio Chime generator using Web Audio API
@@ -6477,11 +6616,42 @@
 
         const sosId = (sosAlert.id !== undefined && sosAlert.id !== null) ? sosAlert.id : (sosAlert.sos_id !== undefined && sosAlert.sos_id !== null ? sosAlert.sos_id : null);
         const resId = (sosAlert.resident_id !== undefined && sosAlert.resident_id !== null) ? sosAlert.resident_id : (sosAlert.residentId || null);
-        const status = (sosAlert.status || 'ACTIVE').toUpperCase();
+        let status = (sosAlert.status || 'ACTIVE').toUpperCase();
 
         if (status === 'RESOLVED' || status === 'CANCELLED') {
           removeSosMarker(sosId, resId);
           return;
+        }
+
+        // Seamless Auto-Assignment on Rescuer Map: if an active SOS arrives without a handler yet, auto-match to this Rescuer Unit!
+        const me = getActiveRescuerIdentity();
+        const withinBgy = (typeof window.isInsideBarangaySanRafael === 'function') ? window.isInsideBarangaySanRafael(lat, lng) : true;
+        if (withinBgy && status === 'ACTIVE' && !sosAlert.handled_by && !sosAlert.handler_name && !sosAlert.responder_name) {
+          status = 'ACKNOWLEDGED';
+          sosAlert.status = 'ACKNOWLEDGED';
+          sosAlert.handled_by = me.userId || sosAlert.handled_by || null;
+          sosAlert.handler_name = me.name;
+          sosAlert.responder_name = me.name;
+          sosAlert.rescuer_photo = me.photo || null;
+          sosAlert.handler_photo = me.photo || null;
+          sosAlert.auto_assigned = true;
+
+          // Sync auto-assignment to server / LoRa in background (once per SOS ID)
+          window.__autoClaimedSosIds = window.__autoClaimedSosIds || new Set();
+          const claimKey = String(sosId || resId || '');
+          if (claimKey && !window.__autoClaimedSosIds.has(claimKey)) {
+            window.__autoClaimedSosIds.add(claimKey);
+            const rCoords = (window._lastKnownUserGps && typeof window._lastKnownUserGps.lat === 'number')
+              ? { lat: window._lastKnownUserGps.lat, lng: window._lastKnownUserGps.lng }
+              : { lat: 13.51037, lng: 123.34810 };
+            if (navigator.onLine && sosId && !String(sosId).startsWith('lora_')) {
+              fetch('/rescuer/sos/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: sosId, status: 'ACKNOWLEDGED', rescuer_lat: rCoords.lat, rescuer_lng: rCoords.lng })
+              }).catch(() => {});
+            }
+          }
         }
 
         const resName = (sosAlert.first_name ? `${sosAlert.first_name} ${sosAlert.last_name || ''}`.trim() : (sosAlert.name || 'Resident in Distress'));
@@ -6523,6 +6693,7 @@
             item.popupHtml = popupHtml;
             item.id = sosId || item.id;
             item.resident_id = resId || item.resident_id;
+            item.alertData = Object.assign({}, item.alertData || {}, sosAlert);
 
             // If status changed, update marker element styling
             if (item.status !== status && typeof window.createMaplibreSosMarkerEl === 'function') {
@@ -6589,7 +6760,8 @@
               id: sosId,
               resident_id: resId,
               popupHtml,
-              status
+              status,
+              alertData: Object.assign({}, sosAlert)
             };
             if (openPopup) {
               marker.togglePopup();
@@ -6810,29 +6982,29 @@
           statusBadgeClass = 'bg-emerald-600 text-white';
         }
 
-        const handlerName = alert.handler_name || alert.responder_name || (alert.handler ? alert.handler.name : null);
+        const me = getActiveRescuerIdentity();
+        const handlerName = alert.handler_name || alert.responder_name || (alert.handler ? alert.handler.name : null) || me.name;
         const handlerContact = alert.handler_contact || (alert.handler ? alert.handler.contact : null);
+        const handlerPhoto = resolveSosPhotoUrl(alert.rescuer_photo || alert.handler_photo || (isMine ? me.photo : null));
+        const handlerInitial = (handlerName || 'R').charAt(0).toUpperCase();
+        const handlerAvatarHtml = handlerPhoto
+          ? `<img src="${handlerPhoto}" class="w-5 h-5 rounded-full object-cover border border-emerald-500 shrink-0" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" /><span class="hidden w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">${handlerInitial}</span>`
+          : `<span class="w-5 h-5 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">${handlerInitial}</span>`;
+
         let handlerBoxHtml = '';
         if (handlerName) {
           const isAutoEnRoute = String(alert.responder_notes || '').toLowerCase().includes('en-route') || alert.auto_assigned_type === 'EN_ROUTE_MULTI_RESCUE';
           handlerBoxHtml = `
             <div class="bg-white/95 rounded-xl p-2 border ${isOther ? 'border-amber-200 bg-amber-50/40' : 'border-emerald-200'} text-xs flex items-center justify-between gap-2 shadow-2xs">
               <div class="flex items-center gap-1.5 min-w-0">
-                <i class="ph ${isOther ? 'ph-user-circle text-amber-600' : 'ph-user-check text-emerald-600'} font-bold shrink-0"></i>
-                <span class="text-slate-600 truncate">${isMine ? (isAutoEnRoute ? '<strong class="text-indigo-700">Auto-Assigned Along Path (You)</strong>' : '<strong class="text-emerald-700">Auto-Assigned Nearest (You)</strong>') : `Assigned: <strong class="text-slate-900">${handlerName}</strong>`}</span>
+                ${handlerAvatarHtml}
+                <span class="text-slate-600 truncate">${(isMine || !isAssigned) ? (isAutoEnRoute ? `<strong class="text-indigo-700">Auto-Assigned Along Path: ${handlerName} (You)</strong>` : `<strong class="text-emerald-700">Auto-Assigned Nearest: ${handlerName} (You)</strong>`) : `Auto-Assigned: <strong class="text-slate-900">${handlerName}</strong>`}</span>
               </div>
               ${handlerContact ? `
                 <a href="tel:${handlerContact}" class="text-blue-600 hover:underline font-mono font-bold shrink-0 flex items-center gap-0.5">
                   <i class="ph ph-phone text-[10px]"></i> ${handlerContact}
                 </a>
               ` : ''}
-            </div>
-          `;
-        } else if (status === 'ACTIVE') {
-          handlerBoxHtml = `
-            <div class="bg-white/95 rounded-xl p-2 border border-red-200 text-xs flex items-center gap-1.5 text-red-700 shadow-2xs">
-              <i class="ph ph-siren text-red-500 shrink-0"></i>
-              <span>Awaiting nearest rescuer acknowledgment</span>
             </div>
           `;
         }
@@ -6853,9 +7025,7 @@
           `;
         } else {
           let primaryBtnHtml = '';
-          if (status === 'ACTIVE') {
-            primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="ACKNOWLEDGED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-check-circle"></i> Acknowledge</button>`;
-          } else if (status === 'ACKNOWLEDGED') {
+          if (status === 'ACTIVE' || status === 'ACKNOWLEDGED') {
             primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESPONDING" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-navigation-arrow"></i> Start Rescue &amp; Route</button>`;
           } else if (status === 'RESPONDING') {
             primaryBtnHtml = `<button type="button" data-sos-id="${sosId || ''}" data-next-status="RESCUED" onclick="handleSosLifecycleBtn(this)" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"><i class="ph ph-shield-check"></i> Mark Rescued</button>`;
@@ -7163,30 +7333,6 @@
         }
         setTimeout(hydrateOfflineLoraSosOnMap, 650);
 
-        // Live Rescuer LoRa Node Pill Sync
-        function updateRescuerLoraNodePill() {
-          const pill = document.getElementById('rescuerLoraNodePill');
-          const dot = document.getElementById('rescuerLoraDot');
-          const txt = document.getElementById('rescuerLoraText');
-          if (!pill || !dot || !txt) return;
-          const lora = window.evakwarLoraClient;
-          const isBle = Boolean(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
-          const isUsb = Boolean(window.AndroidUsbSerialBridge && typeof window.AndroidUsbSerialBridge.isConnected === 'function' && window.AndroidUsbSerialBridge.isConnected());
-          const isConnected = isBle || isUsb || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL'));
-          if (isConnected) {
-            pill.className = 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer';
-            dot.className = 'w-2 h-2 rounded-full bg-emerald-200 animate-pulse';
-            txt.textContent = isUsb ? 'LoRa USB' : 'LoRa Live';
-          } else {
-            pill.className = 'bg-white/95 backdrop-blur-md shadow-md hover:bg-purple-50 text-purple-800 border border-purple-200/90 rounded-full px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-extrabold flex items-center justify-center gap-1 transition-transform active:scale-95 shrink-0 cursor-pointer';
-            dot.className = 'w-2 h-2 rounded-full bg-amber-400';
-            txt.textContent = 'Pair LoRa';
-          }
-        }
-        updateRescuerLoraNodePill();
-        setInterval(updateRescuerLoraNodePill, 2500);
-        window.addEventListener('evakwar:lora-status', updateRescuerLoraNodePill);
-
         window.addEventListener('evakwar:lora-sos', function (ev) {
           const pkt = ev && ev.detail;
           if (!pkt) return;
@@ -7475,6 +7621,21 @@
 
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
+
+        // Automatically plot Rescuer's Profile Picture GPS Marker on map load and start live GPS tracking
+        try {
+          const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
+          if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
+            updateStaffLiveLocation({ latitude: Number(lastGps.lat), longitude: Number(lastGps.lng), accuracy: Number(lastGps.acc || 15) }, false, map);
+          } else {
+            updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+          }
+        } catch (_) {
+          updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
+        }
+        setTimeout(() => {
+          locateStaffUser(map, false);
+        }, 400);
       }
 
       let staffSheet = null;
