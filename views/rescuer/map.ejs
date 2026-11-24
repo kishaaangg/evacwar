@@ -1310,17 +1310,13 @@
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
 
-        // Automatically plot Rescuer's Profile Picture GPS Marker on map load and start live GPS tracking
+        // Automatically plot Rescuer's Profile Picture GPS Marker ONLY when real device GPS (or cached real GPS) is available
         try {
           const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
           if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
             updateStaffLiveLocation({ latitude: Number(lastGps.lat), longitude: Number(lastGps.lng), accuracy: Number(lastGps.acc || 15) }, false, map);
-          } else {
-            updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
           }
-        } catch (_) {
-          updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
-        }
+        } catch (_) {}
         setTimeout(() => {
           locateStaffUser(map, false);
         }, 400);
@@ -2510,17 +2506,13 @@
         // Unified Real-time Socket.io Sync
         initStaffSocketSync();
 
-        // Automatically plot Rescuer's Profile Picture GPS Marker on map load and start live GPS tracking
+        // Automatically plot Rescuer's Profile Picture GPS Marker ONLY when real device GPS (or cached real GPS) is available
         try {
           const lastGps = JSON.parse(localStorage.getItem('evw_last_gps') || 'null');
           if (lastGps && isFinite(Number(lastGps.lat)) && isFinite(Number(lastGps.lng))) {
             updateStaffLiveLocation({ latitude: Number(lastGps.lat), longitude: Number(lastGps.lng), accuracy: Number(lastGps.acc || 15) }, false, map);
-          } else {
-            updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
           }
-        } catch (_) {
-          updateStaffLiveLocation({ latitude: 13.51037, longitude: 123.34810, accuracy: 20 }, false, map);
-        }
+        } catch (_) {}
         setTimeout(() => {
           locateStaffUser(map, false);
         }, 400);

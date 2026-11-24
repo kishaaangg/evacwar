@@ -2239,9 +2239,8 @@
       }
     }
 
-    function removeRescuerMarker(sosId) {
-      if (!sosId) return;
-      const markerKey = `rescuer_${sosId}`;
+    function removeRescuerMarker(sosId, rescuerUserId = null) {
+      if (!sosId && !rescuerUserId) return;
       const removeObj = (obj) => {
         if (!obj) return;
         if (obj.marker) {
@@ -2250,13 +2249,27 @@
         }
       };
 
-      if (rescuerMapMarkers[markerKey]) {
-        removeObj(rescuerMapMarkers[markerKey]);
-        delete rescuerMapMarkers[markerKey];
+      if (sosId) {
+        const markerKey = `rescuer_${sosId}`;
+        if (rescuerMapMarkers[markerKey]) {
+          removeObj(rescuerMapMarkers[markerKey]);
+          delete rescuerMapMarkers[markerKey];
+        }
+      }
+      if (rescuerUserId) {
+        const uKey = `rescuer_u_${rescuerUserId}`;
+        if (rescuerMapMarkers[uKey]) {
+          removeObj(rescuerMapMarkers[uKey]);
+          delete rescuerMapMarkers[uKey];
+        }
       }
       for (const k in rescuerMapMarkers) {
-        if (rescuerMapMarkers[k] && (rescuerMapMarkers[k].sos_id == sosId || k === String(sosId))) {
-          removeObj(rescuerMapMarkers[k]);
+        const item = rescuerMapMarkers[k];
+        if (item && (
+          (sosId && (item.sos_id == sosId || k === String(sosId) || k === `rescuer_${sosId}`)) ||
+          (rescuerUserId && (item.rescuer_id == rescuerUserId || k === `rescuer_u_${rescuerUserId}`))
+        )) {
+          removeObj(item);
           delete rescuerMapMarkers[k];
         }
       }
@@ -3125,14 +3138,14 @@
         socket.on('sos:new', (data) => {
           if (data) {
             addOrUpdateSosMarker(data, true);
-            if (data.handled_by || data.responder_name || data.handler_name) {
+            if ((data.handled_by || data.responder_name || data.handler_name) && isFinite(Number(data.rescuer_lat)) && isFinite(Number(data.rescuer_lng))) {
               addOrUpdateRescuerMarker({
                 sos_id: data.id || data.sos_id,
                 rescuer_user_id: data.handled_by || null,
-                rescuer_name: data.handler_name || data.responder_name || 'Emergency Rescuer',
+                rescuer_name: data.handler_name || data.responder_name,
                 rescuer_photo: data.rescuer_photo || data.handler_photo || null,
-                latitude: data.rescuer_lat || 13.51037,
-                longitude: data.rescuer_lng || 123.34810,
+                latitude: Number(data.rescuer_lat),
+                longitude: Number(data.rescuer_lng),
                 status: data.status || 'ACKNOWLEDGED',
                 updated_at: data.updated_at || new Date().toISOString()
               }, false);
@@ -3155,14 +3168,16 @@
             } else {
               const alertObj = data.alert || data;
               addOrUpdateSosMarker(alertObj, false);
-              if (data.handled_by || data.responder_name || alertObj.handled_by || alertObj.handler_name) {
+              const rLat = data.rescuer_lat !== undefined ? data.rescuer_lat : alertObj.rescuer_lat;
+              const rLng = data.rescuer_lng !== undefined ? data.rescuer_lng : alertObj.rescuer_lng;
+              if ((data.handled_by || data.responder_name || alertObj.handled_by || alertObj.handler_name) && isFinite(Number(rLat)) && isFinite(Number(rLng))) {
                 addOrUpdateRescuerMarker({
                   sos_id: data.id || data.sos_id || alertObj.id,
                   rescuer_user_id: data.handled_by || alertObj.handled_by || null,
-                  rescuer_name: data.responder_name || data.handler_name || alertObj.handler_name || 'Emergency Rescuer',
+                  rescuer_name: data.responder_name || data.handler_name || alertObj.handler_name,
                   rescuer_photo: data.rescuer_photo || data.handler_photo || alertObj.rescuer_photo || alertObj.handler_photo || null,
-                  latitude: data.rescuer_lat || alertObj.rescuer_lat || 13.51037,
-                  longitude: data.rescuer_lng || alertObj.rescuer_lng || 123.34810,
+                  latitude: Number(rLat),
+                  longitude: Number(rLng),
                   status: status || 'ACKNOWLEDGED',
                   updated_at: new Date().toISOString()
                 }, false);
@@ -3194,7 +3209,9 @@
         });
 
         socket.on('rescuer:location_cleared', (data) => {
-          if (data && data.sos_id) removeRescuerMarker(data.sos_id);
+          if (data && (data.sos_id || data.rescuer_user_id)) {
+            removeRescuerMarker(data.sos_id, data.rescuer_user_id);
+          }
         });
 
         socket.on('center_updated', (data) => {
@@ -3870,14 +3887,14 @@
         socket.on('sos:new', (data) => {
           if (data) {
             addOrUpdateSosMarker(data, true);
-            if (data.handled_by || data.responder_name || data.handler_name) {
+            if ((data.handled_by || data.responder_name || data.handler_name) && isFinite(Number(data.rescuer_lat)) && isFinite(Number(data.rescuer_lng))) {
               addOrUpdateRescuerMarker({
                 sos_id: data.id || data.sos_id,
                 rescuer_user_id: data.handled_by || null,
-                rescuer_name: data.handler_name || data.responder_name || 'Emergency Rescuer',
+                rescuer_name: data.handler_name || data.responder_name,
                 rescuer_photo: data.rescuer_photo || data.handler_photo || null,
-                latitude: data.rescuer_lat || 13.51037,
-                longitude: data.rescuer_lng || 123.34810,
+                latitude: Number(data.rescuer_lat),
+                longitude: Number(data.rescuer_lng),
                 status: data.status || 'ACKNOWLEDGED',
                 updated_at: data.updated_at || new Date().toISOString()
               }, false);
@@ -3900,14 +3917,16 @@
             } else {
               const alertObj = data.alert || data;
               addOrUpdateSosMarker(alertObj, false);
-              if (data.handled_by || data.responder_name || alertObj.handled_by || alertObj.handler_name) {
+              const rLat = data.rescuer_lat !== undefined ? data.rescuer_lat : alertObj.rescuer_lat;
+              const rLng = data.rescuer_lng !== undefined ? data.rescuer_lng : alertObj.rescuer_lng;
+              if ((data.handled_by || data.responder_name || alertObj.handled_by || alertObj.handler_name) && isFinite(Number(rLat)) && isFinite(Number(rLng))) {
                 addOrUpdateRescuerMarker({
                   sos_id: data.id || data.sos_id || alertObj.id,
                   rescuer_user_id: data.handled_by || alertObj.handled_by || null,
-                  rescuer_name: data.responder_name || data.handler_name || alertObj.handler_name || 'Emergency Rescuer',
+                  rescuer_name: data.responder_name || data.handler_name || alertObj.handler_name,
                   rescuer_photo: data.rescuer_photo || data.handler_photo || alertObj.rescuer_photo || alertObj.handler_photo || null,
-                  latitude: data.rescuer_lat || alertObj.rescuer_lat || 13.51037,
-                  longitude: data.rescuer_lng || alertObj.rescuer_lng || 123.34810,
+                  latitude: Number(rLat),
+                  longitude: Number(rLng),
                   status: status || 'ACKNOWLEDGED',
                   updated_at: new Date().toISOString()
                 }, false);
@@ -3939,7 +3958,9 @@
         });
 
         socket.on('rescuer:location_cleared', (data) => {
-          if (data && data.sos_id) removeRescuerMarker(data.sos_id);
+          if (data && (data.sos_id || data.rescuer_user_id)) {
+            removeRescuerMarker(data.sos_id, data.rescuer_user_id);
+          }
         });
 
         socket.on('center_updated', (data) => {

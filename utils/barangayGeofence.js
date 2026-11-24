@@ -237,13 +237,18 @@ function isInsideBarangaySanRafael(lat, lng, bufferKm = 0.22) {
 }
 
 /**
- * Finds the best Rescuer to automatically assign to a newly triggered SOS alert:
- * 1. En-Route / Along-the-Path Check ("dadaanan lang niya"):
- *    If a rescuer is already responding to another active SOS and the new SOS lies along their path
- *    (detour <= 0.45 km or within 0.50 km of the rescuer), assign that same rescuer for multi-rescue!
- * 2. Nearest Rescuer Check:
- *    Otherwise, compute Haversine distance from each available Rescuer's current GPS position
- *    (or default station position) to the new SOS and pick the nearest rescuer.
+ * Finds the best ONLINE Rescuer to automatically assign to a newly triggered SOS alert:
+ * - STRICT ONLINE-ONLY RULE: Only rescuers who are currently ONLINE and have reported real live GPS
+ *   coordinates in `rescuerTracker` can be auto-assigned or plotted on the map. Offline rescuers (such as
+ *   uninstalled/logged-out accounts) and default Elementary School / Barangay Hall fallback coordinates
+ *   are NEVER used.
+ * - Supports Multi-SOS Assignment (2 or more SOS alerts assigned to 1 online rescuer):
+ *   1. En-Route / Along-the-Path Check ("dadaanan lang niya"):
+ *      If an online rescuer is already assigned to another active SOS and the new SOS is along their
+ *      San Rafael orange-road path or nearby (detour <= 0.65 km or within 0.75 km), assign that same online rescuer!
+ *   2. Nearest Online Rescuer Check:
+ *      Otherwise, pick the nearest online rescuer along the San Rafael orange-road network (even if they already
+ *      have 1 or more SOS assigned).
  */
 async function findNearestRescuerForSos(sosLat, sosLng) {
   try {
@@ -251,33 +256,42 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
     const nLng = Number(sosLng);
     if (!isFinite(nLat) || !isFinite(nLng)) return null;
 
-    // 1. Fetch all active/registered rescuers from database
-    const [rescuerRows] = await db.execute(`
-      SELECT u.id AS user_id, u.email, u.role,
-             s.id AS staff_id, s.first_name, s.last_name, s.contact_number, s.staff_type, s.profile_photo, s.occupation,
-             ec.latitude AS center_lat, ec.longitude AS center_lng
-      FROM users u
-      INNER JOIN staff s ON u.id = s.user_id
-      LEFT JOIN evacuation_centers ec ON s.assigned_center_id = ec.id
-      WHERE (s.staff_type IN ('RESCUER', 'BOTH') OR u.role = 'rescuer')
-      ORDER BY s.staff_type = 'RESCUER' DESC, u.id ASC
-    `).catch((dbErr) => {
-      console.warn('[barangayGeofence] rescuer query warning:', dbErr.message);
-      return [[]];
-    });
-
-    // 2. Fetch live tracked rescuer GPS positions from rescuerTracker (both active responders AND standby rescuers)
+    // 1. Fetch live tracked ONLINE rescuer GPS positions from rescuerTracker
     const liveTracked = (typeof rescuerTracker.getAllKnownRescuers === 'function')
-      ? rescuerTracker.getAllKnownRescuers()
+      ? rescuerTracker.getAllKnownRescuers(3 * 60 * 1000)
       : (rescuerTracker.getActiveRescuers() || []);
     const liveByUserId = new Map();
     liveTracked.forEach((tr) => {
-      if (tr && tr.rescuer_user_id && isFinite(tr.latitude) && isFinite(tr.longitude)) {
+      if (tr && tr.rescuer_user_id && isFinite(Number(tr.latitude)) && isFinite(Number(tr.longitude))) {
         liveByUserId.set(Number(tr.rescuer_user_id), tr);
       }
     });
 
-    // 3. Fetch currently active/assigned SOS alerts to check for En-Route ("dadaanan lang") paths
+    // If no rescuer has a live GPS fix online right now, do NOT assign any offline database account!
+    if (liveByUserId.size === 0) {
+      return null;
+    }
+
+    // 2. Fetch registered rescuer account details from database for the online user IDs
+    const onlineUids = Array.from(liveByUserId.keys());
+    const placeholders = onlineUids.map(() => '?').join(',');
+    const [rescuerRows] = await db.execute(`
+      SELECT u.id AS user_id, u.email, u.role,
+             s.id AS staff_id, s.first_name, s.last_name, s.contact_number, s.staff_type, s.profile_photo, s.occupation
+      FROM users u
+      INNER JOIN staff s ON u.id = s.user_id
+      WHERE u.id IN (${placeholders})
+        AND (s.staff_type IN ('RESCUER', 'BOTH') OR u.role = 'rescuer')
+    `, onlineUids).catch((dbErr) => {
+      console.warn('[barangayGeofence] rescuer query warning:', dbErr.message);
+      return [[]];
+    });
+
+    if (!rescuerRows || rescuerRows.length === 0) {
+      return null;
+    }
+
+    // 3. Fetch currently active/assigned SOS alerts to check for En-Route ("dadaanan lang") multi-SOS paths
     const [activeSosRows] = await db.execute(`
       SELECT id, resident_id, name, latitude, longitude, status, handled_by
       FROM sos_alerts
@@ -288,26 +302,26 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
     // 4. Use the Admin-drawn Orange Road Network of Barangay San Rafael to compute distances & en-route paths
     const computeRoadDistKm = await getSanRafaelOrangeRoadDistanceFn();
 
-    const candidates = (rescuerRows || []).map((r) => {
+    const candidates = [];
+    for (const r of rescuerRows) {
       const uid = Number(r.user_id);
       const tracked = liveByUserId.get(uid);
-      const isOnlineSocket = Boolean(onlineTracker && typeof onlineTracker.isUserOnline === 'function' && onlineTracker.isUserOnline(uid));
-      const isLiveOnline = Boolean(tracked || isOnlineSocket);
-      const rLat = tracked && isFinite(Number(tracked.latitude))
-        ? Number(tracked.latitude)
-        : (isFinite(Number(r.center_lat)) && Number(r.center_lat) !== 0 ? Number(r.center_lat) : BARANGAY_HALL_COORDS.lat);
-      const rLng = tracked && isFinite(Number(tracked.longitude))
-        ? Number(tracked.longitude)
-        : (isFinite(Number(r.center_lng)) && Number(r.center_lng) !== 0 ? Number(r.center_lng) : BARANGAY_HALL_COORDS.lng);
-      const fullName = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || 'Emergency Rescuer';
-      let photo = (tracked && tracked.rescuer_photo) || r.profile_photo || null;
+      if (!tracked || !isFinite(Number(tracked.latitude)) || !isFinite(Number(tracked.longitude))) {
+        continue; // Strictly skip any rescuer without real live GPS
+      }
+      const rLat = Number(tracked.latitude);
+      const rLng = Number(tracked.longitude);
+      const fullName = `${r.first_name || ''} ${r.last_name || ''}`.trim() || tracked.rescuer_name;
+      if (!fullName) continue;
+
+      let photo = r.profile_photo || tracked.rescuer_photo || null;
       if (photo && !String(photo).startsWith('http') && !String(photo).startsWith('/')) {
         photo = `/uploads/profiles/${photo}`;
       }
       const assignedAlerts = (activeSosRows || []).filter((a) => Number(a.handled_by) === uid);
       const distKm = computeRoadDistKm(rLat, rLng, nLat, nLng);
 
-      // Check if this rescuer is already en-route to an SOS and this new SOS is along their orange-road path ("dadaanan lang")
+      // Check if this online rescuer is already handling an SOS and this 2nd SOS is near them or along their orange-road path
       let isEnRouteMatch = false;
       let minDetourKm = Infinity;
       assignedAlerts.forEach((targetSos) => {
@@ -318,37 +332,34 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
         const viaNewSosDist = distKm + computeRoadDistKm(nLat, nLng, tLat, tLng);
         const detourKm = Math.max(0, viaNewSosDist - directDist);
         const distBetweenSos = computeRoadDistKm(nLat, nLng, tLat, tLng);
-        if (detourKm <= 0.45 || distBetweenSos <= 0.35 || distKm <= 0.40) {
+        if (detourKm <= 0.65 || distBetweenSos <= 0.60 || distKm <= 0.75) {
           isEnRouteMatch = true;
           if (detourKm < minDetourKm) minDetourKm = detourKm;
         }
       });
 
-      return {
+      candidates.push({
         user_id: uid,
         name: fullName,
         photo,
         contact_number: r.contact_number || null,
-        role: r.occupation || 'Emergency Rescuer',
+        role: r.occupation || `${fullName} (Rescuer)`,
         latitude: rLat,
         longitude: rLng,
         distanceKm: distKm,
         assignedCount: assignedAlerts.length,
-        isLiveOnline,
+        isLiveOnline: true,
         isEnRouteMatch,
         minDetourKm
-      };
-    });
+      });
+    }
 
     if (candidates.length === 0) return null;
 
-    // Priority 1: A rescuer whose active path passes right through/near the new SOS ("dadaanan lang niya")
+    // Priority 1: Online rescuer whose active orange-road path passes near the new 2nd SOS ("along the path")
     const enRouteCandidates = candidates
       .filter((c) => c.isEnRouteMatch)
-      .sort((a, b) => {
-        if (a.isLiveOnline !== b.isLiveOnline) return a.isLiveOnline ? -1 : 1;
-        return a.distanceKm - b.distanceKm;
-      });
+      .sort((a, b) => a.distanceKm - b.distanceKm);
     if (enRouteCandidates.length > 0) {
       return {
         ...enRouteCandidates[0],
@@ -356,11 +367,10 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
       };
     }
 
-    // Priority 2: Nearest live/online rescuer first, then nearest registered rescuer by Haversine distance
+    // Priority 2: Nearest online rescuer along the San Rafael orange road network (can be assigned to 2+ SOS alerts)
     candidates.sort((a, b) => {
-      if (a.isLiveOnline !== b.isLiveOnline) return a.isLiveOnline ? -1 : 1;
-      const scoreA = a.distanceKm + a.assignedCount * 0.25;
-      const scoreB = b.distanceKm + b.assignedCount * 0.25;
+      const scoreA = a.distanceKm + a.assignedCount * 0.15;
+      const scoreB = b.distanceKm + b.assignedCount * 0.15;
       return scoreA - scoreB;
     });
 
@@ -374,10 +384,105 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
   }
 }
 
+/**
+ * Automatically assigns any unassigned ACTIVE SOS alerts (or SOS alerts that were stuck on an offline rescuer)
+ * to the nearest ONLINE Rescuer as soon as that rescuer reports live GPS.
+ * Supports assigning 2 or more nearby/along-the-path SOS alerts to the same online rescuer!
+ */
+async function autoAssignPendingSosToOnlineRescuer(io = null) {
+  try {
+    const liveTracked = (typeof rescuerTracker.getAllKnownRescuers === 'function')
+      ? rescuerTracker.getAllKnownRescuers(3 * 60 * 1000)
+      : [];
+    if (!liveTracked || liveTracked.length === 0) return [];
+    const onlineUids = new Set(liveTracked.map(r => Number(r.rescuer_user_id)).filter(Boolean));
+    if (onlineUids.size === 0) return [];
+
+    const [activeAlerts] = await db.execute(`
+      SELECT id, resident_id, name, latitude, longitude, status, handled_by
+      FROM sos_alerts
+      WHERE status IN ('ACTIVE', 'ACKNOWLEDGED')
+      ORDER BY id ASC
+    `).catch(() => [[]]);
+
+    if (!activeAlerts || activeAlerts.length === 0) return [];
+
+    const reassigned = [];
+    for (const alert of activeAlerts) {
+      const currentHandler = alert.handled_by ? Number(alert.handled_by) : 0;
+      // Reassign if unassigned OR if currently assigned to an offline rescuer (not in onlineUids)
+      if (!currentHandler || !onlineUids.has(currentHandler)) {
+        const autoRescuer = await findNearestRescuerForSos(alert.latitude, alert.longitude);
+        if (autoRescuer && autoRescuer.user_id) {
+          const autoNotes = (autoRescuer.assignmentType === 'EN_ROUTE_MULTI_RESCUE' || autoRescuer.assignmentType === 'MULTI_RESCUE_NEAREST')
+            ? `Auto-assigned to En-Route Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`
+            : `Auto-assigned to Nearest Rescuer (${autoRescuer.name} • ${autoRescuer.distanceKm.toFixed(2)} km)`;
+          await db.execute(
+            `UPDATE sos_alerts SET status = 'ACKNOWLEDGED', handled_by = ?, responder_notes = ?, updated_at = NOW() WHERE id = ?`,
+            [autoRescuer.user_id, autoNotes, alert.id]
+          ).catch(() => {});
+
+          rescuerTracker.updateRescuerLocation(alert.id, {
+            rescuer_user_id: autoRescuer.user_id,
+            rescuer_name: autoRescuer.name,
+            rescuer_photo: autoRescuer.photo || null,
+            rescuer_role: autoRescuer.role || autoRescuer.name,
+            latitude: autoRescuer.latitude,
+            longitude: autoRescuer.longitude,
+            status: 'ACKNOWLEDGED'
+          });
+
+          const updatePayload = {
+            id: Number(alert.id),
+            sos_id: Number(alert.id),
+            resident_id: alert.resident_id ? Number(alert.resident_id) : null,
+            status: 'ACKNOWLEDGED',
+            handled_by: autoRescuer.user_id,
+            responder_name: autoRescuer.name,
+            handler_name: autoRescuer.name,
+            rescuer_photo: autoRescuer.photo || null,
+            handler_photo: autoRescuer.photo || null,
+            rescuer_lat: autoRescuer.latitude,
+            rescuer_lng: autoRescuer.longitude,
+            auto_assigned: true,
+            auto_assigned_type: autoRescuer.assignmentType
+          };
+          reassigned.push(updatePayload);
+
+          if (io) {
+            io.emit('sos:update_status', updatePayload);
+            io.emit('rescuer:location_update', {
+              sos_id: Number(alert.id),
+              rescuer_user_id: autoRescuer.user_id,
+              rescuer_name: autoRescuer.name,
+              rescuer_role: autoRescuer.role || autoRescuer.name,
+              rescuer_photo: autoRescuer.photo || null,
+              latitude: autoRescuer.latitude,
+              longitude: autoRescuer.longitude,
+              lat: autoRescuer.latitude,
+              lng: autoRescuer.longitude,
+              status: 'ACKNOWLEDGED',
+              resident_id: alert.resident_id ? Number(alert.resident_id) : null,
+              resident_lat: Number(alert.latitude) || null,
+              resident_lng: Number(alert.longitude) || null,
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+      }
+    }
+    return reassigned;
+  } catch (err) {
+    console.warn('[barangayGeofence] autoAssignPendingSosToOnlineRescuer warning:', err.message);
+    return [];
+  }
+}
+
 module.exports = {
   SAN_RAFAEL_BOUNDARY_RING,
   BARANGAY_HALL_COORDS,
   computeHaversineKm,
   isInsideBarangaySanRafael,
-  findNearestRescuerForSos
+  findNearestRescuerForSos,
+  autoAssignPendingSosToOnlineRescuer
 };

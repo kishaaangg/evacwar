@@ -506,11 +506,15 @@
                   updateRescuerEtaDisplay(window._lastRescuerCoords ? {
                     status: window._lastRescuerCoords.status,
                     responderName: window._lastRescuerCoords.name,
+                    rescuerPhoto: window._lastRescuerCoords.photo,
                     rescuerLat: window._lastRescuerCoords.lat,
                     rescuerLng: window._lastRescuerCoords.lng
                   } : {
                     status: activeSosAlert.status || 'ACTIVE',
-                    responderName: activeSosAlert.responder_name || 'Barangay Hall / Rescue Team'
+                    responderName: activeSosAlert.handler_name || activeSosAlert.responder_name || null,
+                    rescuerPhoto: activeSosAlert.rescuer_photo || activeSosAlert.handler_photo || null,
+                    rescuerLat: activeSosAlert.rescuer_lat || null,
+                    rescuerLng: activeSosAlert.rescuer_lng || null
                   });
                 }
 
@@ -887,29 +891,41 @@
                 if (sosCardHeading) sosCardHeading.textContent = "🚨 EMERGENCY DISTRESS ACTIVE";
                 if (sosCardSubtext) sosCardSubtext.textContent = "Your live GPS position is transmitting to LGU responders. Tap STOP SOS below when you are safe.";
 
-                // Compute & show Estimated Time of Arrival (ETA) immediately using Haversine formula
+                // Compute & show Estimated Time of Arrival (ETA) ONLY when an actual online Rescuer account is assigned
                 updateRescuerEtaDisplay({
                   status: (alertData && alertData.status) || 'ACTIVE',
-                  responderName: (alertData && (alertData.handler_name || alertData.responder_name || alertData.responderName)) || 'Barangay Rescue Team',
+                  responderName: (alertData && (alertData.handler_name || alertData.responder_name || alertData.responderName)) || (window._lastRescuerCoords && window._lastRescuerCoords.name) || null,
                   rescuerPhoto: (alertData && (alertData.rescuer_photo || alertData.handler_photo)) || (window._lastRescuerCoords && window._lastRescuerCoords.photo) || null,
-                  rescuerLat: (alertData && alertData.rescuer_lat) || window._lastRescuerCoords?.lat || 13.51037,
-                  rescuerLng: (alertData && alertData.rescuer_lng) || window._lastRescuerCoords?.lng || 123.34810
+                  rescuerLat: (alertData && alertData.rescuer_lat) || (window._lastRescuerCoords && window._lastRescuerCoords.lat) || null,
+                  rescuerLng: (alertData && alertData.rescuer_lng) || (window._lastRescuerCoords && window._lastRescuerCoords.lng) || null
                 });
               }
 
               /**
-               * Computes Rescuer Distance (d) & Estimated Time of Arrival (ETA = d / v) using the Haversine Formula:
-               *   a = sin²(Δφ/2) + cos(φ1)·cos(φ2)·sin²(Δλ/2)
-               *   c = 2 · atan2(√a, √(1−a))
-               *   d = R · c   (Earth radius R = 6371 km)
-               *   ETA_vehicle = (d / 25 km/h) * 60 + 1 min dispatch buffer
-               *   ETA_foot    = (d / 4.5 km/h) * 60
+               * Computes Rescuer Distance (d) & Estimated Time of Arrival (ETA = d / v) strictly along the
+               * San Rafael Orange Road Network and ONLY plots a rescuer when an online Rescuer account is assigned.
                */
               let rescuerMapMarker = null;
               window._residentSosActiveRouteCoords = null;
               window._residentSosLastDestKey = null;
 
-              function updateRescuerEtaDisplay({ status = 'RESPONDING', responderName = 'Barangay Rescue Team', rescuerPhoto = null, rescuerLat = 13.51037, rescuerLng = 123.34810 } = {}) {
+              function isGenericOrFakeRescuerName(name) {
+                if (!name) return true;
+                const clean = String(name).trim().toLowerCase();
+                return !clean || [
+                  'barangay rescue team',
+                  'rescue team',
+                  'emergency rescuer',
+                  'barangay emergency rescuer',
+                  'rescuer unit',
+                  'barangay hall',
+                  'barangay hall / rescue team',
+                  'hall gateway (!d88b1a58)',
+                  'staff responder'
+                ].includes(clean);
+              }
+
+              function updateRescuerEtaDisplay({ status = 'ACTIVE', responderName = null, rescuerPhoto = null, rescuerLat = null, rescuerLng = null } = {}) {
                 const etaCard = document.getElementById('rescuerEtaCard');
                 if (!etaCard) return;
                 const st = String(status || 'ACTIVE').toUpperCase();
@@ -917,14 +933,67 @@
                   etaCard.classList.add('hidden');
                   window._residentSosActiveRouteCoords = null;
                   window._residentSosLastDestKey = null;
+                  window._lastRescuerCoords = null;
                   return;
                 }
                 etaCard.classList.remove('hidden');
 
+                const nameEl = document.getElementById('rescuerEtaResponderName');
+                const avatarSlot = document.getElementById('rescuerEtaAvatarSlot');
+                const badgeEl = document.getElementById('rescuerEtaStatusBadge');
+                const distEl = document.getElementById('rescuerEtaDistanceVal');
+                const vehEl = document.getElementById('rescuerEtaVehicleVal');
+                const walkEl = document.getElementById('rescuerEtaWalkVal');
+                const coordsEl = document.getElementById('rescuerEtaCoordsText');
+                const heroMinsEl = document.getElementById('rescuerEtaHeroMins');
+                const stageTitleEl = document.getElementById('rescuerEtaStageTitle');
+                const stageSubEl = document.getElementById('rescuerEtaStatusSubtext');
+                const progBarEl = document.getElementById('rescuerEtaProgressBar');
+                const s1 = document.getElementById('stepSos1');
+                const s2 = document.getElementById('stepSos2');
+                const s3 = document.getElementById('stepSos3');
+                const s4 = document.getElementById('stepSos4');
+
+                const hasRealOnlineRescuer = !isGenericOrFakeRescuerName(responderName) && isValidCoordinate(rescuerLat, rescuerLng);
+
+                // If NO online rescuer is connected/assigned yet, do NOT plot a fake rescuer marker or green line at the Elementary School!
+                if (!hasRealOnlineRescuer) {
+                  window._lastRescuerCoords = null;
+                  window._residentSosActiveRouteCoords = null;
+                  if (rescuerMapMarker && typeof rescuerMapMarker.remove === 'function') {
+                    try { rescuerMapMarker.remove(); } catch (_) {}
+                    rescuerMapMarker = null;
+                  }
+                  if (map && typeof map.getSource === 'function') {
+                    try {
+                      const src = map.getSource('rescuer-live-route-src');
+                      if (src) src.setData({ type: 'FeatureCollection', features: [] });
+                    } catch (_) {}
+                  }
+                  if (stageTitleEl) stageTitleEl.textContent = 'SOS Active — Waiting for Online Rescuer';
+                  if (stageSubEl) stageSubEl.textContent = 'Waiting for an online rescuer in Barangay San Rafael to connect and receive your SOS...';
+                  if (heroMinsEl) heroMinsEl.textContent = 'WAITING';
+                  if (nameEl) nameEl.textContent = 'Waiting for Online Rescuer...';
+                  if (avatarSlot) avatarSlot.innerHTML = `<i class="ph ph-spinner animate-spin text-base text-blue-600"></i>`;
+                  if (badgeEl) badgeEl.textContent = 'WAITING';
+                  if (distEl) distEl.textContent = '--';
+                  if (vehEl) vehEl.textContent = '--';
+                  if (walkEl) walkEl.textContent = '--';
+                  if (coordsEl) coordsEl.textContent = 'Rescuer GPS: Waiting for online rescuer...';
+                  if (progBarEl) progBarEl.style.width = '28%';
+                  [s1, s2, s3, s4].forEach((el, idx) => {
+                    if (!el) return;
+                    el.className = (idx === 0)
+                      ? 'text-emerald-700 font-black flex flex-col items-center gap-0.5'
+                      : 'text-slate-400 font-bold flex flex-col items-center gap-0.5';
+                  });
+                  return;
+                }
+
                 const resLat = isValidCoordinate(currentLat, currentLng) ? Number(currentLat) : 13.51024;
                 const resLng = isValidCoordinate(currentLat, currentLng) ? Number(currentLng) : 123.34701;
-                const rLat = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLat) : 13.51037;
-                const rLng = isValidCoordinate(rescuerLat, rescuerLng) ? Number(rescuerLng) : 123.34810;
+                const rLat = Number(rescuerLat);
+                const rLng = Number(rescuerLng);
                 const resolvedPhoto = rescuerPhoto || (window._lastRescuerCoords && window._lastRescuerCoords.photo) || null;
                 window._lastRescuerCoords = { lat: rLat, lng: rLng, name: responderName, photo: resolvedPhoto, status: st };
 
@@ -1550,15 +1619,21 @@
                   if (!data || !activeSosAlert) return;
                   const rLat = data.latitude !== undefined ? data.latitude : data.lat;
                   const rLng = data.longitude !== undefined ? data.longitude : data.lng;
-                  if (isValidCoordinate(rLat, rLng)) {
+                  const rName = data.rescuer_name || data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : null);
+                  if (isValidCoordinate(rLat, rLng) && !isGenericOrFakeRescuerName(rName)) {
                     updateRescuerEtaDisplay({
                       status: data.status || (window._lastRescuerCoords ? window._lastRescuerCoords.status : (activeSosAlert.status || 'RESPONDING')),
-                      responderName: data.rescuer_name || data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : 'Rescuer Unit'),
+                      responderName: rName,
                       rescuerPhoto: data.rescuer_photo || (window._lastRescuerCoords ? window._lastRescuerCoords.photo : null),
                       rescuerLat: Number(rLat),
                       rescuerLng: Number(rLng)
                     });
                   }
+                });
+
+                socket.on('rescuer:location_cleared', () => {
+                  if (!activeSosAlert) return;
+                  updateRescuerEtaDisplay({ status: 'ACTIVE', responderName: null, rescuerLat: null, rescuerLng: null });
                 });
 
                 socket.on('sos:resolve', (data) => {

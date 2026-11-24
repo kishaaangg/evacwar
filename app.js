@@ -957,19 +957,32 @@ io.on('connection', (socket) => {
       const lat = Number(data.latitude !== undefined ? data.latitude : data.lat);
       const lng = Number(data.longitude !== undefined ? data.longitude : data.lng);
       if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return;
-      const sName = data.rescuer_name || (sess && sess.userName) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userName) || 'Emergency Rescuer';
-      let sPhoto = data.rescuer_photo || null;
-      if (!sPhoto) {
-        const cached = rescuerTracker.getRescuerLocation(sUserId);
-        if (cached && cached.rescuer_photo) {
-          sPhoto = cached.rescuer_photo;
-        } else {
-          const [pRows] = await db.execute('SELECT first_name, last_name, profile_photo FROM staff WHERE user_id = ? LIMIT 1', [sUserId]).catch(() => [[]]);
-          if (pRows && pRows.length > 0 && pRows[0].profile_photo) {
-            sPhoto = pRows[0].profile_photo;
+
+      const cached = rescuerTracker.getRescuerLocation(sUserId);
+      let sName = (data.rescuer_name && data.rescuer_name !== 'Emergency Rescuer' && data.rescuer_name !== 'Rescuer Unit')
+        ? data.rescuer_name
+        : ((cached && cached.rescuer_name && cached.rescuer_name !== 'Emergency Rescuer') ? cached.rescuer_name : null);
+      let sPhoto = data.rescuer_photo || (cached && cached.rescuer_photo) || null;
+      let sRole = (cached && cached.rescuer_role) || null;
+
+      if (!sName || !sPhoto) {
+        const [pRows] = await db.execute('SELECT first_name, last_name, profile_photo, occupation, staff_type FROM staff WHERE user_id = ? LIMIT 1', [sUserId]).catch(() => [[]]);
+        if (pRows && pRows.length > 0) {
+          // Strictly only track Rescuer accounts on the map
+          if (pRows[0].staff_type && !['RESCUER', 'BOTH'].includes(String(pRows[0].staff_type).toUpperCase())) {
+            return;
           }
+          const dbName = `${pRows[0].first_name || ''} ${pRows[0].last_name || ''}`.trim();
+          if (dbName) sName = dbName;
+          if (!sPhoto && pRows[0].profile_photo) sPhoto = pRows[0].profile_photo;
+          if (pRows[0].occupation) sRole = pRows[0].occupation;
         }
       }
+      if (!sName) {
+        sName = (sess && sess.userName) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userName) || null;
+      }
+      if (!sName) return;
+
       if (sPhoto && !String(sPhoto).startsWith('http') && !String(sPhoto).startsWith('/')) {
         sPhoto = `/uploads/profiles/${sPhoto}`;
       }
@@ -977,7 +990,7 @@ io.on('connection', (socket) => {
         rescuer_user_id: sUserId,
         rescuer_name: sName,
         rescuer_photo: sPhoto,
-        rescuer_role: 'Emergency Rescuer',
+        rescuer_role: sRole || sName,
         latitude: lat,
         longitude: lng,
         accuracy: Number(data.accuracy || 0)
@@ -987,7 +1000,7 @@ io.on('connection', (socket) => {
         rescuer_user_id: sUserId,
         rescuer_name: sName,
         rescuer_photo: sPhoto,
-        rescuer_role: 'Emergency Rescuer',
+        rescuer_role: sRole || sName,
         latitude: lat,
         longitude: lng,
         lat: lat,
@@ -996,6 +1009,12 @@ io.on('connection', (socket) => {
         status: 'STANDBY',
         updated_at: new Date().toISOString()
       });
+
+      // Automatically assign any pending/unassigned SOS alerts (or alerts assigned to an offline rescuer) to the nearest online rescuer!
+      const { autoAssignPendingSosToOnlineRescuer } = require('./utils/barangayGeofence');
+      if (typeof autoAssignPendingSosToOnlineRescuer === 'function') {
+        await autoAssignPendingSosToOnlineRescuer(io);
+      }
     } catch (_) {}
   });
 
@@ -1145,6 +1164,20 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Socket disconnected:', socket.id);
     onlineTracker.removeSocket(socket.id);
+    const disconnectedUid = Number((sess && sess.userId) || (socket.handshake && socket.handshake.auth && socket.handshake.auth.userId) || 0);
+    if (disconnectedUid > 0) {
+      setTimeout(() => {
+        if (!onlineTracker.isUserOnline(disconnectedUid)) {
+          const cleared = rescuerTracker.clearRescuerLocationByRescuerId(disconnectedUid);
+          if (cleared) {
+            io.emit('rescuer:location_cleared', {
+              rescuer_user_id: disconnectedUid,
+              sos_id: `standby_${disconnectedUid}`
+            });
+          }
+        }
+      }, 10000);
+    }
   });
 });
 

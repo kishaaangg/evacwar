@@ -20,45 +20,19 @@ router.get('/active', async (req, res) => {
   }
 });
 
-// GET /api/sos/rescuers/active - Retrieve all active rescuer locations (strictly authorized staff/admin only)
+// GET /api/sos/rescuers/active - Retrieve ONLY currently ONLINE rescuer locations with real live GPS
 router.get('/rescuers/active', requireAuth, requireRole(['staff', 'admin', 'rescuer', 'barangay_council']), async (req, res) => {
   try {
     const activeMap = new Map();
-    const tracked = rescuerTracker.getActiveRescuers();
-    tracked.forEach((r) => {
-      if (r && (r.sos_id || r.rescuer_user_id)) {
-        activeMap.set(String(r.sos_id || `u_${r.rescuer_user_id}`), r);
-      }
-    });
-    // Also include all live standby rescuers and any database-assigned rescuers for active SOS alerts
-    const known = (typeof rescuerTracker.getAllKnownRescuers === 'function') ? rescuerTracker.getAllKnownRescuers() : [];
+    const known = (typeof rescuerTracker.getAllKnownRescuers === 'function')
+      ? rescuerTracker.getAllKnownRescuers(3 * 60 * 1000)
+      : rescuerTracker.getActiveRescuers();
     known.forEach((kr) => {
-      if (kr && kr.rescuer_user_id && !Array.from(activeMap.values()).some(x => Number(x.rescuer_user_id) === Number(kr.rescuer_user_id))) {
+      if (kr && kr.rescuer_user_id && isFinite(Number(kr.latitude)) && isFinite(Number(kr.longitude))) {
         activeMap.set(`u_${kr.rescuer_user_id}`, {
           ...kr,
           sos_id: kr.sos_id || `standby_${kr.rescuer_user_id}`,
           status: kr.status || 'STANDBY'
-        });
-      }
-    });
-    const activeAlerts = await SosModel.getActiveAlerts().catch(() => []);
-    (activeAlerts || []).forEach((a) => {
-      if (a && a.handled_by && !activeMap.has(String(a.id))) {
-        const tr = rescuerTracker.getRescuerLocation(a.handled_by);
-        let photo = (tr && tr.rescuer_photo) || a.handler_photo || null;
-        if (photo && !String(photo).startsWith('http') && !String(photo).startsWith('/')) {
-          photo = `/uploads/profiles/${photo}`;
-        }
-        activeMap.set(String(a.id), {
-          sos_id: Number(a.id),
-          rescuer_user_id: Number(a.handled_by),
-          rescuer_name: a.handler_name || (tr && tr.rescuer_name) || 'Emergency Rescuer',
-          rescuer_role: (tr && tr.rescuer_role) || 'Emergency Rescuer',
-          rescuer_photo: photo,
-          latitude: (tr && isFinite(tr.latitude)) ? Number(tr.latitude) : 13.51037,
-          longitude: (tr && isFinite(tr.longitude)) ? Number(tr.longitude) : 123.34810,
-          status: a.status || 'ACKNOWLEDGED',
-          updated_at: a.updated_at || new Date().toISOString()
         });
       }
     });
@@ -70,7 +44,7 @@ router.get('/rescuers/active', requireAuth, requireRole(['staff', 'admin', 'resc
 });
 
 // POST /api/sos/rescuer/location - Standby / live GPS heartbeat for rescuers so nearest-rescuer auto-assign uses real coordinates
-router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', 'admin', 'barangay_council']), (req, res) => {
+router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', 'admin', 'barangay_council']), async (req, res) => {
   try {
     const { latitude, longitude, accuracy, sos_id, rescuer_photo, rescuer_name } = req.body || {};
     const lat = Number(latitude);
@@ -82,8 +56,32 @@ router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', '
     if (!uid) {
       return res.status(401).json({ success: false, message: 'Unauthorized.' });
     }
-    const rName = rescuer_name || (req.session && req.session.userName) || req.headers['x-evakwar-mobile-name'] || 'Emergency Rescuer';
-    let rPhoto = rescuer_photo || null;
+    const db = require('../config/db');
+    const cached = rescuerTracker.getRescuerLocation(uid);
+    let rName = (rescuer_name && rescuer_name !== 'Emergency Rescuer' && rescuer_name !== 'Rescuer Unit')
+      ? rescuer_name
+      : ((cached && cached.rescuer_name && cached.rescuer_name !== 'Emergency Rescuer') ? cached.rescuer_name : null);
+    let rPhoto = rescuer_photo || (cached && cached.rescuer_photo) || null;
+    let rRole = (cached && cached.rescuer_role) || null;
+
+    if (!rName || !rPhoto) {
+      const [pRows] = await db.execute('SELECT first_name, last_name, profile_photo, occupation, staff_type FROM staff WHERE user_id = ? LIMIT 1', [uid]).catch(() => [[]]);
+      if (pRows && pRows.length > 0) {
+        if (pRows[0].staff_type && !['RESCUER', 'BOTH'].includes(String(pRows[0].staff_type).toUpperCase())) {
+          return res.json({ success: true, skipped: true });
+        }
+        const dbName = `${pRows[0].first_name || ''} ${pRows[0].last_name || ''}`.trim();
+        if (dbName) rName = dbName;
+        if (!rPhoto && pRows[0].profile_photo) rPhoto = pRows[0].profile_photo;
+        if (pRows[0].occupation) rRole = pRows[0].occupation;
+      }
+    }
+    if (!rName) {
+      rName = (req.session && req.session.userName) || req.headers['x-evakwar-mobile-name'] || null;
+    }
+    if (!rName) {
+      return res.json({ success: true, skipped: true });
+    }
     if (rPhoto && !String(rPhoto).startsWith('http') && !String(rPhoto).startsWith('/')) {
       rPhoto = `/uploads/profiles/${rPhoto}`;
     }
@@ -91,7 +89,7 @@ router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', '
       rescuer_user_id: uid,
       rescuer_name: rName,
       rescuer_photo: rPhoto,
-      rescuer_role: 'Emergency Rescuer',
+      rescuer_role: rRole || rName,
       latitude: lat,
       longitude: lng,
       accuracy: Number(accuracy || 0)
@@ -103,7 +101,7 @@ router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', '
         rescuer_user_id: uid,
         rescuer_name: (latest && latest.rescuer_name) || rName,
         rescuer_photo: (latest && latest.rescuer_photo) || rPhoto,
-        rescuer_role: 'Emergency Rescuer',
+        rescuer_role: rRole || rName,
         latitude: lat,
         longitude: lng,
         lat: lat,
@@ -112,6 +110,10 @@ router.post('/rescuer/location', requireAuth, requireRole(['staff', 'rescuer', '
         status: sos_id ? 'RESPONDING' : 'STANDBY',
         updated_at: new Date().toISOString()
       });
+    }
+    const { autoAssignPendingSosToOnlineRescuer } = require('../utils/barangayGeofence');
+    if (typeof autoAssignPendingSosToOnlineRescuer === 'function') {
+      await autoAssignPendingSosToOnlineRescuer(req.io);
     }
     return res.json({ success: true });
   } catch (error) {

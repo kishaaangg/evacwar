@@ -229,7 +229,19 @@ const SosModel = {
         GROUP BY s.id
         LIMIT 1
       `, [id]);
-      return rows[0] || null;
+      const row = rows[0] || null;
+      if (row && row.handled_by) {
+        const tr = rescuerTracker.getRescuerLocation(row.handled_by);
+        const isOnline = tr && isFinite(Number(tr.latitude)) && isFinite(Number(tr.longitude)) &&
+          (!tr.updated_at || (Date.now() - new Date(tr.updated_at).getTime() <= 3 * 60 * 1000));
+        if (isOnline) {
+          row.rescuer_lat = Number(tr.latitude);
+          row.rescuer_lng = Number(tr.longitude);
+          row.rescuer_photo = tr.rescuer_photo || row.handler_photo || null;
+          row.responder_name = row.handler_name || tr.rescuer_name || null;
+        }
+      }
+      return row;
     } catch (err) {
       console.error("Error fetching SOS by id, executing fallback query:", err.message || err);
       try {
@@ -503,7 +515,20 @@ const SosModel = {
         GROUP BY s.id
         ORDER BY s.created_at DESC
       `);
-      return rows;
+      return (rows || []).map((row) => {
+        if (row && row.handled_by) {
+          const tr = rescuerTracker.getRescuerLocation(row.handled_by);
+          const isOnline = tr && isFinite(Number(tr.latitude)) && isFinite(Number(tr.longitude)) &&
+            (!tr.updated_at || (Date.now() - new Date(tr.updated_at).getTime() <= 3 * 60 * 1000));
+          if (isOnline) {
+            row.rescuer_lat = Number(tr.latitude);
+            row.rescuer_lng = Number(tr.longitude);
+            row.rescuer_photo = tr.rescuer_photo || row.handler_photo || null;
+            row.responder_name = row.handler_name || tr.rescuer_name || null;
+          }
+        }
+        return row;
+      });
     } catch (err) {
       console.error("Error getting active SOS alerts:", err.message || err);
       return [];
@@ -566,16 +591,43 @@ const SosModel = {
           COALESCE(r.last_name, r_fallback.last_name) as last_name,
           COALESCE(r.contact_number, r_fallback.contact_number) as contact_number,
           COALESCE(r.home_address, r_fallback.home_address) as home_address,
-          COALESCE(r.barangay, r_fallback.barangay) as barangay
+          COALESCE(r.barangay, r_fallback.barangay) as barangay,
+          COALESCE(
+            NULLIF(TRIM(CONCAT_WS(' ', st.first_name, st.last_name)), ''),
+            u.email
+          ) as handler_name,
+          st.contact_number as handler_contact,
+          st.profile_photo as handler_photo
         FROM sos_alerts s
         LEFT JOIN residents r ON s.resident_id = r.id
         LEFT JOIN residents r_fallback ON (r.id IS NULL AND s.resident_id = r_fallback.user_id)
+        LEFT JOIN users u ON s.handled_by = u.id
+        LEFT JOIN staff st ON u.id = st.user_id
         WHERE (s.resident_id = ? OR s.resident_id IN (SELECT id FROM residents WHERE user_id = ?) OR s.resident_id IN (SELECT user_id FROM residents WHERE id = ?)) 
           AND s.status IN ('ACTIVE', 'ACKNOWLEDGED', 'RESPONDING')
         GROUP BY s.id
         ORDER BY s.id DESC LIMIT 1
       `, [resident_id, resident_id, resident_id]);
-      return rows.length > 0 ? rows[0] : null;
+      if (!rows || rows.length === 0) return null;
+      const row = rows[0];
+      if (row.handled_by) {
+        const tr = rescuerTracker.getRescuerLocation(row.handled_by);
+        const isOnline = tr && isFinite(Number(tr.latitude)) && isFinite(Number(tr.longitude)) &&
+          (!tr.updated_at || (Date.now() - new Date(tr.updated_at).getTime() <= 3 * 60 * 1000));
+        if (isOnline) {
+          row.rescuer_lat = Number(tr.latitude);
+          row.rescuer_lng = Number(tr.longitude);
+          row.rescuer_photo = tr.rescuer_photo || row.handler_photo || null;
+          row.responder_name = row.handler_name || tr.rescuer_name || null;
+        } else {
+          // Assigned rescuer is currently offline — do not show offline rescuer on map
+          row.handler_name = null;
+          row.responder_name = null;
+          row.rescuer_lat = null;
+          row.rescuer_lng = null;
+        }
+      }
+      return row;
     } catch (err) {
       console.error("Error getting active SOS for resident:", err.message || err);
       return null;

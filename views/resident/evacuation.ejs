@@ -1248,7 +1248,7 @@
           if (!document.hidden) fetchAndRefreshResidentCenters();
         });
 
-        // Plot Live Rescuer Profile Picture Markers on Resident Evacuation Map
+        // Plot Live ONLINE Rescuer Profile Picture Markers on Resident Evacuation Map (Never plot offline or default fallback coordinates)
         const residentRescuerMarkers = {};
         function plotResidentMapRescuer(rData) {
           if (!rData || !map || typeof maplibregl === 'undefined') return;
@@ -1264,7 +1264,10 @@
             }
             return;
           }
-          const rName = rData.rescuer_name || rData.handler_name || rData.responder_name || 'Emergency Rescuer';
+          const rName = rData.rescuer_name || rData.handler_name || rData.responder_name || '';
+          if (!rName || ['Emergency Rescuer', 'Barangay Emergency Rescuer', 'Barangay Rescue Team', 'Rescue Team'].includes(rName.trim())) {
+            return;
+          }
           const rPhoto = rData.rescuer_photo || rData.handler_photo || null;
           const el = (typeof window.createMaplibreRescuerMarkerEl === 'function')
             ? window.createMaplibreRescuerMarkerEl({ rescuer_name: rName, rescuer_photo: rPhoto })
@@ -1272,7 +1275,7 @@
           const popupHtml = `
             <div style="font-family: system-ui; padding: 6px; text-align: center;">
               <div style="font-weight: 800; color: #0f172a; font-size: 13px;">${rName}</div>
-              <div style="font-size: 11px; color: #059669; font-weight: 700; margin-top: 2px;">Barangay Emergency Rescuer</div>
+              <div style="font-size: 11px; color: #059669; font-weight: 700; margin-top: 2px;">Online Rescuer</div>
             </div>
           `;
           if (residentRescuerMarkers[key]) {
@@ -1290,15 +1293,25 @@
         socket.on('rescuer:location_update', (data) => {
           plotResidentMapRescuer(data);
         });
+        socket.on('rescuer:location_cleared', (data) => {
+          if (!data) return;
+          const key = data.rescuer_user_id ? `u_${data.rescuer_user_id}` : String(data.sos_id || '');
+          if (key && residentRescuerMarkers[key]) {
+            try { residentRescuerMarkers[key].remove(); } catch (_) {}
+            delete residentRescuerMarkers[key];
+          }
+        });
         socket.on('sos:update_status', (data) => {
-          if (data && (data.rescuer_lat || (data.alert && data.alert.rescuer_lat))) {
+          const rLat = data && (data.rescuer_lat || (data.alert && data.alert.rescuer_lat));
+          const rLng = data && (data.rescuer_lng || (data.alert && data.alert.rescuer_lng));
+          if (data && isFinite(Number(rLat)) && isFinite(Number(rLng))) {
             plotResidentMapRescuer({
               sos_id: data.id || data.sos_id,
               rescuer_user_id: data.handled_by || (data.alert && data.alert.handled_by),
               rescuer_name: data.responder_name || data.handler_name || (data.alert && data.alert.handler_name),
               rescuer_photo: data.rescuer_photo || data.handler_photo || (data.alert && (data.alert.rescuer_photo || data.alert.handler_photo)),
-              latitude: data.rescuer_lat || (data.alert && data.alert.rescuer_lat),
-              longitude: data.rescuer_lng || (data.alert && data.alert.rescuer_lng),
+              latitude: Number(rLat),
+              longitude: Number(rLng),
               status: data.status
             });
           }
@@ -1306,14 +1319,14 @@
         fetch('/api/sos/resident/active')
           .then(r => r.json())
           .then(d => {
-            if (d && d.success && d.activeSos && (d.activeSos.handled_by || d.activeSos.handler_name)) {
+            if (d && d.success && d.activeSos && d.activeSos.handler_name && isFinite(Number(d.activeSos.rescuer_lat)) && isFinite(Number(d.activeSos.rescuer_lng))) {
               plotResidentMapRescuer({
                 sos_id: d.activeSos.id,
                 rescuer_user_id: d.activeSos.handled_by,
                 rescuer_name: d.activeSos.handler_name || d.activeSos.responder_name,
                 rescuer_photo: d.activeSos.rescuer_photo || d.activeSos.handler_photo,
-                latitude: d.activeSos.rescuer_lat || 13.51037,
-                longitude: d.activeSos.rescuer_lng || 123.34810,
+                latitude: Number(d.activeSos.rescuer_lat),
+                longitude: Number(d.activeSos.rescuer_lng),
                 status: d.activeSos.status
               });
             }

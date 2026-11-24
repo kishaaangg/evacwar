@@ -103,12 +103,12 @@ class RescuerTracker {
   }
 
   /**
-   * Clear active rescuer tracking by rescuer user ID.
+   * Clear active AND standby rescuer tracking by rescuer user ID (e.g. when rescuer logs out or goes offline).
    */
   clearRescuerLocationByRescuerId(rescuerUserId) {
     if (!rescuerUserId) return false;
     const uid = Number(rescuerUserId);
-    let removed = false;
+    let removed = this.rescuersByUserId.delete(uid);
     for (const [sosId, record] of this.activeRescuers.entries()) {
       if (record.rescuer_user_id === uid) {
         this.activeRescuers.delete(sosId);
@@ -126,15 +126,18 @@ class RescuerTracker {
   }
 
   /**
-   * Retrieve all known rescuer GPS locations (both active responders and standby rescuers pinged within maxAgeMs).
+   * Retrieve all known ONLINE rescuer GPS locations (both active responders and standby rescuers pinged within maxAgeMs).
    */
-  getAllKnownRescuers(maxAgeMs = 30 * 60 * 1000) {
+  getAllKnownRescuers(maxAgeMs = 3 * 60 * 1000) {
     const byUid = new Map();
     const now = Date.now();
 
     for (const record of this.activeRescuers.values()) {
       if (record && record.rescuer_user_id && isFinite(Number(record.latitude)) && isFinite(Number(record.longitude))) {
-        byUid.set(Number(record.rescuer_user_id), record);
+        const updatedMs = record.updated_at ? new Date(record.updated_at).getTime() : now;
+        if (isFinite(updatedMs) && (now - updatedMs) <= maxAgeMs) {
+          byUid.set(Number(record.rescuer_user_id), record);
+        }
       }
     }
 
