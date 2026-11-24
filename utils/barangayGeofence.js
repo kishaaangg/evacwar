@@ -7,6 +7,113 @@
 const db = require('../config/db');
 const rescuerTracker = require('./rescuerTracker');
 const onlineTracker = require('./onlineTracker');
+const gisCache = require('./gisCache');
+
+let _cachedOrangeGraph = null;
+async function getSanRafaelOrangeRoadDistanceFn() {
+  try {
+    const fc = await gisCache.getDrawnFeatures(true);
+    const lineFeatures = ((fc && fc.features) || []).filter(
+      f => f && f.geometry && f.geometry.type === 'LineString' && Array.isArray(f.geometry.coordinates) && f.geometry.coordinates.length >= 2
+    );
+    if (lineFeatures.length === 0) return computeHaversineKm;
+
+    const cacheKey = `${lineFeatures.length}_${lineFeatures[0].geometry.coordinates.length}`;
+    if (!_cachedOrangeGraph || _cachedOrangeGraph.key !== cacheKey) {
+      const havM = (a, b) => computeHaversineKm(a[1], a[0], b[1], b[0]) * 1000;
+      const densify = (coords, stepM = 6) => {
+        const out = [];
+        for (let i = 0; i < coords.length - 1; i++) {
+          const a = coords[i], b = coords[i + 1];
+          out.push(a);
+          const d = havM(a, b);
+          if (d > stepM) {
+            const steps = Math.ceil(d / stepM);
+            for (let s = 1; s < steps; s++) {
+              const t = s / steps;
+              out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+            }
+          }
+        }
+        if (coords.length > 0) out.push(coords[coords.length - 1]);
+        return out;
+      };
+
+      const nodes = [];
+      const adj = [];
+      const addNode = (coord, lineIdx, isEp) => {
+        const id = nodes.length;
+        nodes.push({ coord, lineIdx, isEp });
+        adj.push([]);
+        return id;
+      };
+      const addEdge = (u, v, w) => {
+        adj[u].push({ to: v, w });
+        adj[v].push({ to: u, w });
+      };
+
+      lineFeatures.forEach((f, lIdx) => {
+        const pts = densify(f.geometry.coordinates, 6);
+        let prev = null;
+        pts.forEach((c, idx) => {
+          const id = addNode(c, lIdx, idx === 0 || idx === pts.length - 1);
+          if (prev !== null) addEdge(prev, id, havM(nodes[prev].coord, c));
+          prev = id;
+        });
+      });
+
+      const N = nodes.length;
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          if (nodes[i].lineIdx !== nodes[j].lineIdx) {
+            const d = havM(nodes[i].coord, nodes[j].coord);
+            if (d <= 28 || ((nodes[i].isEp || nodes[j].isEp) && d <= 65)) {
+              addEdge(i, j, d * 1.4);
+            }
+          }
+        }
+      }
+      _cachedOrangeGraph = { key: cacheKey, nodes, adj };
+    }
+
+    const { nodes, adj } = _cachedOrangeGraph;
+    const N = nodes.length;
+    const havM = (a, b) => computeHaversineKm(a[1], a[0], b[1], b[0]) * 1000;
+
+    return (lat1, lng1, lat2, lng2) => {
+      const originCoord = [Number(lng1), Number(lat1)];
+      const destCoord = [Number(lng2), Number(lat2)];
+      let minODist = Infinity, closestONode = -1;
+      let minDDist = Infinity, closestDNode = -1;
+      for (let i = 0; i < N; i++) {
+        const doD = havM(originCoord, nodes[i].coord);
+        if (doD < minODist) { minODist = doD; closestONode = i; }
+        const ddD = havM(destCoord, nodes[i].coord);
+        if (ddD < minDDist) { minDDist = ddD; closestDNode = i; }
+      }
+      if (closestONode === -1 || closestDNode === -1) return computeHaversineKm(lat1, lng1, lat2, lng2);
+
+      const distArr = new Array(N).fill(Infinity);
+      const visited = new Array(N).fill(false);
+      distArr[closestONode] = 0;
+      for (let step = 0; step < N; step++) {
+        let u = -1, best = Infinity;
+        for (let i = 0; i < N; i++) {
+          if (!visited[i] && distArr[i] < best) { best = distArr[i]; u = i; }
+        }
+        if (u === -1 || u === closestDNode) break;
+        visited[u] = true;
+        for (const e of adj[u]) {
+          if (distArr[u] + e.w < distArr[e.to]) distArr[e.to] = distArr[u] + e.w;
+        }
+      }
+      if (distArr[closestDNode] >= Infinity) return computeHaversineKm(lat1, lng1, lat2, lng2);
+      return (minODist + distArr[closestDNode] + minDDist) / 1000;
+    };
+  } catch (_) {
+    return computeHaversineKm;
+  }
+}
 
 // Official Barangay San Rafael (Ikpan) Boundary Polygon ([lng, lat] pairs)
 const SAN_RAFAEL_BOUNDARY_RING = [
@@ -178,6 +285,9 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
         AND handled_by IS NOT NULL AND handled_by > 0
     `).catch(() => [[]]);
 
+    // 4. Use the Admin-drawn Orange Road Network of Barangay San Rafael to compute distances & en-route paths
+    const computeRoadDistKm = await getSanRafaelOrangeRoadDistanceFn();
+
     const candidates = (rescuerRows || []).map((r) => {
       const uid = Number(r.user_id);
       const tracked = liveByUserId.get(uid);
@@ -195,19 +305,19 @@ async function findNearestRescuerForSos(sosLat, sosLng) {
         photo = `/uploads/profiles/${photo}`;
       }
       const assignedAlerts = (activeSosRows || []).filter((a) => Number(a.handled_by) === uid);
-      const distKm = computeHaversineKm(rLat, rLng, nLat, nLng);
+      const distKm = computeRoadDistKm(rLat, rLng, nLat, nLng);
 
-      // Check if this rescuer is already en-route to an SOS and this new SOS is along their path ("dadaanan lang")
+      // Check if this rescuer is already en-route to an SOS and this new SOS is along their orange-road path ("dadaanan lang")
       let isEnRouteMatch = false;
       let minDetourKm = Infinity;
       assignedAlerts.forEach((targetSos) => {
         const tLat = Number(targetSos.latitude);
         const tLng = Number(targetSos.longitude);
         if (!isFinite(tLat) || !isFinite(tLng)) return;
-        const directDist = computeHaversineKm(rLat, rLng, tLat, tLng);
-        const viaNewSosDist = distKm + computeHaversineKm(nLat, nLng, tLat, tLng);
+        const directDist = computeRoadDistKm(rLat, rLng, tLat, tLng);
+        const viaNewSosDist = distKm + computeRoadDistKm(nLat, nLng, tLat, tLng);
         const detourKm = Math.max(0, viaNewSosDist - directDist);
-        const distBetweenSos = computeHaversineKm(nLat, nLng, tLat, tLng);
+        const distBetweenSos = computeRoadDistKm(nLat, nLng, tLat, tLng);
         if (detourKm <= 0.45 || distBetweenSos <= 0.35 || distKm <= 0.40) {
           isEnRouteMatch = true;
           if (detourKm < minDetourKm) minDetourKm = detourKm;

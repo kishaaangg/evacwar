@@ -1257,21 +1257,31 @@
 
               // Cancel SOS Function (Works Online AND Offline via 433.875 MHz LoRa Mesh)
               function cancelSosImmediately() {
+                window._residentCancelledSosAt = Date.now();
                 const cancelPayload = {
                   id: (activeSosAlert && !isNaN(activeSosAlert.id)) ? activeSosAlert.id : null,
                   resident_id: residentId || currentUserId || 1
                 };
 
-                if (window.evakwarLoraClient) {
-                  window.evakwarLoraClient.sendCancelSos({
+                const lora = window.evakwarLoraClient;
+                const isLoraActive = Boolean(
+                  (window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected()) ||
+                  (window.AndroidUsbSerialBridge && typeof window.AndroidUsbSerialBridge.isConnected === 'function' && window.AndroidUsbSerialBridge.isConnected()) ||
+                  (lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'))
+                );
+                if (lora && isLoraActive) {
+                  lora.sendCancelSos({
                     sosId: cancelPayload.id || 0,
                     residentId: cancelPayload.resident_id || 1
                   }).then(loraRes => {
                     const badge = document.getElementById('webLoraStatusBadge');
                     if (badge && loraRes) {
-                      badge.textContent = `STOP SOS SENT VIA ${loraRes.transport}`;
+                      badge.textContent = `SOS CANCELLED BY YOU (${loraRes.transport})`;
                     }
                   }).catch(e => console.warn('LoRa cancel SOS note:', e.message));
+                } else {
+                  const badge = document.getElementById('webLoraStatusBadge');
+                  if (badge) badge.textContent = 'STANDBY (433.875 MHz)';
                 }
 
                 if (socket && socket.connected) {
@@ -1287,7 +1297,7 @@
 
                 setSosNormalState();
                 if (typeof window.EvacWarToast === 'function') {
-                  window.EvacWarToast('SOS distress signal stopped.');
+                  window.EvacWarToast('You cancelled your SOS distress signal.');
                 }
               }
 
@@ -1363,7 +1373,9 @@
                   if (!isMine && !activeSosAlert) return;
                   const status = String(data.status || 'ACKNOWLEDGED').toUpperCase();
                   const responder = data.responder_name || 'Rescue Team';
-                  if (status === 'RESOLVED' || status === 'RESCUED' || status === 'CANCELLED') {
+                  if (status === 'CANCELLED') {
+                    setSosNormalState();
+                  } else if (status === 'RESOLVED' || status === 'RESCUED') {
                     if (typeof window.EvacWarToast === 'function') {
                       window.EvacWarToast(`SOS Status Updated: ${status} by ${responder}.`);
                     }
@@ -1441,7 +1453,10 @@
                   const responder = ackData.responderName || 'Barangay Hall';
                   const badge = document.getElementById('webLoraStatusBadge');
 
-                  if (status === 'RESOLVED' || status === 'RESCUED' || status === 'CANCELLED') {
+                  if (status === 'CANCELLED') {
+                    if (badge) badge.textContent = 'SOS CANCELLED BY YOU';
+                    setSosNormalState();
+                  } else if (status === 'RESOLVED' || status === 'RESCUED') {
                     if (badge) badge.textContent = `LORA RX: ${status} BY ${responder}`;
                     if (typeof window.EvacWarToast === 'function') {
                       window.EvacWarToast(`LoRa Update: Your SOS was marked ${status} by ${responder}.`);

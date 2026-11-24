@@ -1951,7 +1951,7 @@
         });
 
         const allLines = [...adminLines];
-        if ((minOriginAdminDist > 350 || minDestAdminDist > 350) && Array.isArray(roadCoords) && roadCoords.length >= 2) {
+        if ((minOriginAdminDist > 450 || minDestAdminDist > 450) && Array.isArray(roadCoords) && roadCoords.length >= 2) {
           const smartOsrm = [];
           for (let i = 0; i < roadCoords.length - 1; i++) {
             const a = roadCoords[i], b = roadCoords[i + 1];
@@ -1987,7 +1987,7 @@
         let osrmFirstNodeId = -1;
         allLines.forEach((lineObj, lIdx) => {
           let prev = null;
-          const mult = lineObj.isAdmin ? 1.0 : 2.2;
+          const mult = lineObj.isAdmin ? 1.0 : 3.2;
           const len = lineObj.coords.length;
           lineObj.coords.forEach((c, cIdx) => {
             const isEp = (cIdx === 0 || cIdx === len - 1);
@@ -2007,9 +2007,9 @@
           for (let j = i + 1; j < netCount; j++) {
             if (nodes[i].lineIdx !== nodes[j].lineIdx) {
               const dist = haversine(nodes[i].coord, nodes[j].coord);
-              if (dist <= 16 || ((nodes[i].isEndpoint || nodes[j].isEndpoint) && dist <= 45)) {
+              if (dist <= 28 || ((nodes[i].isEndpoint || nodes[j].isEndpoint) && dist <= 65)) {
                 const hitsH = segmentHitsHazard(nodes[i].coord, nodes[j].coord, hazardRings);
-                addEdge(i, j, dist * 4.0 * (hitsH ? 30 : 1), hitsH, nodes[i].isAdmin || nodes[j].isAdmin);
+                addEdge(i, j, dist * 1.8 * (hitsH ? 30 : 1), hitsH, nodes[i].isAdmin || nodes[j].isAdmin);
               }
             }
           }
@@ -2019,12 +2019,17 @@
         const dId = addNode(destCoord, -2, false, true);
 
         let minODist = Infinity, closestONode = -1;
+        let minAdminODist = Infinity, closestAdminONode = -1;
         let minDDist = Infinity, closestDNode = -1;
         let minAdminDDist = Infinity, closestAdminDNode = -1;
 
         for (let i = 0; i < netCount; i++) {
           const doDist = haversine(originCoord, nodes[i].coord);
           if (doDist < minODist) { minODist = doDist; closestONode = i; }
+          if (nodes[i].isAdmin && doDist < minAdminODist) {
+            minAdminODist = doDist;
+            closestAdminONode = i;
+          }
 
           const ddDist = haversine(destCoord, nodes[i].coord);
           if (ddDist < minDDist) { minDDist = ddDist; closestDNode = i; }
@@ -2034,16 +2039,19 @@
           }
         }
 
-        if (closestONode !== -1) {
+        if (closestAdminONode !== -1 && minAdminODist <= 450) {
+          const hitsH = segmentHitsHazard(originCoord, nodes[closestAdminONode].coord, hazardRings);
+          addEdge(oId, closestAdminONode, minAdminODist * (hitsH ? 30 : 1), hitsH, true);
+        } else if (closestONode !== -1) {
           const hitsH = segmentHitsHazard(originCoord, nodes[closestONode].coord, hazardRings);
           addEdge(oId, closestONode, minODist * (hitsH ? 30 : 1), hitsH, nodes[closestONode].isAdmin);
         }
-        if (osrmFirstNodeId !== -1) {
+        if (osrmFirstNodeId !== -1 && minAdminODist > 450) {
           const dOsrmStart = haversine(originCoord, nodes[osrmFirstNodeId].coord);
           addEdge(oId, osrmFirstNodeId, dOsrmStart * 1.2, false, false);
         }
 
-        if (closestAdminDNode !== -1 && minAdminDDist <= 350) {
+        if (closestAdminDNode !== -1 && minAdminDDist <= 450) {
           const hitsH = segmentHitsHazard(destCoord, nodes[closestAdminDNode].coord, hazardRings);
           addEdge(dId, closestAdminDNode, minAdminDDist * (hitsH ? 30 : 1), hitsH, true);
         } else if (closestDNode !== -1) {
@@ -2389,6 +2397,170 @@
         Math.sin(dLng / 2) * Math.sin(dLng / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
+    };
+
+    /**
+     * Barangay San Rafael Admin-Drawn Orange Road Network Pathfinder:
+     * Builds a 100%-connected road graph from all Admin-drawn orange LineString roads in San Rafael
+     * (including real barangay roads not present on Google Maps / OSRM) and routes Rescuers strictly
+     * along those orange road paths.
+     */
+    window.computeSanRafaelOrangeRoadPath = function (lat1, lng1, lat2, lng2) {
+      const oLat = Number(lat1), oLng = Number(lng1);
+      const dLat = Number(lat2), dLng = Number(lng2);
+      const havM = (a, b) => window.computeHaversineKm(a[1], a[0], b[1], b[0]) * 1000;
+      const directM = havM([oLng, oLat], [dLng, dLat]);
+      const fallbackResult = {
+        coordinates: [[oLng, oLat], [dLng, dLat]],
+        distanceMeters: Math.round(directM),
+        distanceKm: directM / 1000,
+        usedOrangeRoad: false
+      };
+      if (!isFinite(oLat) || !isFinite(oLng) || !isFinite(dLat) || !isFinite(dLng)) {
+        return fallbackResult;
+      }
+
+      // 1. Gather Admin-drawn orange road features from page DOM or OFFLINE_BOOTSTRAP
+      let features = [];
+      if (typeof adminGeoJsonFeatures !== 'undefined' && adminGeoJsonFeatures && Array.isArray(adminGeoJsonFeatures.features) && adminGeoJsonFeatures.features.length > 0) {
+        features = adminGeoJsonFeatures.features;
+      } else {
+        const el = document.getElementById('map-features-data');
+        if (el && el.textContent) {
+          try {
+            const parsed = JSON.parse(el.textContent.trim());
+            if (parsed && Array.isArray(parsed.features)) features = parsed.features;
+          } catch (_) {}
+        }
+        if ((!features || features.length === 0) && window.OFFLINE_BOOTSTRAP && window.OFFLINE_BOOTSTRAP.mapFeatures && Array.isArray(window.OFFLINE_BOOTSTRAP.mapFeatures.features)) {
+          features = window.OFFLINE_BOOTSTRAP.mapFeatures.features;
+        }
+      }
+
+      const lineFeatures = (features || []).filter(f => f && f.geometry && f.geometry.type === 'LineString' && Array.isArray(f.geometry.coordinates) && f.geometry.coordinates.length >= 2);
+      if (lineFeatures.length === 0) return fallbackResult;
+
+      // 2. Build or reuse cached orange-road graph
+      const cacheKey = `${lineFeatures.length}_${lineFeatures[0].geometry.coordinates.length}`;
+      if (!window._sanRafaelOrangeGraph || window._sanRafaelOrangeGraph.key !== cacheKey) {
+        const densify = (coords, stepM = 6) => {
+          const out = [];
+          for (let i = 0; i < coords.length - 1; i++) {
+            const a = coords[i], b = coords[i + 1];
+            out.push(a);
+            const d = havM(a, b);
+            if (d > stepM) {
+              const steps = Math.ceil(d / stepM);
+              for (let s = 1; s < steps; s++) {
+                const t = s / steps;
+                out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+              }
+            }
+          }
+          if (coords.length > 0) out.push(coords[coords.length - 1]);
+          return out;
+        };
+
+        const nodes = [];
+        const adj = [];
+        const addNode = (coord, lineIdx, isEp) => {
+          const id = nodes.length;
+          nodes.push({ coord, lineIdx, isEp });
+          adj.push([]);
+          return id;
+        };
+        const addEdge = (u, v, w) => {
+          adj[u].push({ to: v, w });
+          adj[v].push({ to: u, w });
+        };
+
+        lineFeatures.forEach((f, lIdx) => {
+          const pts = densify(f.geometry.coordinates, 6);
+          let prev = null;
+          pts.forEach((c, idx) => {
+            const id = addNode(c, lIdx, idx === 0 || idx === pts.length - 1);
+            if (prev !== null) {
+              addEdge(prev, id, havM(nodes[prev].coord, c));
+            }
+            prev = id;
+          });
+        });
+
+        const N = nodes.length;
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            if (nodes[i].lineIdx !== nodes[j].lineIdx) {
+              const d = havM(nodes[i].coord, nodes[j].coord);
+              if (d <= 28 || ((nodes[i].isEp || nodes[j].isEp) && d <= 65)) {
+                addEdge(i, j, d * 1.4);
+              }
+            }
+          }
+        }
+        window._sanRafaelOrangeGraph = { key: cacheKey, nodes, adj };
+      }
+
+      const { nodes, adj } = window._sanRafaelOrangeGraph;
+      const N = nodes.length;
+      if (N === 0) return fallbackResult;
+
+      const originCoord = [oLng, oLat];
+      const destCoord = [dLng, dLat];
+      let minODist = Infinity, closestONode = -1;
+      let minDDist = Infinity, closestDNode = -1;
+
+      for (let i = 0; i < N; i++) {
+        const doD = havM(originCoord, nodes[i].coord);
+        if (doD < minODist) { minODist = doD; closestONode = i; }
+        const ddD = havM(destCoord, nodes[i].coord);
+        if (ddD < minDDist) { minDDist = ddD; closestDNode = i; }
+      }
+
+      if (closestONode === -1 || closestDNode === -1) return fallbackResult;
+
+      // Run Dijkstra on the orange road graph from closestONode to closestDNode
+      const distArr = new Array(N).fill(Infinity);
+      const prevArr = new Array(N).fill(-1);
+      const visited = new Array(N).fill(false);
+      distArr[closestONode] = 0;
+
+      for (let step = 0; step < N; step++) {
+        let u = -1, best = Infinity;
+        for (let i = 0; i < N; i++) {
+          if (!visited[i] && distArr[i] < best) { best = distArr[i]; u = i; }
+        }
+        if (u === -1 || u === closestDNode) break;
+        visited[u] = true;
+        for (const e of adj[u]) {
+          if (distArr[u] + e.w < distArr[e.to]) {
+            distArr[e.to] = distArr[u] + e.w;
+            prevArr[e.to] = u;
+          }
+        }
+      }
+
+      if (distArr[closestDNode] >= Infinity) return fallbackResult;
+
+      const roadCoords = [];
+      let cur = closestDNode;
+      while (cur !== -1) {
+        roadCoords.push(nodes[cur].coord);
+        cur = prevArr[cur];
+      }
+      roadCoords.reverse();
+
+      const fullCoords = [originCoord, ...roadCoords, destCoord];
+      let totalMeters = 0;
+      for (let i = 0; i < fullCoords.length - 1; i++) {
+        totalMeters += havM(fullCoords[i], fullCoords[i + 1]);
+      }
+
+      return {
+        coordinates: fullCoords,
+        distanceMeters: Math.round(totalMeters),
+        distanceKm: totalMeters / 1000,
+        usedOrangeRoad: true
+      };
     };
 
     /**
@@ -5641,7 +5813,7 @@
                       <div class="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
                         <span id="dashTemp"
                           class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                          28.6°C
+                          28.7°C
                         </span>
                         <span id="dashStatus" class="text-xs sm:text-base font-bold text-blue-600 truncate">
                           Scattered Rain Showers
@@ -5655,7 +5827,7 @@
                         </span>
                         <span class="text-slate-300 shrink-0">•</span>
                         <span id="weatherLastUpdatedText" class="text-slate-400 shrink-0 truncate">
-                          Updated 10:33 AM
+                          Updated 10:54 AM
                         </span>
                       </div>
                     </div>
@@ -5709,7 +5881,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wind
                         Speed</div>
                       <div id="dashWind" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        16.3
+                        16.2
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">km/h</span>
                       </div>
                       <div id="dashGusts" class="hidden"></div>
@@ -5727,7 +5899,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Humidity
                       </div>
                       <div id="dashHumidity" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        71%
+                        70%
                       </div>
                     </div>
                   </div>
@@ -5743,7 +5915,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pressure
                       </div>
                       <div id="dashPressure" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        1004.3
+                        1004.1
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">hPa</span>
                       </div>
                     </div>

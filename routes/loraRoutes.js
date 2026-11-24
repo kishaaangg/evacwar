@@ -1270,7 +1270,7 @@ async function handleInboundLoRaPacket(req, res) {
           req.io.emit('sos:cancel', { id: parsed.sosId || null, resident_id: parsed.residentId || null, status: 'CANCELLED', via: 'LORA_MESH' });
         }
       }
-      const ackPacket = `EVW|ACK|${parsed.sosId || 0}|${parsed.residentId || 0}|CANCELLED|Hall Gateway (!d88b1a58)`;
+      const ackPacket = `EVW|ACK|${parsed.sosId || 0}|${parsed.residentId || 0}|CANCELLED|Resident Cancelled`;
       enqueueLoRaPacket(ackPacket, { type: 'SOS_CANCEL_ACK' });
       return res.json({ success: true, status: 'CANCELLED', ackPacket });
     }

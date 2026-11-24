@@ -308,8 +308,8 @@ app.get('/api/directions', async (req, res) => {
       });
 
       const allLines = [...adminLines];
-      // Only include OSRM road geometry if origin or destination is far (>350m) from the Admin-drawn route network
-      if ((minOriginAdminDist > 350 || minDestAdminDist > 350) && osrmGeometry && Array.isArray(osrmGeometry.coordinates) && osrmGeometry.coordinates.length >= 2) {
+      // Only include OSRM road geometry if origin or destination is far (>450m) from the Admin-drawn route network
+      if ((minOriginAdminDist > 450 || minDestAdminDist > 450) && osrmGeometry && Array.isArray(osrmGeometry.coordinates) && osrmGeometry.coordinates.length >= 2) {
         const smartOsrm = [];
         const rawOsrm = osrmGeometry.coordinates;
         for (let i = 0; i < rawOsrm.length - 1; i++) {
@@ -346,7 +346,7 @@ app.get('/api/directions', async (req, res) => {
       let osrmFirstNodeId = -1;
       allLines.forEach((lineObj, lIdx) => {
         let prev = null;
-        const mult = lineObj.isAdmin ? 1.0 : 2.2;
+        const mult = lineObj.isAdmin ? 1.0 : 3.2;
         const len = lineObj.coords.length;
         lineObj.coords.forEach((c, cIdx) => {
           const isEp = (cIdx === 0 || cIdx === len - 1);
@@ -363,15 +363,14 @@ app.get('/api/directions', async (req, res) => {
       });
 
       const networkNodeCount = nodes.length;
-      // Connect junctions between different route lines strictly at intersections (<=16m) or branch endpoints (<=45m)
-      // High jump multiplier (4.0x) ensures pathfinder stays on the drawn orange route and never cuts corners across grass
+      // Connect junctions between different Admin-drawn orange route lines at intersections (<=28m) or branch endpoints (<=65m)
       for (let i = 0; i < networkNodeCount; i++) {
         for (let j = i + 1; j < networkNodeCount; j++) {
           if (nodes[i].lineIdx !== nodes[j].lineIdx) {
             const dist = haversine(nodes[i].coord, nodes[j].coord);
-            if (dist <= 16 || ((nodes[i].isEndpoint || nodes[j].isEndpoint) && dist <= 45)) {
+            if (dist <= 28 || ((nodes[i].isEndpoint || nodes[j].isEndpoint) && dist <= 65)) {
               const hitsHazard = segmentHitsHazard(nodes[i].coord, nodes[j].coord, hazardRings);
-              addEdge(i, j, dist * 4.0 * (hitsHazard ? 30 : 1), hitsHazard, nodes[i].isAdmin || nodes[j].isAdmin);
+              addEdge(i, j, dist * 1.8 * (hitsHazard ? 30 : 1), hitsHazard, nodes[i].isAdmin || nodes[j].isAdmin);
             }
           }
         }
@@ -381,12 +380,17 @@ app.get('/api/directions', async (req, res) => {
       const dId = addNode(destCoord, -2, false, true);
 
       let minOriginDist = Infinity, closestOriginNode = -1;
+      let minAdminOriginDist = Infinity, closestAdminOriginNode = -1;
       let minDestDist = Infinity, closestDestNode = -1;
       let minAdminDestDist = Infinity, closestAdminDestNode = -1;
 
       for (let i = 0; i < networkNodeCount; i++) {
         const doDist = haversine(originCoord, nodes[i].coord);
         if (doDist < minOriginDist) { minOriginDist = doDist; closestOriginNode = i; }
+        if (nodes[i].isAdmin && doDist < minAdminOriginDist) {
+          minAdminOriginDist = doDist;
+          closestAdminOriginNode = i;
+        }
 
         const ddDist = haversine(destCoord, nodes[i].coord);
         if (ddDist < minDestDist) { minDestDist = ddDist; closestDestNode = i; }
@@ -396,18 +400,21 @@ app.get('/api/directions', async (req, res) => {
         }
       }
 
-      // Snap Origin strictly to its single closest graph node (and OSRM start node if far away)
-      if (closestOriginNode !== -1) {
+      // Snap Origin strictly to its closest Admin-drawn orange road node when inside Barangay San Rafael
+      if (closestAdminOriginNode !== -1 && minAdminOriginDist <= 450) {
+        const hitsH = segmentHitsHazard(originCoord, nodes[closestAdminOriginNode].coord, hazardRings);
+        addEdge(oId, closestAdminOriginNode, minAdminOriginDist * (hitsH ? 30 : 1), hitsH, true);
+      } else if (closestOriginNode !== -1) {
         const hitsH = segmentHitsHazard(originCoord, nodes[closestOriginNode].coord, hazardRings);
         addEdge(oId, closestOriginNode, minOriginDist * (hitsH ? 30 : 1), hitsH, nodes[closestOriginNode].isAdmin);
       }
-      if (osrmFirstNodeId !== -1) {
+      if (osrmFirstNodeId !== -1 && minAdminOriginDist > 450) {
         const dOsrmStart = haversine(originCoord, nodes[osrmFirstNodeId].coord);
         addEdge(oId, osrmFirstNodeId, dOsrmStart * 1.2, false, false);
       }
 
       // Snap Destination strictly to its single closest Admin-route node so every branch trail is followed right to the pin
-      if (closestAdminDestNode !== -1 && minAdminDestDist <= 350) {
+      if (closestAdminDestNode !== -1 && minAdminDestDist <= 450) {
         const hitsH = segmentHitsHazard(destCoord, nodes[closestAdminDestNode].coord, hazardRings);
         addEdge(dId, closestAdminDestNode, minAdminDestDist * (hitsH ? 30 : 1), hitsH, true);
       } else if (closestDestNode !== -1) {

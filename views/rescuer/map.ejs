@@ -2734,9 +2734,15 @@
           let bestScore = Infinity;
           let bestDistKm = 0;
           pool.forEach((cand, idx) => {
-            const dKm = (typeof window.computeHaversineKm === 'function')
-              ? window.computeHaversineKm(curLat, curLng, cand.lat, cand.lng)
-              : Math.hypot(cand.lat - curLat, cand.lng - curLng) * 111;
+            let dKm;
+            if (typeof window.computeSanRafaelOrangeRoadPath === 'function') {
+              const roadPath = window.computeSanRafaelOrangeRoadPath(curLat, curLng, cand.lat, cand.lng);
+              dKm = roadPath && isFinite(roadPath.distanceKm) ? roadPath.distanceKm : window.computeHaversineKm(curLat, curLng, cand.lat, cand.lng);
+            } else if (typeof window.computeHaversineKm === 'function') {
+              dKm = window.computeHaversineKm(curLat, curLng, cand.lat, cand.lng);
+            } else {
+              dKm = Math.hypot(cand.lat - curLat, cand.lng - curLng) * 111;
+            }
             const score = cand.isMine ? dKm : (dKm + 0.15);
             if (score < bestScore) {
               bestScore = score;
@@ -2834,30 +2840,34 @@
         const waypoints = [[q.rescuerPos.lng, q.rescuerPos.lat]];
         q.stops.forEach((s) => waypoints.push([s.lng, s.lat]));
 
-        let routeGeometryCoords = waypoints;
-        let totalMeters = q.totalKm * 1000;
-        let totalSecs = Math.max(60, Math.round((q.totalKm / 24) * 3600));
-        let usedRoadRouting = false;
+        let routeGeometryCoords = [];
+        let totalMeters = 0;
+        let usedOrangeRoadRouting = false;
 
-        // Fetch real multi-stop road geometry via OSRM when online
-        if (navigator.onLine && waypoints.length >= 2) {
-          try {
-            const coordStr = waypoints.map(c => `${c[0].toFixed(6)},${c[1].toFixed(6)}`).join(';');
-            const ctrl = new AbortController();
-            const tid = setTimeout(() => ctrl.abort(), 5000);
-            const resp = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`, { signal: ctrl.signal });
-            clearTimeout(tid);
-            if (resp.ok) {
-              const rData = await resp.json();
-              if (rData && rData.routes && rData.routes[0] && rData.routes[0].geometry && Array.isArray(rData.routes[0].geometry.coordinates)) {
-                routeGeometryCoords = rData.routes[0].geometry.coordinates;
-                totalMeters = Number(rData.routes[0].distance) || totalMeters;
-                totalSecs = Number(rData.routes[0].duration) || totalSecs;
-                usedRoadRouting = true;
+        // 1. Always route strictly along the Admin-drawn Orange Road Network of Barangay San Rafael!
+        if (typeof window.computeSanRafaelOrangeRoadPath === 'function' && waypoints.length >= 2) {
+          for (let i = 0; i < waypoints.length - 1; i++) {
+            const a = waypoints[i];
+            const b = waypoints[i + 1];
+            const leg = window.computeSanRafaelOrangeRoadPath(a[1], a[0], b[1], b[0]);
+            if (leg && Array.isArray(leg.coordinates) && leg.coordinates.length >= 2) {
+              if (routeGeometryCoords.length > 0) {
+                routeGeometryCoords.push(...leg.coordinates.slice(1));
+              } else {
+                routeGeometryCoords.push(...leg.coordinates);
               }
+              totalMeters += Number(leg.distanceMeters || 0);
+              if (leg.usedOrangeRoad) usedOrangeRoadRouting = true;
             }
-          } catch (_) {}
+          }
         }
+
+        if (routeGeometryCoords.length < 2) {
+          routeGeometryCoords = waypoints;
+          totalMeters = q.totalKm * 1000;
+        }
+        let totalSecs = Math.max(60, Math.round((totalMeters / 1000 / 24) * 3600));
+        let usedRoadRouting = usedOrangeRoadRouting;
 
         const activeMap = window._activeEvacwarMap || mapInstance;
         if (activeMap && typeof activeMap.getSource === 'function') {
@@ -2925,9 +2935,9 @@
           if (q.stops.length > 1) {
             const s2 = q.stops[1];
             const s2Dist = s2.legDistKm * 1000 < 1000 ? `${Math.round(s2.legDistKm * 1000)}m` : `${s2.legDistKm.toFixed(2)}km`;
-            hudSecondary.textContent = `Next along path: STOP #2 ${s2.name} (+${s2Dist})${q.stops.length > 2 ? ` + ${q.stops.length - 2} more` : ''}${usedRoadRouting ? ' • Road Route' : ' • Offline Direct'}`;
+            hudSecondary.textContent = `Next along path: STOP #2 ${s2.name} (+${s2Dist})${q.stops.length > 2 ? ` + ${q.stops.length - 2} more` : ''} • Following San Rafael Orange Road`;
           } else {
-            hudSecondary.textContent = `${usedRoadRouting ? 'Live Road Route' : 'Offline Direct Path'} • Tap Stop to Update Status`;
+            hudSecondary.textContent = `${usedRoadRouting ? 'Following San Rafael Orange Road Path' : 'Direct Rescue Path'} • Tap Stop to Update Status`;
           }
           hud.classList.remove('hidden');
         }
