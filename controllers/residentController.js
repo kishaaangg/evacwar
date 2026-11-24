@@ -755,7 +755,13 @@ exports.getSos = async (req, res) => {
     const userId = req.session ? req.session.userId : null;
     let userObj = { id: userId, email: (req.session && req.session.email) || '' };
     let resident = (res.locals && res.locals.resident) || (req.session && req.session.userProfile && req.session.userProfile.resident) || {};
+    let mapFeatures = '{"type":"FeatureCollection","features":[]}';
     try {
+      const [cachedFeatures] = await Promise.all([
+        gisCache.getDrawnFeatures(false).catch(() => '{"type":"FeatureCollection","features":[]}')
+      ]);
+      if (cachedFeatures) mapFeatures = cachedFeatures;
+
       if (userId) {
         const [userRows] = await db.execute('SELECT id, email FROM users WHERE id = ?', [userId]);
         if (userRows && userRows[0]) userObj = userRows[0];
@@ -779,6 +785,7 @@ exports.getSos = async (req, res) => {
         role: "resident"
       },
       resident: resident,
+      mapFeatures: mapFeatures,
       page: { title: "Emergency SOS" }
     });
   } catch (error) {
@@ -793,6 +800,7 @@ exports.getSos = async (req, res) => {
         role: "resident"
       },
       resident: (res.locals && res.locals.resident) || {},
+      mapFeatures: '{"type":"FeatureCollection","features":[]}',
       page: { title: "Emergency SOS" }
     });
   }

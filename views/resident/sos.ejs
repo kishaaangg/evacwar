@@ -26,15 +26,15 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
             <!-- SOS Trigger Card -->
             <div
-              class="card p-6 sm:p-8 flex flex-col items-center justify-center text-center border-t-8 border-red-500 shadow-elevated relative overflow-hidden bg-white rounded-3xl">
+              class="lg:col-span-5 card p-6 sm:p-8 flex flex-col items-center justify-center text-center border-t-8 border-red-500 shadow-elevated relative overflow-hidden bg-white rounded-3xl">
 
               <!-- SOS Button Circle -->
               <button id="sos-btn" type="button"
-                class="w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-2xl hover:from-red-600 hover:to-rose-700 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center border-8 border-red-100 mb-4 relative group cursor-pointer">
+                class="w-44 h-44 sm:w-52 sm:h-52 rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-2xl hover:from-red-600 hover:to-rose-700 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center border-8 border-red-100 mb-4 relative group cursor-pointer">
                 <div id="sosBtnPing"
                   class="absolute inset-0 bg-red-400 animate-ping opacity-40 group-hover:opacity-70 transition-opacity rounded-full">
                 </div>
@@ -56,106 +56,107 @@
                 Tapping this button will send your current location coordinates directly to the assigned rescuers for
                 emergency response.
               </p>
-
-              <!-- LIVE RESCUER TRACKER, 4-STAGE PROGRESS STEPPER & ETA CARD (Haversine Distance Formula + ETA = d/v) -->
-              <div id="rescuerEtaCard" class="hidden w-full max-w-md mt-4 text-left bg-slate-900 text-white rounded-2xl p-4 border border-emerald-500/40 shadow-xl space-y-3">
-                <!-- Top ETA Banner & Live Status -->
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5">
-                      <span class="relative flex h-2 w-2 shrink-0">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                      </span>
-                      <span id="rescuerEtaStageTitle" class="text-[10px] font-black uppercase tracking-wider text-emerald-400">Rescuer Assigned &amp; En Route</span>
-                    </div>
-                    <div id="rescuerEtaStatusSubtext" class="text-xs font-bold text-slate-300 mt-0.5 leading-snug">
-                      Nearest rescuer matched to your location. Tracking live GPS route...
-                    </div>
-                  </div>
-                  <div class="bg-emerald-500/20 border border-emerald-400/50 rounded-xl px-2.5 py-1 text-right shrink-0">
-                    <div id="rescuerEtaHeroMins" class="text-sm sm:text-base font-black font-mono text-emerald-300 leading-tight">~1 min</div>
-                    <div class="text-[9px] font-bold uppercase text-emerald-200/80">Est. Arrival</div>
-                  </div>
-                </div>
-
-                <!-- 4-Stage Live Dispatch Progress Bar & Stepper -->
-                <div class="space-y-1.5 pt-1">
-                  <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div id="rescuerEtaProgressBar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 rounded-full transition-all duration-500" style="width: 55%;"></div>
-                  </div>
-                  <div class="grid grid-cols-4 gap-1 text-[9.5px] font-extrabold text-center">
-                    <div id="stepSos1" class="text-emerald-400 flex flex-col items-center gap-0.5">
-                      <span>1. SOS Sent</span>
-                    </div>
-                    <div id="stepSos2" class="text-emerald-400 flex flex-col items-center gap-0.5">
-                      <span>2. Assigned</span>
-                    </div>
-                    <div id="stepSos3" class="text-slate-400 flex flex-col items-center gap-0.5">
-                      <span>3. En Route</span>
-                    </div>
-                    <div id="stepSos4" class="text-slate-500 flex flex-col items-center gap-0.5">
-                      <span>4. Arriving</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Assigned Rescuer Profile Strip -->
-                <div class="bg-slate-800/90 rounded-xl p-2.5 border border-slate-700/80 flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-2.5 min-w-0">
-                    <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
-                      <i class="ph ph-navigation-arrow text-lg"></i>
-                    </div>
-                    <div class="min-w-0">
-                      <div class="text-[9.5px] font-bold uppercase text-slate-400">Assigned Rescuer (Auto-Matched)</div>
-                      <div id="rescuerEtaResponderName" class="text-xs sm:text-sm font-black text-white truncate">Barangay Rescue Team</div>
-                    </div>
-                  </div>
-                  <span id="rescuerEtaStatusBadge" class="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shrink-0">
-                    ASSIGNED
-                  </span>
-                </div>
-
-                <!-- Live Distance & ETA Metrics -->
-                <div class="grid grid-cols-3 gap-2">
-                  <div class="bg-slate-800/90 rounded-xl p-2 border border-slate-700/80 text-center">
-                    <div class="text-[9px] font-bold uppercase text-slate-400">Distance (d)</div>
-                    <div id="rescuerEtaDistanceVal" class="text-xs sm:text-sm font-black font-mono text-cyan-300 mt-0.5">-- km</div>
-                  </div>
-                  <div class="bg-slate-800/90 rounded-xl p-2 border border-slate-700/80 text-center">
-                    <div class="text-[9px] font-bold uppercase text-slate-400">Vehicle ETA</div>
-                    <div id="rescuerEtaVehicleVal" class="text-xs sm:text-sm font-black font-mono text-emerald-300 mt-0.5">~-- min</div>
-                  </div>
-                  <div class="bg-slate-800/90 rounded-xl p-2 border border-slate-700/80 text-center">
-                    <div class="text-[9px] font-bold uppercase text-slate-400">On-Foot ETA</div>
-                    <div id="rescuerEtaWalkVal" class="text-xs sm:text-sm font-black font-mono text-amber-300 mt-0.5">~-- min</div>
-                  </div>
-                </div>
-
-                <div class="pt-1 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
-                  <span id="rescuerEtaCoordsText" class="truncate">Rescuer GPS: 13.51037° N, 123.34810° E</span>
-                  <span class="text-slate-500 shrink-0">ETA = d / v</span>
-                </div>
-              </div>
             </div>
 
-            <!-- Resident Live Map Card -->
+            <!-- Resident Live Map Card (Expanded with White Rescuer En-Route Tracker Inside) -->
             <div
-              class="card p-4 sm:p-6 border border-slate-200/80 shadow-md bg-white space-y-3 flex flex-col justify-between rounded-3xl">
-              <div>
-                <div class="flex items-center justify-between mb-3">
-                  <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <i class="ph ph-map-pin text-blue-600 text-base"></i> Live Location Map
+              class="lg:col-span-7 card p-4 sm:p-6 border border-slate-200/80 shadow-md bg-white space-y-3.5 flex flex-col justify-between rounded-3xl">
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <h3 class="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                    <i class="ph ph-map-pin-fill text-blue-600 text-lg"></i> Live Location &amp; Rescue Tracking Map
                   </h3>
                   <button id="btnRecenterGps" type="button"
-                    class="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60 active:scale-95 transition-transform cursor-pointer"
+                    class="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200/80 active:scale-95 transition-transform cursor-pointer"
                     title="Reset to auto GPS">
                     <i class="ph ph-navigation-arrow"></i> Recenter / Auto GPS
                   </button>
                 </div>
 
+                <!-- CLEAN WHITE LIVE RESCUER TRACKER, 4-STAGE PROGRESS STEPPER & ORANGE-ROAD ETA CARD -->
+                <div id="rescuerEtaCard" class="hidden w-full text-left bg-white text-slate-900 rounded-2xl p-3.5 sm:p-4 border-2 border-emerald-300 shadow-md space-y-3">
+                  <!-- Top ETA Banner & Live Status -->
+                  <div class="flex items-start justify-between gap-2.5">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="relative flex h-2.5 w-2.5 shrink-0">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+                        </span>
+                        <span id="rescuerEtaStageTitle" class="text-xs font-black uppercase tracking-wider text-emerald-700">Rescuer En Route to Your Location</span>
+                      </div>
+                      <div id="rescuerEtaStatusSubtext" class="text-xs font-semibold text-slate-600 mt-0.5 leading-snug">
+                        Following San Rafael main orange road path to your location...
+                      </div>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-1.5 text-right shrink-0 shadow-2xs">
+                      <div id="rescuerEtaHeroMins" class="text-sm sm:text-base font-black font-mono text-emerald-800 leading-tight">~1 min</div>
+                      <div class="text-[9.5px] font-extrabold uppercase text-emerald-700">Est. Arrival</div>
+                    </div>
+                  </div>
+
+                  <!-- 4-Stage Live Dispatch Progress Bar & Stepper -->
+                  <div class="space-y-1.5 pt-0.5">
+                    <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                      <div id="rescuerEtaProgressBar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500" style="width: 55%;"></div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1 text-[10px] font-extrabold text-center">
+                      <div id="stepSos1" class="text-emerald-700 font-black flex flex-col items-center gap-0.5">
+                        <span>1. SOS Sent</span>
+                      </div>
+                      <div id="stepSos2" class="text-emerald-700 font-black flex flex-col items-center gap-0.5">
+                        <span>2. Assigned</span>
+                      </div>
+                      <div id="stepSos3" class="text-slate-400 font-bold flex flex-col items-center gap-0.5">
+                        <span>3. En Route</span>
+                      </div>
+                      <div id="stepSos4" class="text-slate-400 font-bold flex flex-col items-center gap-0.5">
+                        <span>4. Arriving</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Assigned Rescuer Profile Strip -->
+                  <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div id="rescuerEtaAvatarSlot" class="w-10 h-10 rounded-full bg-blue-100 border-2 border-blue-600 text-blue-800 flex items-center justify-center font-black text-xs shrink-0 overflow-hidden shadow-xs">
+                        <i class="ph ph-navigation-arrow text-base"></i>
+                      </div>
+                      <div class="min-w-0">
+                        <div class="text-[10px] font-extrabold uppercase text-slate-500">Assigned Rescuer (Auto-Matched)</div>
+                        <div id="rescuerEtaResponderName" class="text-xs sm:text-sm font-black text-slate-900 truncate">Barangay Rescue Team</div>
+                      </div>
+                    </div>
+                    <span id="rescuerEtaStatusBadge" class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                      ASSIGNED
+                    </span>
+                  </div>
+
+                  <!-- Live Orange-Road Distance & ETA Metrics -->
+                  <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-slate-50 rounded-xl p-2 border border-slate-200 text-center">
+                      <div class="text-[9.5px] font-extrabold uppercase text-slate-500">Road Distance</div>
+                      <div id="rescuerEtaDistanceVal" class="text-xs sm:text-sm font-black font-mono text-blue-700 mt-0.5">-- m</div>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-2 border border-slate-200 text-center">
+                      <div class="text-[9.5px] font-extrabold uppercase text-slate-500">Vehicle ETA</div>
+                      <div id="rescuerEtaVehicleVal" class="text-xs sm:text-sm font-black font-mono text-emerald-700 mt-0.5">~-- min</div>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-2 border border-slate-200 text-center">
+                      <div class="text-[9.5px] font-extrabold uppercase text-slate-500">On-Foot ETA</div>
+                      <div id="rescuerEtaWalkVal" class="text-xs sm:text-sm font-black font-mono text-amber-700 mt-0.5">~-- min</div>
+                    </div>
+                  </div>
+
+                  <div class="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[10.5px] font-mono text-slate-600 gap-2">
+                    <span id="rescuerEtaCoordsText" class="truncate font-semibold">Rescuer GPS: 13.51037° N, 123.34810° E</span>
+                    <span class="text-orange-600 font-sans font-extrabold shrink-0 flex items-center gap-1"><i class="ph ph-path"></i> Orange Road Path</span>
+                  </div>
+                </div>
+
+                <!-- Bigger Live Location Map -->
                 <div id="sosResidentMap"
-                  class="w-full h-64 sm:h-72 lg:h-80 rounded-2xl overflow-hidden border border-slate-200 relative bg-slate-900 shadow-inner">
+                  class="w-full h-[420px] sm:h-[500px] lg:h-[560px] rounded-2xl overflow-hidden border border-slate-200 relative bg-slate-900 shadow-inner">
                 </div>
               </div>
 
@@ -286,6 +287,9 @@
               }
             })();
           </script>
+          <script id="map-features-data" type="application/json">
+    <%- typeof mapFeatures !== 'undefined' ? mapFeatures : '{"type":"FeatureCollection","features":[]}' %>
+  </script>
           <script id="sosUserData" type="application/json">
     <%- JSON.stringify({ 
       id: (typeof resident !== 'undefined' && resident && resident.id) ? resident.id : ((typeof user !== 'undefined' && user && user.resident_id) ? user.resident_id : ((typeof user !== 'undefined' && user && user.id) ? user.id : null)), 
@@ -633,9 +637,48 @@
 
                 map.on('load', () => {
                   map.resize();
+                  // Render Admin-drawn San Rafael Orange Roads & Boundary on #sosResidentMap
+                  try {
+                    let featObj = { type: 'FeatureCollection', features: [] };
+                    const fEl = document.getElementById('map-features-data');
+                    if (fEl && fEl.textContent) {
+                      const parsed = JSON.parse(fEl.textContent.trim());
+                      if (parsed && Array.isArray(parsed.features) && parsed.features.length > 0) featObj = parsed;
+                    }
+                    if ((!featObj.features || featObj.features.length === 0) && window.OFFLINE_BOOTSTRAP && window.OFFLINE_BOOTSTRAP.mapFeatures) {
+                      featObj = window.OFFLINE_BOOTSTRAP.mapFeatures;
+                    }
+                    if (featObj && Array.isArray(featObj.features) && featObj.features.length > 0 && !map.getSource('sos-map-features')) {
+                      map.addSource('sos-map-features', { type: 'geojson', data: featObj });
+                      map.addLayer({
+                        id: 'sos-boundary-dashed',
+                        type: 'line',
+                        source: 'sos-map-features',
+                        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'type', 'boundary']],
+                        paint: { 'line-color': '#f87171', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.85 }
+                      });
+                      map.addLayer({
+                        id: 'sos-orange-routes',
+                        type: 'line',
+                        source: 'sos-map-features',
+                        filter: ['==', '$type', 'LineString'],
+                        paint: { 'line-color': '#f97316', 'line-width': 4, 'line-opacity': 0.85 }
+                      });
+                    }
+                  } catch (_) {}
+
                   if (isValidCoordinate(currentLat, currentLng)) {
                     placeOrUpdateSosMarker(currentLat, currentLng);
                     panMapTo(currentLat, currentLng, 17);
+                  }
+                  if (activeSosAlert && window._lastRescuerCoords) {
+                    updateRescuerEtaDisplay({
+                      status: window._lastRescuerCoords.status,
+                      responderName: window._lastRescuerCoords.name,
+                      rescuerPhoto: window._lastRescuerCoords.photo,
+                      rescuerLat: window._lastRescuerCoords.lat,
+                      rescuerLng: window._lastRescuerCoords.lng
+                    });
                   }
                 });
 
@@ -863,12 +906,17 @@
                *   ETA_foot    = (d / 4.5 km/h) * 60
                */
               let rescuerMapMarker = null;
+              window._residentSosActiveRouteCoords = null;
+              window._residentSosLastDestKey = null;
+
               function updateRescuerEtaDisplay({ status = 'RESPONDING', responderName = 'Barangay Rescue Team', rescuerPhoto = null, rescuerLat = 13.51037, rescuerLng = 123.34810 } = {}) {
                 const etaCard = document.getElementById('rescuerEtaCard');
                 if (!etaCard) return;
                 const st = String(status || 'ACTIVE').toUpperCase();
                 if (st === 'RESOLVED' || st === 'CANCELLED') {
                   etaCard.classList.add('hidden');
+                  window._residentSosActiveRouteCoords = null;
+                  window._residentSosLastDestKey = null;
                   return;
                 }
                 etaCard.classList.remove('hidden');
@@ -880,23 +928,82 @@
                 const resolvedPhoto = rescuerPhoto || (window._lastRescuerCoords && window._lastRescuerCoords.photo) || null;
                 window._lastRescuerCoords = { lat: rLat, lng: rLng, name: responderName, photo: resolvedPhoto, status: st };
 
-                const toRad = (deg) => (Number(deg) * Math.PI) / 180;
-                const R = 6371; // km
-                const dLat = toRad(rLat - resLat);
-                const dLng = toRad(rLng - resLng);
-                const a =
-                  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(toRad(resLat)) * Math.cos(toRad(rLat)) *
-                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                const distKm = R * c;
-                const distMeters = Math.round(distKm * 1000);
+                const havMeters = (a, b) => {
+                  if (typeof window.computeHaversineKm === 'function') {
+                    return window.computeHaversineKm(a[1], a[0], b[1], b[0]) * 1000;
+                  }
+                  const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+                  const R = 6371000;
+                  const dLat = toRad(b[1] - a[1]);
+                  const dLng = toRad(b[0] - a[0]);
+                  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLng / 2) ** 2;
+                  return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+                };
+
+                const projectPointOnSegment = (px, py, ax, ay, bx, by) => {
+                  const dx = bx - ax;
+                  const dy = by - ay;
+                  const lenSq = dx * dx + dy * dy;
+                  if (lenSq <= 1e-12) return { lng: ax, lat: ay, t: 0 };
+                  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+                  return { lng: ax + t * dx, lat: ay + t * dy, t };
+                };
+
+                // 1. Compute full connected San Rafael Orange Road path from Rescuer -> Resident SOS Pin
+                const destKey = `${resLat.toFixed(5)},${resLng.toFixed(5)}`;
+                let fullOrangePath = null;
+                if (typeof window.computeSanRafaelOrangeRoadPath === 'function') {
+                  fullOrangePath = window.computeSanRafaelOrangeRoadPath(rLat, rLng, resLat, resLng);
+                }
+
+                let activeCoords = (fullOrangePath && Array.isArray(fullOrangePath.coordinates) && fullOrangePath.coordinates.length >= 2)
+                  ? fullOrangePath.coordinates.slice()
+                  : [[rLng, rLat], [resLng, resLat]];
+
+                // 2. Live Route-Trimming: as Rescuer walks/drives toward SOS, erase passed segments behind the Rescuer!
+                if (window._residentSosActiveRouteCoords && window._residentSosActiveRouteCoords.length >= 2 && window._residentSosLastDestKey === destKey) {
+                  const prevCoords = window._residentSosActiveRouteCoords;
+                  let bestIdx = 0;
+                  let bestProj = { lng: prevCoords[0][0], lat: prevCoords[0][1] };
+                  let bestDistM = Infinity;
+                  for (let i = 0; i < prevCoords.length - 1; i++) {
+                    const a = prevCoords[i];
+                    const b = prevCoords[i + 1];
+                    const proj = projectPointOnSegment(rLng, rLat, a[0], a[1], b[0], b[1]);
+                    const dM = havMeters([rLng, rLat], [proj.lng, proj.lat]);
+                    if (dM < bestDistM) {
+                      bestDistM = dM;
+                      bestIdx = i;
+                      bestProj = proj;
+                    }
+                  }
+                  if (bestDistM <= 95) {
+                    const tail = prevCoords.slice(bestIdx + 1);
+                    activeCoords = [[rLng, rLat], [bestProj.lng, bestProj.lat], ...tail];
+                  }
+                }
+                window._residentSosActiveRouteCoords = activeCoords;
+                window._residentSosLastDestKey = destKey;
+
+                // 3. Calculate exact remaining distance along the trimmed Orange Road path
+                let remMeters = 0;
+                for (let i = 0; i < activeCoords.length - 1; i++) {
+                  remMeters += havMeters(activeCoords[i], activeCoords[i + 1]);
+                }
+                const directToResM = havMeters([rLng, rLat], [resLng, resLat]);
+                if (directToResM <= 28) {
+                  remMeters = directToResM;
+                }
+                const distMeters = Math.round(remMeters);
+                const distKm = remMeters / 1000;
+                const arrivedAtSos = distMeters <= 25 || st === 'RESCUED';
 
                 // Rescue vehicle average barangay speed ~24 km/h (400 m/min); On-foot rescuer ~4.5 km/h (75 m/min)
-                const vehicleEtaMins = Math.max(1, Math.ceil((distKm / 24) * 60));
-                const walkEtaMins = Math.max(1, Math.ceil((distKm / 4.5) * 60));
+                const vehicleEtaMins = arrivedAtSos ? 0 : Math.max(1, Math.ceil((distKm / 24) * 60));
+                const walkEtaMins = arrivedAtSos ? 0 : Math.max(1, Math.ceil((distKm / 4.5) * 60));
 
                 const nameEl = document.getElementById('rescuerEtaResponderName');
+                const avatarSlot = document.getElementById('rescuerEtaAvatarSlot');
                 const badgeEl = document.getElementById('rescuerEtaStatusBadge');
                 const distEl = document.getElementById('rescuerEtaDistanceVal');
                 const vehEl = document.getElementById('rescuerEtaVehicleVal');
@@ -913,48 +1020,59 @@
 
                 const distLabel = distMeters < 1000 ? `${distMeters} m` : `${distKm.toFixed(2)} km`;
                 if (nameEl) nameEl.textContent = responderName || 'Barangay Rescue Team';
-                if (badgeEl) badgeEl.textContent = st === 'ACTIVE' ? 'MATCHING RESCUER' : (st === 'ACKNOWLEDGED' ? 'ASSIGNED' : st);
+                if (avatarSlot) {
+                  const photoUrl = (typeof window.resolveEvakWarProfilePhotoUrl === 'function')
+                    ? window.resolveEvakWarProfilePhotoUrl(resolvedPhoto)
+                    : resolvedPhoto;
+                  const initials = (responderName || 'R').split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'R';
+                  avatarSlot.innerHTML = photoUrl
+                    ? `<img src="${photoUrl}" alt="${responderName}" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');"><span class="hidden font-black text-blue-800 text-xs">${initials}</span>`
+                    : `<span class="font-black text-blue-800 text-xs">${initials}</span>`;
+                }
+                if (badgeEl) badgeEl.textContent = st === 'ACTIVE' ? 'AUTO-ASSIGNED' : (st === 'ACKNOWLEDGED' ? 'ASSIGNED' : st);
                 if (distEl) distEl.textContent = distLabel;
-                if (vehEl) vehEl.textContent = `~${vehicleEtaMins} min`;
-                if (walkEl) walkEl.textContent = `~${walkEtaMins} min`;
-                if (heroMinsEl) heroMinsEl.textContent = distMeters <= 35 ? 'ARRIVING' : `~${vehicleEtaMins} min`;
+                if (vehEl) vehEl.textContent = arrivedAtSos ? 'Arrived' : `~${vehicleEtaMins} min`;
+                if (walkEl) walkEl.textContent = arrivedAtSos ? 'Arrived' : `~${walkEtaMins} min`;
+                if (heroMinsEl) heroMinsEl.textContent = arrivedAtSos ? 'ARRIVED' : (distMeters <= 45 ? 'ARRIVING' : `~${vehicleEtaMins} min`);
                 if (coordsEl) coordsEl.textContent = `Rescuer GPS: ${rLat.toFixed(5)}° N, ${rLng.toFixed(5)}° E`;
 
-                // Update 4-Stage Live Dispatch Progress Bar & Stepper
+                // Update 4-Stage Live Dispatch Progress Bar & Stepper (Clean White UI Theme)
                 let progPct = '35%';
                 let activeStep = 1;
                 if (st === 'ACKNOWLEDGED') {
                   progPct = '58%';
                   activeStep = 2;
                   if (stageTitleEl) stageTitleEl.textContent = 'Nearest Rescuer Automatically Assigned';
-                  if (stageSubEl) stageSubEl.textContent = `${responderName} is assigned (${distLabel} away) and preparing to head to your location.`;
+                  if (stageSubEl) stageSubEl.textContent = `${responderName} is assigned (${distLabel} along San Rafael orange road) and heading to your location.`;
                 } else if (st === 'RESPONDING') {
                   progPct = distMeters <= 80 ? '92%' : '80%';
                   activeStep = distMeters <= 80 ? 4 : 3;
                   if (stageTitleEl) stageTitleEl.textContent = distMeters <= 80 ? 'Rescuer Arriving Nearby!' : 'Rescuer En Route to Your Location';
-                  if (stageSubEl) stageSubEl.textContent = `${responderName} is on the way (${distLabel} • ~${vehicleEtaMins} min by vehicle / ~${walkEtaMins} min on foot).`;
-                } else if (st === 'RESCUED') {
+                  if (stageSubEl) stageSubEl.textContent = `${responderName} is moving along the San Rafael road path (${distLabel} remaining • ~${vehicleEtaMins} min by vehicle / ~${walkEtaMins} min on foot).`;
+                } else if (st === 'RESCUED' || arrivedAtSos) {
                   progPct = '100%';
                   activeStep = 4;
                   if (stageTitleEl) stageTitleEl.textContent = 'Rescuer Arrived at Your Location';
                   if (stageSubEl) stageSubEl.textContent = `${responderName} has reached your location for evacuation assistance.`;
                 } else {
-                  progPct = '35%';
-                  activeStep = 1;
-                  if (stageTitleEl) stageTitleEl.textContent = 'SOS Received — Matching Nearest Rescuer';
-                  if (stageSubEl) stageSubEl.textContent = `Assigning the closest rescuer within Barangay San Rafael (${distLabel} away).`;
+                  progPct = '50%';
+                  activeStep = 2;
+                  if (stageTitleEl) stageTitleEl.textContent = 'Nearest Rescuer Matched Along San Rafael Road';
+                  if (stageSubEl) stageSubEl.textContent = `${responderName} is matched along the San Rafael orange road (${distLabel} away).`;
                 }
                 if (progBarEl) progBarEl.style.width = progPct;
                 [s1, s2, s3, s4].forEach((el, idx) => {
                   if (!el) return;
                   el.className = (idx + 1) <= activeStep
-                    ? 'text-emerald-400 font-black flex flex-col items-center gap-0.5'
-                    : 'text-slate-500 font-bold flex flex-col items-center gap-0.5';
+                    ? 'text-emerald-700 font-black flex flex-col items-center gap-0.5'
+                    : 'text-slate-400 font-bold flex flex-col items-center gap-0.5';
                 });
 
-                // Render Moving Rescuer Profile Picture Pin + Live Route Line to Resident's House on #sosResidentMap
+                // Render Moving Rescuer Profile Picture Pin + Live Trimmed Green Orange-Road Route Line on #sosResidentMap
                 if (map && typeof maplibregl !== 'undefined' && typeof map.getLayer === 'function') {
-                  const pillText = `${responderName} • ~${vehicleEtaMins}m (${distLabel})`;
+                  const pillText = arrivedAtSos
+                    ? `${responderName} • ARRIVED`
+                    : `${responderName} • ~${vehicleEtaMins}m (${distLabel})`;
                   const el = (typeof window.createMaplibreRescuerMarkerEl === 'function')
                     ? window.createMaplibreRescuerMarkerEl({
                         rescuer_name: responderName,
@@ -974,37 +1092,57 @@
                     }
                   }
 
-                  // Draw / update live dashed route line between Rescuer GPS and Resident GPS
+                  // Draw / update live trimmed green route line along the San Rafael orange road network (erases passed path behind rescuer!)
                   const routeGeoJson = {
                     type: 'FeatureCollection',
-                    features: [{
+                    features: arrivedAtSos ? [] : [{
                       type: 'Feature',
                       geometry: {
                         type: 'LineString',
-                        coordinates: [[rLng, rLat], [resLng, resLat]]
+                        coordinates: activeCoords
                       }
                     }]
                   };
-                  try {
-                    const existingSrc = map.getSource('rescuer-live-route-src');
-                    if (existingSrc) {
-                      existingSrc.setData(routeGeoJson);
-                    } else if (map.isStyleLoaded && map.isStyleLoaded()) {
-                      map.addSource('rescuer-live-route-src', { type: 'geojson', data: routeGeoJson });
-                      map.addLayer({
-                        id: 'rescuer-live-route-glow',
-                        type: 'line',
-                        source: 'rescuer-live-route-src',
-                        paint: { 'line-color': '#10b981', 'line-width': 7, 'line-opacity': 0.25 }
+                  const applyRescuerLiveRoute = () => {
+                    try {
+                      const existingSrc = map.getSource('rescuer-live-route-src');
+                      if (existingSrc) {
+                        existingSrc.setData(routeGeoJson);
+                      } else {
+                        map.addSource('rescuer-live-route-src', { type: 'geojson', data: routeGeoJson });
+                        map.addLayer({
+                          id: 'rescuer-live-route-glow',
+                          type: 'line',
+                          source: 'rescuer-live-route-src',
+                          layout: { 'line-join': 'round', 'line-cap': 'round' },
+                          paint: { 'line-color': '#10b981', 'line-width': 9, 'line-opacity': 0.3 }
+                        });
+                        map.addLayer({
+                          id: 'rescuer-live-route-line',
+                          type: 'line',
+                          source: 'rescuer-live-route-src',
+                          layout: { 'line-join': 'round', 'line-cap': 'round' },
+                          paint: { 'line-color': '#10b981', 'line-width': 4.5, 'line-dasharray': [2, 1.5] }
+                        });
+                      }
+                    } catch (_) {}
+                  };
+                  if (map.isStyleLoaded && map.isStyleLoaded()) {
+                    applyRescuerLiveRoute();
+                  } else if (typeof map.once === 'function') {
+                    map.once('load', applyRescuerLiveRoute);
+                  }
+
+                  // Frame both Resident SOS pin and Moving Rescuer pin on the Live Location Map if user hasn't manually panned away
+                  if (!userHasPannedMap && activeCoords.length >= 2 && maplibregl.LngLatBounds && typeof map.fitBounds === 'function') {
+                    try {
+                      const bounds = new maplibregl.LngLatBounds();
+                      activeCoords.forEach(c => {
+                        if (Array.isArray(c) && c.length >= 2) bounds.extend([c[0], c[1]]);
                       });
-                      map.addLayer({
-                        id: 'rescuer-live-route-line',
-                        type: 'line',
-                        source: 'rescuer-live-route-src',
-                        paint: { 'line-color': '#10b981', 'line-width': 3.5, 'line-dasharray': [2, 1.5] }
-                      });
-                    }
-                  } catch (_) {}
+                      map.fitBounds(bounds, { padding: { top: 70, bottom: 55, left: 55, right: 55 }, maxZoom: 17.2, duration: 750 });
+                    } catch (_) {}
+                  }
                 }
               }
 

@@ -616,9 +616,11 @@
         window._lastKnownUserGps = { lat: latitude, lng: longitude, isFallback: false };
         const me = getActiveRescuerIdentity();
 
-        // Report live standby GPS to backend so nearest-rescuer auto-assign always uses real coordinates
+        // Report live GPS to backend (every 3s while active SOS exists so Resident sees Rescuer moving live, or every 10s on standby)
         const nowPing = Date.now();
-        if (!window._lastStandbyGpsPing || (nowPing - window._lastStandbyGpsPing) > 12000) {
+        const hasActiveSos = Object.keys(sosMarkersMap || {}).length > 0;
+        const pingInterval = hasActiveSos ? 3000 : 10000;
+        if (!window._lastStandbyGpsPing || (nowPing - window._lastStandbyGpsPing) > pingInterval) {
           window._lastStandbyGpsPing = nowPing;
           try {
             const sock = window.__staffSocket || window.__appSocket;
@@ -630,6 +632,17 @@
                 latitude,
                 longitude,
                 accuracy: accuracy || 0
+              });
+              Object.values(sosMarkersMap || {}).forEach((item) => {
+                const a = (item && item.alertData) ? item.alertData : item;
+                if (a && a.id && !String(a.id).startsWith('lora_')) {
+                  sock.emit('rescuer:location', {
+                    sos_id: Number(a.id),
+                    latitude,
+                    longitude,
+                    accuracy: accuracy || 0
+                  });
+                }
               });
             }
             if (navigator.onLine) {
@@ -649,6 +662,9 @@
         }
         if (typeof window.updateRescuerMultiStopQueue === 'function') {
           window.updateRescuerMultiStopQueue();
+        }
+        if (typeof window.trimRescuerMultiStopRouteAtGps === 'function') {
+          window.trimRescuerMultiStopRouteAtGps(latitude, longitude);
         }
 
         const activeMap = targetMap || mapInstance;
@@ -2674,6 +2690,7 @@
       let rescuerStopMarkers = [];
 
       window.clearRescuerMultiStopRoute = function () {
+        window._activeRescuerMultiRouteCoords = null;
         const activeMap = window._activeEvacwarMap || mapInstance;
         if (activeMap && typeof activeMap.getSource === 'function') {
           try {
@@ -2868,6 +2885,8 @@
         }
         let totalSecs = Math.max(60, Math.round((totalMeters / 1000 / 24) * 3600));
         let usedRoadRouting = usedOrangeRoadRouting;
+        window._activeRescuerMultiRouteCoords = routeGeometryCoords.slice();
+        window._activeRescuerPrimaryStopName = (q.stops[0] && q.stops[0].name) || 'SOS Stop #1';
 
         const activeMap = window._activeEvacwarMap || mapInstance;
         if (activeMap && typeof activeMap.getSource === 'function') {
@@ -2940,6 +2959,82 @@
             hudSecondary.textContent = `${usedRoadRouting ? 'Following San Rafael Orange Road Path' : 'Direct Rescue Path'} • Tap Stop to Update Status`;
           }
           hud.classList.remove('hidden');
+        }
+      };
+
+      // Live Green Rescue Route Trimming: erases passed segments behind the Rescuer as they walk/drive toward the SOS!
+      window.trimRescuerMultiStopRouteAtGps = function (uLat, uLng) {
+        if (!Array.isArray(window._activeRescuerMultiRouteCoords) || window._activeRescuerMultiRouteCoords.length < 2) return;
+        const coords = window._activeRescuerMultiRouteCoords;
+        const havM = (a, b) => (typeof window.computeHaversineKm === 'function')
+          ? window.computeHaversineKm(a[1], a[0], b[1], b[0]) * 1000
+          : Math.hypot(b[0] - a[0], b[1] - a[1]) * 111320;
+        const projectPointOnSegment = (px, py, ax, ay, bx, by) => {
+          const dx = bx - ax, dy = by - ay;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq <= 1e-12) return { lng: ax, lat: ay, t: 0 };
+          const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+          return { lng: ax + t * dx, lat: ay + t * dy, t };
+        };
+
+        let bestIdx = 0;
+        let bestProj = { lng: coords[0][0], lat: coords[0][1] };
+        let bestDistM = Infinity;
+        for (let i = 0; i < coords.length - 1; i++) {
+          const a = coords[i], b = coords[i + 1];
+          const proj = projectPointOnSegment(uLng, uLat, a[0], a[1], b[0], b[1]);
+          const dM = havM([uLng, uLat], [proj.lng, proj.lat]);
+          if (dM < bestDistM) {
+            bestDistM = dM;
+            bestIdx = i;
+            bestProj = proj;
+          }
+        }
+
+        const tail = coords.slice(bestIdx + 1);
+        const trimmedCoords = bestDistM <= 110
+          ? [[uLng, uLat], [bestProj.lng, bestProj.lat], ...tail]
+          : [[uLng, uLat], ...tail];
+
+        if (trimmedCoords.length >= 2) {
+          window._activeRescuerMultiRouteCoords = trimmedCoords;
+        }
+
+        let remMeters = 0;
+        for (let i = 0; i < trimmedCoords.length - 1; i++) {
+          remMeters += havM(trimmedCoords[i], trimmedCoords[i + 1]);
+        }
+        const finalCoord = trimmedCoords[trimmedCoords.length - 1];
+        const directToEndM = havM([uLng, uLat], finalCoord);
+        if (directToEndM <= 28) remMeters = directToEndM;
+        const arrived = remMeters <= 25 || directToEndM <= 25;
+
+        const activeMap = window._activeEvacwarMap || mapInstance;
+        if (activeMap && typeof activeMap.getSource === 'function') {
+          try {
+            const src = activeMap.getSource('rescuer-multistop-route-src');
+            if (src && typeof src.setData === 'function') {
+              src.setData({
+                type: 'FeatureCollection',
+                features: arrived ? [] : [{
+                  type: 'Feature',
+                  geometry: { type: 'LineString', coordinates: trimmedCoords }
+                }]
+              });
+            }
+          } catch (_) {}
+        }
+
+        const hudPrimary = document.getElementById('rescuerHudPrimary');
+        if (hudPrimary) {
+          const stopName = window._activeRescuerPrimaryStopName || 'SOS Stop #1';
+          if (arrived) {
+            hudPrimary.textContent = `ARRIVED AT ${stopName} • 0 m remaining`;
+          } else {
+            const distTxt = remMeters < 1000 ? `${Math.round(remMeters)} m` : `${(remMeters / 1000).toFixed(2)} km`;
+            const minTxt = Math.max(1, Math.ceil((remMeters / 1000 / 24) * 60));
+            hudPrimary.textContent = `STOP #1: ${stopName} • ${distTxt} remaining • ~${minTxt} min`;
+          }
         }
       };
 
