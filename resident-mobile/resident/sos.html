@@ -1457,6 +1457,26 @@
       map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }), 'bottom-right');
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
+      // Ensure MapLibre WebGL canvas always fills 100% of container height even during initial flex layout or bottom-sheet toggles
+      const syncMapCanvasSize = () => {
+        try {
+          if (map && typeof map.resize === 'function') map.resize();
+          if (map && typeof map.triggerRepaint === 'function') map.triggerRepaint();
+        } catch (_) {}
+      };
+      if (containerEl && typeof ResizeObserver !== 'undefined') {
+        try {
+          const ro = new ResizeObserver(() => syncMapCanvasSize());
+          ro.observe(containerEl);
+          map._evakwarResizeObserver = ro;
+        } catch (_) {}
+      }
+      setTimeout(syncMapCanvasSize, 80);
+      setTimeout(syncMapCanvasSize, 250);
+      setTimeout(syncMapCanvasSize, 600);
+      setTimeout(syncMapCanvasSize, 1200);
+      map.once('load', syncMapCanvasSize);
+
       window._evakwarMapInstance = map;
       return map;
     };
@@ -6596,22 +6616,6 @@
                 // Rescue vehicle average barangay speed ~24 km/h (400 m/min); On-foot rescuer ~4.5 km/h (75 m/min)
                 const vehicleEtaMins = arrivedAtSos ? 0 : Math.max(1, Math.ceil((distKm / 24) * 60));
                 const walkEtaMins = arrivedAtSos ? 0 : Math.max(1, Math.ceil((distKm / 4.5) * 60));
-
-                const nameEl = document.getElementById('rescuerEtaResponderName');
-                const avatarSlot = document.getElementById('rescuerEtaAvatarSlot');
-                const badgeEl = document.getElementById('rescuerEtaStatusBadge');
-                const distEl = document.getElementById('rescuerEtaDistanceVal');
-                const vehEl = document.getElementById('rescuerEtaVehicleVal');
-                const walkEl = document.getElementById('rescuerEtaWalkVal');
-                const coordsEl = document.getElementById('rescuerEtaCoordsText');
-                const heroMinsEl = document.getElementById('rescuerEtaHeroMins');
-                const stageTitleEl = document.getElementById('rescuerEtaStageTitle');
-                const stageSubEl = document.getElementById('rescuerEtaStatusSubtext');
-                const progBarEl = document.getElementById('rescuerEtaProgressBar');
-                const s1 = document.getElementById('stepSos1');
-                const s2 = document.getElementById('stepSos2');
-                const s3 = document.getElementById('stepSos3');
-                const s4 = document.getElementById('stepSos4');
 
                 const distLabel = distMeters < 1000 ? `${distMeters} m` : `${distKm.toFixed(2)} km`;
                 if (nameEl) nameEl.textContent = responderName || 'Barangay Rescue Team';

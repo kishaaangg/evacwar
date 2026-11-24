@@ -259,7 +259,7 @@
 
           <!-- True Fixed Google Maps-style Mobile Bottom Sheet (Solid White Active SOS List) -->
           <div id="staffBottomSheet"
-            class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-4xl mx-auto bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.22)] border-t border-slate-200/90 flex flex-col max-h-[62dvh] will-change-transform transition-transform duration-300 ease-out"
+            class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-4xl mx-auto bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.22)] border-t border-slate-200/90 flex flex-col max-h-[62dvh] transition-transform duration-300 ease-out"
             style="transform: translateY(calc(100% - 78px));">
 
             <!-- Drag Handle & Always-Visible Peek Header -->
@@ -2346,6 +2346,7 @@
           this.sheet.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
           this.sheet.style.transform = `translateY(calc(100% - ${this.peekHeight}px))`;
           if (this.scrollArea) { this.scrollArea.scrollTop = 0; this.scrollArea.style.overflowY = 'hidden'; }
+          this.syncMapAfterSheetToggle();
         }
 
         setExpanded() {
@@ -2353,6 +2354,19 @@
           this.sheet.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
           this.sheet.style.transform = 'translateY(0)';
           if (this.scrollArea) this.scrollArea.style.overflowY = 'auto';
+          this.syncMapAfterSheetToggle();
+        }
+
+        syncMapAfterSheetToggle() {
+          const refresh = () => {
+            try {
+              if (mapInstance && typeof mapInstance.resize === 'function') mapInstance.resize();
+              if (mapInstance && typeof mapInstance.triggerRepaint === 'function') mapInstance.triggerRepaint();
+            } catch (_) {}
+          };
+          refresh();
+          setTimeout(refresh, 150);
+          setTimeout(refresh, 380);
         }
 
         toggle() { if (this.isExpanded) this.setCollapsed(); else this.setExpanded(); }

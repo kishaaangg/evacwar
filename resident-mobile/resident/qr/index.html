@@ -1457,6 +1457,26 @@
       map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }), 'bottom-right');
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
+      // Ensure MapLibre WebGL canvas always fills 100% of container height even during initial flex layout or bottom-sheet toggles
+      const syncMapCanvasSize = () => {
+        try {
+          if (map && typeof map.resize === 'function') map.resize();
+          if (map && typeof map.triggerRepaint === 'function') map.triggerRepaint();
+        } catch (_) {}
+      };
+      if (containerEl && typeof ResizeObserver !== 'undefined') {
+        try {
+          const ro = new ResizeObserver(() => syncMapCanvasSize());
+          ro.observe(containerEl);
+          map._evakwarResizeObserver = ro;
+        } catch (_) {}
+      }
+      setTimeout(syncMapCanvasSize, 80);
+      setTimeout(syncMapCanvasSize, 250);
+      setTimeout(syncMapCanvasSize, 600);
+      setTimeout(syncMapCanvasSize, 1200);
+      map.once('load', syncMapCanvasSize);
+
       window._evakwarMapInstance = map;
       return map;
     };

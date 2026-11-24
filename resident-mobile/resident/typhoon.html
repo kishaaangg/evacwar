@@ -1457,6 +1457,26 @@
       map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }), 'bottom-right');
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
+      // Ensure MapLibre WebGL canvas always fills 100% of container height even during initial flex layout or bottom-sheet toggles
+      const syncMapCanvasSize = () => {
+        try {
+          if (map && typeof map.resize === 'function') map.resize();
+          if (map && typeof map.triggerRepaint === 'function') map.triggerRepaint();
+        } catch (_) {}
+      };
+      if (containerEl && typeof ResizeObserver !== 'undefined') {
+        try {
+          const ro = new ResizeObserver(() => syncMapCanvasSize());
+          ro.observe(containerEl);
+          map._evakwarResizeObserver = ro;
+        } catch (_) {}
+      }
+      setTimeout(syncMapCanvasSize, 80);
+      setTimeout(syncMapCanvasSize, 250);
+      setTimeout(syncMapCanvasSize, 600);
+      setTimeout(syncMapCanvasSize, 1200);
+      map.once('load', syncMapCanvasSize);
+
       window._evakwarMapInstance = map;
       return map;
     };
@@ -6042,7 +6062,7 @@
 
                 <div
                   class="border-t border-slate-700/60 pt-3 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Issued: Nov 24, 2026 • 11:59 AM PHT</span>
+                  <span>Issued: Nov 24, 2026 • 5:30 PM PHT</span>
                   <button type="button" onclick="window.evwSwitchWeatherView('sensor')"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer">
                     <i class="ph ph-broadcast"></i> View Live LoRa Sensor Data

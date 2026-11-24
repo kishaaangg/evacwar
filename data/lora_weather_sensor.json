@@ -1,30 +1,158 @@
 {
   "current": {
-    "temperature": 42.07,
-    "humidity": 50.29,
-    "pressure": 1038.23,
-    "heatIndex": 62.2,
-    "dewPoint": 29.6,
-    "heatCategory": "Extreme Danger Heat",
-    "condition": "Clear / Fair Skies",
+    "temperature": 29.19,
+    "humidity": 78.75,
+    "pressure": 1029.13,
+    "heatIndex": 35,
+    "dewPoint": 25.1,
+    "heatCategory": "Extreme Caution Heat",
+    "condition": "Fair / Partly Cloudy",
     "advisoryLevel": "NORMAL",
-    "guidance": "High barometric pressure and moderate humidity indicate generally fair local weather.",
-    "pressureTrend": "Rising",
-    "pressureTrendCode": "RISING",
-    "pressureDeltaHpa": 9.61,
+    "guidance": "Local Relay sensor telemetry shows stable ambient weather across San Rafael.",
+    "pressureTrend": "Steady",
+    "pressureTrendCode": "STEADY",
+    "pressureDeltaHpa": 0.51,
     "nodeId": "!0f778ab0",
     "nodeName": "EvakWar Zone Relay 1 (REL1)",
     "sensorModel": "AHT20 + BMP280 (I2C)",
-    "rssi": -49,
-    "snr": 11.5,
+    "rssi": -40,
+    "snr": 9.75,
     "hopsAway": 0,
-    "i2cBusWarning": false,
-    "lastValidReadingAt": "2026-11-19T14:50:27.584Z",
-    "source": "LORA_AHT20_BMP280",
-    "updatedAt": "2026-11-19T14:50:27.584Z",
-    "timestampMs": 1795099827584
+    "i2cBusWarning": true,
+    "lastValidReadingAt": "2026-11-20T12:08:29.128Z",
+    "source": "BLE_RELAY_FORWARD",
+    "updatedAt": "2026-11-20T12:25:56.810Z",
+    "timestampMs": 1795177556810
   },
   "history": [
+    {
+      "temperature": 29.26,
+      "humidity": 78.83,
+      "pressure": 1029.18,
+      "heatIndex": 35.2,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-20T12:08:11.525Z"
+    },
+    {
+      "temperature": 29.26,
+      "humidity": 78.37,
+      "pressure": 1029.18,
+      "heatIndex": 35.1,
+      "condition": "Fair / Partly Cloudy",
+      "updatedAt": "2026-11-20T12:06:51.229Z"
+    },
+    {
+      "temperature": 29.98,
+      "humidity": 71.57,
+      "pressure": 1038.72,
+      "heatIndex": 35.4,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T15:01:43.435Z"
+    },
+    {
+      "temperature": 30.1,
+      "humidity": 71.48,
+      "pressure": 1038.7,
+      "heatIndex": 35.7,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T15:00:49.165Z"
+    },
+    {
+      "temperature": 29.92,
+      "humidity": 70.95,
+      "pressure": 1038.69,
+      "heatIndex": 35.1,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:59:54.820Z"
+    },
+    {
+      "temperature": 30.3,
+      "humidity": 70.64,
+      "pressure": 1038.74,
+      "heatIndex": 35.9,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:59:44.119Z"
+    },
+    {
+      "temperature": 30.18,
+      "humidity": 70.46,
+      "pressure": 1038.73,
+      "heatIndex": 35.6,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:58:18.706Z"
+    },
+    {
+      "temperature": 30.5,
+      "humidity": 69.27,
+      "pressure": 1038.75,
+      "heatIndex": 36.1,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:57:24.426Z"
+    },
+    {
+      "temperature": 31.14,
+      "humidity": 67.5,
+      "pressure": 1038.71,
+      "heatIndex": 37.2,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:56:31.017Z"
+    },
+    {
+      "temperature": 31.46,
+      "humidity": 66.77,
+      "pressure": 1038.64,
+      "heatIndex": 37.8,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:55:40.025Z"
+    },
+    {
+      "temperature": 31.74,
+      "humidity": 65.16,
+      "pressure": 1038.66,
+      "heatIndex": 38,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:55:27.403Z"
+    },
+    {
+      "temperature": 31.87,
+      "humidity": 65.03,
+      "pressure": 1038.62,
+      "heatIndex": 38.3,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:54:35.439Z"
+    },
+    {
+      "temperature": 32.68,
+      "humidity": 62.61,
+      "pressure": 1038.7,
+      "heatIndex": 39.6,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:53:53.785Z"
+    },
+    {
+      "temperature": 34.3,
+      "humidity": 58.28,
+      "pressure": 1038.65,
+      "heatIndex": 42.3,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:52:58.599Z"
+    },
+    {
+      "temperature": 36.1,
+      "humidity": 53.64,
+      "pressure": 1038.51,
+      "heatIndex": 45.1,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:52:15.733Z"
+    },
+    {
+      "temperature": 39.22,
+      "humidity": 48.88,
+      "pressure": 1038.29,
+      "heatIndex": 51.5,
+      "condition": "Clear / Fair Skies",
+      "updatedAt": "2026-11-19T14:51:22.214Z"
+    },
     {
       "temperature": 42.07,
       "humidity": 50.29,
@@ -155,26 +283,27 @@
     }
   ],
   "latestWeatherAlert": {
-    "id": "wth_1795093417578",
-    "alertId": "wth_1795093417578",
+    "id": "wth_1795176411235",
+    "alertId": "wth_1795176411235",
     "type": "WEATHER_UPDATE",
     "silent": true,
     "noSiren": true,
     "title": "🌤️ 2-Hour LoRa Weather Sensor Update",
-    "message": "Fair / Partly Cloudy • Temp 29.5°C • Humidity 78% • Pressure 1028.8 hPa (Relay !0f778ab0)",
+    "message": "Fair / Partly Cloudy • Temp 29.3°C • Humidity 78% • Pressure 1029.2 hPa (Relay !0f778ab0)",
     "condition": "Fair / Partly Cloudy",
     "advisoryLevel": "NORMAL",
     "guidance": "Local Relay sensor telemetry shows stable ambient weather across San Rafael.",
-    "temperature": 29.46,
-    "humidity": 77.84,
-    "pressure": 1028.76,
-    "heatIndex": 35.5,
-    "dewPoint": 25.2,
+    "temperature": 29.26,
+    "humidity": 78.37,
+    "pressure": 1029.18,
+    "heatIndex": 35.1,
+    "dewPoint": 25.1,
     "pressureTrend": "Steady",
     "nodeId": "!0f778ab0",
     "url": "/typhoon",
-    "sent_at": "2026-11-19T13:03:37.578Z",
-    "timestampMs": 1795093417578
+    "sent_at": "2026-11-20T12:06:51.235Z",
+    "timestampMs": 1795176411235,
+    "triggerSource": "AUTO_2H"
   },
-  "lastWeatherAlertAt": 1795093417580
+  "lastWeatherAlertAt": 1795176411237
 }

@@ -221,7 +221,7 @@
 
         <!-- Half-Screen Solid White Sliding Bottom Sheet (Slides only to the middle, never over the top) -->
         <div id="residentEvacBottomSheet"
-          class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-3xl mx-auto bg-white rounded-t-3xl shadow-[0_-10px_32px_rgba(15,23,42,0.22)] border-t border-slate-200 flex flex-col max-h-[50dvh] will-change-transform transition-transform duration-300 ease-out"
+          class="fixed inset-x-0 bottom-16 lg:bottom-0 z-40 max-w-3xl mx-auto bg-white rounded-t-3xl shadow-[0_-10px_32px_rgba(15,23,42,0.22)] border-t border-slate-200 flex flex-col max-h-[50dvh] transition-transform duration-300 ease-out"
           style="transform: translateY(calc(100% - 56px)); background-color: #ffffff;">
 
           <!-- Drag / Tap Handle Area -->
@@ -1414,6 +1414,7 @@
           this.scrollArea.scrollTop = 0;
           this.scrollArea.style.overflowY = 'hidden';
         }
+        this.syncMapAfterSheetToggle();
       }
 
       setExpanded() {
@@ -1423,6 +1424,19 @@
         if (this.scrollArea) {
           this.scrollArea.style.overflowY = 'auto';
         }
+        this.syncMapAfterSheetToggle();
+      }
+
+      syncMapAfterSheetToggle() {
+        const refresh = () => {
+          try {
+            if (mapInstance && typeof mapInstance.resize === 'function') mapInstance.resize();
+            if (mapInstance && typeof mapInstance.triggerRepaint === 'function') mapInstance.triggerRepaint();
+          } catch (_) {}
+        };
+        refresh();
+        setTimeout(refresh, 150);
+        setTimeout(refresh, 380);
       }
 
       toggle() {
