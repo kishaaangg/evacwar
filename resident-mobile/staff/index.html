@@ -1896,7 +1896,7 @@
         return out;
       };
 
-      // Load Admin-drawn features from live page state, embedded script tag, or IndexedDB
+      // Load Admin-drawn features from live page state, embedded script tag, OFFLINE_BOOTSTRAP, or IndexedDB
       const getAdminDrawnFeatures = async () => {
         if (typeof adminGeoJsonFeatures !== 'undefined' && adminGeoJsonFeatures && Array.isArray(adminGeoJsonFeatures.features) && adminGeoJsonFeatures.features.length > 0) {
           return adminGeoJsonFeatures.features;
@@ -1909,6 +1909,9 @@
               return parsed.features;
             }
           } catch (_e) {}
+        }
+        if (window.OFFLINE_BOOTSTRAP && window.OFFLINE_BOOTSTRAP.mapFeatures && Array.isArray(window.OFFLINE_BOOTSTRAP.mapFeatures.features) && window.OFFLINE_BOOTSTRAP.mapFeatures.features.length > 0) {
+          return window.OFFLINE_BOOTSTRAP.mapFeatures.features;
         }
         if (window.EvakWarDB && typeof window.EvakWarDB.getMapData === 'function') {
           try {
@@ -2123,7 +2126,7 @@
       let usedAdminRoute = false;
       let passedHazard = false;
 
-      // 1. Compute local Admin-drawn route immediately (works 100% offline & reflects live Admin edits)
+      // 1. Compute local Admin-drawn orange road route immediately (works 100% offline & online, connecting all 9 San Rafael orange road segments)
       const localResult = computeLocalAdminRoute(drawnFeatures, null);
       if (localResult && localResult.geometry) {
         routeGeometry = localResult.geometry;
@@ -2131,17 +2134,24 @@
         usedAdminRoute = localResult.usedAdminRoute;
         passedHazard = localResult.passedHazard;
         nextStepText = passedHazard
-          ? '⚠️ Caution: Follows Admin Evacuation Route (near Hazard Zone)'
-          : 'Follow Admin-Drawn Evacuation Route to destination';
+          ? '⚠️ Caution: Follows San Rafael Orange Road (near Hazard Zone)'
+          : 'Follow San Rafael Orange Road Evacuation Path';
+      } else if (typeof window.computeSanRafaelOrangeRoadPath === 'function') {
+        const orangeFallback = window.computeSanRafaelOrangeRoadPath(oLat, oLng, dLat, dLng);
+        if (orangeFallback && orangeFallback.usedOrangeRoad && Array.isArray(orangeFallback.coordinates)) {
+          routeGeometry = { type: 'LineString', coordinates: orangeFallback.coordinates };
+          distMeters = orangeFallback.distanceMeters;
+          usedAdminRoute = true;
+          nextStepText = 'Follow San Rafael Orange Road Evacuation Path';
+        }
       }
 
-      // 2. When online, fetch hybrid Road + Admin Route from /api/directions
-      if (navigator.onLine) {
+      // 2. Only fall back to remote /api/directions if local connected San Rafael orange road network was NOT matched
+      if (navigator.onLine && !usedAdminRoute) {
         try {
           const res = await fetch(`/api/directions?originLat=${oLat}&originLng=${oLng}&destLat=${dLat}&destLng=${dLng}`);
           const data = await res.json();
           if (data && data.success && data.geometry) {
-            // If the user is on the Admin page with unsaved/newly drawn routes, combine OSRM with local Admin features
             const combinedLocal = computeLocalAdminRoute(drawnFeatures, data.geometry.coordinates);
             if (combinedLocal && combinedLocal.geometry) {
               routeGeometry = combinedLocal.geometry;
@@ -2149,8 +2159,8 @@
               usedAdminRoute = combinedLocal.usedAdminRoute;
               passedHazard = combinedLocal.passedHazard;
               nextStepText = passedHazard
-                ? '⚠️ Caution: Follows Admin Evacuation Route (near Hazard Zone)'
-                : (usedAdminRoute ? 'Follow Admin-Drawn Evacuation Route to destination' : ((data.steps && data.steps[0] && data.steps[0].instruction) || nextStepText));
+                ? '⚠️ Caution: Follows San Rafael Orange Road (near Hazard Zone)'
+                : (usedAdminRoute ? 'Follow San Rafael Orange Road Evacuation Path' : ((data.steps && data.steps[0] && data.steps[0].instruction) || nextStepText));
             } else {
               routeGeometry = data.geometry;
               if (typeof data.distanceMeters === 'number' && data.distanceMeters > 0) {
@@ -2622,39 +2632,16 @@
           const cLat = parseFloat(center.latitude);
           const cLng = parseFloat(center.longitude);
           if (isNaN(cLat) || isNaN(cLng)) return null;
-          return { ...center, latitude: cLat, longitude: cLng, distanceKm: window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng) };
-        })
-        .filter(Boolean);
-
-      // When online, compute exact real road-route distances via OSRM Table API so the nearest center
-      // matches actual road travel distance (not straight-line coordinates)!
-      if (typeof navigator !== 'undefined' && navigator.onLine && validCenters.length > 0) {
-        try {
-          const coordStr = [
-            `${userPos.lng},${userPos.lat}`,
-            ...validCenters.map(c => `${c.longitude},${c.latitude}`)
-          ].join(';');
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 4500);
-          const resp = await fetch(
-            `https://router.project-osrm.org/table/v1/driving/${coordStr}?sources=0&annotations=distance`,
-            { signal: ctrl.signal }
-          );
-          clearTimeout(timer);
-          if (resp.ok) {
-            const data = await resp.json();
-            const row = data && Array.isArray(data.distances) && Array.isArray(data.distances[0]) ? data.distances[0] : null;
-            if (row && row.length >= validCenters.length + 1) {
-              validCenters.forEach((c, idx) => {
-                const roadMeters = row[idx + 1];
-                if (typeof roadMeters === 'number' && Number.isFinite(roadMeters) && roadMeters >= 0) {
-                  c.distanceKm = roadMeters / 1000;
-                }
-              });
+          let roadDistKm = window.computeHaversineKm(userPos.lat, userPos.lng, cLat, cLng);
+          if (typeof window.computeSanRafaelOrangeRoadPath === 'function') {
+            const orangePath = window.computeSanRafaelOrangeRoadPath(userPos.lat, userPos.lng, cLat, cLng);
+            if (orangePath && isFinite(orangePath.distanceKm)) {
+              roadDistKm = orangePath.distanceKm;
             }
           }
-        } catch (_) {}
-      }
+          return { ...center, latitude: cLat, longitude: cLng, distanceKm: roadDistKm };
+        })
+        .filter(Boolean);
 
       let nearest = null;
       let bestScore = Infinity;
@@ -5764,7 +5751,7 @@
                                         <div class="flex items-center gap-1 shrink-0">
                                           <span class="font-semibold text-slate-700 text-xs tracking-tight"
                                             id="weatherTime">
-                                            10:54 am
+                                            11:05 am
                                           </span>
                                           <button type="button" onclick="useMyLocationDashboard(this)"
                                             id="btnDashMyLocation"
@@ -5932,7 +5919,7 @@
                                         70%
                                       </span>
                                       <span id="weatherUpdated" class="hidden">
-                                        10:54 AM
+                                        11:05 AM
                                       </span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
