@@ -1367,7 +1367,8 @@
         attributionControl: false,
         fadeDuration: 0,
         renderWorldCopies: false,
-        collectResourceTiming: false
+        collectResourceTiming: false,
+        preserveDrawingBuffer: true
       });
 
       map.on('error', (e) => {
@@ -5630,7 +5631,7 @@
                 <div class="mt-3.5 sm:mt-4 z-20 max-w-[55%] xs:max-w-[58%] sm:max-w-[62%] md:max-w-[66%]">
                   <h1
                     class="text-lg xs:text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-xs">
-                    Good afternoon, <span id="staffUserGreetingName" class="staff-first-name-display">Virgil</span>! <span
+                    Good evening, <span id="staffUserGreetingName" class="staff-first-name-display">Virgil</span>! <span
                           class="inline-block text-lg xs:text-xl sm:text-2xl">👋</span>
                   </h1>
                   <p
@@ -5771,7 +5772,7 @@
                                         <div class="flex items-center gap-1 shrink-0">
                                           <span class="font-semibold text-slate-700 text-xs tracking-tight"
                                             id="weatherTime">
-                                            5:30 pm
+                                            6:37 pm
                                           </span>
                                           <button type="button" onclick="useMyLocationDashboard(this)"
                                             id="btnDashMyLocation"
@@ -5927,13 +5928,13 @@
 
                                       <!-- Hidden Telemetry Hooks -->
                                       <span id="weatherStatus" class="hidden">
-                                        Clear Skies
+                                        Clear Night
                                       </span>
                                       <span id="weatherHumidity" class="hidden">
-                                        87%
+                                        89%
                                       </span>
                                       <span id="weatherUpdated" class="hidden">
-                                        5:30 PM
+                                        6:37 PM
                                       </span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
@@ -6321,7 +6322,7 @@
   <script src="/js/ui.js"></script>
   <script src="/js/weatherLocation.js" defer></script>
   <script src="/js/offline-queue.js" defer></script>
-  <script src="/js/pwa.js?v=103" defer></script>
+  <script src="/js/pwa.js?v=106" defer></script>
 
   </div>
   </body>

@@ -1367,7 +1367,8 @@
         attributionControl: false,
         fadeDuration: 0,
         renderWorldCopies: false,
-        collectResourceTiming: false
+        collectResourceTiming: false,
+        preserveDrawingBuffer: true
       });
 
       map.on('error', (e) => {
@@ -5623,7 +5624,7 @@
                 <div class="mt-3.5 sm:mt-4 z-20 max-w-[55%] xs:max-w-[58%] sm:max-w-[62%] md:max-w-[66%]">
                   <h1
                     class="text-lg xs:text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-xs">
-                    Good afternoon, <span id="rescuerGreetingName" class="rescuer-first-name-display staff-first-name-display">Staff</span>! <span
+                    Good evening, <span id="rescuerGreetingName" class="rescuer-first-name-display staff-first-name-display">Staff</span>! <span
                           class="inline-block text-lg xs:text-xl sm:text-2xl">👋</span>
                   </h1>
                   <p
@@ -5730,7 +5731,7 @@
                                             <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               Tuesday
                                             </h3>
-                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">5:30 pm</span>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">6:37 pm</span>
                                           </div>
                                           <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
                                             San Rafael, Baao
@@ -5760,7 +5761,7 @@
                                             Feels <span id="weatherRealFeel" class="font-bold text-slate-800">30°C</span>
                                           </div>
                                           <div class="text-[10px] font-bold text-blue-700 truncate mt-0.5" id="weatherStatus">
-                                            Clear Skies
+                                            Clear Night
                                           </div>
                                         </div>
 
@@ -5801,13 +5802,13 @@
                                         </div>
                                         <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-indigo-200/60 text-center">
                                           <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Humid</div>
-                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate" id="weatherHumidity">87%</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate" id="weatherHumidity">89%</div>
                                         </div>
                                       </div>
 
                                       <!-- Hidden Telemetry Hooks -->
                                       <span id="weatherTempPill" class="hidden">26°C</span>
-                                      <span id="weatherUpdated" class="hidden">5:30 PM</span>
+                                      <span id="weatherUpdated" class="hidden">6:37 PM</span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 
@@ -5920,7 +5921,7 @@
                                       Public Weather Forecast issued at 5:00 PM | November 24, 2026 - Tuesday
                                     </span>
                                     <span id="rescuerPagasaVideoPublished" class="text-[10px] font-medium text-slate-500 shrink-0">
-                                      Issued: Nov 24, 2026 • 2:01 PM PHT
+                                      Issued: Nov 24, 2026 • 5:23 PM PHT
                                     </span>
                                   </div>
 
@@ -6037,7 +6038,7 @@
   <script src="/js/ui.js"></script>
   <script src="/js/weatherLocation.js" defer></script>
   <script src="/js/offline-queue.js" defer></script>
-  <script src="/js/pwa.js?v=103" defer></script>
+  <script src="/js/pwa.js?v=106" defer></script>
 
   </div>
   </body>

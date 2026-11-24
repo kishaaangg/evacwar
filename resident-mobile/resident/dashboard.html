@@ -1367,7 +1367,8 @@
         attributionControl: false,
         fadeDuration: 0,
         renderWorldCopies: false,
-        collectResourceTiming: false
+        collectResourceTiming: false,
+        preserveDrawingBuffer: true
       });
 
       map.on('error', (e) => {
@@ -5696,7 +5697,7 @@
                       class="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 text-xs font-semibold text-white shadow-xs">
                       <i class="ph ph-clock text-base"></i>
                       <span id="residentAlertTimeText">
-                        5:30 PM
+                        6:37 PM
                       </span>
                     </div>
                   </div>
@@ -5814,16 +5815,16 @@
                   <div class="flex items-center gap-3 min-w-0 flex-1">
                     <div
                       class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center text-2xl sm:text-4xl shadow-inner shrink-0">
-                      <i id="dashWeatherIcon" class="ph ph-sun"></i>
+                      <i id="dashWeatherIcon" class="ph ph-moon"></i>
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
                         <span id="dashTemp"
                           class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                          25.9°C
+                          25.5°C
                         </span>
                         <span id="dashStatus" class="text-xs sm:text-base font-bold text-blue-600 truncate">
-                          Clear Skies
+                          Clear Night
                         </span>
                       </div>
                       <div
@@ -5834,7 +5835,7 @@
                         </span>
                         <span class="text-slate-300 shrink-0">•</span>
                         <span id="weatherLastUpdatedText" class="text-slate-400 shrink-0 truncate">
-                          Updated 5:30 PM
+                          Updated 6:37 PM
                         </span>
                       </div>
                     </div>
@@ -5888,7 +5889,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wind
                         Speed</div>
                       <div id="dashWind" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        11
+                        10.7
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">km/h</span>
                       </div>
                       <div id="dashGusts" class="hidden"></div>
@@ -5906,7 +5907,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Humidity
                       </div>
                       <div id="dashHumidity" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        87%
+                        89%
                       </div>
                     </div>
                   </div>
@@ -5922,7 +5923,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pressure
                       </div>
                       <div id="dashPressure" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        1001.6
+                        1002.3
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">hPa</span>
                       </div>
                     </div>
@@ -5971,7 +5972,7 @@
                       Public Weather Forecast issued at 5:00 PM | November 24, 2026 - Tuesday
                     </span>
                     <span id="residentPagasaVideoPublished" class="text-[10px] font-medium text-slate-500 shrink-0">
-                      Issued: Nov 24, 2026 • 2:01 PM PHT
+                      Issued: Nov 24, 2026 • 5:23 PM PHT
                     </span>
                   </div>
 
@@ -6276,7 +6277,7 @@
   <script src="/js/ui.js"></script>
   <script src="/js/weatherLocation.js" defer></script>
   <script src="/js/offline-queue.js" defer></script>
-  <script src="/js/pwa.js?v=103" defer></script>
+  <script src="/js/pwa.js?v=106" defer></script>
 
   </div>
   </body>

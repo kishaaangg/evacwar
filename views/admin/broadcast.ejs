@@ -799,7 +799,8 @@
 
     async function transmitDirectLoraAlertFromBrowser() {
       try {
-        if (window.evakwarLoraClient && window.evakwarLoraClient.isConnected && typeof window.evakwarLoraClient.sendText === 'function') {
+        const lora = window.evakwarLoraClient;
+        if (lora && lora.connected && typeof lora.sendText === 'function') {
           const sev = (document.getElementById('severityInput').value || 'RED').toUpperCase();
           const rawTitle = (document.getElementById('alertTitleInput').value || 'EMERGENCY ALERT').replace(/\|/g, '/').trim().slice(0, 38);
           const rawMsg = (document.getElementById('messageBox').value || '')
@@ -811,10 +812,47 @@
             .slice(0, 95);
           const aid = Date.now().toString().slice(-7);
           const pkt = `EVW|ALT|${aid}|${sev}|ALL|${rawTitle}|Nearest Safe Evacuation Center|${rawMsg}`;
-          await window.evakwarLoraClient.sendText(pkt);
+          await lora.sendText(pkt);
+          return { sent: true, packet: pkt, transport: lora.transport || 'LORA' };
         }
       } catch (loraTxErr) {
         console.warn('[Broadcast Direct LoRa TX]:', loraTxErr);
+        return { sent: false, error: loraTxErr && loraTxErr.message ? loraTxErr.message : 'LoRa TX error' };
+      }
+      return { sent: false };
+    }
+
+    function showOfflineBroadcastNotice(ok, text) {
+      const composeCard = document.getElementById('composeCard');
+      if (!composeCard || !composeCard.parentElement) {
+        alert(text);
+        return;
+      }
+      const old = document.getElementById('offlineLoraBroadcastBanner');
+      if (old) old.remove();
+      const banner = document.createElement('div');
+      banner.id = 'offlineLoraBroadcastBanner';
+      banner.className = ok
+        ? 'p-3.5 bg-emerald-50 border-l-4 border-emerald-500 rounded-xl flex items-center justify-between shadow-xs mb-3'
+        : 'p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-xl flex items-center justify-between shadow-xs mb-3';
+      banner.innerHTML = `
+        <div class="flex items-center gap-2.5 ${ok ? 'text-emerald-950' : 'text-amber-950'}">
+          <i class="ph ${ok ? 'ph-check-circle text-emerald-600' : 'ph-warning-circle text-amber-600'} text-xl shrink-0"></i>
+          <div>
+            <h4 class="font-bold text-xs">${ok ? 'Offline 433.875 MHz LoRa Broadcast Sent' : 'Offline LoRa Broadcast Notice'}</h4>
+            <p class="text-[11px] font-medium">${text}</p>
+          </div>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-slate-500 hover:text-slate-800 text-base p-1 cursor-pointer"><i class="ph ph-x"></i></button>
+      `;
+      composeCard.parentElement.insertBefore(banner, composeCard);
+    }
+
+    function restoreBroadcastSubmitBtn() {
+      const submitBtn = document.getElementById('btnSubmitBroadcast');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="ph ph-broadcast text-base"></i> Dispatch Emergency Broadcast';
       }
     }
 
@@ -828,9 +866,19 @@
       const submitBtn = document.getElementById('btnSubmitBroadcast');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Dispatching 3-Way Broadcast...';
+        submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Dispatching Broadcast...';
       }
-      await transmitDirectLoraAlertFromBrowser();
+      const loraRes = await transmitDirectLoraAlertFromBrowser();
+      if (!navigator.onLine) {
+        restoreBroadcastSubmitBtn();
+        if (loraRes && loraRes.sent) {
+          showOfflineBroadcastNotice(true, `Alert transmitted offline via ${loraRes.transport} (433.875 MHz LoRa Mesh). No internet required!`);
+          if (typeof window.EvacWarToast === 'function') window.EvacWarToast('✅ Offline LoRa RED Alert transmitted!');
+        } else {
+          showOfflineBroadcastNotice(false, (loraRes && loraRes.error) ? loraRes.error : 'You are offline and no LoRa USB/BLE node is connected. Connect your LoRa node from the top bar and try again.');
+        }
+        return;
+      }
       document.getElementById('broadcastForm').submit();
     };
 
@@ -842,7 +890,25 @@
         return;
       }
 
-      if (!window.__directLoraTxDone && window.evakwarLoraClient && window.evakwarLoraClient.isConnected) {
+      if (!navigator.onLine) {
+        e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitBroadcast');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Sending via 433.875 MHz LoRa...';
+        }
+        const loraRes = await transmitDirectLoraAlertFromBrowser();
+        restoreBroadcastSubmitBtn();
+        if (loraRes && loraRes.sent) {
+          showOfflineBroadcastNotice(true, `Alert transmitted offline via ${loraRes.transport} (433.875 MHz LoRa Mesh). No internet required!`);
+          if (typeof window.EvacWarToast === 'function') window.EvacWarToast('✅ Offline LoRa Alert transmitted!');
+        } else {
+          showOfflineBroadcastNotice(false, (loraRes && loraRes.error) ? loraRes.error : 'You are offline and no LoRa USB/BLE node is connected. Connect your LoRa node from the top bar and try again.');
+        }
+        return;
+      }
+
+      if (!window.__directLoraTxDone && window.evakwarLoraClient && window.evakwarLoraClient.connected) {
         e.preventDefault();
         window.__directLoraTxDone = true;
         const submitBtn = document.getElementById('btnSubmitBroadcast');

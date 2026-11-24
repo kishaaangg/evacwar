@@ -69,19 +69,22 @@ h6,
 }
 
 #evacMap,
-#evacuationMap {
+#evacuationMap,
+#sosResidentMap {
   width: 100%;
   height: 100%;
   touch-action: pan-x pan-y pinch-zoom;
   overscroll-behavior: none;
+  isolation: isolate;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 #evacMap .maplibregl-canvas-container,
 #evacuationMap .maplibregl-canvas-container,
-#sosResidentMap .maplibregl-canvas-container,
-#evacMap .maplibregl-canvas,
-#evacuationMap .maplibregl-canvas,
-#sosResidentMap .maplibregl-canvas {
+#sosResidentMap .maplibregl-canvas-container {
+  position: absolute !important;
+  inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
 }

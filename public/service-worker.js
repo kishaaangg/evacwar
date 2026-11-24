@@ -4,7 +4,7 @@
    Safe, non-invasive caching strategy with strict safety rules for emergency data.
    ========================================================================== */
 
-const CACHE_NAME = 'Evacwar-static-v105';
+const CACHE_NAME = 'Evacwar-static-v106';
 
 // 1x1 transparent PNG buffer for graceful offline tile fallback without 408 console errors
 const EMPTY_TILE_PNG = new Uint8Array([
@@ -141,10 +141,6 @@ self.addEventListener('activate', (event) => {
           } catch (_) {}
         }
       }
-      try {
-        await currentCache.delete('/admin/broadcast');
-        await currentCache.delete('/staff/broadcast');
-      } catch (_) {}
     } catch (e) {
       console.warn('[PWA SW] Activate error:', e);
     }
@@ -677,7 +673,7 @@ self.addEventListener('fetch', (event) => {
 
             // When ANY admin view is visited online, automatically warm all sibling admin views into cache
             if (url.pathname.startsWith('/admin')) {
-              const siblingAdminPages = ['/admin', '/admin/evacuation', '/admin/residents', '/admin/staff', '/admin/reports'];
+              const siblingAdminPages = ['/admin', '/admin/evacuation', '/admin/broadcast', '/admin/chat', '/admin/residents', '/admin/staff', '/admin/reports'];
               siblingAdminPages.forEach(p => {
                 if (p !== url.pathname) {
                   fetch(p, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })

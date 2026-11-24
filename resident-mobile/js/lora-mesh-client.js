@@ -529,6 +529,14 @@
         window.__evwUnloadFlagBound = true;
         window.addEventListener('beforeunload', () => {
           window.__evwPageUnloading = true;
+          try {
+            const c = window.evakwarLoraClient;
+            if (c && c.serialPort) {
+              try { if (c.serialReader) c.serialReader.cancel().catch(() => {}); } catch (_) {}
+              try { if (c.serialWriter) c.serialWriter.releaseLock(); } catch (_) {}
+              try { c.serialPort.close().catch(() => {}); } catch (_) {}
+            }
+          } catch (_) {}
         });
       }
       this._restorePersistentConnectionState();
@@ -627,26 +635,31 @@
     }
 
     async _autoReconnectWebSerial(savedName) {
-      try {
-        const ports = await navigator.serial.getPorts();
-        if (!ports || ports.length === 0) return false;
-        const port = ports[0];
-        if (!port.readable) {
-          await port.open({ baudRate: 115200 });
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const ports = await navigator.serial.getPorts();
+          if (!ports || ports.length === 0) return false;
+          const port = ports[0];
+          if (!port.readable) {
+            await port.open({ baudRate: 115200 });
+          }
+          this.serialPort = port;
+          this.serialWriter = port.writable.getWriter();
+          const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
+          await this.serialWriter.write(wakeFrame);
+          this.readUsbSerialLoop(port);
+          const name = savedName || 'USB-OTG LoRa Node (433MHz)';
+          this.setStatus(true, 'USB_SERIAL', name);
+          console.log('[LoRaMeshClient] ✅ Auto-reconnected WebSerial across page navigation:', name);
+          return true;
+        } catch (err) {
+          console.warn(`[LoRaMeshClient] WebSerial auto-reconnect attempt ${attempt + 1}:`, err && err.message ? err.message : err);
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 350));
+          }
         }
-        this.serialPort = port;
-        this.serialWriter = port.writable.getWriter();
-        const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
-        await this.serialWriter.write(wakeFrame);
-        this.readUsbSerialLoop(port);
-        const name = savedName || 'USB-OTG LoRa Node (433MHz)';
-        this.setStatus(true, 'USB_SERIAL', name);
-        console.log('[LoRaMeshClient] ✅ Auto-reconnected WebSerial across page navigation:', name);
-        return true;
-      } catch (err) {
-        console.warn('[LoRaMeshClient] WebSerial auto-reconnect note:', err && err.message ? err.message : err);
-        return false;
       }
+      return false;
     }
 
     async _autoReconnectWebBle(savedDeviceId, savedName) {
@@ -2348,7 +2361,9 @@
         }
       } catch (err) {
         console.warn('USB Serial reader closed:', err);
-        this.setStatus(false, 'DISCONNECTED', 'USB Node Disconnected');
+        if (!window.__evwPageUnloading) {
+          this.setStatus(false, 'DISCONNECTED', 'USB Node Disconnected');
+        }
       }
     }
 

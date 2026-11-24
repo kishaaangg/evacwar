@@ -849,26 +849,52 @@
 
               startGpsTracking();
 
-              // Check if resident already has an active SOS alert on server
-              async function checkActiveResidentSos() {
+              // Check if resident already has an active SOS alert on server (also syncs when rescuer ends/resolves rescue!)
+              async function checkActiveResidentSos(isBackgroundPoll = false) {
+                if (isBackgroundPoll && !navigator.onLine) return;
                 try {
                   const res = await fetch('/api/sos/resident/active');
                   const data = await res.json();
                   if (data.success && data.activeSos) {
+                    const srvSt = String(data.activeSos.status || 'ACTIVE').toUpperCase();
+                    if (srvSt === 'RESOLVED' || srvSt === 'CANCELLED' || srvSt === 'RESCUED') {
+                      if (activeSosAlert) {
+                        if (typeof window.EvacWarToast === 'function') {
+                          window.EvacWarToast('Your rescue has been completed and marked as resolved.');
+                        }
+                        setSosNormalState();
+                      }
+                      return;
+                    }
+                    // Never downgrade live RESPONDING status back to ACTIVE during background sync
+                    if (isBackgroundPoll && activeSosAlert && window._lastRescuerCoords && window._lastRescuerCoords.status === 'RESPONDING' && srvSt === 'ACTIVE') {
+                      data.activeSos.status = 'RESPONDING';
+                    }
                     setSosActiveState(data.activeSos);
-                    if (isValidCoordinate(data.activeSos.latitude, data.activeSos.longitude)) {
+                    if (!isBackgroundPoll && isValidCoordinate(data.activeSos.latitude, data.activeSos.longitude)) {
                       currentLat = Number(data.activeSos.latitude);
                       currentLng = Number(data.activeSos.longitude);
                       placeOrUpdateSosMarker(currentLat, currentLng);
                       panMapTo(currentLat, currentLng, 17);
                     }
+                  } else if (data.success && !data.activeSos && activeSosAlert && isBackgroundPoll) {
+                    // Rescue was ended/resolved by rescuer or admin on the server!
+                    if (typeof window.EvacWarToast === 'function') {
+                      window.EvacWarToast('Your rescue has been completed and closed by the rescuer.');
+                    }
+                    setSosNormalState();
                   }
                 } catch (err) {
-                  console.error("Error checking active SOS:", err);
+                  if (!isBackgroundPoll) console.error("Error checking active SOS:", err);
                 }
               }
 
-              checkActiveResidentSos();
+              checkActiveResidentSos(false);
+              setInterval(() => {
+                if (activeSosAlert && navigator.onLine) {
+                  checkActiveResidentSos(true);
+                }
+              }, 4000);
 
               function setSosActiveState(alertData) {
                 activeSosAlert = alertData;
@@ -928,13 +954,18 @@
               function updateRescuerEtaDisplay({ status = 'ACTIVE', responderName = null, rescuerPhoto = null, rescuerLat = null, rescuerLng = null } = {}) {
                 const etaCard = document.getElementById('rescuerEtaCard');
                 if (!etaCard) return;
-                const st = String(status || 'ACTIVE').toUpperCase();
+                let st = String(status || 'ACTIVE').toUpperCase();
                 if (st === 'RESOLVED' || st === 'CANCELLED') {
                   etaCard.classList.add('hidden');
                   window._residentSosActiveRouteCoords = null;
                   window._residentSosLastDestKey = null;
                   window._lastRescuerCoords = null;
                   return;
+                }
+                // Prevent status oscillation between RESPONDING and ACTIVE once a real online rescuer is already en route
+                const prevSt = window._lastRescuerCoords ? String(window._lastRescuerCoords.status || '').toUpperCase() : '';
+                if ((prevSt === 'RESPONDING' || prevSt === 'ACKNOWLEDGED') && st === 'ACTIVE') {
+                  st = prevSt;
                 }
                 etaCard.classList.remove('hidden');
 
@@ -1605,8 +1636,11 @@
                   const rLng = data.longitude !== undefined ? data.longitude : data.lng;
                   const rName = data.rescuer_name || data.name || (window._lastRescuerCoords ? window._lastRescuerCoords.name : null);
                   if (isValidCoordinate(rLat, rLng) && !isGenericOrFakeRescuerName(rName)) {
+                    const effectiveSt = (activeSosAlert && ['ACKNOWLEDGED', 'RESPONDING', 'RESCUED'].includes(String(activeSosAlert.status || '').toUpperCase()))
+                      ? String(activeSosAlert.status).toUpperCase()
+                      : (data.status && String(data.status).toUpperCase() !== 'ACTIVE' ? String(data.status).toUpperCase() : 'RESPONDING');
                     updateRescuerEtaDisplay({
-                      status: data.status || (window._lastRescuerCoords ? window._lastRescuerCoords.status : (activeSosAlert.status || 'RESPONDING')),
+                      status: effectiveSt,
                       responderName: rName,
                       rescuerPhoto: data.rescuer_photo || (window._lastRescuerCoords ? window._lastRescuerCoords.photo : null),
                       rescuerLat: Number(rLat),
@@ -1621,15 +1655,16 @@
                 });
 
                 socket.on('sos:resolve', (data) => {
-                  if (data && data.status === 'RESOLVED' && (
-                    (activeSosAlert && (data.id === activeSosAlert.id || data.sos_id === activeSosAlert.id)) ||
-                    data.resident_id == residentId ||
-                    (currentUserId && data.resident_id == currentUserId)
-                  )) {
+                  if (!data) return;
+                  const resolvedSt = String(data.status || 'RESOLVED').toUpperCase();
+                  if (!['RESOLVED', 'RESCUED', 'CANCELLED'].includes(resolvedSt)) return;
+                  const isMine = (
+                    (activeSosAlert && (String(data.id) === String(activeSosAlert.id) || String(data.sos_id) === String(activeSosAlert.id))) ||
+                    (data.resident_id && (String(data.resident_id) === String(residentId) || (currentUserId && String(data.resident_id) === String(currentUserId))))
+                  );
+                  if (isMine || activeSosAlert) {
                     if (typeof window.EvacWarToast === 'function') {
-                      window.EvacWarToast('Your SOS request has been marked as RESOLVED by the Command Center.');
-                    } else {
-                      alert('Your SOS request has been marked as RESOLVED by the Command Center.');
+                      window.EvacWarToast('Your SOS request has been marked as RESOLVED / RESCUED.');
                     }
                     setSosNormalState();
                   }
