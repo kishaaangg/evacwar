@@ -138,7 +138,9 @@ async function buildCapacitorApp() {
       db.query(`
         SELECT u.id as user_id, u.email, u.password_hash, u.role, r.*
         FROM residents r
-        JOIN users u ON r.user_id = u.id
+        LEFT JOIN users u ON r.user_id = u.id
+        WHERE COALESCE(r.status, 'ACTIVE') = 'ACTIVE'
+          AND (u.role IS NULL OR u.role = 'resident')
         ORDER BY r.id ASC
       `).catch(() => [[]]),
       db.query(`SELECT * FROM household_members ORDER BY id ASC`).catch(() => [[]]),

@@ -508,28 +508,44 @@ exports.lookupQr = async (req, res) => {
       return res.status(400).json({ success: false, message: "Please provide a QR Code UUID, resident name, or contact number." });
     }
 
-    let [residentRows] = await db.execute('SELECT * FROM residents WHERE qr_code_uuid = ?', [query]);
+    const activeResidentFilter = "COALESCE(r.status, 'ACTIVE') = 'ACTIVE' AND (u.role IS NULL OR u.role = 'resident')";
+
+    let [residentRows] = await db.execute(
+      `SELECT r.* FROM residents r LEFT JOIN users u ON r.user_id = u.id WHERE r.qr_code_uuid = ? AND ${activeResidentFilter}`,
+      [query]
+    );
 
     if (residentRows.length === 0 && /^\d+$/.test(query)) {
-      [residentRows] = await db.execute('SELECT * FROM residents WHERE id = ?', [parseInt(query, 10)]);
+      [residentRows] = await db.execute(
+        `SELECT r.* FROM residents r LEFT JOIN users u ON r.user_id = u.id WHERE r.id = ? AND ${activeResidentFilter}`,
+        [parseInt(query, 10)]
+      );
     }
 
     if (residentRows.length === 0) {
       [residentRows] = await db.execute(`
-        SELECT * FROM residents 
-        WHERE contact_number = ? 
-           OR CONCAT(first_name, ' ', last_name) LIKE ? 
-           OR CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) LIKE ?
+        SELECT r.* FROM residents r
+        LEFT JOIN users u ON r.user_id = u.id
+        WHERE ${activeResidentFilter}
+          AND (
+            r.contact_number = ? 
+            OR CONCAT(r.first_name, ' ', r.last_name) LIKE ? 
+            OR CONCAT(r.first_name, ' ', COALESCE(r.middle_name, ''), ' ', r.last_name) LIKE ?
+          )
       `, [query, `%${query}%`, `%${query}%`]);
     }
 
     if (residentRows.length === 0) {
-      // Also search by family member name
+      // Also search by family member name (strictly within active Manage Residents records)
       [residentRows] = await db.execute(`
         SELECT DISTINCT r.* FROM residents r
+        LEFT JOIN users u ON r.user_id = u.id
         JOIN household_members hm ON hm.resident_id = r.id
-        WHERE CONCAT(hm.first_name, ' ', hm.last_name) LIKE ? 
-           OR CONCAT(hm.first_name, ' ', COALESCE(hm.middle_name, ''), ' ', hm.last_name) LIKE ?
+        WHERE ${activeResidentFilter}
+          AND (
+            CONCAT(hm.first_name, ' ', hm.last_name) LIKE ? 
+            OR CONCAT(hm.first_name, ' ', COALESCE(hm.middle_name, ''), ' ', hm.last_name) LIKE ?
+          )
       `, [`%${query}%`, `%${query}%`]);
     }
 
@@ -1293,14 +1309,17 @@ exports.getOfflineRosterData = async (req, res) => {
     // Fetch all active approved residents
     const [residents] = await db.execute(`
       SELECT 
-        id, user_id, first_name, middle_name, last_name, 
-        barangay, home_address, contact_number, 
-        is_4ps, is_pwd, is_pregnant, is_lactating, is_single_head, 
-        has_serious_illness, serious_illness_details,
-        qr_code_uuid, family_size, vulnerability, sex, age
-      FROM residents
-      WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE' AND approval_status = 'APPROVED'
-      ORDER BY last_name ASC, first_name ASC
+        r.id, r.user_id, r.first_name, r.middle_name, r.last_name, 
+        r.barangay, r.home_address, r.contact_number, 
+        r.is_4ps, r.is_pwd, r.is_pregnant, r.is_lactating, r.is_single_head, 
+        r.has_serious_illness, r.serious_illness_details,
+        r.qr_code_uuid, r.family_size, r.vulnerability, r.sex, r.age
+      FROM residents r
+      LEFT JOIN users u ON r.user_id = u.id
+      WHERE COALESCE(r.status, 'ACTIVE') = 'ACTIVE'
+        AND (u.role IS NULL OR u.role = 'resident')
+        AND r.approval_status = 'APPROVED'
+      ORDER BY r.last_name ASC, r.first_name ASC
     `);
 
     // Fetch household members for approved residents

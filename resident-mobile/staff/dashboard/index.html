@@ -5703,119 +5703,58 @@
                             
                               
 
-                                <!-- 3. ROLE-SPECIFIC QUICK ACTION BUTTONS & WEATHER CAROUSEL -->
-                                <div>
-                                  <!-- Header Title & Swipe Controls Bar -->
-                                  <div class="flex items-center justify-between px-1 mb-2.5">
-                                    <div class="flex items-center gap-2">
-                                      <span
-                                        class="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs border border-amber-200/60 shrink-0">
-                                        <i class="ph ph-lightning"></i>
-                                      </span>
-                                      <h2
-                                        class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-slate-600">
-                                        Staff Quick Actions
-                                      </h2>
-                                    </div>
+                                <!-- 3. STAFF BENTO GRID (COMPACT WEATHER + STACKED ACTIONS + 3 BOTTOM TILES — MATCHES RESCUER LAYOUT) -->
+                                <div class="space-y-2.5 sm:space-y-3">
+                                  <!-- TOP BENTO ROW: Left Compact Weather Card (7 cols) + Right Stacked 2 Cards (5 cols) -->
+                                  <div class="grid grid-cols-12 gap-2.5 sm:gap-3 items-stretch">
 
-                                    <div class="flex items-center gap-2.5">
-                                      <!-- Carousel Indicator Dots Inside Header -->
-                                      <div class="flex items-center gap-1.5" id="quickActionsDots">
-                                        <button type="button" aria-label="Slide 1 - Weather Telemetry"
-                                          class="qa-dot transition-all duration-300 rounded-full w-5 h-1.5 bg-blue-600 shadow-xs cursor-pointer"
-                                          data-qa-slide="0"></button>
-                                        <button type="button" aria-label="Slide 2 - Operational Actions"
-                                          class="qa-dot transition-all duration-300 rounded-full w-1.5 h-1.5 bg-slate-300 hover:bg-slate-400 cursor-pointer"
-                                          data-qa-slide="1"></button>
-                                      </div>
-
-                                      <span
-                                        class="text-[11px] font-bold text-slate-400 hidden xs:flex items-center gap-1">
-                                        <i class="ph ph-hand-swipe text-blue-600 animate-pulse"></i>
-                                        <span>Swipe</span>
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <!-- Swipable Track containing Square Weather Card & Square Quick Action Cards -->
-                                  <div id="quickActionsTrack"
-                                    class="w-full flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 pt-1 no-scrollbar touch-pan-x select-none cursor-grab active:cursor-grabbing"
-                                    style="scrollbar-width: none; -ms-overflow-style: none;">
-                                    <!-- =========================================================================
-                                         SLIDE 1: REGIONAL WEATHER TELEMETRY CARD (WIDER WITH SKY TINT)
-                                         ========================================================================= -->
+                                    <!-- LEFT LARGE SQUARE: COMPACT LIVE LOCAL WEATHER -->
                                     <div
-                                      class="qa-slide w-[325px] xs:w-[345px] sm:w-[370px] md:w-[390px] min-h-[305px] sm:min-h-[315px] shrink-0 snap-start bg-gradient-to-br from-[#ebf4ff] via-[#f0f7ff] to-[#e0efff] rounded-3xl border border-blue-200/90 shadow-[0_12px_28px_rgba(37,99,235,0.08)] p-4 sm:p-5 relative overflow-hidden font-heading flex flex-col justify-between transition-all"
-                                      data-slide-index="0">
-
-                                      <!-- Top Bar: Day, Location, Live Time, Radar Action & Telemetry Buttons -->
-                                      <div class="flex items-center justify-between gap-1.5">
+                                      class="col-span-7 bg-gradient-to-br from-[#ebf4ff] via-[#f2f8ff] to-[#dfeeff] rounded-3xl border border-blue-200/90 shadow-xs p-3 sm:p-4 relative overflow-hidden font-heading flex flex-col justify-between min-h-[185px] sm:min-h-[210px]">
+                                      <!-- Top Bar -->
+                                      <div class="flex items-start justify-between gap-1">
                                         <div class="min-w-0">
-                                          <div class="flex items-center gap-1.5">
-                                            <h3
-                                              class="font-bold text-slate-800 text-sm sm:text-base tracking-tight leading-tight truncate"
-                                              id="weatherDay">
+                                          <div class="flex items-center gap-1 flex-wrap">
+                                            <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               Wednesday
                                             </h3>
-                                            <!-- Quick Weather Action Pill -->
-                                            <a href="/staff/typhoon/index.html"
-                                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 text-[10px] font-black uppercase tracking-wider border border-blue-300/50 transition-colors shrink-0"
-                                              title="Launch Live Typhoon & Weather Radar">
-                                              <i class="ph ph-cloud-rain text-xs"></i>
-                                              <span>Radar</span>
-                                            </a>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">6:58 pm</span>
                                           </div>
-                                          <div
-                                            class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate max-w-[145px]"
-                                            id="dashWeatherLocLabel">
+                                          <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
                                             San Rafael, Baao
                                           </div>
                                         </div>
                                         <div class="flex items-center gap-1 shrink-0">
-                                          <span class="font-semibold text-slate-700 text-xs tracking-tight"
-                                            id="weatherTime">
-                                            6:36 pm
-                                          </span>
-                                          <button type="button" onclick="useMyLocationDashboard(this)"
-                                            id="btnDashMyLocation"
-                                            class="w-7 h-7 rounded-full bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer shrink-0 border border-blue-100"
-                                            title="Use device GPS location">
-                                            <i class="ph ph-crosshair text-xs font-bold" id="dashLocIcon"></i>
+                                          <button type="button" onclick="useMyLocationDashboard(this)" id="btnDashMyLocation"
+                                            class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/90 hover:bg-blue-50 text-slate-700 hover:text-blue-700 flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer border border-blue-100"
+                                            title="Use GPS location">
+                                            <i class="ph ph-crosshair text-[11px] font-bold" id="dashLocIcon"></i>
                                           </button>
                                           <button type="button" onclick="refreshWeatherData(this)"
-                                            class="w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer shrink-0"
-                                            title="Refresh Telemetry">
-                                            <i class="ph ph-arrow-up-right text-xs font-bold"
-                                              id="weatherRefreshIcon"></i>
+                                            class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer"
+                                            title="Refresh Weather">
+                                            <i class="ph ph-arrows-clockwise text-[11px] font-bold" id="weatherRefreshIcon"></i>
                                           </button>
                                         </div>
                                       </div>
 
-                                      <!-- Middle: Temperature & 3D Volumetric Artwork -->
-                                      <div class="flex items-center justify-between gap-2 my-auto py-1">
+                                      <!-- Center: Temp & Compact Weather Artwork -->
+                                      <div class="flex items-center justify-between gap-1 my-1.5">
                                         <div class="min-w-0">
-                                          <div
-                                            class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none"
-                                            id="weatherTemp">
-                                            27°C
+                                          <div class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none" id="weatherTemp">
+                                            26°C
                                           </div>
-                                          <div
-                                            class="text-[11px] sm:text-xs font-semibold text-slate-600 mt-1 flex items-center gap-1"
-                                            id="weatherRealFeelContainer">
-                                            <span>Real feel <span id="weatherRealFeel" class="font-bold text-slate-800">
-                                                30°C
-                                              </span></span>
+                                          <div class="text-[10px] sm:text-xs font-semibold text-slate-600 mt-1 truncate">
+                                            Feels <span id="weatherRealFeel" class="font-bold text-slate-800">30°C</span>
+                                          </div>
+                                          <div class="text-[10px] font-bold text-blue-700 truncate mt-0.5" id="weatherStatus">
+                                            Partly Cloudy
                                           </div>
                                         </div>
 
-                                        <!-- 3D Weather Artwork Container -->
-                                        <div id="weatherVisualContainer"
-                                          class="shrink-0 flex items-center justify-center select-none">
+                                        <div id="weatherVisualContainer" class="shrink-0 flex items-center justify-center select-none">
                                           
-                                            <!-- 3D Daytime Sun + Puffy Cloud + Raindrops -->
-                                            <svg viewBox="0 0 140 120"
-                                              class="w-20 h-16 sm:w-22 sm:h-18 drop-shadow-md select-none pointer-events-none"
-                                              fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <svg viewBox="0 0 140 120" class="w-14 h-12 sm:w-20 sm:h-16 drop-shadow-sm select-none pointer-events-none" fill="none" xmlns="http://www.w3.org/2000/svg">
                                               <defs>
                                                 <radialGradient id="dashSunGrad" cx="35%" cy="30%" r="65%">
                                                   <stop offset="0%" stop-color="#FFF5A0" />
@@ -5823,431 +5762,119 @@
                                                   <stop offset="75%" stop-color="#FF8A00" />
                                                   <stop offset="100%" stop-color="#FF5D00" />
                                                 </radialGradient>
-                                                <filter id="dashSunRayGlow" x="-20%" y="-20%" width="140%"
-                                                  height="140%">
-                                                  <feGaussianBlur stdDeviation="2" result="blur" />
-                                                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                                                </filter>
                                                 <linearGradient id="dashCloudGrad" x1="20%" y1="10%" x2="70%" y2="100%">
                                                   <stop offset="0%" stop-color="#FFFFFF" />
-                                                  <stop offset="45%" stop-color="#F2F8FD" />
-                                                  <stop offset="85%" stop-color="#C5DDFB" />
+                                                  <stop offset="50%" stop-color="#F2F8FD" />
                                                   <stop offset="100%" stop-color="#A5C9F7" />
                                                 </linearGradient>
-                                                <linearGradient id="dashDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                  <stop offset="0%" stop-color="#73D0FF" />
-                                                  <stop offset="100%" stop-color="#2196F3" />
-                                                </linearGradient>
-                                                <filter id="dashCloudSoftShadow" x="-25%" y="-15%" width="150%"
-                                                  height="145%">
-                                                  <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#5B7EAC"
-                                                    flood-opacity="0.22" />
-                                                </filter>
                                               </defs>
-                                              <!-- Radiant 3D Sun Behind Cloud -->
                                               <g transform="translate(88, 38)">
-                                                <g filter="url(#dashSunRayGlow)" opacity="0.95">
-                                                  <path
-                                                    d="M0 -30 L3.5 -22 L11 -27 L9 -18 L18 -18 L13 -11 L21 -7 L14 -1 L21 6 L13 9 L18 17 L9 16 L11 25 L3.5 21 L0 28 L-3.5 21 L-11 25 L-9 16 L-18 17 L-13 9 L-21 6 L-14 -1 L-21 -7 L-13 -11 L-18 -18 L-9 -18 L-11 -27 L-3.5 -22 Z"
-                                                    fill="#FFA500" />
-                                                </g>
                                                 <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
-                                                <circle cx="-5" cy="-6" r="6" fill="#FFFFFF" opacity="0.5" />
                                               </g>
-                                              <!-- Puffy Cloud in front of Sun -->
-                                              <g filter="url(#dashCloudSoftShadow)">
-                                                <path
-                                                  d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z"
-                                                  fill="url(#dashCloudGrad)" />
-                                                <ellipse cx="58" cy="28" rx="18" ry="10" fill="#FFFFFF"
-                                                  opacity="0.65" />
-                                                <ellipse cx="98" cy="44" rx="14" ry="8" fill="#FFFFFF" opacity="0.55" />
-                                              </g>
-                                              <!-- 3D Blue Raindrops Falling -->
-                                              <path
-                                                d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M54 95 C52 98 51 103 53 106 C54 108 57 108 58 106 C60 103 58 98 56 95 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M72 90 C70 93 69 98 71 101 C72 103 75 103 76 101 C78 98 76 93 74 90 Z"
-                                                fill="url(#dashDropGrad)" />
-                                              <path
-                                                d="M88 95 C86 98 85 103 87 106 C88 108 91 108 92 106 C94 103 92 98 90 95 Z"
-                                                fill="url(#dashDropGrad)" />
+                                              <path d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z" fill="url(#dashCloudGrad)" />
                                             </svg>
-                                            
+                                          
                                         </div>
                                       </div>
 
-                                      <!-- Bottom Stats: 3 Rounded Pill Cards with Soft Glass Backdrops -->
-                                      <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
-                                        <!-- Wind Pill -->
-                                        <div
-                                          class="bg-white/85 backdrop-blur-xs rounded-xl p-2 sm:p-2.5 flex flex-col justify-between border border-blue-200/60 shadow-2xs">
-                                          <i class="ph ph-wind text-blue-600 text-sm"></i>
-                                          <div class="mt-1">
-                                            <div
-                                              class="text-[9px] sm:text-[10px] font-semibold text-slate-500 leading-none">
-                                              Wind</div>
-                                            <div
-                                              class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5">
-                                              <span id="weatherWind">
-                                                18
-                                              </span> km/h
-                                            </div>
-                                          </div>
+                                      <!-- Compact Bottom Stats Strip -->
+                                      <div class="grid grid-cols-3 gap-1 sm:gap-1.5">
+                                        <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-blue-200/60 text-center">
+                                          <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Wind</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherWind">10</span><span class="text-[9px] font-semibold">km/h</span></div>
                                         </div>
-
-                                        <!-- Temperature Pill -->
-                                        <div
-                                          class="bg-white/85 backdrop-blur-xs rounded-xl p-2 sm:p-2.5 flex flex-col justify-between border border-amber-200/60 shadow-2xs">
-                                          <i class="ph ph-thermometer-simple text-amber-500 text-sm"></i>
-                                          <div class="mt-1">
-                                            <div
-                                              class="text-[9px] sm:text-[10px] font-semibold text-slate-500 leading-none">
-                                              Temp</div>
-                                            <div
-                                              class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5"
-                                              id="weatherTempPill">
-                                              27°C
-                                            </div>
-                                          </div>
+                                        <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-sky-200/60 text-center">
+                                          <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Rain</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherRain">0</span><span class="text-[9px] font-semibold">mm</span></div>
                                         </div>
-
-                                        <!-- Rainfall Pill -->
-                                        <div
-                                          class="bg-white/85 backdrop-blur-xs rounded-xl p-2 sm:p-2.5 flex flex-col justify-between border border-sky-200/60 shadow-2xs">
-                                          <i class="ph ph-drop text-blue-500 text-sm"></i>
-                                          <div class="mt-1">
-                                            <div
-                                              class="text-[9px] sm:text-[10px] font-semibold text-slate-500 leading-none">
-                                              Rainfall</div>
-                                            <div
-                                              class="text-[11px] sm:text-xs font-bold text-slate-800 leading-tight mt-0.5">
-                                              <span id="weatherRain">
-                                                0.2
-                                              </span> mm
-                                            </div>
-                                          </div>
+                                        <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-indigo-200/60 text-center">
+                                          <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Humid</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate" id="weatherHumidity">86%</div>
                                         </div>
                                       </div>
 
                                       <!-- Hidden Telemetry Hooks -->
-                                      <span id="weatherStatus" class="hidden">
-                                        Scattered Rain Showers
-                                      </span>
-                                      <span id="weatherHumidity" class="hidden">
-                                        89%
-                                      </span>
-                                      <span id="weatherUpdated" class="hidden">
-                                        6:36 PM
-                                      </span>
+                                      <span id="weatherTempPill" class="hidden">26°C</span>
+                                      <span id="weatherUpdated" class="hidden">6:58 PM</span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 
-                                    
-                                        <!-- =========================================================================
-                                           EVACUATION STAFF QUICK ACTIONS (6 COLOR-THEMED LANDSCAPE TILES)
-                                           ========================================================================= -->
-                                        <div
-                                          class="qa-slide w-[325px] xs:w-[345px] sm:w-[370px] md:w-[390px] min-h-[305px] sm:min-h-[315px] shrink-0 snap-start grid grid-cols-2 gap-2 sm:gap-2.5"
-                                          data-slide-index="1">
-                                          <!-- 1. Scan QR Pass (Blue Theme) -->
-                                          <a href="/staff/qr?center_id=13"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#eff6ff] via-[#f0f7ff] to-[#dbeafe] border border-blue-200/90 hover:border-blue-400 shadow-xs hover:shadow-md hover:shadow-blue-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-blue-600/30">
-                                                <i class="ph ph-qr-code"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-blue-200/60">Pass</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-blue-700 transition-colors leading-tight">Scan
-                                                QR</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-blue-900/60 font-semibold mt-0.5 block truncate">Resident
-                                                Pass</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 2. Manual Check-In (Emerald / Teal Theme) -->
-                                          <a href="/staff/qr?center_id=13"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#ecfdf5] via-[#f0fdf4] to-[#d1fae5] border border-emerald-200/90 hover:border-emerald-400 shadow-xs hover:shadow-md hover:shadow-emerald-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-emerald-600/30">
-                                                <i class="ph ph-user-check"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-emerald-600/10 text-emerald-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-emerald-200/60">Search</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-emerald-700 transition-colors leading-tight">Manual
-                                                Check</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-emerald-900/60 font-semibold mt-0.5 block truncate">Name
-                                                & Phone</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 3. Evacuation Map (Rose / Red Theme) -->
-                                          <a href="/staff/map/index.html"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#fff1f2] via-[#fff5f5] to-[#ffe4e6] border border-rose-200/90 hover:border-rose-400 shadow-xs hover:shadow-md hover:shadow-rose-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 to-red-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-rose-600/30">
-                                                <i class="ph ph-map-pin"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-rose-600/10 text-rose-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-rose-200/60">Map</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-rose-700 transition-colors leading-tight">Evac
-                                                Map</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-rose-900/60 font-semibold mt-0.5 block truncate">Centers
-                                                & Hazards</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 4. LoRa Mesh Chat (Offline Radio Only) -->
-                                          <a href="/staff/chat/index.html"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-[#ede9fe] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md hover:shadow-purple-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-purple-600/30">
-                                                <span class="chat-nav-red-dot hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse"></span>
-                                                <i class="ph ph-chats-circle"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/60">Offline</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-purple-700 transition-colors leading-tight">Offline LoRa Chat</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-purple-900/60 font-semibold mt-0.5 block truncate">Offline Radio Only</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 5. Walk-In Intake (Amber / Orange Theme) -->
-                                          <a href="/staff/qr?tab=walkin&amp;center_id=13"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#fffbeb] via-[#fffdf5] to-[#fef3c7] border border-amber-200/90 hover:border-amber-400 shadow-xs hover:shadow-md hover:shadow-amber-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-amber-500/30">
-                                                <i class="ph ph-door"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-amber-600/10 text-amber-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-amber-200/60">Intake</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-amber-700 transition-colors leading-tight">Walk-In</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-amber-900/60 font-semibold mt-0.5 block truncate">New
-                                                Evacuee</span>
-                                            </div>
-                                          </a>
-
-                                          <!-- 6. My Sites & Reports (Indigo / Purple Theme) -->
-                                          <a href="/staff/reports?center_id=13"
-                                            class="group flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#f5f3ff] via-[#f8f7ff] to-[#ede9fe] border border-indigo-200/90 hover:border-indigo-400 shadow-xs hover:shadow-md hover:shadow-indigo-500/15 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full min-h-[92px] sm:min-h-[96px]">
-                                            <div class="flex items-center justify-between gap-1">
-                                              <div
-                                                class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs shadow-indigo-600/30">
-                                                <i class="ph ph-buildings"></i>
-                                              </div>
-                                              <span
-                                                class="px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-indigo-200/60">Sites</span>
-                                            </div>
-                                            <div class="mt-1.5 sm:mt-2">
-                                              <span
-                                                class="block font-black text-slate-900 text-xs sm:text-sm group-hover:text-indigo-700 transition-colors leading-tight">My
-                                                Sites</span>
-                                              <span
-                                                class="text-[10px] sm:text-[11px] text-indigo-900/60 font-semibold mt-0.5 block truncate">Reports
-                                                & Roster</span>
-                                            </div>
-                                          </a>
+                                    <!-- RIGHT STACKED 2 HORIZONTAL CARDS (5 cols) -->
+                                    <div class="col-span-5 flex flex-col gap-2.5 sm:gap-3">
+                                      <!-- Top-Right: QR Intake Scanner -->
+                                      <a href="/staff/qr?center_id=13"
+                                        class="group flex-1 flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#eff6ff] via-[#f0f7ff] to-[#dbeafe] border border-blue-200/90 hover:border-blue-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                        <div class="flex items-center justify-between gap-1">
+                                          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs shadow-blue-600/30">
+                                            <i class="ph ph-qr-code"></i>
+                                          </div>
+                                          <span class="px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-blue-200/70">
+                                            Intake
+                                          </span>
                                         </div>
-                                        
+                                        <div class="mt-2">
+                                          <span class="block font-black text-slate-900 text-xs sm:text-sm leading-tight group-hover:text-blue-700">Scan QR</span>
+                                          <span class="text-[10px] sm:text-[11px] text-blue-900/65 font-semibold block truncate mt-0.5">Check-In &amp; Walk-In</span>
+                                        </div>
+                                      </a>
+
+                                      <!-- Bottom-Right: Offline LoRa Chat -->
+                                      <a href="/staff/chat/index.html"
+                                        class="group flex-1 flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-[#ede9fe] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                        <div class="flex items-center justify-between gap-1">
+                                          <div class="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs shadow-purple-600/30">
+                                            <span class="chat-nav-red-dot hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse"></span>
+                                            <i class="ph ph-chats-circle"></i>
+                                          </div>
+                                          <span class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/70">Offline</span>
+                                        </div>
+                                        <div class="mt-2">
+                                          <span class="block font-black text-slate-900 text-xs sm:text-sm leading-tight group-hover:text-purple-700">Offline LoRa Chat</span>
+                                          <span class="text-[10px] sm:text-[11px] text-purple-900/65 font-semibold block truncate mt-0.5">Offline Radio Only</span>
+                                        </div>
+                                      </a>
+                                    </div>
+                                  </div>
+
+                                  <!-- BOTTOM ROW: 3 EQUAL QUICK ACTION TILES -->
+                                  <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
+                                    <!-- 1. Evacuee Reports -->
+                                    <a href="/staff/reports?center_id=13"
+                                      class="group flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#fffbeb] via-[#fffdf5] to-[#fef3c7] border border-amber-200/90 hover:border-amber-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] min-h-[100px] sm:min-h-[112px]">
+                                      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-base sm:text-lg shadow-xs shadow-amber-500/30">
+                                        <i class="ph ph-file-text"></i>
+                                      </div>
+                                      <div class="mt-2">
+                                        <span class="block font-black text-slate-900 text-[11px] sm:text-sm leading-tight group-hover:text-amber-700">Reports</span>
+                                        <span class="text-[9.5px] sm:text-[11px] text-amber-900/65 font-semibold block truncate mt-0.5">Evacuee Roster</span>
+                                      </div>
+                                    </a>
+
+                                    <!-- 2. Typhoon Radar -->
+                                    <a href="/staff/typhoon/index.html"
+                                      class="group flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#f0f9ff] via-[#f5fbff] to-[#e0f2fe] border border-sky-200/90 hover:border-sky-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] min-h-[100px] sm:min-h-[112px]">
+                                      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center text-base sm:text-lg shadow-xs shadow-sky-600/30">
+                                        <i class="ph ph-cloud-lightning"></i>
+                                      </div>
+                                      <div class="mt-2">
+                                        <span class="block font-black text-slate-900 text-[11px] sm:text-sm leading-tight group-hover:text-sky-700">Typhoon</span>
+                                        <span class="text-[9.5px] sm:text-[11px] text-sky-900/65 font-semibold block truncate mt-0.5">Weather Radar</span>
+                                      </div>
+                                    </a>
+
+                                    <!-- 3. Evacuation Map -->
+                                    <a href="/staff/map/index.html"
+                                      class="group flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#ecfdf5] via-[#f0fdf4] to-[#d1fae5] border border-emerald-200/90 hover:border-emerald-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] min-h-[100px] sm:min-h-[112px]">
+                                      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base sm:text-lg shadow-xs shadow-emerald-600/30">
+                                        <i class="ph ph-map-trifold"></i>
+                                      </div>
+                                      <div class="mt-2">
+                                        <span class="block font-black text-slate-900 text-[11px] sm:text-sm leading-tight group-hover:text-emerald-700">Evac Map</span>
+                                        <span class="text-[9.5px] sm:text-[11px] text-emerald-900/65 font-semibold block truncate mt-0.5">Sites &amp; Hazards</span>
+                                      </div>
+                                    </a>
                                   </div>
                                 </div>
-
-                                <!-- 4. DSWD EC INFORMATION BOARD SNAPSHOT (CRISP, PROFESSIONAL & CLEAN) -->
-                                
-                                  <div
-                                    class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-200/90 space-y-4 sm:space-y-5">
-                                    <div
-                                      class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3.5 border-b border-slate-100">
-                                      <div>
-                                        <div class="flex items-center gap-2">
-                                          <span
-                                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80">
-                                            <i class="ph ph-chart-donut text-blue-600"></i> DSWD Standard
-                                          </span>
-                                          <h3 class="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-                                            EC Information Board Snapshot
-                                          </h3>
-                                        </div>
-                                        <p class="text-xs text-slate-500 font-medium mt-1">
-                                          Live demographics and vulnerable sector distribution across sheltered evacuees
-                                        </p>
-                                      </div>
-                                      <a href="/staff/reports/index.html"
-                                        class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 self-start sm:self-auto bg-blue-50/80 hover:bg-blue-100/80 px-3 py-1.5 rounded-xl border border-blue-200/80 transition-colors">
-                                        <span>View Full Demographic Board</span>
-                                        <i class="ph ph-arrow-right font-bold text-xs"></i>
-                                      </a>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-                                      <!-- Families -->
-                                      <div
-                                        class="bg-slate-50/90 hover:bg-slate-100/80 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-slate-200/80 text-center transition-colors shadow-2xs">
-                                        <div
-                                          class="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mx-auto mb-1.5 font-bold text-base shadow-2xs">
-                                          <i class="ph ph-house-line"></i>
-                                        </div>
-                                        <div class="text-xl sm:text-2xl font-black text-slate-900">
-                                          12
-                                        </div>
-                                        <div
-                                          class="text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-500 tracking-wider mt-1">
-                                          Families</div>
-                                      </div>
-
-                                      <!-- 4Ps Beneficiaries -->
-                                      <div
-                                        class="bg-slate-50/90 hover:bg-slate-100/80 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-slate-200/80 text-center transition-colors shadow-2xs">
-                                        <div
-                                          class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-1.5 font-bold text-base shadow-2xs">
-                                          <i class="ph ph-certificate"></i>
-                                        </div>
-                                        <div class="text-xl sm:text-2xl font-black text-amber-700">
-                                          5
-                                        </div>
-                                        <div
-                                          class="text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-500 tracking-wider mt-1">
-                                          4Ps Members</div>
-                                      </div>
-
-                                      <!-- Pregnant / Lactating -->
-                                      <div
-                                        class="bg-slate-50/90 hover:bg-slate-100/80 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-slate-200/80 text-center transition-colors shadow-2xs">
-                                        <div
-                                          class="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-1.5 font-bold text-base shadow-2xs">
-                                          <i class="ph ph-heartbeat"></i>
-                                        </div>
-                                        <div class="text-xl sm:text-2xl font-black text-rose-700">
-                                          0
-                                        </div>
-                                        <div
-                                          class="text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-500 tracking-wider mt-1">
-                                          Pregnant / Lactating</div>
-                                      </div>
-
-                                      <!-- PWD -->
-                                      <div
-                                        class="bg-slate-50/90 hover:bg-slate-100/80 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-slate-200/80 text-center transition-colors shadow-2xs">
-                                        <div
-                                          class="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mx-auto mb-1.5 font-bold text-base shadow-2xs">
-                                          <i class="ph ph-wheelchair"></i>
-                                        </div>
-                                        <div class="text-xl sm:text-2xl font-black text-purple-700">
-                                          0
-                                        </div>
-                                        <div
-                                          class="text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-500 tracking-wider mt-1">
-                                          PWD</div>
-                                      </div>
-
-                                      <!-- Senior Citizens -->
-                                      <div
-                                        class="bg-slate-50/90 hover:bg-slate-100/80 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-slate-200/80 text-center transition-colors shadow-2xs">
-                                        <div
-                                          class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto mb-1.5 font-bold text-base shadow-2xs">
-                                          <i class="ph ph-person"></i>
-                                        </div>
-                                        <div class="text-xl sm:text-2xl font-black text-indigo-700">
-                                          0
-                                        </div>
-                                        <div
-                                          class="text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-500 tracking-wider mt-1">
-                                          Seniors (60+)</div>
-                                      </div>
-
-                                      <!-- Children (0-5y) -->
-                                      <div
-                                        class="bg-slate-50/90 hover:bg-slate-100/80 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-slate-200/80 text-center transition-colors shadow-2xs">
-                                        <div
-                                          class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-1.5 font-bold text-base shadow-2xs">
-                                          <i class="ph ph-baby"></i>
-                                        </div>
-                                        <div class="text-xl sm:text-2xl font-black text-emerald-700">
-                                          0
-                                        </div>
-                                        <div
-                                          class="text-[10px] sm:text-[11px] font-extrabold uppercase text-slate-500 tracking-wider mt-1">
-                                          Children (0–5y)</div>
-                                      </div>
-                                    </div>
-
-                                    <!-- Activity totals today -->
-                                    <div
-                                      class="mt-3.5 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-600">
-                                      <div class="flex items-center gap-4">
-                                        <span class="flex items-center gap-1.5 text-emerald-700">
-                                          <i class="ph ph-arrow-down-right font-bold text-sm"></i>
-                                          Today's Checked-in: <strong>
-                                            
-                                          </strong>
-                                        </span>
-                                        <span class="flex items-center gap-1.5 text-slate-500">
-                                          <i class="ph ph-arrow-up-right font-bold text-sm"></i>
-                                          Today's Departed: <strong>
-                                            
-                                          </strong>
-                                        </span>
-                                      </div>
-                                      <span class="text-[11px] text-slate-400 font-medium">DSWD Field Office V Disaster
-                                        Response Standards</span>
-                                    </div>
-                                  </div>
-
-                                  <!-- Recent Check-In & Departure Activity (Cleaned & Crisp) -->
-                                  <div
-                                    class="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-200/90 space-y-3.5">
-                                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                                      <h3
-                                        class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
-                                        <i class="ph ph-clock-counter-clockwise text-blue-600"></i>
-                                        Recent Center Activity Log
-                                      </h3>
-                                      <a href="/staff/reports/index.html"
-                                        class="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
-                                        <span>View All Evacuees</span>
-                                        <i class="ph ph-arrow-right text-xs"></i>
-                                      </a>
-                                    </div>
-
-                                    
-                                        <div
-                                          class="text-center py-8 text-slate-400 text-xs rounded-2xl bg-slate-50/50 border border-dashed border-slate-200">
-                                          <i class="ph ph-scroll text-2xl mb-1 text-slate-300 block"></i>
-                                          <p>No check-in or check-out activity recorded yet today.</p>
-                                        </div>
-                                        
-                                  </div>
-                                  
 
             </div>
 

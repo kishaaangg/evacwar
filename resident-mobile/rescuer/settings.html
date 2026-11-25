@@ -5597,7 +5597,7 @@
           <!-- 1. STAFF PROFILE HERO CARD -->
           <div class="profile-card bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/90 relative overflow-hidden transition-all hover:shadow-md">
             
-            <form id="avatarUploadForm" action="/rescuer/profile" method="POST" enctype="multipart/form-data" class="hidden">
+            <form id="avatarUploadForm" action="/rescuer/profile" method="POST" enctype="multipart/form-data" class="sr-only">
               <input type="hidden" name="_csrf" value="">
               <input type="file" id="photo-upload-input" name="profile_photo" accept="image/*" onchange="previewAndSubmitAvatar(this)" />
             </form>

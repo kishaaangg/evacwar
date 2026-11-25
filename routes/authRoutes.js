@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { redirectIfAuth } = require('../middleware/authMiddleware');
 const upload = require('../utils/upload');
+const persistentPhotoStore = require('../utils/persistentPhotoStore');
 const db = require('../config/db');
 const User = require('../models/userModel');
 const bcrypt = require('bcryptjs');
@@ -456,6 +457,7 @@ router.post('/api/mobile/profile/update', upload.single('profile_photo'), async 
       let profilePhoto = curStaff.profile_photo;
       if (req.file && req.file.filename) {
         profilePhoto = req.file.filename;
+        await persistentPhotoStore.save(req.file.filename, req.file.path, req.file.mimetype).catch(() => {});
       }
 
       let updatedEmail = userRow ? userRow.email : '';
@@ -476,9 +478,12 @@ router.post('/api/mobile/profile/update', upload.single('profile_photo'), async 
       );
       const upd = updatedStaffRows[0];
       const fullName = `${upd.first_name || ''} ${upd.middle_name ? upd.middle_name + ' ' : ''}${upd.last_name || ''}`.trim();
-      const resolvedPhoto = upd.profile_photo
+      let resolvedPhoto = upd.profile_photo
         ? (upd.profile_photo.startsWith('http') || upd.profile_photo.startsWith('/') ? upd.profile_photo : `/uploads/profiles/${upd.profile_photo}`)
         : null;
+      if (resolvedPhoto && req.file && req.file.filename) {
+        resolvedPhoto = `${resolvedPhoto}?t=${Date.now()}`;
+      }
       const isRescuer = String(upd.staff_type || '').toUpperCase() === 'RESCUER' || roleLower === 'rescuer';
 
       return res.json({
@@ -550,6 +555,7 @@ router.post('/api/mobile/profile/update', upload.single('profile_photo'), async 
     let profilePhoto = current.profile_photo;
     if (req.file && req.file.filename) {
       profilePhoto = req.file.filename;
+      await persistentPhotoStore.save(req.file.filename, req.file.path, req.file.mimetype).catch(() => {});
     }
 
     let updatedEmail = userRow ? userRow.email : '';
@@ -643,6 +649,9 @@ router.post('/api/mobile/members/save', upload.single('profile_photo'), async (r
     const hasSeriousIllness = (req.body.has_serious_illness === '1' || req.body.has_serious_illness === true || req.body.has_serious_illness === 'true') ? 1 : 0;
     const seriousIllnessDetails = String(req.body.serious_illness_details || '').trim();
     const profilePhoto = req.file ? req.file.filename : (req.body.profile_photo || null);
+    if (req.file && req.file.filename) {
+      await persistentPhotoStore.save(req.file.filename, req.file.path, req.file.mimetype).catch(() => {});
+    }
 
     if (!firstName || !lastName) {
       return res.status(400).json({ success: false, message: 'First name and last name are required.' });
