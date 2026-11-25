@@ -28,7 +28,6 @@ router.post("/admins/delete/:id", adminController.deleteAdmin);
 
 router.get("/typhoon", adminController.getTyphoon);
 router.get("/evacuation", adminController.getEvacuation);
-router.get("/evacuation-center/:id", adminController.getEvacuationCenterDetails);
 router.post("/evacuation/create", adminController.createCenter);
 router.post("/evacuation/edit/:id", adminController.updateCenter);
 router.post("/evacuation/delete/:id", adminController.deleteCenter);
