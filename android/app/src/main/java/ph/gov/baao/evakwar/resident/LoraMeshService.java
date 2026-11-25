@@ -1251,10 +1251,25 @@ public class LoraMeshService extends Service {
                     .setContentIntent(pi);
 
             nm.notify(WEATHER_NOTIFICATION_ID, nb.build());
-            try {
-                android.media.Ringtone r = RingtoneManager.getRingtone(context.getApplicationContext(), notifSoundUri);
-                if (r != null) r.play();
-            } catch (Exception ignored) {}
+            // Play audible chime on main thread using USAGE_MEDIA so it is heard clearly even if notification volume is muted
+            new Handler(Looper.getMainLooper()).post(() -> {
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context.getApplicationContext(), notifSoundUri);
+                    if (r != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            r.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        }
+                        r.play();
+                    } else {
+                        ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_MUSIC, 85);
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 300);
+                        new Handler(Looper.getMainLooper()).postDelayed(tg::release, 450);
+                    }
+                } catch (Exception ignored) {}
+            });
         } catch (Exception ignored) {}
     }
 

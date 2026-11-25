@@ -5235,32 +5235,38 @@
                             });
                           }
 
-                          // Play a soft, minimal two-tone notification chime (G5 -> C6, calm non-alarm sound, works 100% offline)
+                          // Play a clear two-tone notification chime (G5 -> C6, calm non-alarm sound, works 100% offline)
                           if (typeof window.playMinimalWeatherChime !== 'function') {
                             window.playMinimalWeatherChime = function () {
                               try {
                                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                                 if (!AudioCtx) return;
                                 const ctx = window.__evwChimeCtx || (window.__evwChimeCtx = new AudioCtx());
-                                if (ctx.state === 'suspended') {
-                                  ctx.resume().catch(() => {});
-                                }
-                                const nowT = ctx.currentTime;
-                                const playNote = (freq, startOffset, duration, peakGain) => {
-                                  const osc = ctx.createOscillator();
-                                  const gain = ctx.createGain();
-                                  osc.type = 'sine';
-                                  osc.frequency.setValueAtTime(freq, nowT + startOffset);
-                                  gain.gain.setValueAtTime(0.0001, nowT + startOffset);
-                                  gain.gain.exponentialRampToValueAtTime(peakGain, nowT + startOffset + 0.015);
-                                  gain.gain.exponentialRampToValueAtTime(0.0001, nowT + startOffset + duration);
-                                  osc.connect(gain);
-                                  gain.connect(ctx.destination);
-                                  osc.start(nowT + startOffset);
-                                  osc.stop(nowT + startOffset + duration + 0.02);
+                                const triggerNotes = () => {
+                                  try {
+                                    const nowT = ctx.currentTime;
+                                    const playNote = (freq, startOffset, duration, peakGain) => {
+                                      const osc = ctx.createOscillator();
+                                      const gain = ctx.createGain();
+                                      osc.type = 'sine';
+                                      osc.frequency.setValueAtTime(freq, nowT + startOffset);
+                                      gain.gain.setValueAtTime(0.0001, nowT + startOffset);
+                                      gain.gain.exponentialRampToValueAtTime(peakGain, nowT + startOffset + 0.015);
+                                      gain.gain.exponentialRampToValueAtTime(0.0001, nowT + startOffset + duration);
+                                      osc.connect(gain);
+                                      gain.connect(ctx.destination);
+                                      osc.start(nowT + startOffset);
+                                      osc.stop(nowT + startOffset + duration + 0.02);
+                                    };
+                                    playNote(783.99, 0.0, 0.20, 0.36);   // Clear G5
+                                    playNote(1046.50, 0.14, 0.32, 0.32); // Clear C6
+                                  } catch (_) {}
                                 };
-                                playNote(783.99, 0.0, 0.16, 0.13);   // Soft G5
-                                playNote(1046.50, 0.11, 0.26, 0.11); // Soft C6
+                                if (ctx.state === 'suspended') {
+                                  ctx.resume().then(triggerNotes).catch(() => {});
+                                } else {
+                                  triggerNotes();
+                                }
                               } catch (_) {}
                             };
                           }
@@ -5733,7 +5739,7 @@
                                             <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               Wednesday
                                             </h3>
-                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">11:25 pm</span>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">11:32 pm</span>
                                           </div>
                                           <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
                                             San Rafael, Baao
@@ -5810,7 +5816,7 @@
 
                                       <!-- Hidden Telemetry Hooks -->
                                       <span id="weatherTempPill" class="hidden">25°C</span>
-                                      <span id="weatherUpdated" class="hidden">11:25 PM</span>
+                                      <span id="weatherUpdated" class="hidden">11:32 PM</span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 
