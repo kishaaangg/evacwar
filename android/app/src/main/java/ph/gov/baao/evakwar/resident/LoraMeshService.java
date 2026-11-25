@@ -1402,8 +1402,9 @@ public class LoraMeshService extends Service {
             // Automatically register locally-sent chat packet so sender is NEVER self-notified
             try {
                 String ascii = new String(data, java.nio.charset.StandardCharsets.UTF_8);
-                if (ascii.startsWith("EVW|MSG|")) {
-                    String[] p = ascii.split("\\|", 8);
+                int msgIdx = ascii.indexOf("EVW|MSG|");
+                if (msgIdx >= 0) {
+                    String[] p = ascii.substring(msgIdx).split("\\|", 8);
                     if (p.length > 2 && !p[2].isEmpty()) {
                         locallySentMsgIds.add(p[2].trim());
                     }
@@ -1446,12 +1447,16 @@ public class LoraMeshService extends Service {
                     }
                 }
 
-                if (!ok && attempt < 3) {
-                    mainHandler.postDelayed(() -> writeCharacteristicWithRetry(payload, attempt + 1), 80);
+                if (!ok && attempt < 10) {
+                    mainHandler.postDelayed(() -> writeCharacteristicWithRetry(payload, attempt + 1), 120);
                 } else if (!ok) {
+                    Log.w("LoraMeshService", "BLE ToRadio write failed after 10 attempts (len=" + payload.length + ")");
                     txWritePending = false;
+                } else {
+                    Log.d("LoraMeshService", "BLE ToRadio write queued successfully (len=" + payload.length + ", attempt=" + attempt + ")");
                 }
             } catch (Exception e) {
+                Log.w("LoraMeshService", "BLE ToRadio write exception: " + e.getMessage());
                 txWritePending = false;
             }
         });

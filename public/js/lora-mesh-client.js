@@ -110,6 +110,23 @@
   }
 
   /**
+   * Builds `ToRadio { Heartbeat heartbeat = 7; }` (field 7, empty length-delimited message: 0x3a 0x00)
+   * Keeps Meshtastic USB Serial PhoneAPI RX stream alive indefinitely so inbound RF packets never stop.
+   */
+  function encodeHeartbeatToRadio() {
+    return new Uint8Array([0x3a, 0x00]);
+  }
+
+  /**
+   * Official Meshtastic 32-byte 0xC3 wake preamble before sending want_config_id over USB Serial
+   */
+  function buildSerialWakePreamble() {
+    const pre = new Uint8Array(32);
+    pre.fill(0xc3);
+    return pre;
+  }
+
+  /**
    * Builds a 24-byte `ToRadio` packet that requests live Environment Telemetry (`AHT20 + BMP280`)
    * from the outdoor Relay node (`!0f778ab0` = `0x0f778ab0`) over 433.875 MHz LoRa RF.
    *
@@ -668,8 +685,12 @@
           }
           this.serialPort = port;
           this.serialWriter = port.writable.getWriter();
+          await new Promise(r => setTimeout(r, 250));
+          await this.serialWriter.write(buildSerialWakePreamble());
+          await new Promise(r => setTimeout(r, 100));
           const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
           await this.serialWriter.write(wakeFrame);
+          this._startWebSerialHeartbeat();
           this.readUsbSerialLoop(port);
           const name = savedName || 'USB-OTG LoRa Node (433MHz)';
           this.setStatus(true, 'USB_SERIAL', name);
@@ -2364,8 +2385,12 @@
           this.serialPort = port;
           this.serialWriter = port.writable.getWriter();
 
+          await new Promise(r => setTimeout(r, 250));
+          await this.serialWriter.write(buildSerialWakePreamble());
+          await new Promise(r => setTimeout(r, 100));
           const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
           await this.serialWriter.write(wakeFrame);
+          this._startWebSerialHeartbeat();
 
           this.readUsbSerialLoop(port);
 
@@ -2379,6 +2404,23 @@
       }
 
       throw new Error('USB-OTG Serial requires the EvakWar Android App or a WebSerial-compatible browser.');
+    }
+
+    _startWebSerialHeartbeat() {
+      if (this._webSerialHeartbeatTimer) {
+        clearInterval(this._webSerialHeartbeatTimer);
+        this._webSerialHeartbeatTimer = null;
+      }
+      this._webSerialHeartbeatTimer = setInterval(async () => {
+        if (!this.serialWriter || this.transport !== 'USB_SERIAL') {
+          clearInterval(this._webSerialHeartbeatTimer);
+          this._webSerialHeartbeatTimer = null;
+          return;
+        }
+        try {
+          await this.serialWriter.write(wrapSerialFrame(encodeHeartbeatToRadio()));
+        } catch (_) {}
+      }, 20000);
     }
 
     async readUsbSerialLoop(port) {
