@@ -92,13 +92,24 @@ async function buildCapacitorApp() {
   console.log('[Build Capacitor Native App] 1. Copying public/ static assets to resident-mobile/...');
   copyDirRecursive(PUBLIC_DIR, OUT_DIR);
 
-  // Remove PWA manifest & service-worker from native Capacitor bundle
-  ['manifest.json', 'service-worker.js'].forEach(f => {
+  // Remove PWA manifest, service-worker, server-hosted uploads, unused 3MB Phosphor.svg, and any .apk files from native Capacitor bundle
+  ['manifest.json', 'service-worker.js', 'css/Phosphor.svg'].forEach(f => {
     const p = path.join(OUT_DIR, f);
     if (fs.existsSync(p)) {
       try { fs.unlinkSync(p); } catch (_) {}
     }
   });
+  const uploadsOutDir = path.join(OUT_DIR, 'uploads');
+  if (fs.existsSync(uploadsOutDir)) {
+    try { fs.rmSync(uploadsOutDir, { recursive: true, force: true }); } catch (_) {}
+  }
+  try {
+    for (const f of fs.readdirSync(OUT_DIR)) {
+      if (f.toLowerCase().endsWith('.apk')) {
+        fs.unlinkSync(path.join(OUT_DIR, f));
+      }
+    }
+  } catch (_) {}
 
   // Copy Socket.IO client browser bundle
   const socketIoClientDist = path.join(ROOT_DIR, 'node_modules', 'socket.io', 'client-dist', 'socket.io.js');

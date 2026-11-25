@@ -536,15 +536,14 @@ app.get('/service-worker.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'service-worker.js'));
 });
 
-// Force-fresh APK download endpoints (disables browser caching completely)
-const APK_ROUTES = ['/evakwar-resident-v2.8.apk', '/evakwar-resident-v2.apk', '/evakwar-latest.apk', '/evakwar-update.apk', '/evakwar-resident.apk', '/evakwar-mobile.apk'];
+// Force-fresh APK download endpoints (supports reliable Android Download Manager byte-range resume)
+const APK_ROUTES = ['/evakwar-resident-v2.9.apk', '/evakwar-resident-v2.8.apk', '/evakwar-resident-v2.apk', '/evakwar-latest.apk', '/evakwar-update.apk', '/evakwar-resident.apk', '/evakwar-mobile.apk'];
 app.get(APK_ROUTES, (_req, res) => {
   const apkPath = path.join(__dirname, 'public', 'evakwar-resident.apk');
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="evakwar-resident-v2.8.apk"');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  res.setHeader('Content-Disposition', 'attachment; filename="evakwar-resident-v2.9.apk"');
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.sendFile(apkPath);
 });
 
