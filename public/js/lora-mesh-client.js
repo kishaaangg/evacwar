@@ -155,32 +155,55 @@
   }
 
   /**
-   * Scans an incoming `FromRadio` protobuf byte array for any `EVW|...` ASCII signature.
+   * Scans an incoming `FromRadio` protobuf byte array for any `EVW|...` UTF-8 payload.
+   * Uses exact Meshtastic protobuf decoding first (`FromRadio.packet(2) -> MeshPacket.decoded(4) -> Data.payload(2)`)
+   * so UTF-8 emojis (📡, 🌊, 🚑, 📍) and accented characters are preserved 100% intact.
    */
   function extractEvwStringFromBytes(uint8Bytes) {
     if (!uint8Bytes || uint8Bytes.length < 6) return null;
     try {
-      const ascii = new TextDecoder('utf-8', { fatal: false }).decode(uint8Bytes);
-      return extractEvwStringFromAscii(ascii);
+      // 1. Exact Meshtastic Protobuf decode: FromRadio -> MeshPacket (fn=2) -> Data (fn=4) -> payload (fn=2)
+      const fromRadioFields = readProtoFields(uint8Bytes);
+      const pktField = fromRadioFields.find(f => f.fn === 2 && f.wt === 2);
+      if (pktField && pktField.val) {
+        const pktFields = readProtoFields(pktField.val);
+        const decField = pktFields.find(f => f.fn === 4 && f.wt === 2);
+        if (decField && decField.val) {
+          const dataFields = readProtoFields(decField.val);
+          const payloadField = dataFields.find(f => f.fn === 2 && f.wt === 2);
+          if (payloadField && payloadField.val && payloadField.val.length >= 6) {
+            const decodedText = new TextDecoder('utf-8', { fatal: false }).decode(payloadField.val);
+            const evwPos = decodedText.indexOf('EVW|');
+            if (evwPos !== -1) {
+              const clean = decodedText.slice(evwPos).replace(/[\x00-\x1F\x7F\uFFFD]+$/g, '').trim();
+              if (clean.length >= 8) return clean;
+            }
+          }
+        }
+      }
+
+      // 2. Fallback UTF-8 scan (e.g. plain-text serial logs or unwrapped Data bytes)
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Bytes);
+      return extractEvwStringFromAscii(text);
     } catch (e) {
       return null;
     }
   }
 
-  function extractEvwStringFromAscii(ascii) {
-    if (!ascii || typeof ascii !== 'string') return null;
-    const idx = ascii.indexOf('EVW|');
+  function extractEvwStringFromAscii(text) {
+    if (!text || typeof text !== 'string') return null;
+    const idx = text.indexOf('EVW|');
     if (idx === -1) return null;
     let result = '';
-    for (let i = idx; i < ascii.length; i++) {
-      const code = ascii.charCodeAt(i);
-      if (code >= 32 && code <= 126) {
-        result += ascii[i];
-      } else {
+    for (let i = idx; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      // Stop on ASCII control characters or invalid UTF-8 replacement chars, but KEEP all valid UTF-8 / emojis!
+      if (code < 32 || code === 127 || code === 0xFFFD) {
         break;
       }
+      result += text[i];
     }
-    return result.length >= 8 ? result : null;
+    return result.length >= 8 ? result.trim() : null;
   }
 
   // Minimal protobuf reader for Meshtastic FromRadio -> MeshPacket -> Data (portnum=67) -> Telemetry -> EnvironmentMetrics
