@@ -1320,6 +1320,78 @@
                   }
                 }
 
+                // Direct fallback to bundled window.OFFLINE_RESIDENTS if Dexie roster had no match
+                if (matchingHouseholds.length === 0 && Array.isArray(window.OFFLINE_RESIDENTS) && window.OFFLINE_RESIDENTS.length > 0) {
+                  const q = String(queryOrUuid).trim().toLowerCase();
+                  const cleanQ = q.replace(/^evw-resident-/, '');
+                  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q) || (q.includes('-') && q.length >= 8);
+                  for (const r of window.OFFLINE_RESIDENTS) {
+                    const qruuid = String(r.qr_code_uuid || r.uuid || '').toLowerCase().trim();
+                    const fullName = `${r.first_name || ''} ${r.last_name || ''}`.toLowerCase();
+                    const revName = `${r.last_name || ''} ${r.first_name || ''}`.toLowerCase();
+                    const contact = String(r.contact_number || '').replace(/\D/g, '');
+                    let hit = false;
+                    if (isUuid) {
+                      hit = (qruuid && (qruuid === q || qruuid.includes(q)));
+                    } else {
+                      hit = (
+                        String(r.id) === q ||
+                        String(r.id) === cleanQ ||
+                        (qruuid && qruuid === q) ||
+                        fullName.includes(q) ||
+                        revName.includes(q) ||
+                        (q.length >= 7 && contact.includes(q))
+                      );
+                      if (!hit && Array.isArray(r.members)) {
+                        hit = r.members.some(m => (`${m.first_name || ''} ${m.last_name || ''}`).toLowerCase().includes(q));
+                      }
+                    }
+                    if (hit) {
+                      const rawMembers = Array.isArray(r.members) ? r.members : [];
+                      const formattedMembers = rawMembers.map(m => ({
+                        id: m.id,
+                        first_name: m.first_name || '',
+                        middle_name: m.middle_name || '',
+                        last_name: m.last_name || '',
+                        name: m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Family Member',
+                        relation: m.relation || 'Family',
+                        sex: m.sex || 'Male',
+                        age: m.age || 'N/A',
+                        status: m.status || 'Active',
+                        is_pregnant: !!m.is_pregnant,
+                        is_lactating: !!m.is_lactating,
+                        is_pwd: !!m.is_pwd,
+                        has_serious_illness: !!m.has_serious_illness,
+                        serious_illness_details: m.serious_illness_details || '',
+                        is_checked_in: false,
+                        evacuation_status: 'NOT_EVACUATED'
+                      }));
+                      const headName = r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Resident';
+                      matchingHouseholds.push({
+                        success: true,
+                        is_offline: true,
+                        lookup_method: lookupMethod,
+                        household_name: `${r.last_name || headName} Household`,
+                        evacuated_count: 0,
+                        total_household_count: 1 + formattedMembers.length,
+                        resident: Object.assign({}, r, {
+                          uuid: r.qr_code_uuid || r.uuid || '',
+                          name: headName,
+                          relation: 'Head',
+                          address: r.home_address || r.address || '',
+                          barangay: r.barangay || 'San Rafael',
+                          contact: r.contact_number || r.contact || '',
+                          family_size: 1 + formattedMembers.length,
+                          is_checked_in: false,
+                          evacuation_status: 'NOT_EVACUATED'
+                        }),
+                        members: formattedMembers
+                      });
+                      if (isUuid) break;
+                    }
+                  }
+                }
+
                 if (matchingHouseholds.length === 1) {
                   const cachedData = matchingHouseholds[0];
                   playSuccessChime();

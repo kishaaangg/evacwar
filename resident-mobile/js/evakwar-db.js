@@ -805,7 +805,7 @@
       }));
 
       notifyQueueChange();
-      return { success: true, synced: successCount, failed: failCount };
+      return { success: true, synced: successCount, syncedCount: successCount, failed: failCount };
 
     } catch (err) {
       console.warn('[Evacwar LocalDB] Sync error:', err.message);
@@ -861,9 +861,65 @@
     }
   }, 45000);
 
-  // 4. Initial load setup
+  // 4. Initial load setup (auto-seed bundled offline roster if Dexie is empty)
+  async function seedBundledRosterIfEmpty() {
+    try {
+      const d = await ensureDB();
+      const existingCount = await d.resident_roster.count();
+      if (existingCount === 0 && Array.isArray(window.OFFLINE_RESIDENTS) && window.OFFLINE_RESIDENTS.length > 0) {
+        const bundledItems = window.OFFLINE_RESIDENTS.map(r => {
+          const rawMembers = Array.isArray(r.members) ? r.members : [];
+          const formattedMembers = rawMembers.map(m => ({
+            id: m.id,
+            first_name: m.first_name || '',
+            middle_name: m.middle_name || '',
+            last_name: m.last_name || '',
+            name: m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Family Member',
+            relation: m.relation || 'Family',
+            sex: m.sex || 'Male',
+            age: m.age || 'N/A',
+            status: m.status || 'Active',
+            is_pregnant: !!m.is_pregnant,
+            is_lactating: !!m.is_lactating,
+            is_pwd: !!m.is_pwd,
+            has_serious_illness: !!m.has_serious_illness,
+            serious_illness_details: m.serious_illness_details || '',
+            is_checked_in: false,
+            evacuation_status: 'NOT_EVACUATED'
+          }));
+          const fullName = r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Resident';
+          return {
+            success: true,
+            household_name: `${r.last_name || fullName} Household`,
+            evacuated_count: 0,
+            total_household_count: 1 + formattedMembers.length,
+            resident: Object.assign({}, r, {
+              uuid: r.qr_code_uuid || r.uuid || '',
+              name: fullName,
+              relation: 'Head',
+              address: r.home_address || r.address || '',
+              barangay: r.barangay || 'San Rafael',
+              contact: r.contact_number || r.contact || '',
+              family_size: 1 + formattedMembers.length,
+              is_checked_in: false,
+              evacuation_status: 'NOT_EVACUATED'
+            }),
+            members: formattedMembers
+          };
+        });
+        await bulkCacheResidents(bundledItems);
+        if (typeof window.updateRosterStatusBadge === 'function') {
+          window.updateRosterStatusBadge();
+        }
+      }
+    } catch (e) {
+      console.warn('[Evacwar LocalDB] Bundled roster auto-seed notice:', e.message);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     ensureDB().then(async () => {
+      await seedBundledRosterIfEmpty();
       notifyQueueChange();
       if (navigator.onLine) {
         setTimeout(() => syncPending(), 2000);

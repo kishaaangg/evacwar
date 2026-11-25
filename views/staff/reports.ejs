@@ -45,6 +45,12 @@
 
                 <!-- Site Switcher & Scanner Action -->
                 <div class="flex flex-wrap items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                  <!-- Staff-Only Offline Saved Check-Ins Pill -->
+                  <span id="staffOfflineCountHeaderPill"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200">
+                    <i class="ph ph-cloud-check text-emerald-600 text-sm" id="staffOfflineHeaderIcon"></i>
+                    <span id="staffOfflineHeaderText">0 Saved Offline</span>
+                  </span>
                   <% if (assignedSites.length> 1) { %>
                     <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-md px-2.5 py-1.5">
                       <i class="ph ph-buildings text-blue-700 font-bold text-sm"></i>
@@ -90,6 +96,46 @@
                 label: '13 – 18 years old (Adolescents)' , icon: 'ph-person' }, { key: '19-59y' ,
                 label: '19 – 59 years old (Adults)' , icon: 'ph-users' }, { key: '60+y' ,
                 label: '60+ years old (Senior Citizens)' , icon: 'ph-person' } ]; %>
+
+                <!-- STAFF-ONLY OFFLINE SAVED CHECK-INS TRACKER (Auto-syncs to Official Admin Reports when online) -->
+                <div id="staffOfflineQueueReportCard" class="hidden bg-amber-50/90 border border-amber-300 rounded-lg shadow-2xs overflow-hidden">
+                  <div class="px-4 py-3 bg-amber-100/80 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div class="flex items-start sm:items-center gap-2.5">
+                      <div class="w-9 h-9 rounded-lg bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                        <i class="ph ph-cloud-arrow-up text-lg"></i>
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <h2 class="text-sm font-black text-amber-950 tracking-tight">Saved Offline Check-Ins (Pending Sync)</h2>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200/90 text-amber-900 border border-amber-300">
+                            Staff Device Only
+                          </span>
+                        </div>
+                        <p class="text-[11px] text-amber-900/80 font-medium mt-0.5">
+                          <strong id="offlineSavedRecordsCount">0</strong> check-in record(s) &bull;
+                          <strong id="offlineSavedPeopleCount">0</strong> evacuee(s) saved locally. Will automatically sync to Official Admin Reports when internet returns.
+                        </p>
+                      </div>
+                    </div>
+                    <button type="button" id="btnSyncStaffOfflineReports" onclick="syncStaffOfflineReportsNow()"
+                      class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95 shrink-0">
+                      <i class="ph ph-arrows-clockwise text-sm" id="iconSyncStaffOfflineReports"></i>
+                      <span id="textSyncStaffOfflineReports">Sync to Official Reports</span>
+                    </button>
+                  </div>
+                  <div id="staffOfflineQueueList" class="divide-y divide-amber-200/70 max-h-60 overflow-y-auto bg-white/80"></div>
+                </div>
+
+                <!-- Sync Completed Confirmation Banner -->
+                <div id="staffOfflineSyncSuccessBanner" class="hidden bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-lg px-4 py-2.5 text-xs font-bold flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <i class="ph ph-check-circle-fill text-emerald-600 text-base"></i>
+                    <span id="staffOfflineSyncSuccessText">Offline check-ins synced to Official Admin Reports!</span>
+                  </div>
+                  <button type="button" onclick="window.location.reload()" class="px-2.5 py-1 rounded bg-emerald-600 text-white text-[11px] font-black cursor-pointer">
+                    Refresh Board
+                  </button>
+                </div>
 
                 <!-- SECTION 1: Professional Digital Evacuation Center Information Board (Crisp, Non-Rounded Edges) -->
                 <div class="bg-white border border-slate-200 rounded-lg shadow-2xs overflow-hidden">
@@ -764,4 +810,227 @@
               alert('Server or network error during check-out.');
             });
         }
+      </script>
+
+
+      <script>
+        // =========================================================================
+        // STAFF-ONLY OFFLINE SAVED CHECK-INS TRACKER & AUTO-SYNC TO ADMIN REPORTS
+        // =========================================================================
+        async function collectOfflineSavedCheckins() {
+          const items = [];
+
+          // 1. Read Dexie EvakWarLocalDB.pending_operations
+          try {
+            let dexieOps = [];
+            if (window.EvakWarDB && typeof window.EvakWarDB.getPendingOperations === 'function') {
+              dexieOps = await window.EvakWarDB.getPendingOperations();
+            } else {
+              const DexieClass = (typeof Dexie !== 'undefined' ? Dexie : null) || window.Dexie;
+              if (DexieClass) {
+                const d = new DexieClass('EvakWarLocalDB');
+                d.version(1).stores({
+                  pending_operations: 'clientOperationId, operationType, centerId, staffId, syncStatus, createdAt',
+                  staff_assigned_sites: 'id, name, is_active',
+                  resident_roster: 'lookupKey, residentId, qrUuid, nameLower',
+                  map_data: 'id, updatedAt',
+                  app_state: 'key'
+                });
+                await d.open();
+                dexieOps = await d.pending_operations.where('syncStatus').anyOf(['PENDING', 'FAILED', 'SYNCING']).toArray();
+              }
+            }
+            (dexieOps || []).forEach(op => {
+              const p = op.payload || {};
+              let peopleCount = 1;
+              if (op.operationType === 'CHECK_IN') {
+                const headCnt = (p.check_in_head === true || p.check_in_head === 'true' || p.check_in_head === 1) ? 1 : 0;
+                const memCnt = Array.isArray(p.member_ids) ? p.member_ids.length : 0;
+                peopleCount = Math.max(1, headCnt + memCnt);
+              } else if (op.operationType === 'WALK_IN') {
+                peopleCount = 1 + (Array.isArray(p.members) ? p.members.length : 0);
+              }
+              items.push({
+                source: 'dexie',
+                type: op.operationType || 'CHECK_IN',
+                label: op.description || (p.first_name ? `${p.first_name} ${p.last_name || ''}`.trim() : `Resident #${p.resident_id || 'N/A'}`),
+                peopleCount: peopleCount,
+                method: (p.check_in_method || (op.operationType === 'WALK_IN' ? 'WALK-IN' : 'QR')).toUpperCase(),
+                savedAt: op.createdAt || new Date().toISOString()
+              });
+            });
+          } catch (e) {
+            console.warn('[Staff Reports] Dexie offline queue read warning:', e.message);
+          }
+
+          // 2. Read Capacitor bridge localStorage fallback queue (evw_offline_checkins)
+          try {
+            const rawLs = JSON.parse(localStorage.getItem('evw_offline_checkins') || '[]');
+            if (Array.isArray(rawLs)) {
+              rawLs.forEach(entry => {
+                const p = entry.payload || {};
+                const headCnt = (p.check_in_head === false) ? 0 : 1;
+                const memCnt = Array.isArray(p.member_ids) ? p.member_ids.length : 0;
+                items.push({
+                  source: 'localStorage',
+                  type: entry.action || 'CHECKIN',
+                  label: p.resident_name || (p.first_name ? `${p.first_name} ${p.last_name || ''}`.trim() : `Resident #${p.resident_id || 'Offline'}`),
+                  peopleCount: Math.max(1, headCnt + memCnt),
+                  method: (p.check_in_method || 'QR').toUpperCase(),
+                  savedAt: entry.timestamp ? new Date(entry.timestamp).toISOString() : new Date().toISOString()
+                });
+              });
+            }
+          } catch (_) {}
+
+          return items;
+        }
+
+        async function renderStaffOfflineCheckinsPanel() {
+          const items = await collectOfflineSavedCheckins();
+          const totalRecords = items.length;
+          const totalPeople = items.reduce((sum, it) => sum + (Number(it.peopleCount) || 1), 0);
+
+          const card = document.getElementById('staffOfflineQueueReportCard');
+          const listEl = document.getElementById('staffOfflineQueueList');
+          const recCountEl = document.getElementById('offlineSavedRecordsCount');
+          const pplCountEl = document.getElementById('offlineSavedPeopleCount');
+          const headerPill = document.getElementById('staffOfflineCountHeaderPill');
+          const headerIcon = document.getElementById('staffOfflineHeaderIcon');
+          const headerText = document.getElementById('staffOfflineHeaderText');
+          const syncBtn = document.getElementById('btnSyncStaffOfflineReports');
+
+          if (headerPill && headerText && headerIcon) {
+            if (totalRecords > 0) {
+              headerPill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-black bg-amber-100 text-amber-900 border border-amber-300';
+              headerIcon.className = 'ph ph-cloud-arrow-up text-amber-700 text-sm';
+              headerText.textContent = `${totalRecords} Saved Offline (${totalPeople} Evacuee${totalPeople > 1 ? 's' : ''})`;
+            } else {
+              headerPill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200';
+              headerIcon.className = 'ph ph-cloud-check text-emerald-600 text-sm';
+              headerText.textContent = '0 Saved Offline';
+            }
+          }
+
+          if (!card || !listEl) return;
+
+          if (totalRecords === 0) {
+            card.classList.add('hidden');
+            listEl.innerHTML = '';
+            return;
+          }
+
+          card.classList.remove('hidden');
+          if (recCountEl) recCountEl.textContent = String(totalRecords);
+          if (pplCountEl) pplCountEl.textContent = String(totalPeople);
+
+          if (syncBtn) {
+            syncBtn.disabled = !navigator.onLine;
+            if (!navigator.onLine) {
+              syncBtn.classList.add('opacity-60', 'cursor-not-allowed');
+              const txt = document.getElementById('textSyncStaffOfflineReports');
+              if (txt) txt.textContent = 'Waiting for Internet...';
+            } else {
+              syncBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+              const txt = document.getElementById('textSyncStaffOfflineReports');
+              if (txt) txt.textContent = 'Sync to Official Reports';
+            }
+          }
+
+          listEl.innerHTML = items.map(it => {
+            let timeStr = 'Saved Offline';
+            try {
+              timeStr = new Date(it.savedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            } catch (_) {}
+            return `
+              <div class="px-4 py-2.5 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-xs font-black text-slate-900 truncate">${String(it.label).replace(/</g, '&lt;')}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200">
+                      ${it.peopleCount} Person${it.peopleCount > 1 ? 's' : ''}
+                    </span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                      ${it.method}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-0.5">Saved at ${timeStr} &bull; Pending upload to Official Admin Report</p>
+                </div>
+                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
+                  Offline Queue
+                </span>
+              </div>
+            `;
+          }).join('');
+        }
+
+        async function syncStaffOfflineReportsNow() {
+          if (!navigator.onLine) {
+            alert('You are currently offline. Check-ins will automatically sync once internet connection returns.');
+            return;
+          }
+          const btn = document.getElementById('btnSyncStaffOfflineReports');
+          const icon = document.getElementById('iconSyncStaffOfflineReports');
+          const text = document.getElementById('textSyncStaffOfflineReports');
+          if (btn) btn.disabled = true;
+          if (icon) icon.className = 'ph ph-spinner animate-spin text-sm';
+          if (text) text.textContent = 'Syncing...';
+
+          let totalSynced = 0;
+          try {
+            if (window.EvakWarDB && typeof window.EvakWarDB.syncPending === 'function') {
+              const r = await window.EvakWarDB.syncPending();
+              if (r && (r.syncedCount || r.synced)) {
+                totalSynced += Number(r.syncedCount || r.synced || 0);
+              }
+            }
+            if (typeof window.syncOfflineStaffCheckins === 'function') {
+              const beforeLs = JSON.parse(localStorage.getItem('evw_offline_checkins') || '[]').length;
+              await window.syncOfflineStaffCheckins();
+              const afterLs = JSON.parse(localStorage.getItem('evw_offline_checkins') || '[]').length;
+              if (beforeLs > afterLs) totalSynced += (beforeLs - afterLs);
+            }
+          } catch (e) {
+            console.warn('[Staff Reports] Sync error:', e);
+          } finally {
+            if (btn) btn.disabled = false;
+            if (icon) icon.className = 'ph ph-arrows-clockwise text-sm';
+            if (text) text.textContent = 'Sync to Official Reports';
+            await renderStaffOfflineCheckinsPanel();
+            if (totalSynced > 0) {
+              const banner = document.getElementById('staffOfflineSyncSuccessBanner');
+              const bannerTxt = document.getElementById('staffOfflineSyncSuccessText');
+              if (bannerTxt) bannerTxt.textContent = `Synced ${totalSynced} offline check-in(s) to Official Admin Reports!`;
+              if (banner) banner.classList.remove('hidden');
+            }
+          }
+        }
+        window.syncStaffOfflineReportsNow = syncStaffOfflineReportsNow;
+
+        document.addEventListener('DOMContentLoaded', () => {
+          renderStaffOfflineCheckinsPanel();
+          if (navigator.onLine) {
+            setTimeout(() => {
+              collectOfflineSavedCheckins().then(items => {
+                if (items.length > 0) syncStaffOfflineReportsNow();
+              });
+            }, 1800);
+          }
+        });
+        window.addEventListener('online', () => {
+          renderStaffOfflineCheckinsPanel();
+          setTimeout(() => syncStaffOfflineReportsNow(), 1500);
+        });
+        window.addEventListener('offline', () => renderStaffOfflineCheckinsPanel());
+        window.addEventListener('Evacwar:queue-changed', () => renderStaffOfflineCheckinsPanel());
+        window.addEventListener('Evacwar:sync-completed', (ev) => {
+          renderStaffOfflineCheckinsPanel();
+          const synced = (ev && ev.detail && ev.detail.syncedCount) || 0;
+          if (synced > 0) {
+            const banner = document.getElementById('staffOfflineSyncSuccessBanner');
+            const bannerTxt = document.getElementById('staffOfflineSyncSuccessText');
+            if (bannerTxt) bannerTxt.textContent = `Synced ${synced} offline check-in(s) to Official Admin Reports!`;
+            if (banner) banner.classList.remove('hidden');
+          }
+        });
       </script>
