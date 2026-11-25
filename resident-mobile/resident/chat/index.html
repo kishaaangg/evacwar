@@ -6083,18 +6083,18 @@
       for (const sm of srvList) {
         if (!sm || !sm.text) continue;
         const key = getMessageUniqueKey(sm);
-        mapById.set(key, Object.assign({}, sm, { status: 'sent' }));
+        mapById.set(key, Object.assign({}, sm, { status: 'delivered', syncedToDb: true }));
       }
 
       // 2. Merge local cached messages
-      // When server messages exist, DO NOT keep old stale unsequenced phantoms - ONLY keep actively pending messages!
+      // When server messages exist, DO NOT keep old stale unsequenced phantoms - ONLY keep actively pending/unsynced/failed messages!
       const nowMs = Date.now();
       for (const lm of localMsgs) {
         if (!lm || !lm.text) continue;
         const key = getMessageUniqueKey(lm);
         if (mapById.has(key)) {
           const srv = mapById.get(key);
-          mapById.set(key, Object.assign({}, lm, srv, { status: 'sent' }));
+          mapById.set(key, Object.assign({}, lm, srv, { status: 'delivered', syncedToDb: true }));
         } else {
           if (isFromServer) {
             // Keep pending OR unsynced offline LoRa messages so they are never lost before syncing to DB
@@ -6429,9 +6429,12 @@
       Promise.allSettled(tasks).then(() => {
         const el = document.getElementById(`chat_msg_${msgId}`);
         if (el) updateMessageStatusInDom(el, newMsg);
-        const idx = cached.findIndex(m => getMessageUniqueKey(m) === msgId);
-        if (idx >= 0) cached[idx] = newMsg;
-        saveLocalCachedMessages(cached);
+        // Re-read latest localStorage so concurrent sent/received messages are NEVER wiped out!
+        const latestCached = getLocalCachedMessages();
+        const idx = latestCached.findIndex(m => getMessageUniqueKey(m) === msgId);
+        if (idx >= 0) latestCached[idx] = Object.assign({}, latestCached[idx], newMsg);
+        else latestCached.push(newMsg);
+        saveLocalCachedMessages(latestCached);
       });
       return true;
     }

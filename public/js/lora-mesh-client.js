@@ -685,11 +685,12 @@
           }
           this.serialPort = port;
           this.serialWriter = port.writable.getWriter();
+          this._webSerialWriteChain = Promise.resolve();
           await new Promise(r => setTimeout(r, 250));
-          await this.serialWriter.write(buildSerialWakePreamble());
+          await this._writeWebSerial(buildSerialWakePreamble());
           await new Promise(r => setTimeout(r, 100));
           const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
-          await this.serialWriter.write(wakeFrame);
+          await this._writeWebSerial(wakeFrame);
           this._startWebSerialHeartbeat();
           this.readUsbSerialLoop(port);
           const name = savedName || 'USB-OTG LoRa Node (433MHz)';
@@ -1282,7 +1283,7 @@
         // 5. Desktop WebSerial USB
         if (this.transport === 'USB_SERIAL' && this.serialWriter) {
           const serialFrame = wrapSerialFrame(protoBytes);
-          await this.serialWriter.write(serialFrame);
+          await this._writeWebSerial(serialFrame);
           return { success: true, transport: 'USB_SERIAL' };
         }
       } catch (err) {
@@ -2384,12 +2385,13 @@
           await port.open({ baudRate: 115200 });
           this.serialPort = port;
           this.serialWriter = port.writable.getWriter();
+          this._webSerialWriteChain = Promise.resolve();
 
           await new Promise(r => setTimeout(r, 250));
-          await this.serialWriter.write(buildSerialWakePreamble());
+          await this._writeWebSerial(buildSerialWakePreamble());
           await new Promise(r => setTimeout(r, 100));
           const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
-          await this.serialWriter.write(wakeFrame);
+          await this._writeWebSerial(wakeFrame);
           this._startWebSerialHeartbeat();
 
           this.readUsbSerialLoop(port);
@@ -2406,6 +2408,25 @@
       throw new Error('USB-OTG Serial requires the EvakWar Android App or a WebSerial-compatible browser.');
     }
 
+    /**
+     * Strictly serialized WebSerial writer so heartbeat, telemetry polls, and chat/SOS
+     * frames NEVER interleave or collide on the Admin USB COM port.
+     */
+    _writeWebSerial(bytes) {
+      if (!this.serialWriter) {
+        return Promise.reject(new Error('USB Serial port not connected'));
+      }
+      const prev = this._webSerialWriteChain || Promise.resolve();
+      const next = prev.catch(() => {}).then(async () => {
+        if (!this.serialWriter) throw new Error('USB Serial port disconnected');
+        await this.serialWriter.write(bytes);
+        // Short 45ms USB pacing gap so ESP32 UART RX FIFO processes each frame cleanly
+        await new Promise(r => setTimeout(r, 45));
+      });
+      this._webSerialWriteChain = next;
+      return next;
+    }
+
     _startWebSerialHeartbeat() {
       if (this._webSerialHeartbeatTimer) {
         clearInterval(this._webSerialHeartbeatTimer);
@@ -2418,9 +2439,81 @@
           return;
         }
         try {
-          await this.serialWriter.write(wrapSerialFrame(encodeHeartbeatToRadio()));
+          await this._writeWebSerial(wrapSerialFrame(encodeHeartbeatToRadio()));
         } catch (_) {}
       }, 20000);
+    }
+
+    _drainSerialBuffer() {
+      if (this._serialStallTimer) {
+        clearTimeout(this._serialStallTimer);
+        this._serialStallTimer = null;
+      }
+      if (!this.serialBuffer || this.serialBuffer.length === 0) return;
+
+      let cursor = 0;
+      let hitIncompleteFrame = false;
+
+      while (cursor <= this.serialBuffer.length - 4) {
+        if (this.serialBuffer[cursor] === 0x94 && this.serialBuffer[cursor + 1] === 0xc3) {
+          const frameLen = (this.serialBuffer[cursor + 2] << 8) | this.serialBuffer[cursor + 3];
+          if (frameLen >= 2 && frameLen <= 512) {
+            if (cursor + 4 + frameLen <= this.serialBuffer.length) {
+              // Complete protobuf frame received!
+              const frameBytes = this.serialBuffer.subarray(cursor + 4, cursor + 4 + frameLen);
+              const evw = extractEvwStringFromBytes(frameBytes);
+              if (evw) {
+                this.handleIncomingRawPacket(evw, 'USB_SERIAL');
+              }
+              const envTel = extractEnvironmentTelemetryFromBytes(frameBytes);
+              if (envTel) {
+                this._handleWeatherTelemetryObject(envTel, 'USB_SERIAL', false);
+              }
+              cursor += 4 + frameLen;
+              this._serialPartialSince = 0;
+              continue;
+            } else {
+              // Partial frame still arriving over USB — wait up to 250ms; if older than 250ms it was noise, skip it!
+              if (!this._serialPartialSince) this._serialPartialSince = Date.now();
+              if (Date.now() - this._serialPartialSince < 250) {
+                hitIncompleteFrame = true;
+                break;
+              } else {
+                this._serialPartialSince = 0;
+                cursor += 2;
+                continue;
+              }
+            }
+          }
+        }
+        cursor++;
+      }
+
+      if (hitIncompleteFrame) {
+        // Discard all junk BEFORE the incomplete frame header immediately so buffer stays tiny
+        if (cursor > 0) {
+          this.serialBuffer = this.serialBuffer.slice(cursor);
+        }
+        // Schedule automatic re-drain in 260ms so a bogus 0x94 0xC3 header NEVER stalls real packets behind it!
+        this._serialStallTimer = setTimeout(() => {
+          this._serialStallTimer = null;
+          this._drainSerialBuffer();
+        }, 260);
+      } else {
+        // Check for any plain-text EVW| line in skipped bytes before discarding
+        if (cursor > 8) {
+          const skipped = this.serialBuffer.subarray(0, cursor);
+          const ascii = new TextDecoder('utf-8', { fatal: false }).decode(skipped);
+          if (ascii.includes('EVW|')) {
+            const evw = extractEvwStringFromAscii(ascii);
+            if (evw) this.handleIncomingRawPacket(evw, 'USB_SERIAL');
+          }
+        }
+        // Keep only the last <=3 bytes (in case a 4-byte 0x94 0xC3 header is split across USB reads)
+        const keepFrom = Math.max(cursor, this.serialBuffer.length - 3);
+        this.serialBuffer = this.serialBuffer.slice(keepFrom);
+        this._serialPartialSince = 0;
+      }
     }
 
     async readUsbSerialLoop(port) {
@@ -2431,64 +2524,7 @@
           if (done) break;
           if (value && value.length > 0) {
             this.serialBuffer = concatUint8([this.serialBuffer, value]);
-
-            // Properly parse complete Meshtastic 0x94 0xC3 framed protobuf packets without chopping OR stalling on bogus headers!
-            let cursor = 0;
-            let parsedAnyFrame = false;
-            let hitIncompleteFrame = false;
-            while (cursor <= this.serialBuffer.length - 4) {
-              if (this.serialBuffer[cursor] === 0x94 && this.serialBuffer[cursor + 1] === 0xc3) {
-                const frameLen = (this.serialBuffer[cursor + 2] << 8) | this.serialBuffer[cursor + 3];
-                if (frameLen > 0 && frameLen <= 512) {
-                  if (cursor + 4 + frameLen <= this.serialBuffer.length) {
-                    // Complete protobuf frame received!
-                    const frameBytes = this.serialBuffer.subarray(cursor + 4, cursor + 4 + frameLen);
-                    const evw = extractEvwStringFromBytes(frameBytes);
-                    if (evw) {
-                      this.handleIncomingRawPacket(evw, 'USB_SERIAL');
-                    }
-                    const envTel = extractEnvironmentTelemetryFromBytes(frameBytes);
-                    if (envTel) {
-                      this._handleWeatherTelemetryObject(envTel, 'USB_SERIAL', false);
-                    }
-                    cursor += 4 + frameLen;
-                    parsedAnyFrame = true;
-                    this._serialPartialSince = 0;
-                    continue;
-                  } else {
-                    // Partial frame still arriving over USB — wait up to 700ms; if older than 700ms it was noise, skip it!
-                    if (!this._serialPartialSince) this._serialPartialSince = Date.now();
-                    if (Date.now() - this._serialPartialSince < 700) {
-                      hitIncompleteFrame = true;
-                      break;
-                    } else {
-                      this._serialPartialSince = 0;
-                      cursor += 2;
-                      continue;
-                    }
-                  }
-                }
-              }
-              cursor++;
-            }
-
-            if (parsedAnyFrame && cursor > 0) {
-              this.serialBuffer = this.serialBuffer.slice(cursor);
-            } else if (!hitIncompleteFrame) {
-              // Keep at most the last 3 bytes (in case 0x94 0xC3 header is split across reads) so noise never accumulates
-              if (this.serialBuffer.length > 3) {
-                const ascii = new TextDecoder('utf-8', { fatal: false }).decode(this.serialBuffer);
-                if (ascii.includes('EVW|') && (ascii.includes('\n') || ascii.includes('\r'))) {
-                  const evw = extractEvwStringFromAscii(ascii);
-                  if (evw) {
-                    this.handleIncomingRawPacket(evw, 'USB_SERIAL');
-                    this.serialBuffer = new Uint8Array(0);
-                  }
-                } else if (this.serialBuffer.length > 512) {
-                  this.serialBuffer = this.serialBuffer.slice(-3);
-                }
-              }
-            }
+            this._drainSerialBuffer();
           }
         }
       } catch (err) {
@@ -2634,7 +2670,7 @@
       if (this.transport === 'USB_SERIAL' && this.serialWriter) {
         const protoBytes = encodeMeshtasticTextToRadio(rawEvwPacket);
         const serialFrame = wrapSerialFrame(protoBytes);
-        await this.serialWriter.write(serialFrame);
+        await this._writeWebSerial(serialFrame);
         return { success: true, transport: 'USB_SERIAL', packet: rawEvwPacket };
       }
 
@@ -2810,11 +2846,11 @@
         raw: rawPacket
       };
 
-      // Paced sequential TX queue (1.15s minimum gap between LoRa chat packets so SF11 433.875 MHz never collides)
-      const nowMs = Date.now();
-      const lastTx = this._lastChatTxMs || 0;
-      const waitMs = Math.max(0, 1150 - (nowMs - lastTx));
+      // Paced sequential TX queue (1.25s minimum gap computed INSIDE the queue so rapid messages NEVER collide on SF11 433.875 MHz)
       const runTx = async () => {
+        const nowMs = Date.now();
+        const lastTx = this._lastChatTxMs || 0;
+        const waitMs = Math.max(0, 1250 - (nowMs - lastTx));
         if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
         this._lastChatTxMs = Date.now();
         return await this.sendPacket(rawPacket, {
