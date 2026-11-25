@@ -609,7 +609,13 @@ public class LoraMeshService extends Service {
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
             txWritePending = false;
-            scheduleFromRadioDrain(gatt, 35);
+            mainHandler.removeCallbacks(txWatchdogRunnable);
+            // If more queued TX packets are waiting, send the next one after a brief 40ms gap; otherwise drain FromRadio
+            if (!bleTxQueue.isEmpty()) {
+                mainHandler.postDelayed(() -> drainBleTxQueue(), 40);
+            } else {
+                scheduleFromRadioDrain(gatt, 45);
+            }
         }
 
         @Override
@@ -792,16 +798,9 @@ public class LoraMeshService extends Service {
                     }
                 }
 
-                StringBuilder sb = new StringBuilder();
-                for (int j = i; j < i + maxLen; j++) {
-                    int c = data[j] & 0xFF;
-                    if (c >= 32 && c <= 126) {
-                        sb.append((char) c);
-                    } else {
-                        break;
-                    }
-                }
-                String candidate = sb.toString().trim();
+                String candidate = new String(data, i, maxLen, java.nio.charset.StandardCharsets.UTF_8)
+                        .replaceAll("[\\x00-\\x1F\\x7F\\uFFFD].*$", "")
+                        .trim();
                 if (candidate.length() >= 8) {
                     return candidate;
                 }
@@ -1389,6 +1388,19 @@ public class LoraMeshService extends Service {
         } catch (Exception ignored) {}
     }
 
+    private final java.util.ArrayDeque<byte[]> bleTxQueue = new java.util.ArrayDeque<>();
+    private final Runnable txWatchdogRunnable = () -> {
+        if (txWritePending) {
+            Log.w("LoraMeshService", "BLE TX watchdog fired — resetting txWritePending and continuing queue");
+            txWritePending = false;
+            if (!bleTxQueue.isEmpty()) {
+                drainBleTxQueue();
+            } else if (activeBleGatt != null) {
+                scheduleFromRadioDrain(activeBleGatt, 50);
+            }
+        }
+    };
+
     private boolean writeHexInternal(String hexString) {
         if (activeBleGatt == null || charToRadio == null || hexString == null) return false;
         try {
@@ -1414,17 +1426,40 @@ public class LoraMeshService extends Service {
                 }
             } catch (Exception ignored) {}
 
-            txWritePending = true;
-            return writeCharacteristicWithRetry(data, 1);
+            mainHandler.post(() -> {
+                if (bleTxQueue.size() > 24) {
+                    bleTxQueue.pollFirst();
+                }
+                bleTxQueue.addLast(data);
+                if (!txWritePending) {
+                    drainBleTxQueue();
+                }
+            });
+            return true;
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private void drainBleTxQueue() {
+        if (txWritePending) return;
+        if (activeBleGatt == null || charToRadio == null || !bleConnected.get()) {
+            bleTxQueue.clear();
+            return;
+        }
+        byte[] next = bleTxQueue.pollFirst();
+        if (next == null) return;
+        txWritePending = true;
+        mainHandler.removeCallbacks(txWatchdogRunnable);
+        mainHandler.postDelayed(txWatchdogRunnable, 650);
+        writeCharacteristicWithRetry(next, 1);
     }
 
     private boolean writeCharacteristicWithRetry(final byte[] payload, final int attempt) {
         mainHandler.post(() -> {
             if (activeBleGatt == null || charToRadio == null || payload == null) {
                 txWritePending = false;
+                mainHandler.removeCallbacks(txWatchdogRunnable);
                 return;
             }
             try {
@@ -1447,17 +1482,22 @@ public class LoraMeshService extends Service {
                     }
                 }
 
-                if (!ok && attempt < 10) {
-                    mainHandler.postDelayed(() -> writeCharacteristicWithRetry(payload, attempt + 1), 120);
+                if (!ok && attempt < 12) {
+                    mainHandler.removeCallbacks(txWatchdogRunnable);
+                    mainHandler.postDelayed(txWatchdogRunnable, 900);
+                    mainHandler.postDelayed(() -> writeCharacteristicWithRetry(payload, attempt + 1), 100);
                 } else if (!ok) {
-                    Log.w("LoraMeshService", "BLE ToRadio write failed after 10 attempts (len=" + payload.length + ")");
+                    Log.w("LoraMeshService", "BLE ToRadio write failed after 12 attempts (len=" + payload.length + ")");
                     txWritePending = false;
+                    mainHandler.removeCallbacks(txWatchdogRunnable);
+                    if (!bleTxQueue.isEmpty()) mainHandler.postDelayed(this::drainBleTxQueue, 80);
                 } else {
                     Log.d("LoraMeshService", "BLE ToRadio write queued successfully (len=" + payload.length + ", attempt=" + attempt + ")");
                 }
             } catch (Exception e) {
                 Log.w("LoraMeshService", "BLE ToRadio write exception: " + e.getMessage());
                 txWritePending = false;
+                mainHandler.removeCallbacks(txWatchdogRunnable);
             }
         });
         return true;

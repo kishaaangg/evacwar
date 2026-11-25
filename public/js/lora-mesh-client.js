@@ -2432,9 +2432,10 @@
           if (value && value.length > 0) {
             this.serialBuffer = concatUint8([this.serialBuffer, value]);
 
-            // Properly parse complete Meshtastic 0x94 0xC3 framed protobuf packets without chopping partial chunks!
+            // Properly parse complete Meshtastic 0x94 0xC3 framed protobuf packets without chopping OR stalling on bogus headers!
             let cursor = 0;
             let parsedAnyFrame = false;
+            let hitIncompleteFrame = false;
             while (cursor <= this.serialBuffer.length - 4) {
               if (this.serialBuffer[cursor] === 0x94 && this.serialBuffer[cursor + 1] === 0xc3) {
                 const frameLen = (this.serialBuffer[cursor + 2] << 8) | this.serialBuffer[cursor + 3];
@@ -2452,10 +2453,19 @@
                     }
                     cursor += 4 + frameLen;
                     parsedAnyFrame = true;
+                    this._serialPartialSince = 0;
                     continue;
                   } else {
-                    // Partial frame still arriving over USB — wait for the remaining bytes!
-                    break;
+                    // Partial frame still arriving over USB — wait up to 700ms; if older than 700ms it was noise, skip it!
+                    if (!this._serialPartialSince) this._serialPartialSince = Date.now();
+                    if (Date.now() - this._serialPartialSince < 700) {
+                      hitIncompleteFrame = true;
+                      break;
+                    } else {
+                      this._serialPartialSince = 0;
+                      cursor += 2;
+                      continue;
+                    }
                   }
                 }
               }
@@ -2464,16 +2474,9 @@
 
             if (parsedAnyFrame && cursor > 0) {
               this.serialBuffer = this.serialBuffer.slice(cursor);
-            } else {
-              // Plain-text fallback ONLY if newline-terminated (e.g., debug serial logs) and NOT inside a 0x94 0xC3 binary frame
-              let hasPendingBinaryFrame = false;
-              for (let i = 0; i < this.serialBuffer.length - 1; i++) {
-                if (this.serialBuffer[i] === 0x94 && this.serialBuffer[i + 1] === 0xc3) {
-                  hasPendingBinaryFrame = true;
-                  break;
-                }
-              }
-              if (!hasPendingBinaryFrame) {
+            } else if (!hitIncompleteFrame) {
+              // Keep at most the last 3 bytes (in case 0x94 0xC3 header is split across reads) so noise never accumulates
+              if (this.serialBuffer.length > 3) {
                 const ascii = new TextDecoder('utf-8', { fatal: false }).decode(this.serialBuffer);
                 if (ascii.includes('EVW|') && (ascii.includes('\n') || ascii.includes('\r'))) {
                   const evw = extractEvwStringFromAscii(ascii);
@@ -2481,10 +2484,9 @@
                     this.handleIncomingRawPacket(evw, 'USB_SERIAL');
                     this.serialBuffer = new Uint8Array(0);
                   }
+                } else if (this.serialBuffer.length > 512) {
+                  this.serialBuffer = this.serialBuffer.slice(-3);
                 }
-              }
-              if (this.serialBuffer.length > 4096) {
-                this.serialBuffer = this.serialBuffer.slice(-1024);
               }
             }
           }
