@@ -317,6 +317,14 @@
       }
     }
 
+    const CHAT_RESET_EPOCH = '2026-11-25-fresh-1';
+    try {
+      if (localStorage.getItem('evw_lora_chat_reset_epoch') !== CHAT_RESET_EPOCH) {
+        localStorage.removeItem('evw_lora_chat_messages');
+        localStorage.setItem('evw_lora_chat_reset_epoch', CHAT_RESET_EPOCH);
+      }
+    } catch (_e) {}
+
     const renderedMsgIds = new Set();
     let allMessages = [];
 

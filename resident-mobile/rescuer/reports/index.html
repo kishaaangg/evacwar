@@ -3077,8 +3077,9 @@
           </button>
         </div>
 
-        <!-- Connection Choices (Internet vs LoRa Bluetooth) -->
+        <!-- Connection Choices (Role-Aware: Admin Laptop USB Gateway vs Mobile Resident/Rescuer/Staff) -->
         <div class="p-5 space-y-3">
+          
           <!-- 1. Internet (Wi-Fi / Mobile Data) -->
           <div class="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-emerald-500/60 transition-all flex flex-col gap-2.5">
             <div class="flex items-center justify-between">
@@ -3134,6 +3135,7 @@
               </button>
             </div>
           </div>
+          
         </div>
 
         <div class="px-5 py-3 bg-slate-950/60 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
@@ -5470,7 +5472,7 @@
               </div>
               <div class="min-w-0 flex-1">
                 <div class="text-[11px] font-medium text-slate-400 leading-none mb-1">Welcome back,</div>
-                <div id="headerUserName" class="truncate font-heading text-sm font-bold text-white tracking-tight leading-snug" title="Staff Three">
+                <div id="headerUserName" class="truncate font-heading text-sm font-bold !text-white tracking-tight leading-snug" style="color: #ffffff !important;" title="Staff Three">
                   Staff Three
                 </div>
                 <div class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-300 border border-blue-400/20">
@@ -5951,7 +5953,7 @@
   <script src="/js/ui.js"></script>
   <script src="/js/weatherLocation.js" defer></script>
   <script src="/js/offline-queue.js" defer></script>
-  <script src="/js/pwa.js?v=106" defer></script>
+  <script src="/js/pwa.js?v=108" defer></script>
 
   </div>
   </body>

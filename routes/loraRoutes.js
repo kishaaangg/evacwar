@@ -68,24 +68,7 @@ try {
   }
 } catch (_) {}
 
-if (loraChatHistory.length === 0) {
-  const initTs = Date.now() - 120000;
-  loraChatHistory = [
-    {
-      id: 'init_hall_1',
-      msgId: 'init_hall_1',
-      senderRole: 'Admin',
-      senderName: 'Monette Bisenio',
-      nodeId: '!d88b1a58',
-      senderBadge: 'Admin | Monette Bisenio | !d88b1a58',
-      text: 'San Rafael 433.875 MHz LoRa Mesh Group Chat is online. Residents, Evacuation Staff, and Rescuers can communicate here even when internet is down.',
-      message: 'San Rafael 433.875 MHz LoRa Mesh Group Chat is online. Residents, Evacuation Staff, and Rescuers can communicate here even when internet is down.',
-      timestamp: initTs,
-      sent_at: new Date(initTs).toISOString(),
-      transport: 'LORA_433MHZ'
-    }
-  ];
-}
+// Keep conversation completely fresh when empty (no pre-seeded messages)
 
 // Strict authoritative sequence counter to prevent client clock skew ordering bugs
 let chatSeqCounter = 1;
