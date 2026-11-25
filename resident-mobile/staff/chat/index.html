@@ -6106,14 +6106,14 @@
           mapById.set(key, Object.assign({}, lm, srv, { status: 'sent' }));
         } else {
           if (isFromServer) {
-            // When server responded, strictly keep ONLY pending messages that haven't been confirmed yet
-            if (lm.status === 'pending') {
+            // Keep pending OR unsynced offline LoRa messages so they are never lost before syncing to DB
+            if (lm.status === 'pending' || lm.syncedToDb === false || !lm.seq) {
               mapById.set(key, lm);
             }
           } else {
             // Offline mode (no server connection): preserve cached local messages
             const age = nowMs - getNormalizedTimestampMs(lm);
-            if (age < 86400000 || lm.status === 'pending') {
+            if (age < 86400000 || lm.status === 'pending' || lm.syncedToDb === false) {
               mapById.set(key, lm);
             }
           }
@@ -6154,20 +6154,16 @@
       });
 
       if (allMessages.length === 0) {
-        const initIso = new Date().toISOString();
-        allMessages = [{
-          id: 'INIT01',
-          msgId: 'INIT01',
-          seq: 1,
-          senderRole: 'Admin',
-          senderName: 'Monette Bisenio',
-          text: 'San Rafael Offline LoRa Chat (433.875 MHz) is for offline radio communication. Residents, Staff, and Rescuers can message here even with zero internet or cell signal.',
-          timestamp: Date.now() - 60000,
-          created_at: initIso,
-          sent_at: initIso,
-          transport: 'LORA_433MHZ',
-          status: 'sent'
-        }];
+        saveLocalCachedMessages([]);
+        messagesListEl.innerHTML = `
+          <div class="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+            <i class="ph ph-chats-circle text-4xl text-slate-300 mb-2"></i>
+            <p class="text-xs font-bold text-slate-500">No messages yet</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Start a fresh 433.875 MHz LoRa Mesh conversation below.</p>
+          </div>
+        `;
+        renderedMsgIds.clear();
+        return;
       }
 
       saveLocalCachedMessages(allMessages);
@@ -6207,8 +6203,56 @@
       }
     }
 
+    function archiveLoRaMessageToServer(msg) {
+      if (!msg || !msg.text || !navigator.onLine) return Promise.resolve(false);
+      const hallBase = getHallServerUrl();
+      const postUrl = (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase)
+        ? `${hallBase}/api/lora/chat`
+        : '/api/lora/chat';
+      const mid = String(msg.msgId || msg.id || Date.now());
+      return fetch(postUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          msgId: mid,
+          senderRole: msg.senderRole || 'Resident',
+          senderName: msg.senderName || 'Community Member',
+          nodeId: msg.nodeId || null,
+          text: msg.text || msg.message || '',
+          timestamp: getNormalizedTimestampMs(msg),
+          viaLoRa: true,
+          archiveOnly: true
+        })
+      }).then(async res => {
+        if (!res.ok) return false;
+        const data = await res.json().catch(() => null);
+        if (data && data.success && data.chatMessage) {
+          const cached = getLocalCachedMessages();
+          const idx = cached.findIndex(m => getMessageUniqueKey(m) === mid);
+          if (idx >= 0) {
+            cached[idx] = Object.assign({}, cached[idx], data.chatMessage, { status: 'sent', syncedToDb: true });
+            saveLocalCachedMessages(cached);
+          }
+          return true;
+        }
+        return false;
+      }).catch(() => false);
+    }
+
+    async function syncUnsyncedLoRaMessagesToServer() {
+      if (!navigator.onLine) return;
+      const cached = getLocalCachedMessages();
+      const unsynced = cached.filter(m => m && m.text && (m.syncedToDb === false || !m.seq));
+      for (const m of unsynced) {
+        await archiveLoRaMessageToServer(m);
+      }
+    }
+
     async function fetchChatHistory() {
       updateTransportUi();
+      if (navigator.onLine) {
+        await syncUnsyncedLoRaMessagesToServer();
+      }
       const hallBase = getHallServerUrl();
       const endpoints = ['/api/lora/chat'];
       if (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase) {
@@ -6223,7 +6267,7 @@
           clearTimeout(tid);
           if (res.ok) {
             const data = await res.json();
-            if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+            if (data && Array.isArray(data.messages)) {
               mergeAndRenderMessages(data.messages, (renderedMsgIds.size === 0));
               return;
             }
@@ -6308,6 +6352,8 @@
             }).then(() => {
               newMsg.transport = 'LORA_433MHZ';
               newMsg.status = 'sent';
+              newMsg.syncedToDb = false;
+              archiveLoRaMessageToServer(newMsg);
             }).catch(rfErr => {
               console.warn('[LoRaChat] RF transmit error:', rfErr.message);
               newMsg.transport = 'OFFLINE';
@@ -6446,14 +6492,18 @@
     // Listen for inbound 433.875 MHz LoRa chat packets
     window.addEventListener('evakwar:lora-chat', function (ev) {
       if (ev && ev.detail) {
-        const loraMsg = ev.detail;
+        const loraMsg = Object.assign({}, ev.detail, { status: 'sent', syncedToDb: Boolean(ev.detail.seq) });
         const cached = getLocalCachedMessages();
         const key = getMessageUniqueKey(loraMsg);
         const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
-        if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], loraMsg, { status: 'sent' });
-        else cached.push(Object.assign({}, loraMsg, { status: 'sent' }));
+        if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], loraMsg);
+        else cached.push(loraMsg);
         saveLocalCachedMessages(cached);
         mergeAndRenderMessages(null, false);
+        // Archive inbound RF LoRa chat to shared MySQL history so all other accounts (Staff, Rescuer, Residents) see it too!
+        if (!loraMsg.seq) {
+          archiveLoRaMessageToServer(loraMsg);
+        }
       }
     });
 
@@ -6504,7 +6554,10 @@ bindChatSocket();
     if (window.evakwarLoraClient && typeof window.evakwarLoraClient.on === 'function') {
       window.evakwarLoraClient.on('status', updateTransportUi);
     }
-    window.addEventListener('online', updateTransportUi);
+    window.addEventListener('online', () => {
+      updateTransportUi();
+      fetchChatHistory();
+    });
     window.addEventListener('offline', updateTransportUi);
 
     fetchChatHistory();
@@ -6586,7 +6639,7 @@ bindChatSocket();
   <script src="/js/ui.js"></script>
   <script src="/js/weatherLocation.js" defer></script>
   <script src="/js/offline-queue.js" defer></script>
-  <script src="/js/pwa.js?v=108" defer></script>
+  <script src="/js/pwa.js?v=109" defer></script>
 
   </div>
   </body>

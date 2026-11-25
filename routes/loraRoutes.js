@@ -69,6 +69,88 @@ try {
 } catch (_) {}
 
 // Keep conversation completely fresh when empty (no pre-seeded messages)
+let loraChatDbReady = false;
+async function ensureLoraChatTableAndLoad() {
+  if (!db || typeof db.execute !== 'function') return;
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS lora_chat_messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        msg_id VARCHAR(80) NOT NULL UNIQUE,
+        seq INT NOT NULL DEFAULT 0,
+        sender_role VARCHAR(40) NOT NULL DEFAULT 'Resident',
+        sender_name VARCHAR(100) NOT NULL DEFAULT 'Community Member',
+        node_id VARCHAR(40) DEFAULT NULL,
+        message_text TEXT NOT NULL,
+        timestamp_ms BIGINT NOT NULL,
+        transport VARCHAR(40) NOT NULL DEFAULT 'LORA_433MHZ',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    loraChatDbReady = true;
+    const [rows] = await db.execute(
+      `SELECT msg_id, seq, sender_role, sender_name, node_id, message_text, timestamp_ms, transport
+       FROM lora_chat_messages
+       ORDER BY id ASC
+       LIMIT 150`
+    );
+    if (Array.isArray(rows) && rows.length > 0) {
+      const existingIds = new Set(loraChatHistory.map(m => String(m.msgId || m.id)));
+      rows.forEach((r, idx) => {
+        const mid = String(r.msg_id);
+        if (existingIds.has(mid)) return;
+        const ts = Number(r.timestamp_ms) || Date.now();
+        const s = Number(r.seq) > 0 ? Number(r.seq) : (idx + 1);
+        if (s >= chatSeqCounter) chatSeqCounter = s + 1;
+        loraChatHistory.push({
+          id: mid,
+          msgId: mid,
+          seq: s,
+          senderRole: r.sender_role || 'Resident',
+          senderName: r.sender_name || 'Community Member',
+          nodeId: r.node_id || null,
+          senderBadge: `${r.sender_role || 'Resident'} | ${r.sender_name || 'Community Member'}`,
+          text: r.message_text || '',
+          message: r.message_text || '',
+          timestamp: ts,
+          sent_at: new Date(ts).toISOString(),
+          created_at: new Date(ts).toISOString(),
+          transport: r.transport || 'LORA_433MHZ'
+        });
+      });
+      loraChatHistory.sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0));
+      if (loraChatHistory.length > 150) loraChatHistory = loraChatHistory.slice(-150);
+      saveChatHistoryToDisk();
+    }
+  } catch (err) {
+    console.warn('[LoRa Chat DB] Init/load notice:', err && err.message ? err.message : err);
+  }
+}
+
+function persistChatMessageToDb(msg) {
+  if (!msg || !msg.msgId || !db || typeof db.execute !== 'function') return;
+  const doInsert = () => db.execute(
+    `INSERT IGNORE INTO lora_chat_messages (msg_id, seq, sender_role, sender_name, node_id, message_text, timestamp_ms, transport)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      String(msg.msgId),
+      Number(msg.seq) || 0,
+      String(msg.senderRole || 'Resident').slice(0, 40),
+      String(msg.senderName || 'Community Member').slice(0, 100),
+      msg.nodeId ? String(msg.nodeId).slice(0, 40) : null,
+      String(msg.text || msg.message || ''),
+      Number(msg.timestamp) || Date.now(),
+      String(msg.transport || 'LORA_433MHZ').slice(0, 40)
+    ]
+  ).catch(() => {});
+  if (loraChatDbReady) {
+    doInsert();
+  } else {
+    ensureLoraChatTableAndLoad().then(doInsert).catch(() => {});
+  }
+}
+
+ensureLoraChatTableAndLoad();
 
 // Strict authoritative sequence counter to prevent client clock skew ordering bugs
 let chatSeqCounter = 1;
@@ -132,6 +214,7 @@ function appendChatMessage(chatObj) {
     loraChatHistory = loraChatHistory.slice(-150);
   }
   saveChatHistoryToDisk();
+  persistChatMessageToDb(normalized);
   return normalized;
 }
 
@@ -1505,7 +1588,7 @@ router.get('/chat/latest', (_req, res) => {
 
 router.post('/chat', (req, res) => {
   try {
-    const { msgId, senderRole, senderName, nodeId, text, message, viaLoRa, isOfflineLora } = req.body || {};
+    const { msgId, senderRole, senderName, nodeId, text, message, viaLoRa, isOfflineLora, archiveOnly, timestamp } = req.body || {};
     const cleanText = String(text || message || '').replace(/\|/g, '/').replace(/\r?\n/g, ' ').trim().slice(0, 120);
     if (!cleanText) {
       return res.status(400).json({ success: false, message: 'Message text is required.' });
@@ -1521,8 +1604,8 @@ router.post('/chat', (req, res) => {
     const isDupe = processedMsgIds.has('chat_' + id);
     processedMsgIds.set('chat_' + id, Date.now());
 
-    // Explicit transport: Only mark as 433 MHz LoRa if transmitted over LoRa RF (viaLoRa / isOfflineLora)
-    const isViaLoRa = Boolean(viaLoRa || isOfflineLora);
+    // Explicit transport: Only mark as 433 MHz LoRa if transmitted over LoRa RF (viaLoRa / isOfflineLora / archiveOnly)
+    const isViaLoRa = Boolean(viaLoRa || isOfflineLora || archiveOnly);
     const transportType = isViaLoRa ? 'LORA_433MHZ' : 'WIFI';
 
     const savedMsg = appendChatMessage({
@@ -1532,7 +1615,7 @@ router.post('/chat', (req, res) => {
       senderName: name,
       nodeId: resolvedNode,
       text: cleanText,
-      timestamp: Date.now(),
+      timestamp: timestamp ? Number(timestamp) : Date.now(),
       transport: transportType
     });
 
@@ -1541,9 +1624,9 @@ router.post('/chat', (req, res) => {
     }
 
     // Queue outbound 433.875 MHz LoRa broadcast on Hall Gateway (!d88b1a58)
-    // Ensures Admin messages (online or offline) and Wi-Fi messages are broadcast over COM3 LoRa Mesh
+    // Skip re-queuing RF if archiveOnly=true (already transmitted over LoRa RF by the sender's node)
     let queued = null;
-    const shouldQueueLoRa = !isDupe && (!viaLoRa || isOfflineLora || role.toLowerCase().includes('admin'));
+    const shouldQueueLoRa = !archiveOnly && !isDupe && (!viaLoRa || isOfflineLora || role.toLowerCase().includes('admin'));
     if (shouldQueueLoRa) {
       const tsSec = Math.floor(Date.now() / 1000);
       const rawPacket = `EVW|MSG|${id}|${role}|${name}|${resolvedNode}|${tsSec}|${cleanText}|${savedMsg && savedMsg.seq ? savedMsg.seq : ''}`;
