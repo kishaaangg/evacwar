@@ -1048,6 +1048,11 @@
         this.emit('sos', sosObj);
       } else if (parsed.type === 'MSG') {
         const msgId = String(parsed.msgId || parsed.id || '').trim();
+        const msgText = String(parsed.text || parsed.message || '').trim();
+        if (!msgText) {
+          // Never poison _processedChatIds with an incomplete/empty fragment
+          return;
+        }
         this._processedChatIds = this._processedChatIds || new Set();
         if (msgId && this._processedChatIds.has(msgId)) {
           return;
@@ -1056,6 +1061,8 @@
 
         const chatObj = {
           ...parsed,
+          text: msgText,
+          message: msgText,
           transport: sourceTransport || 'LORA_433MHZ',
           viaLoRa: true
         };
@@ -1073,6 +1080,30 @@
         try {
           window.dispatchEvent(new CustomEvent('evakwar:lora-chat', { detail: chatObj }));
         } catch (_) {}
+
+        // If this gateway/browser is online (e.g. Admin PC on Wi-Fi with USB LoRa), immediately archive to MySQL & broadcast via Socket.IO
+        if (navigator.onLine) {
+          try {
+            let bgUrl = (this.serverUrl || window.location.origin).replace(/\/$/, '');
+            if (bgUrl === 'http://localhost' || bgUrl === 'https://localhost') bgUrl = 'https://evacwar.onrender.com';
+            if (bgUrl.startsWith('http')) {
+              fetch(`${bgUrl}/api/lora/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  msgId: msgId || String(Date.now()),
+                  senderRole: chatObj.senderRole || 'Resident',
+                  senderName: chatObj.senderName || 'Community Member',
+                  nodeId: chatObj.nodeId || null,
+                  text: msgText,
+                  timestamp: chatObj.timestamp || Date.now(),
+                  viaLoRa: true,
+                  archiveOnly: true
+                })
+              }).catch(() => {});
+            }
+          } catch (_) {}
+        }
 
         this.emit('chat', chatObj);
       } else if (parsed.type === 'ALT') {
@@ -2333,29 +2364,63 @@
         while (true) {
           const { value, done } = await this.serialReader.read();
           if (done) break;
-      if (value && value.length > 0) {
+          if (value && value.length > 0) {
             this.serialBuffer = concatUint8([this.serialBuffer, value]);
-            // Parse any 0x94 0xC3 framed protobuf messages for environment telemetry
-            if (this.serialBuffer.length >= 6) {
-              for (let idx = 0; idx <= this.serialBuffer.length - 6; idx++) {
-                if (this.serialBuffer[idx] === 0x94 && this.serialBuffer[idx + 1] === 0xc3) {
-                  const frameLen = (this.serialBuffer[idx + 2] << 8) | this.serialBuffer[idx + 3];
-                  if (frameLen > 0 && frameLen <= 512 && idx + 4 + frameLen <= this.serialBuffer.length) {
-                    const frameBytes = this.serialBuffer.subarray(idx + 4, idx + 4 + frameLen);
+
+            // Properly parse complete Meshtastic 0x94 0xC3 framed protobuf packets without chopping partial chunks!
+            let cursor = 0;
+            let parsedAnyFrame = false;
+            while (cursor <= this.serialBuffer.length - 4) {
+              if (this.serialBuffer[cursor] === 0x94 && this.serialBuffer[cursor + 1] === 0xc3) {
+                const frameLen = (this.serialBuffer[cursor + 2] << 8) | this.serialBuffer[cursor + 3];
+                if (frameLen > 0 && frameLen <= 512) {
+                  if (cursor + 4 + frameLen <= this.serialBuffer.length) {
+                    // Complete protobuf frame received!
+                    const frameBytes = this.serialBuffer.subarray(cursor + 4, cursor + 4 + frameLen);
+                    const evw = extractEvwStringFromBytes(frameBytes);
+                    if (evw) {
+                      this.handleIncomingRawPacket(evw, 'USB_SERIAL');
+                    }
                     const envTel = extractEnvironmentTelemetryFromBytes(frameBytes);
                     if (envTel) {
                       this._handleWeatherTelemetryObject(envTel, 'USB_SERIAL', false);
                     }
+                    cursor += 4 + frameLen;
+                    parsedAnyFrame = true;
+                    continue;
+                  } else {
+                    // Partial frame still arriving over USB — wait for the remaining bytes!
+                    break;
                   }
                 }
               }
+              cursor++;
             }
-            const evw = extractEvwStringFromBytes(this.serialBuffer);
-            if (evw) {
-              this.handleIncomingRawPacket(evw, 'USB_SERIAL');
-              this.serialBuffer = new Uint8Array(0);
-            } else if (this.serialBuffer.length > 2048) {
-              this.serialBuffer = this.serialBuffer.slice(-512);
+
+            if (parsedAnyFrame && cursor > 0) {
+              this.serialBuffer = this.serialBuffer.slice(cursor);
+            } else {
+              // Plain-text fallback ONLY if newline-terminated (e.g., debug serial logs) and NOT inside a 0x94 0xC3 binary frame
+              let hasPendingBinaryFrame = false;
+              for (let i = 0; i < this.serialBuffer.length - 1; i++) {
+                if (this.serialBuffer[i] === 0x94 && this.serialBuffer[i + 1] === 0xc3) {
+                  hasPendingBinaryFrame = true;
+                  break;
+                }
+              }
+              if (!hasPendingBinaryFrame) {
+                const ascii = new TextDecoder('utf-8', { fatal: false }).decode(this.serialBuffer);
+                if (ascii.includes('EVW|') && (ascii.includes('\n') || ascii.includes('\r'))) {
+                  const evw = extractEvwStringFromAscii(ascii);
+                  if (evw) {
+                    this.handleIncomingRawPacket(evw, 'USB_SERIAL');
+                    this.serialBuffer = new Uint8Array(0);
+                  }
+                }
+              }
+              if (this.serialBuffer.length > 4096) {
+                this.serialBuffer = this.serialBuffer.slice(-1024);
+              }
             }
           }
         }
@@ -2423,9 +2488,9 @@
           const hexStr = bytesToHex(protoBytes);
           const ok = window.AndroidBleBridge.writeHex(hexStr);
 
-          // For high-priority SOS / Cancel SOS / Rescuer ACK frames, schedule a 2nd RF burst 2.1s later
-          // (after the 805ms SF11 LoRa airtime completes) so RF collisions can never drop an SOS or ACK!
-          if (rawEvwPacket && (rawEvwPacket.startsWith('EVW|SOS|') || rawEvwPacket.startsWith('EVW|CAN|') || rawEvwPacket.startsWith('EVW|ACK|'))) {
+          // For high-priority SOS / Cancel SOS / Rescuer ACK / LoRa Chat frames, schedule a 2nd RF burst 2.2s later
+          // (after the 805ms SF11 LoRa airtime completes) so RF collisions can never drop a packet!
+          if (rawEvwPacket && (rawEvwPacket.startsWith('EVW|SOS|') || rawEvwPacket.startsWith('EVW|CAN|') || rawEvwPacket.startsWith('EVW|ACK|') || rawEvwPacket.startsWith('EVW|MSG|'))) {
             setTimeout(() => {
               try {
                 if (window.AndroidBleBridge && typeof window.AndroidBleBridge.writeHex === 'function') {
@@ -2433,7 +2498,7 @@
                   window.AndroidBleBridge.writeHex(bytesToHex(retryBytes));
                 }
               } catch (_e) {}
-            }, 2100);
+            }, 2200);
           }
 
           // Dual-path redundancy (SOS / ACK only - never Wi-Fi mirror for LoRa-only chat)

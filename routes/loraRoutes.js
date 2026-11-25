@@ -1530,8 +1530,9 @@ async function handleInboundLoRaPacket(req, res) {
         transport: 'LORA_433MHZ'
       });
 
-      if (req.io && savedMsg) {
-        req.io.emit('lora:chat', savedMsg);
+      const activeIo = req.io || ioInstance;
+      if (activeIo && savedMsg) {
+        activeIo.emit('lora:chat', savedMsg);
       }
 
       return res.json({
@@ -1619,8 +1620,9 @@ router.post('/chat', (req, res) => {
       transport: transportType
     });
 
-    if (req.io && savedMsg && !isDupe) {
-      req.io.emit('lora:chat', savedMsg);
+    const activeIo = req.io || ioInstance;
+    if (activeIo && savedMsg && !isDupe) {
+      activeIo.emit('lora:chat', savedMsg);
     }
 
     // Queue outbound 433.875 MHz LoRa broadcast on Hall Gateway (!d88b1a58)
