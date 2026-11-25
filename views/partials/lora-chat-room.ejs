@@ -441,23 +441,20 @@
       const pillClass = getRoleBadgeStyle(sRole);
       const timeStr = formatTimeLabel(msg);
 
-      // Determine transport badge: Sent via Wi-Fi vs Sent via LoRa
-      const isLora = Boolean(msg.transport === 'LORA_433MHZ' || msg.via === 'LORA' || msg.viaLoRa);
-      const transportLabel = isLora ? '433.875 MHz LoRa' : 'Wi-Fi / Internet';
-      const transportIcon = isLora ? 'ph-broadcast' : 'ph-wifi-high';
-
-      // Status indicator: sent / pending / failed
+      // Clean messenger status indicator: Sending... / Sent / Delivered / Not Sent (no LoRa/Wi-Fi clutter)
       let statusHtml = '';
       if (isMine) {
         if (msg.status === 'failed') {
-          statusHtml = `<span class="text-rose-300 font-extrabold flex items-center gap-0.5"><i class="ph ph-warning-circle"></i> Not Sent (Tap to retry)</span>`;
+          statusHtml = `<span class="text-rose-200 font-extrabold flex items-center gap-1"><i class="ph ph-warning-circle"></i> Not Sent · Tap to retry</span>`;
         } else if (msg.status === 'pending') {
-          statusHtml = `<span class="text-amber-200 font-semibold flex items-center gap-0.5"><i class="ph ph-clock"></i> Sending...</span>`;
+          statusHtml = `<span class="text-amber-200 font-semibold flex items-center gap-1"><i class="ph ph-clock"></i> Sending...</span>`;
+        } else if (msg.status === 'delivered' || msg.seq || msg.syncedToDb) {
+          statusHtml = `<span class="flex items-center gap-1"><i class="ph ph-checks"></i> Delivered</span>`;
         } else {
-          statusHtml = `<span class="flex items-center gap-0.5"><i class="ph ${transportIcon}"></i> ${transportLabel}</span>`;
+          statusHtml = `<span class="flex items-center gap-1"><i class="ph ph-check"></i> Sent</span>`;
         }
       } else {
-        statusHtml = `<span class="flex items-center gap-0.5"><i class="ph ${transportIcon}"></i> ${transportLabel}</span>`;
+        statusHtml = `<span class="flex items-center gap-1"><i class="ph ph-checks text-emerald-500"></i> Delivered</span>`;
       }
 
       const wrapper = document.createElement('div');
@@ -499,13 +496,12 @@
     function updateMessageStatusInDom(el, msg) {
       const statusBar = el.querySelector('.msg-status-bar');
       if (!statusBar) return;
-      const isLora = Boolean(msg.transport === 'LORA_433MHZ' || msg.via === 'LORA' || msg.viaLoRa);
-      const transportLabel = isLora ? '433.875 MHz LoRa' : 'Wi-Fi / Internet';
-      const transportIcon = isLora ? 'ph-broadcast' : 'ph-wifi-high';
+
+      const isMine = el.classList.contains('items-end');
 
       // Update bubble color if mine
-      const bubbleCard = el.querySelector('.max-w-\\[88\\%\\]') || el.children[1];
-      if (bubbleCard) {
+      const bubbleCard = el.querySelector('.max-w-\\[90\\%\\]') || el.querySelector('.max-w-\\[88\\%\\]') || el.children[1];
+      if (bubbleCard && isMine) {
         if (msg.status === 'failed') {
           bubbleCard.classList.remove('bg-blue-600');
           bubbleCard.classList.add('bg-red-700');
@@ -516,17 +512,22 @@
       }
 
       if (msg.status === 'failed') {
-        statusBar.innerHTML = `<span class="text-rose-300 font-extrabold flex items-center gap-0.5 cursor-pointer"><i class="ph ph-warning-circle"></i> Not Sent (Tap to retry)</span>`;
+        statusBar.innerHTML = `<span class="text-rose-200 font-extrabold flex items-center gap-1 cursor-pointer"><i class="ph ph-warning-circle"></i> Not Sent · Tap to retry</span>`;
         el.style.cursor = 'pointer';
         el.title = 'Tap to retry sending';
         el.onclick = () => retryMessage(msg);
       } else if (msg.status === 'pending') {
-        statusBar.innerHTML = `<span class="text-amber-200 font-semibold flex items-center gap-0.5"><i class="ph ph-clock"></i> Sending...</span>`;
+        statusBar.innerHTML = `<span class="text-amber-200 font-semibold flex items-center gap-1"><i class="ph ph-clock"></i> Sending...</span>`;
+        el.style.cursor = '';
+        el.title = '';
+        el.onclick = null;
+      } else if (!isMine || msg.status === 'delivered' || msg.seq || msg.syncedToDb) {
+        statusBar.innerHTML = `<span class="flex items-center gap-1"><i class="ph ph-checks ${isMine ? '' : 'text-emerald-500'}"></i> Delivered</span>`;
         el.style.cursor = '';
         el.title = '';
         el.onclick = null;
       } else {
-        statusBar.innerHTML = `<span class="flex items-center gap-0.5"><i class="ph ${transportIcon}"></i> ${transportLabel}</span>`;
+        statusBar.innerHTML = `<span class="flex items-center gap-1"><i class="ph ph-check"></i> Sent</span>`;
         el.style.cursor = '';
         el.title = '';
         el.onclick = null;
@@ -740,20 +741,40 @@
       const isGatewayActive = Boolean(window._adminGatewayConnected);
       const canLoRa = isLoraConnected || (isAdminRole && isGatewayActive);
 
-      // STRICTLY LORA ONLY: Do NOT allow sending over Wi-Fi/internet without LoRa hardware!
+      // STRICTLY LORA ONLY: If not connected to LoRa, show the message clearly as "Not Sent" so user can tap to retry once connected!
       if (!canLoRa) {
+        const failedId = existingMsgId || (String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 90 + 10)));
+        const nowMs = Date.now();
+        const failedMsg = {
+          id: failedId,
+          msgId: failedId,
+          seq: null,
+          senderRole: currentRole,
+          senderName: currentName,
+          text: cleanText,
+          message: cleanText,
+          timestamp: nowMs,
+          sent_at: new Date(nowMs).toISOString(),
+          created_at: new Date(nowMs).toISOString(),
+          transport: 'OFFLINE',
+          status: 'failed',
+          syncedToDb: false
+        };
+        renderMessageBubble(failedMsg, true);
+        if (messagesListEl) messagesListEl.scrollTop = messagesListEl.scrollHeight;
+        const cached = getLocalCachedMessages();
+        const exIdx = cached.findIndex(m => getMessageUniqueKey(m) === failedId);
+        if (exIdx >= 0) cached[exIdx] = failedMsg;
+        else cached.push(failedMsg);
+        saveLocalCachedMessages(cached);
+
         const msg = isAdminRole
-          ? 'Offline LoRa Chat works over LoRa radio only (Wi-Fi sending disabled). Connect the COM3 Hall LoRa Gateway first.'
-          : 'Offline LoRa Chat is for offline radio communication only and cannot send over Wi-Fi. Connect your LoRa node via Bluetooth or USB-OTG.';
+          ? 'Not Sent — Connect your USB LoRa Gateway (COM port) first, then tap the message to retry.'
+          : 'Not Sent — Connect your LoRa node via Bluetooth first, then tap the message to retry.';
         if (typeof window.EvacWarToast === 'function') {
           window.EvacWarToast(msg, 'warning');
-        } else {
-          alert(msg);
         }
-        if (!isAdminRole && typeof window.openLoraHardwarePicker === 'function') {
-          window.openLoraHardwarePicker();
-        }
-        return false;
+        return true;
       }
 
       const msgId = existingMsgId || (String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 90 + 10)));
@@ -940,17 +961,17 @@
       });
     }
 
-    // Listen for inbound 433.875 MHz LoRa chat packets
+    // Listen for inbound 433.875 MHz LoRa chat packets (instant render + auto-scroll, zero reload needed!)
     window.addEventListener('evakwar:lora-chat', function (ev) {
       if (ev && ev.detail) {
-        const loraMsg = Object.assign({}, ev.detail, { status: 'sent', syncedToDb: Boolean(ev.detail.seq) });
+        const loraMsg = Object.assign({}, ev.detail, { status: 'delivered', syncedToDb: Boolean(ev.detail.seq) });
         const cached = getLocalCachedMessages();
         const key = getMessageUniqueKey(loraMsg);
         const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
         if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], loraMsg);
         else cached.push(loraMsg);
         saveLocalCachedMessages(cached);
-        mergeAndRenderMessages(null, false);
+        mergeAndRenderMessages(null, true);
         // Archive inbound RF LoRa chat to shared MySQL history so all other accounts (Staff, Rescuer, Residents) see it too!
         if (!loraMsg.seq) {
           archiveLoRaMessageToServer(loraMsg);
@@ -961,16 +982,18 @@
     // Listen for Socket.IO real-time chat broadcasts
     function bindChatSocket() {
       const socket = window.__appSocket || window.evakwarAlertSocket || (typeof io !== 'undefined' ? io() : null);
-      if (socket) {
+      if (socket && !socket._evwChatBound) {
+        socket._evwChatBound = true;
         socket.on('lora:chat', function (msg) {
           if (msg) {
             const cached = getLocalCachedMessages();
             const key = getMessageUniqueKey(msg);
             const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
-            if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], msg, { status: 'sent' });
-            else cached.push(Object.assign({}, msg, { status: 'sent' }));
+            const enriched = Object.assign({}, msg, { status: 'delivered', syncedToDb: true });
+            if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], enriched);
+            else cached.push(enriched);
             saveLocalCachedMessages(cached);
-            mergeAndRenderMessages(null, false);
+            mergeAndRenderMessages(null, true);
           }
         });
       }

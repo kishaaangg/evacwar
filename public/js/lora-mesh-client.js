@@ -2555,9 +2555,9 @@
           const hexStr = bytesToHex(protoBytes);
           const ok = window.AndroidBleBridge.writeHex(hexStr);
 
-          // For high-priority SOS / Cancel SOS / Rescuer ACK / LoRa Chat frames, schedule a 2nd RF burst 2.2s later
-          // (after the 805ms SF11 LoRa airtime completes) so RF collisions can never drop a packet!
-          if (rawEvwPacket && (rawEvwPacket.startsWith('EVW|SOS|') || rawEvwPacket.startsWith('EVW|CAN|') || rawEvwPacket.startsWith('EVW|ACK|') || rawEvwPacket.startsWith('EVW|MSG|'))) {
+          // For high-priority SOS / Cancel SOS / Rescuer ACK frames, schedule a 2nd RF burst 2.2s later
+          // (EVW|MSG| chat frames are paced in a dedicated TX queue instead so consecutive chats never collide!)
+          if (rawEvwPacket && (rawEvwPacket.startsWith('EVW|SOS|') || rawEvwPacket.startsWith('EVW|CAN|') || rawEvwPacket.startsWith('EVW|ACK|'))) {
             setTimeout(() => {
               try {
                 if (window.AndroidBleBridge && typeof window.AndroidBleBridge.writeHex === 'function') {
@@ -2810,14 +2810,26 @@
         raw: rawPacket
       };
 
-      const txRes = await this.sendPacket(rawPacket, {
-        loraOnly: true,
-        msgId: id,
-        senderRole: cleanRole,
-        senderName: cleanName,
-        nodeId: resolvedNode,
-        text: cleanText
-      });
+      // Paced sequential TX queue (1.15s minimum gap between LoRa chat packets so SF11 433.875 MHz never collides)
+      const nowMs = Date.now();
+      const lastTx = this._lastChatTxMs || 0;
+      const waitMs = Math.max(0, 1150 - (nowMs - lastTx));
+      const runTx = async () => {
+        if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+        this._lastChatTxMs = Date.now();
+        return await this.sendPacket(rawPacket, {
+          loraOnly: true,
+          msgId: id,
+          senderRole: cleanRole,
+          senderName: cleanName,
+          nodeId: resolvedNode,
+          text: cleanText
+        });
+      };
+      const prevChain = this._chatTxChain || Promise.resolve();
+      const txPromise = prevChain.catch(() => {}).then(runTx);
+      this._chatTxChain = txPromise;
+      const txRes = await txPromise;
 
       try {
         let stored = JSON.parse(localStorage.getItem('evw_lora_chat_messages') || '[]');
