@@ -1131,51 +1131,94 @@
         }
       }
 
-      // Offline QR Scanner Lookup for Staff (100% Offline / Off-Grid)
-      if ((urlStr.includes('/staff/qr/lookup') || urlStr.includes('/api/staff/qr/lookup')) && (!navigator.onLine || global.location.port !== '8080')) {
+      // Helper to build a full household response (Head + all Family Members) from offline roster
+      function buildOfflineLookupPayload(matched) {
+        const rawMembers = Array.isArray(matched.members) ? matched.members : [];
+        const formattedMembers = rawMembers.map(m => ({
+          id: m.id,
+          first_name: m.first_name || '',
+          middle_name: m.middle_name || '',
+          last_name: m.last_name || '',
+          name: m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Family Member',
+          relation: m.relation || 'Family',
+          sex: m.sex || 'Male',
+          age: m.age || 'N/A',
+          status: m.status || 'Active',
+          is_pregnant: !!m.is_pregnant,
+          is_lactating: !!m.is_lactating,
+          is_pwd: !!m.is_pwd,
+          has_serious_illness: !!m.has_serious_illness,
+          serious_illness_details: m.serious_illness_details || '',
+          is_checked_in: false,
+          evacuation_status: 'NOT_EVACUATED'
+        }));
+        const fullName = matched.name || `${matched.first_name || ''} ${matched.last_name || ''}`.trim() || 'Resident';
+        return {
+          success: true,
+          offline: true,
+          household_name: `${matched.last_name || fullName} Household`,
+          evacuated_count: 0,
+          total_household_count: 1 + formattedMembers.length,
+          evacuation_summary: `0 / ${1 + formattedMembers.length} members`,
+          resident: Object.assign({}, matched, {
+            uuid: matched.qr_code_uuid || matched.uuid || '',
+            name: fullName,
+            relation: 'Head',
+            address: matched.home_address || matched.address || '',
+            barangay: matched.barangay || 'San Rafael',
+            contact: matched.contact_number || matched.contact || '',
+            family_size: 1 + formattedMembers.length,
+            is_checked_in: false,
+            evacuation_status: 'NOT_EVACUATED'
+          }),
+          members: formattedMembers,
+          message: 'Resident verified from offline records.'
+        };
+      }
+
+      function runOfflineStaffLookup(opts) {
         let requestedCode = '';
         try {
-          if (options && options.body) {
-            const parsed = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
-            requestedCode = String(parsed.code || parsed.uuid || parsed.qr || '').trim();
+          if (opts && opts.body) {
+            const parsed = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
+            requestedCode = String(parsed.code || parsed.uuid || parsed.qr || parsed.query || '').trim();
           }
         } catch (_) {}
 
         const residents = global.OFFLINE_RESIDENTS || [];
         const cleanReq = requestedCode.replace(/^evw-resident-/, '');
+        const lowerReq = requestedCode.toLowerCase();
         const matched = residents.find(r =>
           String(r.qr_code_uuid || '') === requestedCode ||
           String(r.id) === requestedCode ||
           String(r.id) === cleanReq ||
-          (r.qr_code_uuid && r.qr_code_uuid.includes(requestedCode))
+          (r.qr_code_uuid && r.qr_code_uuid.includes(requestedCode)) ||
+          (lowerReq.length >= 2 && (`${r.first_name || ''} ${r.last_name || ''}`).toLowerCase().includes(lowerReq)) ||
+          (requestedCode.length >= 6 && String(r.contact_number || '').includes(requestedCode))
         );
 
         if (matched) {
-          return new Response(JSON.stringify({
-            success: true,
-            resident: matched,
-            offline: true,
-            message: 'Resident verified from offline records.'
-          }), {
+          return new Response(JSON.stringify(buildOfflineLookupPayload(matched)), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
           });
         }
+        return null;
       }
 
-      // Offline QR Checkin / Checkout for Staff
-      if ((urlStr.includes('/staff/qr/checkin') || urlStr.includes('/staff/walkin/checkin') || urlStr.includes('/staff/checkout')) && (!navigator.onLine || global.location.port !== '8080')) {
+      function queueOfflineStaffCheckin(targetUrl, opts) {
         let payload = {};
         try {
-          if (options && options.body) {
-            payload = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+          if (opts && opts.body) {
+            payload = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
           }
         } catch (_) {}
 
         let offlineCheckins = [];
         try { offlineCheckins = JSON.parse(localStorage.getItem('evw_offline_checkins') || '[]'); } catch (_) {}
         offlineCheckins.push({
-          action: urlStr.includes('checkout') ? 'CHECKOUT' : 'CHECKIN',
+          url: targetUrl,
+          action: targetUrl.includes('checkout') ? 'CHECKOUT' : 'CHECKIN',
           payload: payload,
           timestamp: Date.now()
         });
@@ -1184,20 +1227,33 @@
         return new Response(JSON.stringify({
           success: true,
           offline: true,
-          message: urlStr.includes('checkout')
-            ? 'Resident checked out (Saved Offline).'
-            : 'Resident checked in successfully! (Saved Offline)'
+          message: targetUrl.includes('checkout')
+            ? 'Resident checked out (Queued Offline — will sync automatically).'
+            : 'Resident checked in successfully! (Queued Offline — will sync automatically)'
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
       }
 
-      // Offline Roster for Staff
-      if ((urlStr.includes('/staff/offline/roster') || urlStr.includes('/api/offline/roster')) && (!navigator.onLine || global.location.port !== '8080')) {
+      // Offline QR Scanner Lookup for Staff (ONLY when genuinely offline; when online, hit live MySQL server!)
+      if ((urlStr.includes('/staff/qr/lookup') || urlStr.includes('/api/staff/qr/lookup')) && !navigator.onLine) {
+        const offlineResp = runOfflineStaffLookup(options);
+        if (offlineResp) return offlineResp;
+      }
+
+      // Offline QR Checkin / Checkout for Staff (ONLY when genuinely offline; when online, write directly to MySQL!)
+      if ((urlStr.includes('/staff/qr/checkin') || urlStr.includes('/staff/walkin/checkin') || urlStr.includes('/staff/checkout')) && !navigator.onLine) {
+        return queueOfflineStaffCheckin(urlStr, options);
+      }
+
+      // Offline Roster for Staff (ONLY when genuinely offline)
+      if ((urlStr.includes('/staff/offline/roster') || urlStr.includes('/api/offline/roster')) && !navigator.onLine) {
+        const offlineRoster = (global.OFFLINE_RESIDENTS || []).map(r => buildOfflineLookupPayload(r));
         return new Response(JSON.stringify({
           success: true,
-          roster: global.OFFLINE_RESIDENTS || []
+          roster: offlineRoster,
+          centers: global.OFFLINE_CENTERS || []
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -1278,12 +1334,53 @@
               headers: { 'Content-Type': 'application/json' }
             });
           }
+          if (urlStr.includes('/staff/qr/lookup') || urlStr.includes('/api/staff/qr/lookup')) {
+            const offlineResp = runOfflineStaffLookup(options);
+            if (offlineResp) return offlineResp;
+          }
+          if (urlStr.includes('/staff/qr/checkin') || urlStr.includes('/staff/walkin/checkin') || urlStr.includes('/staff/checkout')) {
+            return queueOfflineStaffCheckin(urlStr, options);
+          }
           throw err;
         }
       }
 
       return origFetch.call(global, resource, options);
     };
+
+    // Auto-sync any queued offline staff check-ins/checkouts when back online
+    async function syncOfflineStaffCheckins() {
+      if (!navigator.onLine) return;
+      let queued = [];
+      try { queued = JSON.parse(localStorage.getItem('evw_offline_checkins') || '[]'); } catch (_) {}
+      if (!Array.isArray(queued) || queued.length === 0) return;
+
+      const hallBase = getHallServerUrl();
+      const remaining = [];
+      for (const item of queued) {
+        const targetPath = item.url || (item.action === 'CHECKOUT' ? '/staff/checkout' : '/staff/qr/checkin');
+        try {
+          const resp = await origFetch.call(global, hallBase + targetPath, {
+            method: 'POST',
+            credentials: 'include',
+            headers: Object.assign({ 'Content-Type': 'application/json', 'Accept': 'application/json' }, getMobileAuthHeaders()),
+            body: JSON.stringify(item.payload || {})
+          });
+          if (!resp.ok && resp.status >= 500) {
+            remaining.push(item);
+          }
+        } catch (_) {
+          remaining.push(item);
+        }
+      }
+      try {
+        if (remaining.length === 0) localStorage.removeItem('evw_offline_checkins');
+        else localStorage.setItem('evw_offline_checkins', JSON.stringify(remaining));
+      } catch (_) {}
+    }
+    global.syncOfflineStaffCheckins = syncOfflineStaffCheckins;
+    global.addEventListener('online', () => { setTimeout(syncOfflineStaffCheckins, 1500); });
+    setTimeout(syncOfflineStaffCheckins, 2500);
   }
 
   // 6. Patch io() in Capacitor so Socket.IO connects to the Cloud / Barangay Hall Server with mobile auth

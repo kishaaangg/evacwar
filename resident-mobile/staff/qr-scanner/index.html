@@ -5445,6 +5445,20 @@
               max-height: 360px !important;
               object-fit: cover !important;
               border-radius: 1.25rem !important;
+              pointer-events: none !important;
+              background: #090d16 !important;
+            }
+
+            /* Hide Android WebView default centered play button overlay on live camera feed */
+            #reader video::-webkit-media-controls,
+            #reader video::-webkit-media-controls-enclosure,
+            #reader video::-webkit-media-controls-panel,
+            #reader video::-webkit-media-controls-play-button,
+            #reader video::-webkit-media-controls-start-playback-button {
+              display: none !important;
+              -webkit-appearance: none !important;
+              opacity: 0 !important;
+              pointer-events: none !important;
             }
 
             #reader canvas {
@@ -5705,11 +5719,11 @@
                 <!-- =========================================================================
            TOP OPERATIONAL COMMAND BAR
            ========================================================================= -->
-                <div class="bg-white border-b border-slate-200/90 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 sticky top-0 z-20 shadow-xs">
-                  <div class="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3">
+                <div class="bg-white border-b border-slate-200/90 px-3 sm:px-6 lg:px-8 py-3 sticky top-0 z-20 shadow-xs">
+                  <div class="max-w-7xl mx-auto flex flex-col gap-2.5">
 
-                    <!-- Left / Top: Branding, Status Badges & Active Evacuation Site -->
-                    <div class="flex items-center justify-between gap-2.5 w-full lg:w-auto">
+                    <!-- Row 1: Branding + Status Badges (Left) & Offline Roster Action (Right) -->
+                    <div class="flex items-center justify-between gap-2 w-full">
                       <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
                         <div
                           class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg sm:text-xl shrink-0 shadow-sm">
@@ -5717,19 +5731,19 @@
                         </div>
                         <div class="min-w-0">
                           <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                            <h1 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                            <h1 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight truncate">
                               Evacuee Intake</h1>
 
                             <!-- Online / Offline Status Badge -->
                             <span id="networkStatusBadge"
-                              class="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                               <span id="networkStatusText">Online</span>
                             </span>
 
                             <!-- Offline Ready Badge (Shows only after roster is successfully cached in Dexie) -->
                             <span id="offlineReadyBadge"
-                              class="hidden items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              class="hidden items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
                               title="Resident roster is cached locally in Dexie for offline lookup and QR scanning">
                               <i class="ph ph-check-circle-fill text-emerald-500"></i>
                               <span id="offlineReadyText">Offline Ready</span>
@@ -5737,95 +5751,94 @@
 
                             <!-- Offline Queue / Pending Sync Badge -->
                             <button type="button" id="staffOfflineQueueBadge" onclick="triggerManualSync()"
-                              class="Evacwar-offline-queue-badge hidden items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer"
+                              class="Evacwar-offline-queue-badge hidden items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
                               title="Click to sync pending operations now">
                               <i class="ph ph-cloud-arrow-up text-amber-600"></i>
-                              <span class="queue-count-text">0 queued offline</span>
+                              <span class="queue-count-text">0 queued</span>
                               <span
-                                class="text-[9px] sm:text-[10px] uppercase font-black tracking-wider text-amber-700 bg-amber-200/80 px-1 rounded">Sync
-                                Now</span>
+                                class="text-[9px] uppercase font-black tracking-wider text-amber-700 bg-amber-200/80 px-1 rounded">Sync</span>
                             </button>
-                          </div>
-
-                          <!-- Active Evacuation Center Display -->
-                          <div class="text-[11px] sm:text-xs text-slate-600 font-semibold flex items-center gap-1.5 mt-0.5 min-w-0">
-                            <i class="ph ph-buildings text-blue-600 shrink-0"></i>
-                            <span class="text-slate-400 font-normal shrink-0">Center:</span>
-                            
-                              <select id="activeStaffCenterSelectHeader"
-                                onchange="window.updateActiveStaffCenter(this.value)"
-                                class="text-[11px] sm:text-xs font-bold text-blue-900 bg-blue-50/90 border border-blue-200 rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[160px] xs:max-w-[210px] sm:max-w-xs truncate">
-                                
-                                  <option value="2" >
-                                    Ikpan Elementary School
-                                  </option>
-                                  
-                                  <option value="6" >
-                                    Ronnie Barcelona
-                                  </option>
-                                  
-                                  <option value="8" >
-                                    Joel Bayos
-                                  </option>
-                                  
-                                  <option value="9" >
-                                    Susan Ornido
-                                  </option>
-                                  
-                                  <option value="13" selected>
-                                    Ester Cadag
-                                  </option>
-                                  
-                                  <option value="15" >
-                                    Bernardetta Baracena
-                                  </option>
-                                  
-                                  <option value="18" >
-                                    Paul John Tiaba
-                                  </option>
-                                  
-                                  <option value="19" >
-                                    Simplicio Agnas
-                                  </option>
-                                  
-                                  <option value="22" >
-                                    Louie Sinfuego
-                                  </option>
-                                  
-                                  <option value="26" >
-                                    Gerly &#34;Yoyod&#34; Payra Site
-                                  </option>
-                                  
-                                  <option value="29" >
-                                    Templonuevo Ian
-                                  </option>
-                                  
-                              </select>
-                              
                           </div>
                         </div>
                       </div>
 
-                      <!-- Mobile Roster Sync Action Pill (Top Right on Mobile/Tablet) -->
+                      <!-- Mobile Roster Sync Action Pill (Compact, zero overlap) -->
                       <div class="lg:hidden shrink-0">
                         <button type="button" id="btnOfflineRosterSyncMobile" onclick="handleManualRosterDownload()"
-                          class="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                          title="Cache resident roster into device Dexie storage for offline lookup & QR validation">
-                          <i class="ph ph-database text-blue-600 text-sm" id="iconRosterSyncMobile"></i>
-                          <span id="textRosterSyncMobile" class="text-[11px] sm:text-xs font-bold">Download Offline Roster</span>
+                          class="px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+                          title="Cache resident roster into device storage for offline lookup & QR validation">
+                          <i class="ph ph-database text-blue-600 text-sm shrink-0" id="iconRosterSyncMobile"></i>
+                          <span id="textRosterSyncMobile" class="font-bold">Offline Roster</span>
                         </button>
                       </div>
-                    </div>
 
-                    <!-- Right / Bottom: Offline Roster Cache (Desktop) & Primary Mode Tabs -->
-                    <div class="flex items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end">
                       <!-- Desktop Offline Roster Download / Refresh Pill -->
                       <button type="button" id="btnOfflineRosterSync" onclick="handleManualRosterDownload()"
-                        class="hidden lg:flex px-3 py-2 rounded-xl text-xs font-bold transition-all bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+                        class="hidden lg:flex px-3 py-2 rounded-xl text-xs font-bold transition-all bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs items-center gap-1.5 cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
                         title="Cache resident roster into device Dexie storage for offline lookup & QR validation">
                         <i class="ph ph-database text-blue-600 text-sm" id="iconRosterSync"></i>
                         <span id="textRosterSync">Download Offline Roster</span>
                       </button>
+                    </div>
+
+                    <!-- Row 2: Active Evacuation Center Bar + Primary Mode Tabs -->
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 w-full">
+                      <!-- Dedicated Evacuation Center Selector (Zero collision on mobile) -->
+                      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 w-full lg:w-auto min-w-0">
+                        <i class="ph ph-buildings text-blue-600 text-base shrink-0"></i>
+                        <span class="text-[11px] sm:text-xs text-slate-500 font-semibold shrink-0">Center:</span>
+                        
+                          <select id="activeStaffCenterSelectHeader"
+                            onchange="window.updateActiveStaffCenter(this.value)"
+                            class="flex-1 lg:flex-initial text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer min-w-0 truncate">
+                            
+                              <option value="2" >
+                                Ikpan Elementary School
+                              </option>
+                              
+                              <option value="6" >
+                                Ronnie Barcelona
+                              </option>
+                              
+                              <option value="8" >
+                                Joel Bayos
+                              </option>
+                              
+                              <option value="9" >
+                                Susan Ornido
+                              </option>
+                              
+                              <option value="13" selected>
+                                Ester Cadag
+                              </option>
+                              
+                              <option value="15" >
+                                Bernardetta Baracena
+                              </option>
+                              
+                              <option value="18" >
+                                Paul John Tiaba
+                              </option>
+                              
+                              <option value="19" >
+                                Simplicio Agnas
+                              </option>
+                              
+                              <option value="22" >
+                                Louie Sinfuego
+                              </option>
+                              
+                              <option value="26" >
+                                Gerly &#34;Yoyod&#34; Payra Site
+                              </option>
+                              
+                              <option value="29" >
+                                Templonuevo Ian
+                              </option>
+                              
+                          </select>
+                          
+                      </div>
 
                       <!-- Segmented Intake Mode Switcher (Full Width Grid on Mobile, Flex on Desktop) -->
                       <div class="w-full lg:w-auto grid grid-cols-3 lg:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
@@ -6388,10 +6401,11 @@
 
               // 1. Update button text
               textEls.forEach(el => {
+                const isMobileEl = el.id === 'textRosterSyncMobile';
                 if (count > 0) {
-                  el.textContent = `Roster: ${count} Cached`;
+                  el.textContent = isMobileEl ? `Roster (${count})` : `Roster: ${count} Cached`;
                 } else {
-                  el.textContent = 'Download Offline Roster';
+                  el.textContent = isMobileEl ? 'Offline Roster' : 'Download Offline Roster';
                 }
               });
 

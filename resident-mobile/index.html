@@ -5817,13 +5817,13 @@
                   <div class="flex items-center gap-3 min-w-0 flex-1">
                     <div
                       class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center text-2xl sm:text-4xl shadow-inner shrink-0">
-                      <i id="dashWeatherIcon" class="ph ph-cloud-sun"></i>
+                      <i id="dashWeatherIcon" class="ph ph-cloud-moon"></i>
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
                         <span id="dashTemp"
                           class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                          27.1°C
+                          25.8°C
                         </span>
                         <span id="dashStatus" class="text-xs sm:text-base font-bold text-blue-600 truncate">
                           Partly Cloudy
@@ -5837,7 +5837,7 @@
                         </span>
                         <span class="text-slate-300 shrink-0">•</span>
                         <span id="weatherLastUpdatedText" class="text-slate-400 shrink-0 truncate">
-                          Updated 4:17 PM
+                          Updated 6:21 PM
                         </span>
                       </div>
                     </div>
@@ -5891,7 +5891,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wind
                         Speed</div>
                       <div id="dashWind" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        12.3
+                        9.8
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">km/h</span>
                       </div>
                       <div id="dashGusts" class="hidden"></div>
@@ -5909,7 +5909,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Humidity
                       </div>
                       <div id="dashHumidity" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        80%
+                        86%
                       </div>
                     </div>
                   </div>
@@ -5925,7 +5925,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pressure
                       </div>
                       <div id="dashPressure" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        1000.2
+                        1001.6
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">hPa</span>
                       </div>
                     </div>
@@ -5970,11 +5970,11 @@
                   <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 px-0.5">
                     <span id="residentPagasaVideoTitle"
                       class="truncate font-semibold text-slate-700 max-w-[240px] sm:max-w-md"
-                      title="202nd CLIMATE FORUM | NOVEMBER 25, 2026 - Wednesday">
-                      202nd CLIMATE FORUM | NOVEMBER 25, 2026 - Wednesday
+                      title="Public Weather Forecast issued at 5:00 PM | November 25, 2026 - Wednesday">
+                      Public Weather Forecast issued at 5:00 PM | November 25, 2026 - Wednesday
                     </span>
                     <span id="residentPagasaVideoPublished" class="text-[10px] font-medium text-slate-500 shrink-0">
-                      Issued: Nov 25, 2026 • 7:50 AM PHT
+                      Issued: Nov 25, 2026 • 5:27 PM PHT
                     </span>
                   </div>
 
@@ -5982,7 +5982,7 @@
                     <!-- Active YouTube Player Frame (Always Visible) -->
                     <div id="residentPagasaPlayerContainer"
                       class="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-inner">
-                      <iframe id="residentPagasaVideoIframe" src="https://www.youtube-nocookie.com/embed/lV3x_WAxrrk?rel=0&amp;autoplay=0&amp;enablejsapi=1" title="202nd CLIMATE FORUM | NOVEMBER 25, 2026 - Wednesday"
+                      <iframe id="residentPagasaVideoIframe" src="https://www.youtube-nocookie.com/embed/dRgqv_dTY0s?rel=0&amp;autoplay=0&amp;enablejsapi=1" title="Public Weather Forecast issued at 5:00 PM | November 25, 2026 - Wednesday"
                         class="absolute inset-0 w-full h-full border-0"
                         allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowfullscreen></iframe>
@@ -6130,7 +6130,7 @@
     }
 
     // Dynamic DOST-PAGASA Video Sync (Reusing /api/weather/pagasa)
-    let currentResidentPagasaVideoId = 'lV3x_WAxrrk';
+    let currentResidentPagasaVideoId = 'dRgqv_dTY0s';
     let currentResidentPagasaIsLive = ('false' === 'true');
 
     async function checkResidentPagasaVideoUpdate() {
