@@ -452,6 +452,16 @@
       };
     }
 
+    if (type === 'MACK') {
+      const msgId = (parts[2] || '').trim();
+      if (!msgId) return null;
+      return {
+        type: 'MACK',
+        raw: trimmed,
+        msgId
+      };
+    }
+
     if (type === 'WTH' || type === 'WTH_ALT') {
       const isAlert = type === 'WTH_ALT';
       const alertId = isAlert ? (parts[2] || String(Date.now())).trim() : null;
@@ -1091,6 +1101,11 @@
         } catch (_) {}
 
         this.emit('sos', sosObj);
+      } else if (parsed.type === 'MACK') {
+        const ackId = String(parsed.msgId || '').trim();
+        if (ackId) {
+          this.confirmChatAck(ackId);
+        }
       } else if (parsed.type === 'MSG') {
         const msgId = String(parsed.msgId || parsed.id || '').trim();
         const msgText = String(parsed.text || parsed.message || '').trim();
@@ -1098,6 +1113,15 @@
           // Never poison _processedChatIds with an incomplete/empty fragment
           return;
         }
+        this._selfSentChatIds = this._selfSentChatIds || new Set();
+        const isSelfSent = Boolean(msgId && this._selfSentChatIds.has(msgId));
+
+        // Always reply with a tiny 16-byte RF receipt ACK (EVW|MACK|<msgId>) when received over LoRa RF
+        // (even on duplicate retries, so sender immediately stops retrying and shows "Delivered"!)
+        if (msgId && !isSelfSent && (sourceTransport === 'BLE' || sourceTransport === 'USB_SERIAL')) {
+          this._scheduleChatAckReply(msgId);
+        }
+
         this._processedChatIds = this._processedChatIds || new Set();
         if (msgId && this._processedChatIds.has(msgId)) {
           return;
@@ -1202,14 +1226,21 @@
       if (this.relayTelemetryPollTimer) clearInterval(this.relayTelemetryPollTimer);
       setTimeout(() => {
         if (this.connected && (this.transport === 'BLE' || this.transport === 'USB_SERIAL')) {
-          this.requestRelayWeatherTelemetry().catch(() => {});
+          const sinceChat = Date.now() - (this._lastChatTxMs || 0);
+          if (sinceChat > 20000) {
+            this.requestRelayWeatherTelemetry().catch(() => {});
+          }
         }
-      }, 2500);
+      }, 4500);
+      // Poll every 5 minutes (300s) instead of 60s so 433.875 MHz airtime stays clear for chat & SOS
       this.relayTelemetryPollTimer = setInterval(() => {
         if (this.connected && (this.transport === 'BLE' || this.transport === 'USB_SERIAL')) {
-          this.requestRelayWeatherTelemetry().catch(() => {});
+          const sinceChat = Date.now() - (this._lastChatTxMs || 0);
+          if (sinceChat > 20000) {
+            this.requestRelayWeatherTelemetry().catch(() => {});
+          }
         }
-      }, 60000);
+      }, 300000);
     }
 
     _stopRelayTelemetryPolling() {
@@ -2809,7 +2840,71 @@
     }
 
     /**
+     * Sends a tiny 16-byte RF delivery receipt (`EVW|MACK|<msgId>`) with random jitter
+     * so the sender knows their 433.875 MHz broadcast was actually received and stops retrying.
+     */
+    _scheduleChatAckReply(msgId) {
+      if (!msgId) return;
+      this._lastAckSentMap = this._lastAckSentMap || new Map();
+      const prevTs = this._lastAckSentMap.get(msgId) || 0;
+      if (Date.now() - prevTs < 2000) return;
+      this._lastAckSentMap.set(msgId, Date.now());
+      if (this._lastAckSentMap.size > 100) {
+        const firstKey = this._lastAckSentMap.keys().next().value;
+        this._lastAckSentMap.delete(firstKey);
+      }
+
+      const jitterMs = 280 + Math.floor(Math.random() * 420);
+      setTimeout(() => {
+        if (!this.connected && !(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected())) {
+          return;
+        }
+        this.sendPacket(`EVW|MACK|${msgId}`, { loraOnly: true }).catch(() => {});
+      }, jitterMs);
+    }
+
+    /**
+     * Marks a sent chat message as confirmed-delivered and cancels any remaining ARQ retries.
+     */
+    confirmChatAck(msgId) {
+      if (!msgId) return;
+      const key = String(msgId).trim();
+      this._ackedChatIds = this._ackedChatIds || new Set();
+      this._ackedChatIds.add(key);
+
+      if (this._pendingChatArq && this._pendingChatArq.has(key)) {
+        const entry = this._pendingChatArq.get(key);
+        entry.acked = true;
+        if (entry.timer) clearTimeout(entry.timer);
+        this._pendingChatArq.delete(key);
+      }
+
+      try {
+        window.dispatchEvent(new CustomEvent('evakwar:lora-chat-ack', { detail: { msgId: key } }));
+      } catch (_) {}
+    }
+
+    /**
+     * Queues a single paced 433.875 MHz chat RF transmission (1.25s minimum gap computed inside queue).
+     */
+    _enqueuePacedChatTx(rawPacket, meta) {
+      const runTx = async () => {
+        const nowMs = Date.now();
+        const lastTx = this._lastChatTxMs || 0;
+        const waitMs = Math.max(0, 1250 - (nowMs - lastTx));
+        if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+        this._lastChatTxMs = Date.now();
+        return await this.sendPacket(rawPacket, meta);
+      };
+      const prevChain = this._chatTxChain || Promise.resolve();
+      const txPromise = prevChain.catch(() => {}).then(runTx);
+      this._chatTxChain = txPromise;
+      return txPromise;
+    }
+
+    /**
      * Formats and transmits a compact LoRa Mesh Group Chat packet (`EVW|MSG|<msgId>|<role>|<name>|<nodeId>|<ts>|<text>`)
+     * with automatic ARQ retransmission (up to 4 RF attempts) until `EVW|MACK|<msgId>` is received!
      */
     async sendChatMessage({ msgId, senderRole = 'Resident', senderName = 'Community Member', nodeId, text }) {
       const id = msgId || (String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 90 + 10)));
@@ -2822,6 +2917,9 @@
       const rawPacket = `EVW|MSG|${id}|${cleanRole}|${cleanName}|${resolvedNode}|${tsSec}|${cleanText}`;
       this._processedChatIds = this._processedChatIds || new Set();
       this._processedChatIds.add(id);
+      this._selfSentChatIds = this._selfSentChatIds || new Set();
+      this._selfSentChatIds.add(id);
+
       if (typeof window !== 'undefined' && window.AndroidBleBridge) {
         if (typeof window.AndroidBleBridge.markMessageSentBySelf === 'function') {
           try { window.AndroidBleBridge.markMessageSentBySelf(id); } catch (_) {}
@@ -2846,26 +2944,65 @@
         raw: rawPacket
       };
 
-      // Paced sequential TX queue (1.25s minimum gap computed INSIDE the queue so rapid messages NEVER collide on SF11 433.875 MHz)
-      const runTx = async () => {
-        const nowMs = Date.now();
-        const lastTx = this._lastChatTxMs || 0;
-        const waitMs = Math.max(0, 1250 - (nowMs - lastTx));
-        if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
-        this._lastChatTxMs = Date.now();
-        return await this.sendPacket(rawPacket, {
-          loraOnly: true,
-          msgId: id,
-          senderRole: cleanRole,
-          senderName: cleanName,
-          nodeId: resolvedNode,
-          text: cleanText
-        });
+      const txMeta = {
+        loraOnly: true,
+        msgId: id,
+        senderRole: cleanRole,
+        senderName: cleanName,
+        nodeId: resolvedNode,
+        text: cleanText
       };
-      const prevChain = this._chatTxChain || Promise.resolve();
-      const txPromise = prevChain.catch(() => {}).then(runTx);
-      this._chatTxChain = txPromise;
-      const txRes = await txPromise;
+
+      // Attempt #1 immediately via paced sequential TX queue
+      const txRes = await this._enqueuePacedChatTx(rawPacket, txMeta);
+
+      // Start background ARQ Retry Loop (attempts #2, #3, #4) until receiver replies with EVW|MACK|<id>
+      this._ackedChatIds = this._ackedChatIds || new Set();
+      this._pendingChatArq = this._pendingChatArq || new Map();
+      if (this._pendingChatArq.has(id)) {
+        const old = this._pendingChatArq.get(id);
+        if (old.timer) clearTimeout(old.timer);
+        this._pendingChatArq.delete(id);
+      }
+
+      if (!this._ackedChatIds.has(id)) {
+        const retryDelays = [3800, 4400, 4800, 4500]; // 3 retries + final timeout check (~17.5s total)
+        const arqEntry = { acked: false, attempt: 1, timer: null };
+        this._pendingChatArq.set(id, arqEntry);
+
+        const scheduleNext = (idx) => {
+          arqEntry.timer = setTimeout(async () => {
+            if (arqEntry.acked || this._ackedChatIds.has(id)) {
+              this._pendingChatArq.delete(id);
+              return;
+            }
+            if (idx >= retryDelays.length - 1) {
+              // All 4 RF attempts received zero EVW|MACK -> truthfully notify UI that message was Not Sent
+              this._pendingChatArq.delete(id);
+              try {
+                window.dispatchEvent(new CustomEvent('evakwar:lora-chat-failed', { detail: { msgId: id } }));
+              } catch (_) {}
+              return;
+            }
+            // Still no ACK -> re-transmit with a fresh Meshtastic packetId (same EVW|MSG|<id> so receivers dedupe!)
+            arqEntry.attempt++;
+            console.log(`[LoRaMeshClient ARQ] No ACK yet for ${id}, RF retry #${arqEntry.attempt}/4...`);
+            try {
+              await this._enqueuePacedChatTx(rawPacket, txMeta);
+            } catch (_) {
+              this._pendingChatArq.delete(id);
+              try {
+                window.dispatchEvent(new CustomEvent('evakwar:lora-chat-failed', { detail: { msgId: id } }));
+              } catch (_) {}
+              return;
+            }
+            if (!arqEntry.acked && !this._ackedChatIds.has(id)) {
+              scheduleNext(idx + 1);
+            }
+          }, retryDelays[idx]);
+        };
+        scheduleNext(0);
+      }
 
       try {
         let stored = JSON.parse(localStorage.getItem('evw_lora_chat_messages') || '[]');

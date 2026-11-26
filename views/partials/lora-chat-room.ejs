@@ -823,7 +823,9 @@
               text: cleanText
             }).then(() => {
               newMsg.transport = 'LORA_433MHZ';
-              newMsg.status = 'sent';
+              // Stay in "Sending..." until real EVW|MACK RF delivery receipt arrives (or flips to Not Sent after 4 retries)
+              const alreadyAcked = Boolean(lora._ackedChatIds && lora._ackedChatIds.has(msgId));
+              newMsg.status = alreadyAcked ? 'delivered' : 'pending';
               newMsg.syncedToDb = false;
               archiveLoRaMessageToServer(newMsg);
             }).catch(rfErr => {
@@ -978,6 +980,34 @@
       });
     }
 
+    // Listen for real 433.875 MHz RF Delivery Receipt (EVW|MACK|<msgId>) -> flip bubble to "Delivered"
+    window.addEventListener('evakwar:lora-chat-ack', function (ev) {
+      const ackId = ev && ev.detail && ev.detail.msgId ? String(ev.detail.msgId) : '';
+      if (!ackId) return;
+      const latestCached = getLocalCachedMessages();
+      const idx = latestCached.findIndex(m => getMessageUniqueKey(m) === ackId);
+      if (idx >= 0) {
+        latestCached[idx].status = 'delivered';
+        saveLocalCachedMessages(latestCached);
+        const el = document.getElementById(`chat_msg_${ackId}`);
+        if (el) updateMessageStatusInDom(el, latestCached[idx]);
+      }
+    });
+
+    // Listen for ARQ retry exhaustion (0 ACKs after 4 RF attempts) -> flip bubble to red "Not Sent · Tap to retry"
+    window.addEventListener('evakwar:lora-chat-failed', function (ev) {
+      const failId = ev && ev.detail && ev.detail.msgId ? String(ev.detail.msgId) : '';
+      if (!failId) return;
+      const latestCached = getLocalCachedMessages();
+      const idx = latestCached.findIndex(m => getMessageUniqueKey(m) === failId);
+      if (idx >= 0 && latestCached[idx].status !== 'delivered') {
+        latestCached[idx].status = 'failed';
+        saveLocalCachedMessages(latestCached);
+        const el = document.getElementById(`chat_msg_${failId}`);
+        if (el) updateMessageStatusInDom(el, latestCached[idx]);
+      }
+    });
+
     // Listen for inbound 433.875 MHz LoRa chat packets (instant render + auto-scroll, zero reload needed!)
     window.addEventListener('evakwar:lora-chat', function (ev) {
       if (ev && ev.detail) {
@@ -1010,6 +1040,9 @@
             if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], enriched);
             else cached.push(enriched);
             saveLocalCachedMessages(cached);
+            if (window.evakwarLoraClient && typeof window.evakwarLoraClient.confirmChatAck === 'function') {
+              window.evakwarLoraClient.confirmChatAck(key);
+            }
             mergeAndRenderMessages(null, true);
           }
         });
