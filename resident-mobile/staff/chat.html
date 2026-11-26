@@ -6110,7 +6110,15 @@
         const key = getMessageUniqueKey(lm);
         if (mapById.has(key)) {
           const srv = mapById.get(key);
-          mapById.set(key, Object.assign({}, lm, srv, { status: 'delivered', syncedToDb: true }));
+          // If this message is still actively waiting for a real 433.875 MHz RF receipt (EVW|MACK), keep status as 'pending'
+          const isStillWaitingRfAck = Boolean(
+            lm.status === 'pending' &&
+            window.evakwarLoraClient &&
+            window.evakwarLoraClient._pendingChatArq &&
+            window.evakwarLoraClient._pendingChatArq.has(key)
+          );
+          const mergedStatus = isStillWaitingRfAck ? 'pending' : (lm.status === 'failed' ? 'failed' : 'delivered');
+          mapById.set(key, Object.assign({}, lm, srv, { status: mergedStatus, syncedToDb: true }));
         } else {
           if (isFromServer) {
             // Keep pending OR unsynced offline LoRa messages so they are never lost before syncing to DB
@@ -6210,78 +6218,10 @@
       }
     }
 
-    function archiveLoRaMessageToServer(msg) {
-      if (!msg || !msg.text || !navigator.onLine) return Promise.resolve(false);
-      const hallBase = getHallServerUrl();
-      const postUrl = (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase)
-        ? `${hallBase}/api/lora/chat`
-        : '/api/lora/chat';
-      const mid = String(msg.msgId || msg.id || Date.now());
-      return fetch(postUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          msgId: mid,
-          senderRole: msg.senderRole || 'Resident',
-          senderName: msg.senderName || 'Community Member',
-          nodeId: msg.nodeId || null,
-          text: msg.text || msg.message || '',
-          timestamp: getNormalizedTimestampMs(msg),
-          viaLoRa: true,
-          archiveOnly: true
-        })
-      }).then(async res => {
-        if (!res.ok) return false;
-        const data = await res.json().catch(() => null);
-        if (data && data.success && data.chatMessage) {
-          const cached = getLocalCachedMessages();
-          const idx = cached.findIndex(m => getMessageUniqueKey(m) === mid);
-          if (idx >= 0) {
-            cached[idx] = Object.assign({}, cached[idx], data.chatMessage, { status: 'sent', syncedToDb: true });
-            saveLocalCachedMessages(cached);
-          }
-          return true;
-        }
-        return false;
-      }).catch(() => false);
-    }
-
-    async function syncUnsyncedLoRaMessagesToServer() {
-      if (!navigator.onLine) return;
-      const cached = getLocalCachedMessages();
-      const unsynced = cached.filter(m => m && m.text && (m.syncedToDb === false || !m.seq));
-      for (const m of unsynced) {
-        await archiveLoRaMessageToServer(m);
-      }
-    }
-
+    // 100% PURE OFFLINE LORA CHAT: Never fetch, archive, or deliver chat messages over Wi-Fi / internet.
     async function fetchChatHistory() {
       updateTransportUi();
-      if (navigator.onLine) {
-        await syncUnsyncedLoRaMessagesToServer();
-      }
-      const hallBase = getHallServerUrl();
-      const endpoints = ['/api/lora/chat'];
-      if (hallBase && !hallBase.includes('localhost') && window.location.origin !== hallBase) {
-        endpoints.unshift(`${hallBase}/api/lora/chat`);
-      }
-
-      for (const ep of endpoints) {
-        try {
-          const ctrl = new AbortController();
-          const tid = setTimeout(() => ctrl.abort(), 6000);
-          const res = await fetch(ep, { signal: ctrl.signal });
-          clearTimeout(tid);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && Array.isArray(data.messages)) {
-              mergeAndRenderMessages(data.messages, (renderedMsgIds.size === 0));
-              return;
-            }
-          }
-        } catch (_e) {}
-      }
-      mergeAndRenderMessages(null, false);
+      mergeAndRenderMessages(null, (renderedMsgIds.size === 0));
     }
 
     function handleSendMessage(rawText, existingMsgId = null) {
@@ -6293,8 +6233,8 @@
       const isNativeBle = Boolean(typeof window !== 'undefined' && window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected());
       const isLoraConnected = isNativeBle || Boolean(lora && lora.connected && (lora.transport === 'BLE' || lora.transport === 'USB_SERIAL' || lora.transport === 'ESP_WIFI'));
       const isAdminRole = Boolean(SERVER_ROLE === 'Admin');
-      const isGatewayActive = Boolean(window._adminGatewayConnected);
-      const canLoRa = isLoraConnected || (isAdminRole && isGatewayActive);
+      // STRICTLY DIRECT LORA HARDWARE ONLY (even Admin must use USB LoRa / BLE — never Wi-Fi!)
+      const canLoRa = isLoraConnected;
 
       // STRICTLY LORA ONLY: If not connected to LoRa, show the message clearly as "Not Sent" so user can tap to retry once connected!
       if (!canLoRa) {
@@ -6382,7 +6322,6 @@
               const alreadyAcked = Boolean(lora._ackedChatIds && lora._ackedChatIds.has(msgId));
               newMsg.status = alreadyAcked ? 'delivered' : 'pending';
               newMsg.syncedToDb = false;
-              archiveLoRaMessageToServer(newMsg);
             }).catch(rfErr => {
               console.warn('[LoRaChat] RF transmit error:', rfErr.message);
               newMsg.transport = 'OFFLINE';
@@ -6516,19 +6455,13 @@
     });
 
     if (refreshBtn) {
-      refreshBtn.addEventListener('click', async function () {
+      refreshBtn.addEventListener('click', function () {
         const icon = document.getElementById('refreshLoraChatIcon');
         if (icon) icon.classList.add('animate-spin');
         refreshBtn.disabled = true;
         try {
           if (window.evakwarLoraClient && typeof window.evakwarLoraClient._drainSerialBuffer === 'function') {
             window.evakwarLoraClient._drainSerialBuffer();
-          }
-          if (navigator.onLine) {
-            await Promise.race([
-              syncUnsyncedLoRaMessagesToServer(),
-              new Promise(r => setTimeout(r, 800))
-            ]);
           }
         } catch (_) {}
         window.location.reload();
@@ -6563,10 +6496,10 @@
       }
     });
 
-    // Listen for inbound 433.875 MHz LoRa chat packets (instant render + auto-scroll, zero reload needed!)
+    // Listen for inbound 433.875 MHz LoRa chat packets (instant render + auto-scroll, 100% pure LoRa RF — zero Wi-Fi!)
     window.addEventListener('evakwar:lora-chat', function (ev) {
       if (ev && ev.detail) {
-        const loraMsg = Object.assign({}, ev.detail, { status: 'delivered', syncedToDb: Boolean(ev.detail.seq) });
+        const loraMsg = Object.assign({}, ev.detail, { status: 'delivered', syncedToDb: false });
         const cached = getLocalCachedMessages();
         const key = getMessageUniqueKey(loraMsg);
         const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
@@ -6574,36 +6507,10 @@
         else cached.push(loraMsg);
         saveLocalCachedMessages(cached);
         mergeAndRenderMessages(null, true);
-        // Archive inbound RF LoRa chat to shared MySQL history so all other accounts (Staff, Rescuer, Residents) see it too!
-        if (!loraMsg.seq) {
-          archiveLoRaMessageToServer(loraMsg);
-        }
       }
     });
 
-    // Listen for Socket.IO real-time chat broadcasts
-    function bindChatSocket() {
-      const socket = window.__appSocket || window.evakwarAlertSocket || (typeof io !== 'undefined' ? io() : null);
-      if (socket && !socket._evwChatBound) {
-        socket._evwChatBound = true;
-        socket.on('lora:chat', function (msg) {
-          if (msg) {
-            const cached = getLocalCachedMessages();
-            const key = getMessageUniqueKey(msg);
-            const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
-            const enriched = Object.assign({}, msg, { status: 'delivered', syncedToDb: true });
-            if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], enriched);
-            else cached.push(enriched);
-            saveLocalCachedMessages(cached);
-            if (window.evakwarLoraClient && typeof window.evakwarLoraClient.confirmChatAck === 'function') {
-              window.evakwarLoraClient.confirmChatAck(key);
-            }
-            mergeAndRenderMessages(null, true);
-          }
-        });
-      }
-    }
-        // Clear unread red dot on bottom nav when entering chat
+    // Clear unread red dot on bottom nav when entering chat
     try {
       localStorage.removeItem('evw_chat_has_unread');
       if (window.AndroidBleBridge && typeof window.AndroidBleBridge.clearUnreadChat === 'function') {
@@ -6626,24 +6533,15 @@
         try { window.AndroidBleBridge.setChatOpen(document.visibilityState === 'visible'); } catch (_) {}
       }
     });
-bindChatSocket();
-    setTimeout(bindChatSocket, 600);
 
-    // Update status when LoRa hardware connects/disconnects
+    // Update status when LoRa hardware connects/disconnects (no Wi-Fi polling!)
     if (window.evakwarLoraClient && typeof window.evakwarLoraClient.on === 'function') {
       window.evakwarLoraClient.on('status', updateTransportUi);
     }
-    window.addEventListener('online', () => {
-      updateTransportUi();
-      fetchChatHistory();
-    });
+    window.addEventListener('online', updateTransportUi);
     window.addEventListener('offline', updateTransportUi);
 
     fetchChatHistory();
-    // Poll chat history every 4 seconds when online
-    setInterval(() => {
-      if (navigator.onLine) fetchChatHistory();
-    }, 4000);
   })();
 </script>
 

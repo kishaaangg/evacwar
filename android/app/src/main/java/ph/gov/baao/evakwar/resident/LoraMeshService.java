@@ -1916,7 +1916,7 @@ public class LoraMeshService extends Service {
             try {
                 pollLatestAlertOverWifi();
                 pollLatestWeatherAlertOverWifi();
-                pollLatestChatOverWifi();
+                // LoRa Chat is 100% pure offline 433.875 MHz RF only (no Wi-Fi chat polling)
             } catch (Throwable t) {
                 // Ignore to keep resilient
             }

@@ -1150,30 +1150,6 @@
           window.dispatchEvent(new CustomEvent('evakwar:lora-chat', { detail: chatObj }));
         } catch (_) {}
 
-        // If this gateway/browser is online (e.g. Admin PC on Wi-Fi with USB LoRa), immediately archive to MySQL & broadcast via Socket.IO
-        if (navigator.onLine) {
-          try {
-            let bgUrl = (this.serverUrl || window.location.origin).replace(/\/$/, '');
-            if (bgUrl === 'http://localhost' || bgUrl === 'https://localhost') bgUrl = 'https://evacwar.onrender.com';
-            if (bgUrl.startsWith('http')) {
-              fetch(`${bgUrl}/api/lora/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  msgId: msgId || String(Date.now()),
-                  senderRole: chatObj.senderRole || 'Resident',
-                  senderName: chatObj.senderName || 'Community Member',
-                  nodeId: chatObj.nodeId || null,
-                  text: msgText,
-                  timestamp: chatObj.timestamp || Date.now(),
-                  viaLoRa: true,
-                  archiveOnly: true
-                })
-              }).catch(() => {});
-            }
-          } catch (_) {}
-        }
-
         this.emit('chat', chatObj);
       } else if (parsed.type === 'ALT') {
         console.log('[LoRaMeshClient] 🚨 LORA EMERGENCY ALERT PACKET RECEIVED:', parsed);
@@ -2854,7 +2830,7 @@
         this._lastAckSentMap.delete(firstKey);
       }
 
-      const jitterMs = 280 + Math.floor(Math.random() * 420);
+      const jitterMs = 120 + Math.floor(Math.random() * 180);
       setTimeout(() => {
         if (!this.connected && !(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected())) {
           return;
@@ -2885,13 +2861,13 @@
     }
 
     /**
-     * Queues a single paced 433.875 MHz chat RF transmission (1.25s minimum gap computed inside queue).
+     * Queues a single paced 433.875 MHz chat RF transmission (950ms minimum gap computed inside queue).
      */
     _enqueuePacedChatTx(rawPacket, meta) {
       const runTx = async () => {
         const nowMs = Date.now();
         const lastTx = this._lastChatTxMs || 0;
-        const waitMs = Math.max(0, 1250 - (nowMs - lastTx));
+        const waitMs = Math.max(0, 950 - (nowMs - lastTx));
         if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
         this._lastChatTxMs = Date.now();
         return await this.sendPacket(rawPacket, meta);
@@ -2909,12 +2885,13 @@
     async sendChatMessage({ msgId, senderRole = 'Resident', senderName = 'Community Member', nodeId, text }) {
       const id = msgId || (String(Date.now()).slice(-6) + String(Math.floor(Math.random() * 90 + 10)));
       const cleanRole = String(senderRole || 'Resident').replace(/\|/g, '/').trim().slice(0, 14);
-      const cleanName = String(senderName || 'Community Member').replace(/\|/g, '/').trim().slice(0, 28);
-      const resolvedNode = (nodeId && String(nodeId).startsWith('!')) ? String(nodeId) : this.getResolvedNodeId(cleanRole);
+      const cleanName = String(senderName || 'Community Member').replace(/\|/g, '/').trim().slice(0, 24);
+      const resolvedNode = (nodeId && String(nodeId).startsWith('!')) ? String(nodeId) : (this.getResolvedNodeId(cleanRole) || '');
       const cleanText = String(text || '').replace(/\|/g, '/').replace(/\r?\n/g, ' ').trim().slice(0, 120);
       const tsSec = Math.floor(Date.now() / 1000);
 
-      const rawPacket = `EVW|MSG|${id}|${cleanRole}|${cleanName}|${resolvedNode}|${tsSec}|${cleanText}`;
+      // Compact RF frame (omit redundant nodeId on air to cut ~10 bytes of SF11 airtime)
+      const rawPacket = `EVW|MSG|${id}|${cleanRole}|${cleanName}||${tsSec}|${cleanText}`;
       this._processedChatIds = this._processedChatIds || new Set();
       this._processedChatIds.add(id);
       this._selfSentChatIds = this._selfSentChatIds || new Set();
@@ -2966,7 +2943,7 @@
       }
 
       if (!this._ackedChatIds.has(id)) {
-        const retryDelays = [3800, 4400, 4800, 4500]; // 3 retries + final timeout check (~17.5s total)
+        const retryDelays = [2600, 3200, 3600, 3000]; // 3 fast retries + final check (~12.4s total)
         const arqEntry = { acked: false, attempt: 1, timer: null };
         this._pendingChatArq.set(id, arqEntry);
 

@@ -143,24 +143,7 @@
           global.triggerEmergencyAlarm(data);
         }
       });
-      sock.on('lora:chat', (msg) => {
-        if (msg && msg.text) {
-          try {
-            const raw = localStorage.getItem('evw_lora_chat_messages');
-            const list = raw ? JSON.parse(raw) : [];
-            const idx = list.findIndex(m => String(m.msgId || m.id) === String(msg.msgId || msg.id));
-            if (idx >= 0) {
-              list[idx] = Object.assign(list[idx], msg);
-            } else {
-              list.push(msg);
-            }
-            localStorage.setItem('evw_lora_chat_messages', JSON.stringify(list.slice(-100)));
-          } catch (_) {}
-          try {
-            global.dispatchEvent(new CustomEvent('evakwar:lora-chat', { detail: msg }));
-          } catch (_) {}
-        }
-      });
+      // LoRa Chat is 100% pure offline 433.875 MHz RF only (do not inject Wi-Fi socket chat messages)
     } catch (_) {}
   }
 
