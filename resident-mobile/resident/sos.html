@@ -5846,6 +5846,31 @@
             }
           </style>
 
+          <!-- SOS Confirmation Modal -->
+          <div id="sosConfirmModal" class="hidden fixed inset-0 z-[220] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="sosConfirmTitle">
+            <div class="bg-white rounded-3xl shadow-2xl border-2 border-red-600 max-w-sm w-full p-6 text-center space-y-4">
+              <div class="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto text-3xl shadow-xs">
+                <i class="ph-fill ph-warning-circle"></i>
+              </div>
+              <div>
+                <h3 id="sosConfirmTitle" class="font-heading font-black text-lg text-slate-900">Send Emergency SOS?</h3>
+                <p class="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
+                  Are you sure you want to send a distress signal? This will immediately alert Barangay San Rafael Rescuers and share your live GPS location.
+                </p>
+              </div>
+              <div class="grid grid-cols-2 gap-2.5 pt-1">
+                <button type="button" id="btnCancelSosModal"
+                  class="py-3 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm transition-all active:scale-95 cursor-pointer">
+                  Cancel
+                </button>
+                <button type="button" id="btnConfirmSosSend"
+                  class="py-3 px-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-sm shadow-lg shadow-red-600/30 transition-all active:scale-95 cursor-pointer">
+                  Yes, Send SOS
+                </button>
+              </div>
+            </div>
+          </div>
+
           <script src="/js/lora-mesh-client.js"></script>
           <script>
             (function() {
@@ -7143,7 +7168,30 @@
                 }
               }
 
-              // Handle SOS Button Trigger
+              // Handle SOS Button Trigger (with confirmation modal before sending)
+              const sosConfirmModal = document.getElementById('sosConfirmModal');
+              const btnCancelSosModal = document.getElementById('btnCancelSosModal');
+              const btnConfirmSosSend = document.getElementById('btnConfirmSosSend');
+
+              function closeSosConfirmModal() {
+                if (sosConfirmModal) sosConfirmModal.classList.add('hidden');
+              }
+
+              if (btnCancelSosModal) {
+                btnCancelSosModal.addEventListener('click', closeSosConfirmModal);
+              }
+              if (sosConfirmModal) {
+                sosConfirmModal.addEventListener('click', (e) => {
+                  if (e.target === sosConfirmModal) closeSosConfirmModal();
+                });
+              }
+              if (btnConfirmSosSend) {
+                btnConfirmSosSend.addEventListener('click', () => {
+                  closeSosConfirmModal();
+                  triggerSos();
+                });
+              }
+
               if (sosBtn) {
                 sosBtn.addEventListener('click', () => {
                   if (activeSosAlert) {
@@ -7151,7 +7199,11 @@
                     return;
                   }
 
-                  triggerSos();
+                  if (sosConfirmModal) {
+                    sosConfirmModal.classList.remove('hidden');
+                  } else {
+                    triggerSos();
+                  }
                 });
               }
 
