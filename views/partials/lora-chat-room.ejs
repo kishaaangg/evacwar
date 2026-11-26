@@ -555,7 +555,15 @@
         const key = getMessageUniqueKey(lm);
         if (mapById.has(key)) {
           const srv = mapById.get(key);
-          mapById.set(key, Object.assign({}, lm, srv, { status: 'delivered', syncedToDb: true }));
+          // If this message is still actively waiting for a real 433.875 MHz RF receipt (EVW|MACK), keep status as 'pending'
+          const isStillWaitingRfAck = Boolean(
+            lm.status === 'pending' &&
+            window.evakwarLoraClient &&
+            window.evakwarLoraClient._pendingChatArq &&
+            window.evakwarLoraClient._pendingChatArq.has(key)
+          );
+          const mergedStatus = isStillWaitingRfAck ? 'pending' : (lm.status === 'failed' ? 'failed' : 'delivered');
+          mapById.set(key, Object.assign({}, lm, srv, { status: mergedStatus, syncedToDb: true }));
         } else {
           if (isFromServer) {
             // Keep pending OR unsynced offline LoRa messages so they are never lost before syncing to DB
@@ -1036,13 +1044,15 @@
             const cached = getLocalCachedMessages();
             const key = getMessageUniqueKey(msg);
             const idx = cached.findIndex(m => getMessageUniqueKey(m) === key);
-            const enriched = Object.assign({}, msg, { status: 'delivered', syncedToDb: true });
+            const isStillWaitingRfAck = Boolean(
+              window.evakwarLoraClient &&
+              window.evakwarLoraClient._pendingChatArq &&
+              window.evakwarLoraClient._pendingChatArq.has(key)
+            );
+            const enriched = Object.assign({}, msg, { status: isStillWaitingRfAck ? 'pending' : 'delivered', syncedToDb: true });
             if (idx >= 0) cached[idx] = Object.assign({}, cached[idx], enriched);
             else cached.push(enriched);
             saveLocalCachedMessages(cached);
-            if (window.evakwarLoraClient && typeof window.evakwarLoraClient.confirmChatAck === 'function') {
-              window.evakwarLoraClient.confirmChatAck(key);
-            }
             mergeAndRenderMessages(null, true);
           }
         });
