@@ -696,13 +696,11 @@
           this.serialPort = port;
           this.serialWriter = port.writable.getWriter();
           this._webSerialWriteChain = Promise.resolve();
-          await new Promise(r => setTimeout(r, 250));
-          await this._writeWebSerial(buildSerialWakePreamble());
-          await new Promise(r => setTimeout(r, 100));
-          const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
-          await this._writeWebSerial(wakeFrame);
-          this._startWebSerialHeartbeat();
+          this._webSerialConfigComplete = false;
+          try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch (_) {}
           this.readUsbSerialLoop(port);
+          await this._runWebSerialHandshake();
+          this._startWebSerialHeartbeat();
           const name = savedName || 'USB-OTG LoRa Node (433MHz)';
           this.setStatus(true, 'USB_SERIAL', name);
           console.log('[LoRaMeshClient] ✅ Auto-reconnected WebSerial across page navigation:', name);
@@ -2393,15 +2391,13 @@
           this.serialPort = port;
           this.serialWriter = port.writable.getWriter();
           this._webSerialWriteChain = Promise.resolve();
+          this._webSerialConfigComplete = false;
+          try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch (_) {}
 
-          await new Promise(r => setTimeout(r, 250));
-          await this._writeWebSerial(buildSerialWakePreamble());
-          await new Promise(r => setTimeout(r, 100));
-          const wakeFrame = wrapSerialFrame(encodeWantConfigToRadio());
-          await this._writeWebSerial(wakeFrame);
-          this._startWebSerialHeartbeat();
-
+          // Start RX reader FIRST, then run resilient post-boot want_config_id handshake
           this.readUsbSerialLoop(port);
+          await this._runWebSerialHandshake();
+          this._startWebSerialHeartbeat();
 
           const name = 'USB-OTG LoRa Node (433MHz)';
           this.setStatus(true, 'USB_SERIAL', name);
@@ -2413,6 +2409,36 @@
       }
 
       throw new Error('USB-OTG Serial requires the EvakWar Android App or a WebSerial-compatible browser.');
+    }
+
+    /**
+     * Resilient Meshtastic USB Serial PhoneAPI handshake:
+     * Chrome's port.open() toggles DTR/RTS which reboots ESP32 boards (~2.5-3.5s boot).
+     * If want_config_id is only sent at 250ms, ESP32 misses it during boot and never streams FromRadio RX!
+     * We send it at 300ms, and automatically retry at 1.8s, 3.5s, and 5.2s until the first valid 0x94 0xC3 frame arrives.
+     */
+    async _runWebSerialHandshake() {
+      const sendWantConfig = async (label) => {
+        if (!this.serialWriter) return;
+        try {
+          await this._writeWebSerial(buildSerialWakePreamble());
+          await new Promise(r => setTimeout(r, 80));
+          await this._writeWebSerial(wrapSerialFrame(encodeWantConfigToRadio()));
+          console.log(`[LoRaMeshClient] Sent USB want_config_id (${label})`);
+        } catch (_) {}
+      };
+
+      await new Promise(r => setTimeout(r, 300));
+      await sendWantConfig('initial');
+
+      // Schedule post-boot retries in case port.open() rebooted the ESP32
+      [1500, 3200, 5000].forEach((delayMs, idx) => {
+        setTimeout(() => {
+          if (this.serialWriter && this.transport === 'USB_SERIAL' && !this._webSerialConfigComplete) {
+            sendWantConfig(`post-boot retry #${idx + 1}`);
+          }
+        }, delayMs);
+      });
     }
 
     /**
@@ -2446,7 +2472,13 @@
           return;
         }
         try {
-          await this._writeWebSerial(wrapSerialFrame(encodeHeartbeatToRadio()));
+          if (!this._webSerialConfigComplete) {
+            await this._writeWebSerial(buildSerialWakePreamble());
+            await new Promise(r => setTimeout(r, 80));
+            await this._writeWebSerial(wrapSerialFrame(encodeWantConfigToRadio()));
+          } else {
+            await this._writeWebSerial(wrapSerialFrame(encodeHeartbeatToRadio()));
+          }
         } catch (_) {}
       }, 20000);
     }
@@ -2466,7 +2498,8 @@
           const frameLen = (this.serialBuffer[cursor + 2] << 8) | this.serialBuffer[cursor + 3];
           if (frameLen >= 2 && frameLen <= 512) {
             if (cursor + 4 + frameLen <= this.serialBuffer.length) {
-              // Complete protobuf frame received!
+              // Complete protobuf frame received! Mark PhoneAPI RX stream as active.
+              this._webSerialConfigComplete = true;
               const frameBytes = this.serialBuffer.subarray(cursor + 4, cursor + 4 + frameLen);
               const evw = extractEvwStringFromBytes(frameBytes);
               if (evw) {
