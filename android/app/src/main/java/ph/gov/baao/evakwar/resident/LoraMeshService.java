@@ -1717,6 +1717,44 @@ public class LoraMeshService extends Service {
                     String cleanTitle = (title != null && !title.isEmpty()) ? title : "EMERGENCY EVACUATION ALERT";
                     String cleanMsg = (message != null && !message.isEmpty()) ? message : "Proceed to your designated safe evacuation center.";
 
+                    boolean isAdminAnnouncement = (severity != null && severity.trim().equalsIgnoreCase("GREEN"));
+                    if (isAdminAnnouncement) {
+                        // Neutral Admin Announcement (NO color / NO siren / NO alarm vibration — Messenger tone only!)
+                        NotificationCompat.Builder annBuilder = new NotificationCompat.Builder(LoraMeshService.this, CHAT_CHANNEL_ID)
+                                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                                .setContentTitle("💬 Message from Admin: " + cleanTitle)
+                                .setContentText(cleanMsg)
+                                .setStyle(new NotificationCompat.BigTextStyle().bigText(cleanMsg))
+                                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                                .setAutoCancel(true)
+                                .setContentIntent(pi);
+                        nm.notify(EMERGENCY_NOTIFICATION_ID + 10, annBuilder.build());
+
+                        // Play Messenger-style notification tone on USAGE_MEDIA (no emergency siren!)
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            try {
+                                Uri notifUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), notifUri);
+                                if (r != null) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                        r.setAudioAttributes(new AudioAttributes.Builder()
+                                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                                .build());
+                                    }
+                                    r.play();
+                                } else {
+                                    ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_MUSIC, 85);
+                                    tg.startTone(ToneGenerator.TONE_PROP_ACK, 260);
+                                    new Handler(Looper.getMainLooper()).postDelayed(tg::release, 400);
+                                }
+                            } catch (Exception ignored) {}
+                        });
+                        return;
+                    }
+
                     boolean isRedAlert = (severity != null && severity.trim().equalsIgnoreCase("RED")) ||
                                          (title != null && title.toUpperCase().contains("RED"));
                     String targetChannel = isRedAlert ? EMERGENCY_RED_CHANNEL_ID : EMERGENCY_OTHER_CHANNEL_ID;

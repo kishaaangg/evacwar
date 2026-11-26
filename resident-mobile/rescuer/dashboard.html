@@ -1359,6 +1359,9 @@
         pitch: initPitch,
         bearing: initBearing,
         maxPitch: 60,
+        dragPan: true,
+        scrollZoom: true,
+        doubleClickZoom: true,
         dragRotate: true,
         touchZoomRotate: true,
         touchPitch: true,
@@ -2258,18 +2261,26 @@
           applyRouteLayers();
         }
 
-        // Fit map bounds to show entire route
+        // Fit map bounds to show entire route while keeping pan & pinch-zoom 100% free
         if (typeof maplibregl !== 'undefined' && maplibregl.LngLatBounds && typeof map.fitBounds === 'function') {
           const bounds = new maplibregl.LngLatBounds();
           (routeGeometry.coordinates || [[oLng, oLat], [dLng, dLat]]).forEach(coord => {
             if (Array.isArray(coord) && coord.length >= 2) bounds.extend([coord[0], coord[1]]);
           });
           map.fitBounds(bounds, {
-            padding: { top: 80, bottom: isMobile ? 240 : 190, left: 60, right: 60 },
+            padding: { top: 96, bottom: isMobile ? 96 : 80, left: 40, right: 40 },
             maxZoom: 17.2,
-            duration: 850
+            duration: 750
           });
         }
+        // Guarantee user can freely drag, pan, and zoom anywhere on the map during active navigation
+        try {
+          if (map.dragPan && typeof map.dragPan.enable === 'function') map.dragPan.enable();
+          if (map.scrollZoom && typeof map.scrollZoom.enable === 'function') map.scrollZoom.enable();
+          if (map.touchZoomRotate && typeof map.touchZoomRotate.enable === 'function') map.touchZoomRotate.enable();
+          if (map.doubleClickZoom && typeof map.doubleClickZoom.enable === 'function') map.doubleClickZoom.enable();
+          if (typeof map.setMaxBounds === 'function') map.setMaxBounds(null);
+        } catch (_) {}
       }
 
       const cleanDestTitle = String(destName || 'Evacuation Center').replace(/\s*\(Nearest.*?\)\s*/i, '').trim();
@@ -4258,9 +4269,9 @@
                             alertIcon = "ph-warning";
                             labelText = "Severe Weather & Flood Watch (YELLOW)";
                           } else if (upperSev === "GREEN") {
-                            gradient = "from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-500/20";
-                            alertIcon = "ph-check-circle";
-                            labelText = "All Clear Notice (GREEN)";
+                            gradient = "from-white via-slate-50 to-white text-slate-800 border border-slate-300 shadow-slate-200/40";
+                            alertIcon = "ph-chat-circle-text";
+                            labelText = "Message from Admin";
                           } else if (upperSev === "BLUE") {
                             gradient = "from-blue-600 via-indigo-600 to-blue-700 text-white shadow-blue-500/20";
                             alertIcon = "ph-info";
@@ -4424,7 +4435,8 @@
                             }
                           }
 
-                          // Step C: Play Emergency Siren Tone (for Web / iOS Web App; Native Android already plays STREAM_ALARM via Java)
+                          // Step C: Play Messenger Tone for GREEN (Admin Announcement) OR Emergency Siren for RED/ORANGE/YELLOW/BLUE
+                          const isAdminAnnouncementMsg = String(alertData.severity || '').toUpperCase() === 'GREEN';
                           const isNativeAppEnv = Boolean(
                             (typeof window !== 'undefined' && window.AndroidBleBridge) ||
                             (typeof window !== 'undefined' && window.AndroidSettingsBridge) ||
@@ -4432,7 +4444,35 @@
                             (typeof window !== 'undefined' && window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
                             (typeof window !== 'undefined' && window.location && (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:'))
                           );
-                          if (!isNativeAppEnv) {
+                          if (isAdminAnnouncementMsg) {
+                            // Crisp Messenger-style "ding-pop" tone (NO emergency siren!)
+                            try {
+                              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                              if (AudioCtx) {
+                                const ctx = window.__evwMsgToneCtx || (window.__evwMsgToneCtx = new AudioCtx());
+                                const playPop = () => {
+                                  const t0 = ctx.currentTime;
+                                  const note = (f, off, dur, vol) => {
+                                    const o = ctx.createOscillator();
+                                    const g = ctx.createGain();
+                                    o.type = 'sine';
+                                    o.frequency.setValueAtTime(f, t0 + off);
+                                    g.gain.setValueAtTime(0.0001, t0 + off);
+                                    g.gain.exponentialRampToValueAtTime(vol, t0 + off + 0.012);
+                                    g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + dur);
+                                    o.connect(g);
+                                    g.connect(ctx.destination);
+                                    o.start(t0 + off);
+                                    o.stop(t0 + off + dur + 0.02);
+                                  };
+                                  note(880, 0.0, 0.11, 0.35);
+                                  note(1318.5, 0.085, 0.22, 0.32);
+                                };
+                                if (ctx.state === 'suspended') ctx.resume().then(playPop).catch(() => {});
+                                else playPop();
+                              }
+                            } catch (_) {}
+                          } else if (!isNativeAppEnv) {
                             window.playEmergencyAlertSound();
                           }
 
@@ -4452,15 +4492,15 @@
                             window.injectLoraNotificationToDrawer({
                               id: 'alert_notif_' + alarmKey,
                               category: 'broadcast',
-                              title: `🚨 ${alertData.title || 'Emergency Broadcast'}`,
-                              message: alertData.message || 'Proceed immediately to your designated evacuation center.',
+                              title: sevUp === 'GREEN' ? `💬 ${alertData.title || 'Message from Admin'}` : `🚨 ${alertData.title || 'Emergency Broadcast'}`,
+                              message: alertData.message || (sevUp === 'GREEN' ? 'Announcement from Barangay San Rafael.' : 'Proceed immediately to your designated evacuation center.'),
                               date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                               time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-                              icon: 'ph-broadcast',
-                              color: sevUp === 'RED' ? 'red' : 'amber',
-                              isActionRequired: true,
+                              icon: sevUp === 'GREEN' ? 'ph-chat-circle-text' : 'ph-broadcast',
+                              color: sevUp === 'GREEN' ? 'slate' : (sevUp === 'RED' ? 'red' : 'amber'),
+                              isActionRequired: sevUp !== 'GREEN',
                               actionUrl: mapUrl,
-                              actionLabel: 'View Evacuation Map'
+                              actionLabel: sevUp === 'GREEN' ? 'View Details' : 'View Evacuation Map'
                             });
                           }
 
@@ -5739,7 +5779,7 @@
                                             <h3 class="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight leading-tight truncate" id="weatherDay">
                                               Thursday
                                             </h3>
-                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">8:53 am</span>
+                                            <span class="text-[10px] font-semibold text-blue-700/80" id="weatherTime">9:41 am</span>
                                           </div>
                                           <div class="text-[10px] sm:text-[11px] font-medium text-slate-500 mt-0.5 truncate" id="dashWeatherLocLabel">
                                             San Rafael, Baao
@@ -5763,13 +5803,13 @@
                                       <div class="flex items-center justify-between gap-1 my-1.5">
                                         <div class="min-w-0">
                                           <div class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none" id="weatherTemp">
-                                            26°C
+                                            27°C
                                           </div>
                                           <div class="text-[10px] sm:text-xs font-semibold text-slate-600 mt-1 truncate">
-                                            Feels <span id="weatherRealFeel" class="font-bold text-slate-800">30°C</span>
+                                            Feels <span id="weatherRealFeel" class="font-bold text-slate-800">31°C</span>
                                           </div>
                                           <div class="text-[10px] font-bold text-blue-700 truncate mt-0.5" id="weatherStatus">
-                                            Partly Cloudy
+                                            Scattered Rain Showers
                                           </div>
                                         </div>
 
@@ -5788,11 +5828,18 @@
                                                   <stop offset="50%" stop-color="#F2F8FD" />
                                                   <stop offset="100%" stop-color="#A5C9F7" />
                                                 </linearGradient>
+                                                <linearGradient id="dashDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                  <stop offset="0%" stop-color="#73D0FF" />
+                                                  <stop offset="100%" stop-color="#2196F3" />
+                                                </linearGradient>
                                               </defs>
                                               <g transform="translate(88, 38)">
                                                 <circle cx="0" cy="0" r="20" fill="url(#dashSunGrad)" />
                                               </g>
-                                              <path d="M30 92 C18 92 8 82 8 70 C8 59 16 50 27 48 C30 34 43 24 57 24 C70 24 81 32 86 44 C90 42 95 41 100 41 C113 41 124 51 124 64 C124 77 114 88 101 92 Z" fill="url(#dashCloudGrad)" />
+                                              <path d="M30 84 C18 84 8 74 8 62 C8 51 16 42 27 40 C30 26 43 16 57 16 C70 16 81 24 86 36 C90 34 95 33 100 33 C113 33 124 43 124 56 C124 69 114 80 101 84 Z" fill="url(#dashCloudGrad)" />
+                                              <path d="M38 90 C36 93 35 98 37 101 C38 103 41 103 42 101 C44 98 42 93 40 90 Z" fill="url(#dashDropGrad)" />
+                                              <path d="M58 94 C56 97 55 102 57 105 C58 107 61 107 62 105 C64 102 62 97 60 94 Z" fill="url(#dashDropGrad)" />
+                                              <path d="M78 90 C76 93 75 98 77 101 C78 103 81 103 82 101 C84 98 82 93 80 90 Z" fill="url(#dashDropGrad)" />
                                             </svg>
                                           
                                         </div>
@@ -5802,21 +5849,21 @@
                                       <div class="grid grid-cols-3 gap-1 sm:gap-1.5">
                                         <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-blue-200/60 text-center">
                                           <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Wind</div>
-                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherWind">11</span><span class="text-[9px] font-semibold">km/h</span></div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherWind">13</span><span class="text-[9px] font-semibold">km/h</span></div>
                                         </div>
                                         <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-sky-200/60 text-center">
                                           <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Rain</div>
-                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherRain">0</span><span class="text-[9px] font-semibold">mm</span></div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate"><span id="weatherRain">0.1</span><span class="text-[9px] font-semibold">mm</span></div>
                                         </div>
                                         <div class="bg-white/85 rounded-xl px-1.5 py-1.5 border border-indigo-200/60 text-center">
                                           <div class="text-[8.5px] sm:text-[10px] font-bold text-slate-400 uppercase">Humid</div>
-                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate" id="weatherHumidity">90%</div>
+                                          <div class="text-[10.5px] sm:text-xs font-black text-slate-800 truncate" id="weatherHumidity">86%</div>
                                         </div>
                                       </div>
 
                                       <!-- Hidden Telemetry Hooks -->
-                                      <span id="weatherTempPill" class="hidden">26°C</span>
-                                      <span id="weatherUpdated" class="hidden">8:53 AM</span>
+                                      <span id="weatherTempPill" class="hidden">27°C</span>
+                                      <span id="weatherUpdated" class="hidden">9:41 AM</span>
                                       <i id="weatherIcon" class="hidden"></i>
                                     </div>
 

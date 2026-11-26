@@ -230,15 +230,15 @@
                       <div class="sev-sub text-[10px] font-bold text-blue-100 truncate mt-0.5">Advisory</div>
                     </button>
 
-                    <!-- GREEN (P5) -->
+                    <!-- MESSAGE / ANNOUNCEMENT (P5 - No Color, Messenger Tone) -->
                     <button type="button" id="card-GREEN" onclick="selectSeverity('GREEN')"
-                      class="severity-btn p-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-left cursor-pointer hover:border-emerald-500 shadow-xs">
+                      class="severity-btn p-2.5 rounded-xl border-2 border-slate-300 bg-white text-left cursor-pointer hover:border-slate-500 shadow-xs">
                       <div class="flex items-center justify-between mb-1.5">
-                        <span class="sev-badge text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-600 text-white shadow-xs">P5</span>
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow-xs"></span>
+                        <span class="sev-badge text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 shadow-xs">MSG</span>
+                        <i class="ph ph-chat-circle-text text-sm text-slate-500"></i>
                       </div>
-                      <div class="sev-title font-black text-xs text-emerald-950">GREEN</div>
-                      <div class="sev-sub text-[10px] font-bold text-emerald-800 truncate mt-0.5">All Clear</div>
+                      <div class="sev-title font-black text-xs text-slate-900">MESSAGE</div>
+                      <div class="sev-sub text-[10px] font-bold text-slate-500 truncate mt-0.5">Announcement</div>
                     </button>
 
                   </div>
@@ -262,7 +262,7 @@
                       <option value="orange_prep">⚠️ ORANGE ALERT: Pre-Evacuation Readiness Notice</option>
                       <option value="yellow_watch">⚡ YELLOW ALERT: Heavy Rainfall & River Flood Watch</option>
                       <option value="blue_advisory">📢 BLUE ALERT: Community Disaster Preparedness Advisory</option>
-                      <option value="green_clear">🟢 GREEN ALERT: Floodwaters Receded — All Clear Notice</option>
+                      <option value="green_clear">💬 ADMIN ANNOUNCEMENT: General Community Message / All Clear</option>
                       <option value="relief">📦 RELIEF NOTICE: Emergency Food & Aid Distribution</option>
                       <option value="center_cap">🏠 CAPACITY ALERT: Secondary Evacuation Facilities Open</option>
                     </select>
@@ -569,8 +569,8 @@
       },
       green_clear: {
         severity: 'GREEN',
-        title: 'ALL CLEAR: Hazard Receded Safely',
-        message: 'Floodwaters receded in {BARANGAY}. Safe to return. Report downed wires or hazards.'
+        title: 'Announcement from Barangay Admin',
+        message: 'Advisory for {BARANGAY}: Please stay informed and follow updates from Barangay San Rafael.'
       },
       relief: {
         severity: 'BLUE',
@@ -641,17 +641,17 @@
         headerIconClass: 'ph ph-broadcast text-blue-600'
       },
       GREEN: {
-        btnSelected: 'severity-btn p-2.5 rounded-xl border-2 border-emerald-700 bg-emerald-600 text-white text-left cursor-pointer shadow-lg ring-4 ring-emerald-200 scale-102',
-        btnUnselected: 'severity-btn p-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-left cursor-pointer hover:border-emerald-500 shadow-xs',
-        badgeSelected: 'sev-badge text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white text-emerald-700 shadow-xs',
-        badgeUnselected: 'sev-badge text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-600 text-white shadow-xs',
+        btnSelected: 'severity-btn p-2.5 rounded-xl border-2 border-slate-700 bg-slate-800 text-white text-left cursor-pointer shadow-lg ring-4 ring-slate-200 scale-102',
+        btnUnselected: 'severity-btn p-2.5 rounded-xl border-2 border-slate-300 bg-white text-left cursor-pointer hover:border-slate-500 shadow-xs',
+        badgeSelected: 'sev-badge text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white text-slate-800 shadow-xs',
+        badgeUnselected: 'sev-badge text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 shadow-xs',
         titleSelected: 'sev-title font-black text-xs text-white',
-        titleUnselected: 'sev-title font-black text-xs text-emerald-950',
-        subSelected: 'sev-sub text-[10px] font-bold text-emerald-100 truncate mt-0.5',
-        subUnselected: 'sev-sub text-[10px] font-bold text-emerald-800 truncate mt-0.5',
-        borderClass: 'card p-4 sm:p-5 border-t-4 border-emerald-500 shadow-sm bg-white rounded-2xl transition-all',
-        submitBtnClass: 'btn px-6 sm:px-8 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer',
-        headerIconClass: 'ph ph-check-circle text-emerald-600'
+        titleUnselected: 'sev-title font-black text-xs text-slate-900',
+        subSelected: 'sev-sub text-[10px] font-bold text-slate-200 truncate mt-0.5',
+        subUnselected: 'sev-sub text-[10px] font-bold text-slate-500 truncate mt-0.5',
+        borderClass: 'card p-4 sm:p-5 border-t-4 border-slate-400 shadow-sm bg-white rounded-2xl transition-all',
+        submitBtnClass: 'btn px-6 sm:px-8 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer',
+        headerIconClass: 'ph ph-chat-circle-text text-slate-600'
       }
     };
 

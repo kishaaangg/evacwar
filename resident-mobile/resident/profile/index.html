@@ -1359,6 +1359,9 @@
         pitch: initPitch,
         bearing: initBearing,
         maxPitch: 60,
+        dragPan: true,
+        scrollZoom: true,
+        doubleClickZoom: true,
         dragRotate: true,
         touchZoomRotate: true,
         touchPitch: true,
@@ -2258,18 +2261,26 @@
           applyRouteLayers();
         }
 
-        // Fit map bounds to show entire route
+        // Fit map bounds to show entire route while keeping pan & pinch-zoom 100% free
         if (typeof maplibregl !== 'undefined' && maplibregl.LngLatBounds && typeof map.fitBounds === 'function') {
           const bounds = new maplibregl.LngLatBounds();
           (routeGeometry.coordinates || [[oLng, oLat], [dLng, dLat]]).forEach(coord => {
             if (Array.isArray(coord) && coord.length >= 2) bounds.extend([coord[0], coord[1]]);
           });
           map.fitBounds(bounds, {
-            padding: { top: 80, bottom: isMobile ? 240 : 190, left: 60, right: 60 },
+            padding: { top: 96, bottom: isMobile ? 96 : 80, left: 40, right: 40 },
             maxZoom: 17.2,
-            duration: 850
+            duration: 750
           });
         }
+        // Guarantee user can freely drag, pan, and zoom anywhere on the map during active navigation
+        try {
+          if (map.dragPan && typeof map.dragPan.enable === 'function') map.dragPan.enable();
+          if (map.scrollZoom && typeof map.scrollZoom.enable === 'function') map.scrollZoom.enable();
+          if (map.touchZoomRotate && typeof map.touchZoomRotate.enable === 'function') map.touchZoomRotate.enable();
+          if (map.doubleClickZoom && typeof map.doubleClickZoom.enable === 'function') map.doubleClickZoom.enable();
+          if (typeof map.setMaxBounds === 'function') map.setMaxBounds(null);
+        } catch (_) {}
       }
 
       const cleanDestTitle = String(destName || 'Evacuation Center').replace(/\s*\(Nearest.*?\)\s*/i, '').trim();
@@ -4254,9 +4265,9 @@
                             alertIcon = "ph-warning";
                             labelText = "Severe Weather & Flood Watch (YELLOW)";
                           } else if (upperSev === "GREEN") {
-                            gradient = "from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-500/20";
-                            alertIcon = "ph-check-circle";
-                            labelText = "All Clear Notice (GREEN)";
+                            gradient = "from-white via-slate-50 to-white text-slate-800 border border-slate-300 shadow-slate-200/40";
+                            alertIcon = "ph-chat-circle-text";
+                            labelText = "Message from Admin";
                           } else if (upperSev === "BLUE") {
                             gradient = "from-blue-600 via-indigo-600 to-blue-700 text-white shadow-blue-500/20";
                             alertIcon = "ph-info";
@@ -4420,7 +4431,8 @@
                             }
                           }
 
-                          // Step C: Play Emergency Siren Tone (for Web / iOS Web App; Native Android already plays STREAM_ALARM via Java)
+                          // Step C: Play Messenger Tone for GREEN (Admin Announcement) OR Emergency Siren for RED/ORANGE/YELLOW/BLUE
+                          const isAdminAnnouncementMsg = String(alertData.severity || '').toUpperCase() === 'GREEN';
                           const isNativeAppEnv = Boolean(
                             (typeof window !== 'undefined' && window.AndroidBleBridge) ||
                             (typeof window !== 'undefined' && window.AndroidSettingsBridge) ||
@@ -4428,7 +4440,35 @@
                             (typeof window !== 'undefined' && window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
                             (typeof window !== 'undefined' && window.location && (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:'))
                           );
-                          if (!isNativeAppEnv) {
+                          if (isAdminAnnouncementMsg) {
+                            // Crisp Messenger-style "ding-pop" tone (NO emergency siren!)
+                            try {
+                              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                              if (AudioCtx) {
+                                const ctx = window.__evwMsgToneCtx || (window.__evwMsgToneCtx = new AudioCtx());
+                                const playPop = () => {
+                                  const t0 = ctx.currentTime;
+                                  const note = (f, off, dur, vol) => {
+                                    const o = ctx.createOscillator();
+                                    const g = ctx.createGain();
+                                    o.type = 'sine';
+                                    o.frequency.setValueAtTime(f, t0 + off);
+                                    g.gain.setValueAtTime(0.0001, t0 + off);
+                                    g.gain.exponentialRampToValueAtTime(vol, t0 + off + 0.012);
+                                    g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + dur);
+                                    o.connect(g);
+                                    g.connect(ctx.destination);
+                                    o.start(t0 + off);
+                                    o.stop(t0 + off + dur + 0.02);
+                                  };
+                                  note(880, 0.0, 0.11, 0.35);
+                                  note(1318.5, 0.085, 0.22, 0.32);
+                                };
+                                if (ctx.state === 'suspended') ctx.resume().then(playPop).catch(() => {});
+                                else playPop();
+                              }
+                            } catch (_) {}
+                          } else if (!isNativeAppEnv) {
                             window.playEmergencyAlertSound();
                           }
 
@@ -4448,15 +4488,15 @@
                             window.injectLoraNotificationToDrawer({
                               id: 'alert_notif_' + alarmKey,
                               category: 'broadcast',
-                              title: `🚨 ${alertData.title || 'Emergency Broadcast'}`,
-                              message: alertData.message || 'Proceed immediately to your designated evacuation center.',
+                              title: sevUp === 'GREEN' ? `💬 ${alertData.title || 'Message from Admin'}` : `🚨 ${alertData.title || 'Emergency Broadcast'}`,
+                              message: alertData.message || (sevUp === 'GREEN' ? 'Announcement from Barangay San Rafael.' : 'Proceed immediately to your designated evacuation center.'),
                               date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                               time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-                              icon: 'ph-broadcast',
-                              color: sevUp === 'RED' ? 'red' : 'amber',
-                              isActionRequired: true,
+                              icon: sevUp === 'GREEN' ? 'ph-chat-circle-text' : 'ph-broadcast',
+                              color: sevUp === 'GREEN' ? 'slate' : (sevUp === 'RED' ? 'red' : 'amber'),
+                              isActionRequired: sevUp !== 'GREEN',
                               actionUrl: mapUrl,
-                              actionLabel: 'View Evacuation Map'
+                              actionLabel: sevUp === 'GREEN' ? 'View Details' : 'View Evacuation Map'
                             });
                           }
 
