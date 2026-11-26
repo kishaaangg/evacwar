@@ -186,7 +186,10 @@ async function sendSmsBroadcast({ recipientPhones = [], testTargetPhone = null, 
     let rawMessage = (message || '').trim();
     const nearestEvacLink = evacuateUrl || process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
 
-    // Build compact GSM-7 1-credit SMS (iProgSMS already prepends "EvacWar Alert " = 14 chars; keep payload <= 144 chars so total <= 158 GSM-7 chars = 1 SMS credit!)
+    // Build compact GSM-7 1-credit SMS!
+    // iProgSMS counts BOTH Header ("EvacWar Alert ") + Footer (" EvakWar | San Rafael") = ~38 GSM-7 chars!
+    // Also GSM-7 extended chars ([ ] | ^ { } \ ~) count as 2 chars each.
+    // Keeping our payload <= 120 GSM-7 chars guarantees total <= 158 GSM-7 chars = ALWAYS 1 SMS CREDIT!
     const stripNonGsm7 = (s) => String(s || '')
         .replace(/[\u2018\u2019]/g, "'")
         .replace(/[\u201C\u201D]/g, '"')
@@ -195,20 +198,37 @@ async function sendSmsBroadcast({ recipientPhones = [], testTargetPhone = null, 
         .replace(/\s+/g, ' ')
         .trim();
 
+    const gsm7Len = (s) => {
+        let n = 0;
+        for (let i = 0; i < s.length; i++) {
+            n += ('[]|^~{}\\\f'.includes(s[i]) ? 2 : 1);
+        }
+        return n;
+    };
+
     const cleanBody = stripNonGsm7(rawMessage);
     let prefix = `[${upperSeverity} ALERT]`;
     if (upperSeverity === 'BLUE') prefix = '[ADVISORY]';
     else if (upperSeverity === 'GREEN') prefix = '[MESSAGE]';
 
     const needsLink = (upperSeverity === 'RED' || upperSeverity === 'ORANGE');
-    const linkSuffix = needsLink ? `\nEvacuate here: ${nearestEvacLink}` : '';
+    const linkSuffix = needsLink ? `\nEvacuate: ${nearestEvacLink}` : '';
 
-    // 160 GSM-7 limit - 14 chars ("EvacWar Alert " from iProgSMS) - 2 chars safety margin = 144 chars max payload
-    const MAX_PAYLOAD = 144;
-    const maxBodyLen = Math.max(20, MAX_PAYLOAD - prefix.length - 1 - linkSuffix.length);
-    const fittedBody = cleanBody.length > maxBodyLen
-        ? (cleanBody.slice(0, maxBodyLen - 3).trim() + '...')
-        : cleanBody;
+    // 160 GSM-7 limit - 38 chars (iProgSMS Header + Footer) - 2 chars safety margin = 120 GSM-7 chars max payload
+    const MAX_GSM7_PAYLOAD = 120;
+    const fixedGsm7 = gsm7Len(prefix) + 1 + gsm7Len(linkSuffix);
+    const maxBodyGsm7 = Math.max(16, MAX_GSM7_PAYLOAD - fixedGsm7);
+
+    let fittedBody = cleanBody;
+    if (gsm7Len(fittedBody) > maxBodyGsm7) {
+        let acc = '';
+        for (let i = 0; i < cleanBody.length; i++) {
+            const next = acc + cleanBody[i];
+            if (gsm7Len(next) + 3 > maxBodyGsm7) break;
+            acc = next;
+        }
+        fittedBody = acc.trim() + '...';
+    }
 
     let finalMessage = `${prefix} ${fittedBody}${linkSuffix}`;
 
