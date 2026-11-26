@@ -560,7 +560,7 @@
       },
       green_clear: {
         severity: 'GREEN',
-        title: 'Announcement from Barangay Admin',
+        title: '',
         message: ''
       },
       relief: {
@@ -1092,7 +1092,7 @@
     setInterval(window.refreshNodeStatus, 3500);
 
     window.addEventListener('DOMContentLoaded', () => {
-      window.selectSeverity('BLUE');
+      window.selectSeverity('GREEN');
       window.updateLiveMetrics();
       window.refreshNodeStatus();
     });
