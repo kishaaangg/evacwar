@@ -5624,13 +5624,6 @@
               </div>
               <span data-i18n="nav_typhoon">Typhoon Monitoring</span>
             </a>
-            <a href="/resident/chat/index.html"
-              class="sidebar-link focus-ring inactive">
-              <div class="nav-icon-box">
-                <i class="ph ph-chats-circle text-lg"></i>
-              </div>
-              <span data-i18n="nav_chat">Offline LoRa Chat</span>
-            </a>
             <a href="/resident/sos/index.html"
               class="sidebar-link focus-ring !bg-red-500/10 !text-red-300 hover:!bg-red-500/20 hover:!text-white border border-red-500/20">
               <div class="nav-icon-box !bg-red-500/20 !text-red-400">
@@ -5840,32 +5833,48 @@
                   </div>
                 </a>
 
-                <!-- 4. LoRa Mesh Chat (Offline Only) -->
-                <a href="/resident/chat/index.html"
-                  class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-purple-50 border-2 border-purple-300 hover:border-purple-600 shadow-sm hover:shadow-lg hover:shadow-purple-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
+                <!-- 4. LoRa Weather Sensor (AHT20 + BMP280) -->
+                <a href="/resident/typhoon?view=sensor"
+                  class="group relative flex items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl bg-sky-50 border-2 border-sky-300 hover:border-sky-600 shadow-sm hover:shadow-lg hover:shadow-sky-500/15 transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer">
                   <div class="min-w-0 pr-1.5 sm:pr-4 z-10 flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <h3
-                        class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-purple-600 transition-colors">
-                        OFFLINE LORA CHAT
+                        class="font-black text-slate-900 text-xs sm:text-xl md:text-2xl lg:text-3xl tracking-tight leading-tight group-hover:text-sky-600 transition-colors">
+                        WEATHER SENSOR
                       </h3>
-                      <span class="chat-nav-red-dot hidden w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse shrink-0"></span>
                     </div>
-                    <p
-                      class="text-[10px] sm:text-sm md:text-base text-purple-700 font-bold mt-0.5 sm:mt-1 leading-tight">
-                      Offline Radio Only
+                    <p id="dashSensorQuickRead"
+                      class="text-[10px] sm:text-sm md:text-base text-sky-700 font-bold mt-0.5 sm:mt-1 leading-tight">
+                      Live 433MHz Station
                     </p>
                   </div>
                   <div
                     class="w-16 h-16 sm:w-28 sm:h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center relative z-10">
-                    <div class="w-14 h-14 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform duration-300 relative">
-                      <i class="ph ph-chats-circle text-3xl sm:text-5xl md:text-6xl"></i>
+                    <div class="w-14 h-14 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white flex items-center justify-center shadow-lg shadow-sky-500/30 group-hover:scale-105 transition-transform duration-300 relative">
+                      <i class="ph ph-thermometer text-3xl sm:text-5xl md:text-6xl"></i>
                       <span class="absolute -top-1.5 -right-1.5 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-md border-2 border-white">
-                        <i class="ph ph-broadcast text-xs sm:text-base font-bold"></i>
+                        <i class="ph ph-cloud-sun text-xs sm:text-base font-bold"></i>
                       </span>
                     </div>
                   </div>
                 </a>
+                <script>
+                  (function () {
+                    function syncDashSensorCard(w) {
+                      const el = document.getElementById('dashSensorQuickRead');
+                      if (!el || !w) return;
+                      const parts = [];
+                      if (w.temperature != null && isFinite(Number(w.temperature))) parts.push(Number(w.temperature).toFixed(1) + '°C');
+                      if (w.humidity != null && isFinite(Number(w.humidity))) parts.push(Math.round(Number(w.humidity)) + '% RH');
+                      if (parts.length > 0) el.textContent = parts.join(' • ');
+                    }
+                    try {
+                      const cached = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null');
+                      if (cached) syncDashSensorCard(cached);
+                    } catch (_) {}
+                    window.addEventListener('evakwar:lora-weather', (e) => { if (e && e.detail) syncDashSensorCard(e.detail); });
+                  })();
+                </script>
 
               </div>
 
@@ -5888,16 +5897,16 @@
                   <div class="flex items-center gap-3 min-w-0 flex-1">
                     <div
                       class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center text-2xl sm:text-4xl shadow-inner shrink-0">
-                      <i id="dashWeatherIcon" class="ph ph-cloud-rain"></i>
+                      <i id="dashWeatherIcon" class="ph ph-cloud-moon"></i>
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
                         <span id="dashTemp"
                           class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                          26.8°C
+                          24.8°C
                         </span>
                         <span id="dashStatus" class="text-xs sm:text-base font-bold text-blue-600 truncate">
-                          Scattered Rain Showers
+                          Partly Cloudy
                         </span>
                       </div>
                       <div
@@ -5908,7 +5917,7 @@
                         </span>
                         <span class="text-slate-300 shrink-0">•</span>
                         <span id="weatherLastUpdatedText" class="text-slate-400 shrink-0 truncate">
-                          Updated 10:41 AM
+                          Updated 9:17 PM
                         </span>
                       </div>
                     </div>
@@ -5944,7 +5953,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rainfall
                       </div>
                       <div id="dashRain" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        0.5 <span
+                        0 <span
                             class="text-[9px] sm:text-[10px] font-normal text-slate-500">mm</span>
                       </div>
                       <div id="dashRainAlert" class="hidden"></div>
@@ -5962,7 +5971,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wind
                         Speed</div>
                       <div id="dashWind" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        13.5
+                        6.5
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">km/h</span>
                       </div>
                       <div id="dashGusts" class="hidden"></div>
@@ -5980,7 +5989,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Humidity
                       </div>
                       <div id="dashHumidity" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        84%
+                        92%
                       </div>
                     </div>
                   </div>
@@ -5996,7 +6005,7 @@
                       <div class="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pressure
                       </div>
                       <div id="dashPressure" class="text-xs sm:text-sm font-black text-slate-800 truncate">
-                        1004.7
+                        1004.1
                           <span class="text-[9px] sm:text-[10px] font-normal text-slate-500">hPa</span>
                       </div>
                     </div>
@@ -6041,11 +6050,11 @@
                   <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 px-0.5">
                     <span id="residentPagasaVideoTitle"
                       class="truncate font-semibold text-slate-700 max-w-[240px] sm:max-w-md"
-                      title="Public Weather Forecast issued at 5:00 AM | November 26, 2026 - Thursday">
-                      Public Weather Forecast issued at 5:00 AM | November 26, 2026 - Thursday
+                      title="Public Weather Forecast issued at 5:00 PM | November 26, 2026 - Thursday">
+                      Public Weather Forecast issued at 5:00 PM | November 26, 2026 - Thursday
                     </span>
                     <span id="residentPagasaVideoPublished" class="text-[10px] font-medium text-slate-500 shrink-0">
-                      Issued: Nov 26, 2026 • 5:15 AM PHT
+                      Issued: Nov 26, 2026 • 5:24 PM PHT
                     </span>
                   </div>
 
@@ -6053,7 +6062,7 @@
                     <!-- Active YouTube Player Frame (Always Visible) -->
                     <div id="residentPagasaPlayerContainer"
                       class="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-inner">
-                      <iframe id="residentPagasaVideoIframe" src="https://www.youtube-nocookie.com/embed/uGqZeA-Ek_w?rel=0&amp;autoplay=0&amp;enablejsapi=1" title="Public Weather Forecast issued at 5:00 AM | November 26, 2026 - Thursday"
+                      <iframe id="residentPagasaVideoIframe" src="https://www.youtube-nocookie.com/embed/rb1o56cpvyU?rel=0&amp;autoplay=0&amp;enablejsapi=1" title="Public Weather Forecast issued at 5:00 PM | November 26, 2026 - Thursday"
                         class="absolute inset-0 w-full h-full border-0"
                         allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowfullscreen></iframe>
@@ -6201,7 +6210,7 @@
     }
 
     // Dynamic DOST-PAGASA Video Sync (Reusing /api/weather/pagasa)
-    let currentResidentPagasaVideoId = 'uGqZeA-Ek_w';
+    let currentResidentPagasaVideoId = 'rb1o56cpvyU';
     let currentResidentPagasaIsLive = ('false' === 'true');
 
     async function checkResidentPagasaVideoUpdate() {

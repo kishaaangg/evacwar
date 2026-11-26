@@ -684,21 +684,34 @@
                                         </div>
                                       </a>
 
-                                      <!-- Bottom-Right: Offline LoRa Chat -->
-                                      <a href="/rescuer/chat"
-                                        class="group flex-1 flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#f5f3ff] via-[#faf8ff] to-[#ede9fe] border border-purple-200/90 hover:border-purple-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
+                                      <!-- Bottom-Right: LoRa Weather Sensor -->
+                                      <a href="/rescuer/typhoon?view=sensor"
+                                        class="group flex-1 flex flex-col justify-between p-3 sm:p-3.5 rounded-3xl bg-gradient-to-br from-[#f0f9ff] via-[#f8fdff] to-[#e0f2fe] border border-sky-200/90 hover:border-sky-400 shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer">
                                         <div class="flex items-center justify-between gap-1">
-                                          <div class="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs shadow-purple-600/30">
-                                            <span class="chat-nav-red-dot hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse"></span>
-                                            <i class="ph ph-chats-circle"></i>
+                                          <div class="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-xs shadow-sky-600/30">
+                                            <i class="ph ph-thermometer"></i>
                                           </div>
-                                          <span class="px-2 py-0.5 rounded-full bg-purple-600/10 text-purple-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-purple-200/70">Offline</span>
+                                          <span class="px-2 py-0.5 rounded-full bg-sky-600/10 text-sky-700 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-sky-200/70">Sensor</span>
                                         </div>
                                         <div class="mt-2">
-                                          <span class="block font-black text-slate-900 text-xs sm:text-sm leading-tight group-hover:text-purple-700">Offline LoRa Chat</span>
-                                          <span class="text-[10px] sm:text-[11px] text-purple-900/65 font-semibold block truncate mt-0.5">Offline Radio Only</span>
+                                          <span class="block font-black text-slate-900 text-xs sm:text-sm leading-tight group-hover:text-sky-700">Weather Sensor</span>
+                                          <span id="rescuerDashSensorRead" class="text-[10px] sm:text-[11px] text-sky-900/65 font-semibold block truncate mt-0.5">Live 433MHz Station</span>
                                         </div>
                                       </a>
+                                      <script>
+                                        (function () {
+                                          function syncRescuerSensor(w) {
+                                            const el = document.getElementById('rescuerDashSensorRead');
+                                            if (!el || !w) return;
+                                            const p = [];
+                                            if (w.temperature != null && isFinite(Number(w.temperature))) p.push(Number(w.temperature).toFixed(1) + '°C');
+                                            if (w.humidity != null && isFinite(Number(w.humidity))) p.push(Math.round(Number(w.humidity)) + '% RH');
+                                            if (p.length > 0) el.textContent = p.join(' • ');
+                                          }
+                                          try { const c = JSON.parse(localStorage.getItem('evw_lora_sensor_weather') || 'null'); if (c) syncRescuerSensor(c); } catch (_) {}
+                                          window.addEventListener('evakwar:lora-weather', (e) => { if (e && e.detail) syncRescuerSensor(e.detail); });
+                                        })();
+                                      </script>
                                     </div>
                                   </div>
 
