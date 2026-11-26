@@ -349,20 +349,27 @@
     }
 
     if (type === 'SOS') {
-      const coords = (parts[4] || '13.51024,123.34701,10').split(',');
+      // Reject truncated/partial serial fragments so they NEVER spawn a ghost "Resident" SOS at fallback coords!
+      if (parts.length < 9 || !parts[2] || !parts[4] || !parts[4].includes(',')) return null;
+      const coords = parts[4].split(',');
+      const lat = parseFloat(coords[0]);
+      const lng = parseFloat(coords[1]);
+      if (!isFinite(lat) || !isFinite(lng) || lat === 0 || lng === 0) return null;
+      const cleanName = String(parts[8] || '').replace(/[\x00-\x1F\x7F-\x9F].*$/, '').trim();
+      if (!cleanName) return null;
       return {
         type: 'SOS',
         raw: trimmed,
-        msgId: parts[2] || String(Date.now()),
-        sosId: parts[2] || String(Date.now()),
+        msgId: parts[2].trim(),
+        sosId: parts[2].trim(),
         residentId: parts[3] ? Number(parts[3]) : null,
-        latitude: parseFloat(coords[0]) || 13.51024,
-        longitude: parseFloat(coords[1]) || 123.34701,
+        latitude: lat,
+        longitude: lng,
         accuracy: parseFloat(coords[2]) || 10,
         pinMode: parts[5] || 'G',
         vulnCode: parts[6] || 'N',
         statusCode: parts[7] || 'ACT',
-        name: parts[8] || 'Resident'
+        name: cleanName
       };
     }
 

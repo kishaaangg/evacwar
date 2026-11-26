@@ -372,20 +372,28 @@ function parseEvwPacket(rawText) {
   const type = parts[1];
 
   if (type === 'SOS') {
-    const p4HasCoords = (parts[4] || '').includes(',');
+    // Reject truncated/partial serial fragments so they NEVER spawn a ghost "Resident" SOS at fallback coords!
+    if (parts.length < 7 || !parts[4] || !parts[4].includes(',')) return null;
+    const coordsCheck = parts[4].split(',');
+    const latCheck = parseFloat(coordsCheck[0]);
+    const lngCheck = parseFloat(coordsCheck[1]);
+    if (!isFinite(latCheck) || !isFinite(lngCheck) || latCheck === 0 || lngCheck === 0) return null;
+
+    const p4HasCoords = true;
     const p3IsNumeric = !isNaN(Number(parts[3]));
 
     if (p4HasCoords && p3IsNumeric) {
-      const msgId = parts[2] || String(Date.now());
+      if (parts.length < 9 || !parts[2] || !String(parts[8] || '').trim()) return null;
+      const msgId = parts[2].trim();
       const residentId = parts[3] && parts[3] !== '0' ? Number(parts[3]) : null;
-      const coords = (parts[4] || '13.51024,123.34701,15').split(',');
-      const latitude = parseFloat(coords[0]) || 13.51024;
-      const longitude = parseFloat(coords[1]) || 123.34701;
+      const coords = parts[4].split(',');
+      const latitude = latCheck;
+      const longitude = lngCheck;
       const accuracy = parseFloat(coords[2]) || 15;
       const pinMode = parts[5] || 'G';
       const vulnCode = parts[6] || 'N';
       const statusCode = parts[7] || 'ACT';
-      const name = parts[8] || (residentId ? `Resident #${residentId}` : 'Resident (LoRa SOS)');
+      const name = String(parts[8]).trim();
 
       return {
         type: 'SOS',
