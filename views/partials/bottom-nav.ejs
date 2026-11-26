@@ -1,7 +1,7 @@
 <% const navRole=(typeof user !=='undefined' && user.role) ? user.role : 'guest' ; %>
   <% if (navRole==='admin' ) { %>
     <nav class="fixed bottom-0 left-0 right-0 z-[60] bg-white/95 backdrop-blur-xl border-t-2 border-slate-200/90 lg:hidden shadow-[0_-8px_25px_rgba(15,23,42,0.12)] pb-safe">
-      <div class="grid grid-cols-6 w-full max-w-lg mx-auto h-16 sm:h-20 px-1 py-1">
+      <div class="grid grid-cols-5 w-full max-w-lg mx-auto h-16 sm:h-20 px-1 py-1">
         <a href="/admin"
           class="flex flex-col items-center justify-center h-full text-center transition-all rounded-xl <%= (page && page.title === 'Admin Dashboard') ? 'bg-blue-50 text-blue-600 font-extrabold shadow-xs' : 'text-slate-500 hover:text-blue-600' %>">
           <i class="ph <%= (page && page.title === 'Admin Dashboard') ? 'ph-gauge-fill scale-110' : 'ph-gauge' %> text-xl sm:text-2xl mb-0.5"></i>
@@ -30,15 +30,6 @@
           class="flex flex-col items-center justify-center h-full text-center transition-all rounded-xl <%= (page && page.title === 'Send Warnings') ? 'bg-blue-50 text-blue-600 font-extrabold shadow-xs' : 'text-slate-500 hover:text-blue-600' %>">
           <i class="ph <%= (page && page.title === 'Send Warnings') ? 'ph-megaphone-fill scale-110' : 'ph-megaphone-simple' %> text-xl sm:text-2xl mb-0.5"></i>
           <span class="text-[10px] sm:text-xs leading-none tracking-tight" data-i18n="nav_alerts">Alerts</span>
-        </a>
-
-        <a href="/admin/chat"
-          class="relative flex flex-col items-center justify-center h-full text-center transition-all rounded-xl <%= (page && (page.title === 'LoRa Mesh Chat' || page.title === 'Chat')) ? 'bg-blue-50 text-blue-600 font-extrabold shadow-xs' : 'text-slate-500 hover:text-blue-600' %>">
-          <div class="relative inline-flex items-center justify-center">
-            <span class="chat-nav-red-dot hidden absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white animate-pulse z-10"></span>
-            <i class="ph <%= (page && (page.title === 'LoRa Mesh Chat' || page.title === 'Chat')) ? 'ph-chats-circle-fill scale-110' : 'ph-chats-circle' %> text-xl sm:text-2xl mb-0.5"></i>
-          </div>
-          <span class="text-[10px] sm:text-xs leading-none tracking-tight">Chat</span>
         </a>
       </div>
     </nav>
