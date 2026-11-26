@@ -186,21 +186,31 @@ async function sendSmsBroadcast({ recipientPhones = [], testTargetPhone = null, 
     let rawMessage = (message || '').trim();
     const nearestEvacLink = evacuateUrl || process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
 
-    // Build SMS message body; use "EvacWar" branding and clean "Message from Admin" for GREEN announcements
-    let finalMessage = rawMessage;
-    if (upperSeverity === 'GREEN') {
-        finalMessage = `[EvacWar - Message from Admin] ${rawMessage}`;
-    } else if (title && !finalMessage.toUpperCase().includes(title.toUpperCase().slice(0, 18))) {
-        finalMessage = `[EvacWar ${upperSeverity}] ${title}: ${finalMessage}`;
-    } else if (!finalMessage.toUpperCase().startsWith('[EVACWAR')) {
-        finalMessage = `[EvacWar ${upperSeverity}] ${finalMessage}`;
-    }
-    if (upperSeverity === 'RED' || upperSeverity === 'ORANGE') {
-        const hasLink = /https?:\/\/[^\s]+\/(evacuate|resident\/evacuation)/i.test(finalMessage);
-        if (!hasLink) {
-            finalMessage = `${finalMessage}\nOpen EvacWar App (Nearest Evacuation Route): ${nearestEvacLink}`;
-        }
-    }
+    // Build compact GSM-7 1-credit SMS (iProgSMS already prepends "EvacWar Alert " = 14 chars; keep payload <= 144 chars so total <= 158 GSM-7 chars = 1 SMS credit!)
+    const stripNonGsm7 = (s) => String(s || '')
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2013\u2014]/g, '-')
+        .replace(/[^\x20-\x7E\n]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const cleanBody = stripNonGsm7(rawMessage);
+    let prefix = `[${upperSeverity} ALERT]`;
+    if (upperSeverity === 'BLUE') prefix = '[ADVISORY]';
+    else if (upperSeverity === 'GREEN') prefix = '[MESSAGE]';
+
+    const needsLink = (upperSeverity === 'RED' || upperSeverity === 'ORANGE');
+    const linkSuffix = needsLink ? `\nEvacuate here: ${nearestEvacLink}` : '';
+
+    // 160 GSM-7 limit - 14 chars ("EvacWar Alert " from iProgSMS) - 2 chars safety margin = 144 chars max payload
+    const MAX_PAYLOAD = 144;
+    const maxBodyLen = Math.max(20, MAX_PAYLOAD - prefix.length - 1 - linkSuffix.length);
+    const fittedBody = cleanBody.length > maxBodyLen
+        ? (cleanBody.slice(0, maxBodyLen - 3).trim() + '...')
+        : cleanBody;
+
+    let finalMessage = `${prefix} ${fittedBody}${linkSuffix}`;
 
     // Automatically broadcast over 433.875 MHz LoRa Mesh if not already queued by caller
     if (!skipLoraQueue) {
