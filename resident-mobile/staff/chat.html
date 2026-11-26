@@ -6318,9 +6318,9 @@
               text: cleanText
             }).then(() => {
               newMsg.transport = 'LORA_433MHZ';
-              // Stay in "Sending..." until real EVW|MACK RF delivery receipt arrives (or flips to Not Sent after 4 retries)
+              // Show "Sent" immediately once transmitted to LoRa radio; upgrades to "Delivered" when EVW|MACK arrives!
               const alreadyAcked = Boolean(lora._ackedChatIds && lora._ackedChatIds.has(msgId));
-              newMsg.status = alreadyAcked ? 'delivered' : 'pending';
+              newMsg.status = alreadyAcked ? 'delivered' : 'sent';
               newMsg.syncedToDb = false;
             }).catch(rfErr => {
               console.warn('[LoRaChat] RF transmit error:', rfErr.message);

@@ -2830,7 +2830,8 @@
         this._lastAckSentMap.delete(firstKey);
       }
 
-      const jitterMs = 120 + Math.floor(Math.random() * 180);
+      // Wait 650-950ms so any Mesh Relay rebroadcast of EVW|MSG finishes before sending EVW|MACK
+      const jitterMs = 650 + Math.floor(Math.random() * 300);
       setTimeout(() => {
         if (!this.connected && !(window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected())) {
           return;
@@ -2943,38 +2944,34 @@
       }
 
       if (!this._ackedChatIds.has(id)) {
-        const retryDelays = [2600, 3200, 3600, 3000]; // 3 fast retries + final check (~12.4s total)
+        // Quietly do up to 2 automatic RF retries (at 3.2s and 6.8s) if EVW|MACK hasn't arrived yet.
+        // NEVER mark a radio-transmitted message as "Not Sent" just because a return ACK faded!
+        const retryDelays = [3200, 3600];
         const arqEntry = { acked: false, attempt: 1, timer: null };
         this._pendingChatArq.set(id, arqEntry);
 
         const scheduleNext = (idx) => {
+          if (idx >= retryDelays.length) {
+            this._pendingChatArq.delete(id);
+            return;
+          }
           arqEntry.timer = setTimeout(async () => {
             if (arqEntry.acked || this._ackedChatIds.has(id)) {
               this._pendingChatArq.delete(id);
               return;
             }
-            if (idx >= retryDelays.length - 1) {
-              // All 4 RF attempts received zero EVW|MACK -> truthfully notify UI that message was Not Sent
-              this._pendingChatArq.delete(id);
-              try {
-                window.dispatchEvent(new CustomEvent('evakwar:lora-chat-failed', { detail: { msgId: id } }));
-              } catch (_) {}
-              return;
-            }
-            // Still no ACK -> re-transmit with a fresh Meshtastic packetId (same EVW|MSG|<id> so receivers dedupe!)
             arqEntry.attempt++;
-            console.log(`[LoRaMeshClient ARQ] No ACK yet for ${id}, RF retry #${arqEntry.attempt}/4...`);
+            console.log(`[LoRaMeshClient ARQ] Quiet RF retry #${arqEntry.attempt} for ${id}...`);
             try {
               await this._enqueuePacedChatTx(rawPacket, txMeta);
             } catch (_) {
               this._pendingChatArq.delete(id);
-              try {
-                window.dispatchEvent(new CustomEvent('evakwar:lora-chat-failed', { detail: { msgId: id } }));
-              } catch (_) {}
               return;
             }
             if (!arqEntry.acked && !this._ackedChatIds.has(id)) {
               scheduleNext(idx + 1);
+            } else {
+              this._pendingChatArq.delete(id);
             }
           }, retryDelays[idx]);
         };
