@@ -876,7 +876,7 @@ public class LoraMeshService extends Service {
                 activeEmergencyAlertId = alertId;
             }
 
-            String fullMessage = "Shelter: " + center + "\n" + msg;
+            String fullMessage = "GREEN".equalsIgnoreCase(severity) ? msg : ("Shelter: " + center + "\n" + msg);
             triggerEmergencyAlarmAndNotification(title, fullMessage, severity, alertId);
         } else if (packet.startsWith("EVW|MSG|")) {
             // EVW|MSG|msgId|senderRole|senderName|nodeId|timestamp|text[|seq]
@@ -1719,12 +1719,14 @@ public class LoraMeshService extends Service {
 
                     boolean isAdminAnnouncement = (severity != null && severity.trim().equalsIgnoreCase("GREEN"));
                     if (isAdminAnnouncement) {
-                        // Neutral Admin Announcement (NO color / NO siren / NO alarm vibration — Messenger tone only!)
+                        // Neutral Admin Announcement (NO color / NO siren / NO Shelter line — clean "Message from Admin" + message only!)
+                        String pureAdminMsg = cleanMsg.replaceFirst("(?i)^Shelter:[^\\n]*\\n+", "").trim();
+                        if (pureAdminMsg.isEmpty()) pureAdminMsg = cleanMsg;
                         NotificationCompat.Builder annBuilder = new NotificationCompat.Builder(LoraMeshService.this, CHAT_CHANNEL_ID)
                                 .setSmallIcon(android.R.drawable.ic_dialog_email)
-                                .setContentTitle("💬 Message from Admin: " + cleanTitle)
-                                .setContentText(cleanMsg)
-                                .setStyle(new NotificationCompat.BigTextStyle().bigText(cleanMsg))
+                                .setContentTitle("Message from Admin")
+                                .setContentText(pureAdminMsg)
+                                .setStyle(new NotificationCompat.BigTextStyle().setBigContentTitle("Message from Admin").bigText(pureAdminMsg))
                                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

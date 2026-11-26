@@ -186,15 +186,19 @@ async function sendSmsBroadcast({ recipientPhones = [], testTargetPhone = null, 
     let rawMessage = (message || '').trim();
     const nearestEvacLink = evacuateUrl || process.env.EVACUATE_REDIRECT_URL || 'https://evacwar.onrender.com/evacuate';
 
-    // Build SMS message body; for RED and ORANGE alerts, always include the HTTPS EvakWar App deep-link
+    // Build SMS message body; use "EvacWar" branding and clean "Message from Admin" for GREEN announcements
     let finalMessage = rawMessage;
-    if (title && !finalMessage.toUpperCase().includes(title.toUpperCase().slice(0, 18))) {
-        finalMessage = `[EvakWar ${upperSeverity}] ${title}: ${finalMessage}`;
+    if (upperSeverity === 'GREEN') {
+        finalMessage = `[EvacWar - Message from Admin] ${rawMessage}`;
+    } else if (title && !finalMessage.toUpperCase().includes(title.toUpperCase().slice(0, 18))) {
+        finalMessage = `[EvacWar ${upperSeverity}] ${title}: ${finalMessage}`;
+    } else if (!finalMessage.toUpperCase().startsWith('[EVACWAR')) {
+        finalMessage = `[EvacWar ${upperSeverity}] ${finalMessage}`;
     }
     if (upperSeverity === 'RED' || upperSeverity === 'ORANGE') {
         const hasLink = /https?:\/\/[^\s]+\/(evacuate|resident\/evacuation)/i.test(finalMessage);
         if (!hasLink) {
-            finalMessage = `${finalMessage}\nOpen EvakWar App (Nearest Evacuation Route): ${nearestEvacLink}`;
+            finalMessage = `${finalMessage}\nOpen EvacWar App (Nearest Evacuation Route): ${nearestEvacLink}`;
         }
     }
 
