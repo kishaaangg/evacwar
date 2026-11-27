@@ -1480,13 +1480,14 @@
                 dispatchSosPayload(initLat, initLng, initAcc);
 
                 // 4. Simultaneously request a fresh high-accuracy GPS fix in the background
+                // and broadcast a LoRa UPD packet so Admin/Rescuer maps immediately move the pin off the fallback coordinate!
                 if ("geolocation" in navigator) {
                   navigator.geolocation.getCurrentPosition(
                     (pos) => {
                       const lat = pos.coords.latitude;
                       const lng = pos.coords.longitude;
                       const acc = Math.round(pos.coords.accuracy || 10);
-                      if (isValidCoordinate(lat, lng)) {
+                      if (isValidCoordinate(lat, lng) && !isManuallyPinned) {
                         currentLat = lat;
                         currentLng = lng;
                         currentAccuracy = acc;
@@ -1494,10 +1495,38 @@
                           localStorage.setItem('evw_last_gps', JSON.stringify({ lat, lng, acc, ts: Date.now() }));
                         } catch (_e) {}
                         placeOrUpdateSosMarker(lat, lng);
+                        panMapTo(lat, lng, 17);
+                        if (activeSosAlert) {
+                          activeSosAlert.latitude = lat;
+                          activeSosAlert.longitude = lng;
+                          if (socket && socket.connected) {
+                            socket.emit('sos:update', {
+                              id: activeSosAlert.id,
+                              resident_id: residentId,
+                              name: residentName,
+                              latitude: lat,
+                              longitude: lng,
+                              accuracy: acc
+                            });
+                          }
+                          if (window.evakwarLoraClient && isLoraActive) {
+                            window.evakwarLoraClient.sendSosAlert({
+                              msgId: String(activeSosAlert.id || Date.now()).slice(-5),
+                              residentId: residentId || 1,
+                              name: residentName || 'Resident',
+                              latitude: lat,
+                              longitude: lng,
+                              accuracy: acc,
+                              pinMode: 'G',
+                              vulnCode: 'N',
+                              statusCode: 'UPD'
+                            }).catch(() => {});
+                          }
+                        }
                       }
                     },
                     () => {},
-                    { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
                   );
                 }
               }

@@ -1380,15 +1380,26 @@
 
           if (existingKey && sosMarkersMap[existingKey] && sosMarkersMap[existingKey].marker) {
             const item = sosMarkersMap[existingKey];
-            // Update existing marker in-place: coordinate, popup, properties
+            // Guard: never overwrite an already-locked real GPS coordinate with the hardcoded default fallback (13.51024, 123.34701)
+            const isIncomingFallback = Math.abs(lat - 13.51024) < 0.00005 && Math.abs(lng - 123.34701) < 0.00005;
+            const hasRealExistingPos = isFinite(Number(item.lat)) && isFinite(Number(item.lng)) && !(Math.abs(Number(item.lat) - 13.51024) < 0.00005 && Math.abs(Number(item.lng) - 123.34701) < 0.00005);
+            const finalLat = (isIncomingFallback && hasRealExistingPos) ? Number(item.lat) : lat;
+            const finalLng = (isIncomingFallback && hasRealExistingPos) ? Number(item.lng) : lng;
+
+            // Update existing marker & popup in-place so they NEVER drift apart
             if (typeof item.marker.setLngLat === 'function') {
-              item.marker.setLngLat([lng, lat]);
+              item.marker.setLngLat([finalLng, finalLat]);
             }
-            if (item.popup && typeof item.popup.setHTML === 'function') {
-              item.popup.setHTML(popupHtml);
+            if (item.popup) {
+              if (typeof item.popup.setLngLat === 'function') {
+                item.popup.setLngLat([finalLng, finalLat]);
+              }
+              if (typeof item.popup.setHTML === 'function') {
+                item.popup.setHTML(popupHtml);
+              }
             }
-            item.lat = lat;
-            item.lng = lng;
+            item.lat = finalLat;
+            item.lng = finalLng;
             item.popupHtml = popupHtml;
             item.id = sosId || item.id;
             item.resident_id = resId || item.resident_id;
@@ -1434,11 +1445,26 @@
               .setPopup(popup)
               .addTo(mapInstance);
 
+            const canonicalKey = sosId ? `sos_${sosId}` : `res_${resId}`;
+            const markerRecord = {
+              marker,
+              popup,
+              lat,
+              lng,
+              id: sosId,
+              resident_id: resId,
+              popupHtml,
+              status
+            };
+            sosMarkersMap[canonicalKey] = markerRecord;
+
             el.style.cursor = 'pointer';
             el.addEventListener('click', (e) => {
               e.stopPropagation();
+              const liveLng = isFinite(Number(markerRecord.lng)) ? Number(markerRecord.lng) : lng;
+              const liveLat = isFinite(Number(markerRecord.lat)) ? Number(markerRecord.lat) : lat;
               if (typeof flyToSosLocation === 'function') {
-                flyToSosLocation(lng, lat);
+                flyToSosLocation(liveLng, liveLat);
               } else {
                 marker.togglePopup();
               }
@@ -1449,17 +1475,6 @@
               }, 50);
             });
 
-            const canonicalKey = sosId ? `sos_${sosId}` : `res_${resId}`;
-            sosMarkersMap[canonicalKey] = {
-              marker,
-              popup,
-              lat,
-              lng,
-              id: sosId,
-              resident_id: resId,
-              popupHtml,
-              status
-            };
             if (openPopup) {
               marker.togglePopup();
               if (typeof window.bringMaplibrePopupToFront === 'function') {

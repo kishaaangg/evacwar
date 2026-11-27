@@ -1853,15 +1853,28 @@
       if (typeof adminMapInstance.getLayer === 'function') {
         if (existingKey && sosMapMarkers[existingKey] && sosMapMarkers[existingKey].marker) {
           const item = sosMapMarkers[existingKey];
-          // UPDATE existing marker in-place: coordinates, popup, status
+          // Guard: never overwrite an already-locked real GPS coordinate with the hardcoded default fallback (13.51024, 123.34701)
+          const isIncomingFallback = Math.abs(lat - 13.51024) < 0.00005 && Math.abs(lng - 123.34701) < 0.00005;
+          const prevLng = Array.isArray(item.pos) ? Number(item.pos[0]) : NaN;
+          const prevLat = Array.isArray(item.pos) ? Number(item.pos[1]) : NaN;
+          const hasRealExistingPos = isFinite(prevLat) && isFinite(prevLng) && !(Math.abs(prevLat - 13.51024) < 0.00005 && Math.abs(prevLng - 123.34701) < 0.00005);
+          const finalLng = (isIncomingFallback && hasRealExistingPos) ? prevLng : lng;
+          const finalLat = (isIncomingFallback && hasRealExistingPos) ? prevLat : lat;
+
+          // UPDATE existing marker & popup in-place so they NEVER drift apart
           if (typeof item.marker.setLngLat === 'function') {
-            item.marker.setLngLat([lng, lat]);
+            item.marker.setLngLat([finalLng, finalLat]);
           }
-          if (item.popup && typeof item.popup.setHTML === 'function') {
-            item.popup.setHTML(popupHtml);
+          if (item.popup) {
+            if (typeof item.popup.setLngLat === 'function') {
+              item.popup.setLngLat([finalLng, finalLat]);
+            }
+            if (typeof item.popup.setHTML === 'function') {
+              item.popup.setHTML(popupHtml);
+            }
           }
           item.popupHtml = popupHtml;
-          item.pos = [lng, lat];
+          item.pos = [finalLng, finalLat];
           item.id = sosId || item.id;
           item.resident_id = resId || item.resident_id;
 
@@ -1899,18 +1912,8 @@
             .setPopup(popup)
             .addTo(adminMapInstance);
 
-          el.style.cursor = 'pointer';
-          el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof window.focusMaplibreSiteCentered === 'function') {
-              window.focusMaplibreSiteCentered(adminMapInstance, lng, lat, popup, sosMapMarkers, 16.8);
-            } else {
-              if (!popup.isOpen()) marker.togglePopup();
-            }
-          });
-
           const canonicalKey = sosId ? `sos_${sosId}` : `res_${resId}`;
-          sosMapMarkers[canonicalKey] = {
+          const markerRecord = {
             marker,
             popup,
             id: sosId,
@@ -1919,6 +1922,18 @@
             pos: [lng, lat],
             status
           };
+          sosMapMarkers[canonicalKey] = markerRecord;
+
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const livePos = Array.isArray(markerRecord.pos) ? markerRecord.pos : [lng, lat];
+            if (typeof window.focusMaplibreSiteCentered === 'function') {
+              window.focusMaplibreSiteCentered(adminMapInstance, livePos[0], livePos[1], popup, sosMapMarkers, 16.8);
+            } else {
+              if (!popup.isOpen()) marker.togglePopup();
+            }
+          });
         }
 
         if (autoFly && typeof adminMapInstance.flyTo === 'function') {
@@ -2539,6 +2554,10 @@
       if (typeof adminMapInstance.flyTo === 'function') {
         const key = `sos_${sosId}`;
         const item = sosMapMarkers[key] || sosMapMarkers[String(sosId)] || Object.values(sosMapMarkers).find(m => m.id == sosId);
+        if (item && item.marker && typeof item.marker.setLngLat === 'function') {
+          item.marker.setLngLat([numLng, numLat]);
+          item.pos = [numLng, numLat];
+        }
         const p = item && (item.popup || (item.marker && typeof item.marker.getPopup === 'function' ? item.marker.getPopup() : null));
         if (typeof window.focusMaplibreSiteCentered === 'function') {
           window.focusMaplibreSiteCentered(adminMapInstance, numLng, numLat, p, sosMapMarkers, 16.8);
@@ -3101,7 +3120,7 @@
       // Load ONLY fresh (<2h), unresolved offline LoRa SOS alerts cached in localStorage
       try {
         const offlineSos = loadFreshOfflineLoraSos();
-        offlineSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+        offlineSos.slice().reverse().forEach(alert => addOrUpdateSosMarker(alert, false));
       } catch (_) {}
 
       window.addEventListener('evakwar:lora-sos', (ev) => {
@@ -3861,7 +3880,7 @@
       }
       try {
         const offlineSos = loadFreshOfflineLoraSos();
-        offlineSos.forEach(alert => addOrUpdateSosMarker(alert, false));
+        offlineSos.slice().reverse().forEach(alert => addOrUpdateSosMarker(alert, false));
       } catch (_) {}
 
       if (typeof io !== 'undefined' && !window.__adminEvacSocketInitialized) {

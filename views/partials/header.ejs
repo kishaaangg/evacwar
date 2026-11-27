@@ -1708,6 +1708,17 @@
         }
       }
 
+      // Keep the owning MapLibre marker strictly synchronized with its popup coordinates
+      if (markersDict && typeof markersDict === 'object' && popup) {
+        const owner = Object.values(markersDict).find(item => item && (item.popup === popup || (item.marker && typeof item.marker.getPopup === 'function' && item.marker.getPopup() === popup)));
+        if (owner && owner.marker && typeof owner.marker.setLngLat === 'function') {
+          owner.marker.setLngLat([numLng, numLat]);
+          if (Array.isArray(owner.pos)) owner.pos = [numLng, numLat];
+          if (typeof owner.lat === 'number') owner.lat = numLat;
+          if (typeof owner.lng === 'number') owner.lng = numLng;
+        }
+      }
+
       const targetZoom = (typeof window.getSafeFocusZoom === 'function') ? window.getSafeFocusZoom(map, preferredZoom) : preferredZoom;
       const curPitch = typeof map.getPitch === 'function' ? map.getPitch() : 0;
       const curBearing = typeof map.getBearing === 'function' ? map.getBearing() : 0;
@@ -5283,9 +5294,10 @@
                           console.log('[LoRa Mesh] 🚨 Inbound Resident SOS Packet received:', sosPacket);
 
                           // Normalize fields so both Admin, Staff, and Rescuer maps/banners render it cleanly offline
+                          const canonicalLoraId = sosPacket.id || sosPacket.sosId || sosPacket.sos_id || sosPacket.msgId || ('lora_' + (sosPacket.residentId || sosPacket.resident_id || Date.now()));
                           const normalizedSos = {
-                            id: sosPacket.sosId || sosPacket.msgId || ('lora_' + Date.now()),
-                            sos_id: sosPacket.sosId || sosPacket.msgId || ('lora_' + Date.now()),
+                            id: canonicalLoraId,
+                            sos_id: canonicalLoraId,
                             resident_id: sosPacket.residentId || sosPacket.resident_id || 0,
                             name: sosPacket.name || sosPacket.residentName || sosPacket.sender || 'Resident in Distress',
                             resident_name: sosPacket.name || sosPacket.residentName || sosPacket.sender || 'Resident in Distress',
@@ -5303,10 +5315,11 @@
                           try {
                             let storedSos = JSON.parse(localStorage.getItem('evw_offline_lora_sos_alerts') || '[]');
                             if (!Array.isArray(storedSos)) storedSos = [];
+                            const normResId = Number(normalizedSos.resident_id || 0);
                             if (normalizedSos.status === 'CANCELLED') {
-                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id) && String(a.resident_id) !== String(normalizedSos.resident_id));
+                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id) && !(normResId && Number(a.resident_id || a.residentId || 0) === normResId));
                             } else {
-                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id));
+                              storedSos = storedSos.filter(a => String(a.id) !== String(normalizedSos.id) && !(normResId && Number(a.resident_id || a.residentId || 0) === normResId));
                               storedSos.unshift(normalizedSos);
                             }
                             localStorage.setItem('evw_offline_lora_sos_alerts', JSON.stringify(storedSos.slice(0, 30)));
