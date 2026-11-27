@@ -207,20 +207,30 @@
     }
   }
 
-  function extractEvwStringFromAscii(text) {
+  function extractEvwStringFromAscii(text, requireTerminator = false) {
     if (!text || typeof text !== 'string') return null;
     const idx = text.indexOf('EVW|');
     if (idx === -1) return null;
     let result = '';
+    let sawTerminator = false;
     for (let i = idx; i < text.length; i++) {
       const code = text.charCodeAt(i);
       // Stop on ASCII control characters or invalid UTF-8 replacement chars, but KEEP all valid UTF-8 / emojis!
       if (code < 32 || code === 127 || code === 0xFFFD) {
+        sawTerminator = true;
         break;
       }
       result += text[i];
     }
-    return result.length >= 8 ? result.trim() : null;
+    const trimmed = result.trim();
+    if (trimmed.endsWith('|END')) {
+      sawTerminator = true;
+    }
+    // Prevent 64-byte USB-CDC / BLE chunk splits from firing mid-name fragments like "An" or "Laure"
+    if (requireTerminator && !sawTerminator) {
+      return null;
+    }
+    return trimmed.length >= 8 ? trimmed : null;
   }
 
   // Minimal protobuf reader for Meshtastic FromRadio -> MeshPacket -> Data (portnum=67) -> Telemetry -> EnvironmentMetrics
@@ -802,7 +812,7 @@
         }
         if (detail.ascii) {
           this.nativeBleAsciiBuffer += detail.ascii;
-          const evw = extractEvwStringFromAscii(this.nativeBleAsciiBuffer);
+          const evw = extractEvwStringFromAscii(this.nativeBleAsciiBuffer, true);
           if (evw) {
             this.handleIncomingRawPacket(evw, 'BLE');
             this.nativeBleAsciiBuffer = '';
@@ -856,7 +866,7 @@
         }
         if (detail.ascii) {
           this.nativeUsbAsciiBuffer += detail.ascii;
-          const evw = extractEvwStringFromAscii(this.nativeUsbAsciiBuffer);
+          const evw = extractEvwStringFromAscii(this.nativeUsbAsciiBuffer, true);
           if (evw) {
             this.handleIncomingRawPacket(evw, 'USB_SERIAL');
             this.nativeUsbAsciiBuffer = '';
@@ -1058,13 +1068,34 @@
 
         this.emit('sos', { ...parsed, status: 'CANCELLED' });
       } else if (parsed.type === 'SOS') {
+        // Recover full resident name from offline roster if a legacy/noisy chunk truncated the tail (e.g. "An" -> "Angelica Tuyay", "Laure" -> "Laurence Sinfuego")
+        let resolvedName = String(parsed.name || '').trim();
+        try {
+          const rId = Number(parsed.residentId || 0);
+          if (rId && Array.isArray(global.OFFLINE_RESIDENTS)) {
+            const matchRes = global.OFFLINE_RESIDENTS.find(r => Number(r.id || r.resident_id) === rId);
+            if (matchRes) {
+              const fullResName = String(matchRes.full_name || `${matchRes.first_name || ''} ${matchRes.last_name || ''}`).trim();
+              if (fullResName && (!resolvedName || (resolvedName.length < fullResName.length && fullResName.toLowerCase().startsWith(resolvedName.toLowerCase())))) {
+                resolvedName = fullResName;
+              }
+            }
+          }
+        } catch (_) {}
+
         const sosKey = String(parsed.msgId || parsed.sosId || `${parsed.residentId || 0}_${parsed.latitude}_${parsed.longitude}`);
-        this._processedSosIds = this._processedSosIds || new Set();
+        this._processedSosMap = this._processedSosMap || new Map();
         const isUpdate = parsed.statusCode === 'UPD';
-        if (!isUpdate && this._processedSosIds.has(sosKey)) {
+        const prevEntry = this._processedSosMap.get(sosKey);
+        const isBetterName = Boolean(prevEntry && resolvedName.length > (prevEntry.nameLen || 0));
+        if (!isUpdate && prevEntry && !isBetterName) {
           return;
         }
-        this._processedSosIds.add(sosKey);
+        this._processedSosMap.set(sosKey, {
+          nameLen: resolvedName.length,
+          lat: parsed.latitude,
+          lng: parsed.longitude
+        });
 
         const sosObj = {
           ...parsed,
@@ -1073,8 +1104,8 @@
           sos_id: parsed.sosId || ('lora_' + (parsed.residentId || sosKey)),
           residentId: parsed.residentId || 0,
           resident_id: parsed.residentId || 0,
-          name: parsed.name || 'Resident in Distress',
-          residentName: parsed.name || 'Resident in Distress',
+          name: resolvedName || 'Resident in Distress',
+          residentName: resolvedName || 'Resident in Distress',
           status: 'ACTIVE',
           barangay: 'San Rafael (433.875 MHz LoRa)',
           transport: sourceTransport || 'LORA_MESH_433MHZ',
@@ -2547,12 +2578,13 @@
           this._drainSerialBuffer();
         }, 260);
       } else {
-        // Check for any plain-text EVW| line in skipped bytes before discarding
+        // Check for any COMPLETE terminated plain-text EVW| line in skipped bytes before discarding
+        // (requireTerminator=true prevents 64-byte USB-CDC chunks from cutting resident names mid-word like "An" or "Laure")
         if (cursor > 8) {
           const skipped = this.serialBuffer.subarray(0, cursor);
           const ascii = new TextDecoder('utf-8', { fatal: false }).decode(skipped);
           if (ascii.includes('EVW|')) {
-            const evw = extractEvwStringFromAscii(ascii);
+            const evw = extractEvwStringFromAscii(ascii, true);
             if (evw) this.handleIncomingRawPacket(evw, 'USB_SERIAL');
           }
         }
@@ -2775,7 +2807,7 @@
       const acc = Math.round(Number(accuracy || 10));
       const cleanName = String(name || 'Resident').replace(/\|/g, ' ').slice(0, 26);
 
-      const rawPacket = `EVW|SOS|${id}|${resId}|${lat},${lng},${acc}|${pinMode}|${vulnCode}|${statusCode}|${cleanName}`;
+      const rawPacket = `EVW|SOS|${id}|${resId}|${lat},${lng},${acc}|${pinMode}|${vulnCode}|${statusCode}|${cleanName}|END`;
       return await this.sendPacket(rawPacket, {
         msgId: id,
         resident_id: resId,
