@@ -1759,50 +1759,62 @@
               }
 
               // Listen for 433.875 MHz LoRa ACK / Rescuer Status Updates (EVW|ACK|<sosId>|<residentId>|<status>|<responderName>|<rescuerLat>,<rescuerLng>)
-              if (window.evakwarLoraClient) {
-                window.evakwarLoraClient.on('ack', (ackData) => {
-                  if (!ackData) return;
-                  const status = String(ackData.status || 'ACKNOWLEDGED').toUpperCase();
-                  const responder = ackData.responderName || 'Barangay Hall';
-                  const badge = document.getElementById('webLoraStatusBadge');
+              const handleInboundLoraAck = (ackData) => {
+                if (!ackData) return;
+                const status = String(ackData.status || 'ACKNOWLEDGED').toUpperCase().trim();
+                const responder = ackData.responderName || 'Barangay Hall';
+                const badge = document.getElementById('webLoraStatusBadge');
 
-                  if (status === 'CANCELLED') {
-                    if (badge) badge.textContent = 'SOS CANCELLED BY YOU';
-                    setSosNormalState();
-                  } else if (status === 'RESOLVED' || status === 'RESCUED') {
-                    if (badge) badge.textContent = `LORA RX: ${status} BY ${responder}`;
-                    if (typeof window.EvacWarToast === 'function') {
-                      window.EvacWarToast(`LoRa Update: Your SOS was marked ${status} by ${responder}.`);
-                    }
-                    setSosNormalState();
-                  } else {
-                    if (!activeSosAlert) {
-                      setSosActiveState({
-                        id: ackData.sosId || Date.now(),
-                        resident_id: residentId,
-                        name: residentName,
-                        latitude: currentLat || 13.51024,
-                        longitude: currentLng || 123.34701,
-                        status: status,
-                        responder_name: responder,
-                        rescuer_lat: ackData.rescuerLat,
-                        rescuer_lng: ackData.rescuerLng
-                      });
-                    }
-                    if (badge) badge.textContent = `LORA ACK: ${status} • ${responder}`;
-                    if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
-                    if (sosCardSubtext) sosCardSubtext.textContent = `Barangay Hall / Rescuer (${responder}) acknowledged your SOS over 433.875 MHz LoRa Mesh! Help is on the way.`;
-                    updateRescuerEtaDisplay({
-                      status: status,
-                      responderName: responder,
-                      rescuerLat: ackData.rescuerLat,
-                      rescuerLng: ackData.rescuerLng
-                    });
-                    if (typeof window.EvacWarToast === 'function') {
-                      window.EvacWarToast(`LoRa ACK: ${status} by ${responder}!`);
-                    }
+                // Filter only if packet specifies a DIFFERENT residentId
+                const ackResId = Number(ackData.residentId || ackData.resident_id || 0);
+                const myResId = Number(residentId || currentUserId || 0);
+                if (ackResId > 0 && myResId > 0 && ackResId !== myResId) {
+                  return;
+                }
+
+                if (status === 'CANCELLED') {
+                  if (badge) badge.textContent = 'SOS CANCELLED BY YOU';
+                  setSosNormalState();
+                } else if (status === 'RESOLVED' || status === 'RESCUED') {
+                  if (badge) badge.textContent = `LORA RX: ${status} BY ${responder}`;
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(`LoRa Update: Your SOS was marked ${status} by ${responder}.`);
                   }
-                });
+                  setSosNormalState();
+                } else {
+                  if (!activeSosAlert) {
+                    setSosActiveState({
+                      id: ackData.sosId || Date.now(),
+                      resident_id: residentId,
+                      name: residentName,
+                      latitude: currentLat || 13.51024,
+                      longitude: currentLng || 123.34701,
+                      status: status,
+                      responder_name: responder,
+                      rescuer_lat: ackData.rescuerLat,
+                      rescuer_lng: ackData.rescuerLng
+                    });
+                  }
+                  if (badge) badge.textContent = `LORA ACK: ${status} • ${responder}`;
+                  if (sosCardHeading) sosCardHeading.textContent = `🚨 SOS ${status} (${responder})`;
+                  if (sosCardSubtext) sosCardSubtext.textContent = `Barangay Hall / Rescuer (${responder}) acknowledged your SOS over 433.875 MHz LoRa Mesh! Help is on the way.`;
+                  updateRescuerEtaDisplay({
+                    status: status,
+                    responderName: responder,
+                    rescuerLat: ackData.rescuerLat,
+                    rescuerLng: ackData.rescuerLng
+                  });
+                  if (typeof window.EvacWarToast === 'function') {
+                    window.EvacWarToast(`LoRa ACK: ${status} by ${responder}!`);
+                  }
+                }
+              };
+
+              window.addEventListener('evakwar:lora-ack', (ev) => {
+                handleInboundLoraAck(ev && ev.detail);
+              });
+              if (window.evakwarLoraClient && typeof window.evakwarLoraClient.on === 'function') {
+                window.evakwarLoraClient.on('ack', handleInboundLoraAck);
               }
             });
           </script>

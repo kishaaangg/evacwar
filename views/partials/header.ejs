@@ -1018,7 +1018,7 @@
                   </button>
                 `}
               ` : `
-                <button type="button" onclick="resolveSosAlert(${sosAlert.id})" class="py-1.5 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
+                <button type="button" onclick="resolveSosAlert('${String(sosAlert.id).replace(/'/g, '')}')" class="py-1.5 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] shadow-xs flex items-center justify-center gap-1 transition-all truncate cursor-pointer active:scale-98">
                   <i class="ph ph-check-circle text-xs shrink-0"></i> Mark Resolved
                 </button>
               `}
@@ -1057,11 +1057,24 @@
         };
 
         const sendDirectLoraSosAck = (statusStr) => {
-          if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
+          const lora = window.evakwarLoraClient;
+          const isLoraReady = Boolean(lora && (lora.connected || lora.nativeBleActive || lora.nativeUsbActive || (window.AndroidBleBridge && typeof window.AndroidBleBridge.isConnected === 'function' && window.AndroidBleBridge.isConnected())));
+          if (lora && isLoraReady) {
             const rCoords = getResponderGpsCoords();
             const rName = (localStorage.getItem('evw_user_full_name') || 'Rescue Team').replace(/\|/g, '/').slice(0, 24);
-            const ackPkt = `EVW|ACK|${sosId}|0|${statusStr}|${rName}|${Number(rCoords.lat).toFixed(5)},${Number(rCoords.lng).toFixed(5)}`;
-            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+            let resId = 0;
+            try {
+              const mMap = (typeof sosMarkersMap !== 'undefined' && sosMarkersMap) || (typeof sosMapMarkers !== 'undefined' && sosMapMarkers) || {};
+              const hit = mMap[`sos_${sosId}`] || mMap[String(sosId)] || Object.values(mMap).find(m => m && String(m.id) === String(sosId));
+              if (hit && hit.resident_id) resId = Number(hit.resident_id) || 0;
+            } catch (_) {}
+            const ackPkt = `EVW|ACK|${sosId}|${resId}|${statusStr}|${rName}|${Number(rCoords.lat).toFixed(5)},${Number(rCoords.lng).toFixed(5)}|END`;
+            lora.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+            if (statusStr === 'RESOLVED' || statusStr === 'RESCUED') {
+              setTimeout(() => {
+                lora.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+              }, 2200);
+            }
           }
         };
 

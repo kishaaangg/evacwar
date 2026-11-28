@@ -1764,13 +1764,23 @@
     window.resolveSosAlert = async function (sosId) {
       if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
       const clearOfflineSos = () => {
+        let resolvedResId = 0;
+        try {
+          const hitAlert = (window.currentAdminSosAlerts || []).find(a => a && (String(a.id) === String(sosId) || String(a.sos_id) === String(sosId)));
+          const hitMarker = sosMapMarkers[`sos_${sosId}`] || sosMapMarkers[String(sosId)] || Object.values(sosMapMarkers).find(m => m && String(m.id) === String(sosId));
+          resolvedResId = Number((hitAlert && (hitAlert.resident_id || hitAlert.residentId)) || (hitMarker && hitMarker.resident_id) || 0) || 0;
+        } catch (_) {}
         rememberResolvedSosId(sosId);
-        removeSosMarker(sosId);
-        if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, null);
+        removeSosMarker(sosId, resolvedResId || null);
+        if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, resolvedResId || null);
         window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => String(a.id || a.sos_id) !== String(sosId));
         if (typeof updateAdminSosPanelList === 'function') updateAdminSosPanelList();
         if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
-          window.evakwarLoraClient.sendPacket(`EVW|ACK|${sosId}|0|RESOLVED|Hall Command`, { loraOnly: true }).catch(() => {});
+          const ackPkt = `EVW|ACK|${sosId}|${resolvedResId}|RESOLVED|Hall Command||END`;
+          window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          setTimeout(() => {
+            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          }, 2200);
         }
       };
       if (!navigator.onLine || String(sosId).startsWith('lora_')) {
@@ -2582,13 +2592,23 @@
       if (!sosId) return;
       if (!confirm('Mark this emergency SOS request as RESOLVED?')) return;
       const clearOfflineSos = () => {
+        let resolvedResId = 0;
+        try {
+          const hitAlert = (window.currentAdminSosAlerts || []).find(a => a && (String(a.id) === String(sosId) || String(a.sos_id) === String(sosId)));
+          const hitMarker = sosMapMarkers[`sos_${sosId}`] || sosMapMarkers[String(sosId)] || Object.values(sosMapMarkers).find(m => m && String(m.id) === String(sosId));
+          resolvedResId = Number((hitAlert && (hitAlert.resident_id || hitAlert.residentId)) || (hitMarker && hitMarker.resident_id) || 0) || 0;
+        } catch (_) {}
         rememberResolvedSosId(sosId);
-        removeSosMarker(sosId);
-        if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, null);
+        removeSosMarker(sosId, resolvedResId || null);
+        if (typeof window.dismissGlobalDistressBanner === 'function') window.dismissGlobalDistressBanner(sosId, resolvedResId || null);
         window.currentAdminSosAlerts = (window.currentAdminSosAlerts || []).filter(a => String(a.id || a.sos_id) !== String(sosId));
         updateAdminSosPanelList();
         if (window.evakwarLoraClient && window.evakwarLoraClient.connected) {
-          window.evakwarLoraClient.sendPacket(`EVW|ACK|${sosId}|0|RESOLVED|Hall Command`, { loraOnly: true }).catch(() => {});
+          const ackPkt = `EVW|ACK|${sosId}|${resolvedResId}|RESOLVED|Hall Command||END`;
+          window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          setTimeout(() => {
+            window.evakwarLoraClient.sendPacket(ackPkt, { loraOnly: true }).catch(() => {});
+          }, 2200);
         }
       };
       if (!navigator.onLine || String(sosId).startsWith('lora_')) {
