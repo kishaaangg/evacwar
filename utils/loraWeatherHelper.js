@@ -276,10 +276,18 @@ function buildWeatherAlertFromReading(reading, alertIdOverride = null) {
     ? '⛈️'
     : (/rain|overcast|cloud/i.test(condText) ? '🌦️' : (/danger|hot/i.test(heatCat) ? '🔥' : '🌤️'));
 
-  const title = `${icon} San Rafael Weather: ${condText}`;
+  const nowDate = new Date(reading.timestampMs || reading.updatedAt || Date.now());
+  const timeText = nowDate.toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  const title = `${icon} San Rafael Weather (${timeText}): ${condText}`;
   const feelsPart = hiText ? ` (Feels ${hiText}${heatCat ? ' • ' + heatCat : ''})` : '';
   const dpPart = dpText ? ` • Dew Pt ${dpText}` : '';
-  const message = `Temp ${tempText}${feelsPart} • Humidity ${humText}${dpPart} • Pressure ${pressText} (${trendText}). ${guidanceText}`;
+  const message = `As of ${timeText} • Temp ${tempText}${feelsPart} • Humidity ${humText}${dpPart} • Pressure ${pressText} (${trendText}). ${guidanceText}`;
 
   return {
     id,

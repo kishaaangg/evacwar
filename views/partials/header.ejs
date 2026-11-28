@@ -5447,8 +5447,17 @@
                           if (window.__seenWeatherNotifIds.has(alertId)) return;
                           window.__seenWeatherNotifIds.add(alertId);
 
-                          const title = '🌤️ LoRa Weather Sensor Update';
-                          const message = weatherAlert.message || 'Tap to view live sensor telemetry.';
+                          const alertTimeDate = new Date(weatherAlert.sent_at || weatherAlert.updatedAt || weatherAlert.timestampMs || Date.now());
+                          const alertTimeStr = isNaN(alertTimeDate.getTime())
+                            ? new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : alertTimeDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                          const title = `🌤️ LoRa Weather Sensor Update • ${alertTimeStr}`;
+                          const rawMsg = weatherAlert.message || (
+                            weatherAlert.temperature != null
+                              ? `Temp ${Number(weatherAlert.temperature).toFixed(1)}°C • Humidity ${weatherAlert.humidity != null ? Math.round(Number(weatherAlert.humidity)) + '%' : '--'} • Pressure ${weatherAlert.pressure != null ? Number(weatherAlert.pressure).toFixed(1) + ' hPa' : '--'}`
+                              : 'Tap to view live sensor telemetry.'
+                          );
+                          const message = /as of /i.test(rawMsg) ? rawMsg : `As of ${alertTimeStr} • ${rawMsg}`;
                           const targetUrl = resolveWeatherPageUrl();
 
                           // Persist latest reading to localStorage so Weather page reflects it offline too
