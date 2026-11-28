@@ -44,10 +44,10 @@
     <!-- Offline State Card (Shown when Relay is OFFLINE - hides all sensor values) -->
     <div id="lwsOfflineStateBox" class="bg-white border border-slate-200/90 rounded-2xl p-8 text-center shadow-xs">
       <div class="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-200 text-rose-500 flex items-center justify-center text-xl mx-auto mb-2.5">
-        <i class="ph ph-wifi-slash"></i>
+        <i class="ph ph-broadcast"></i>
       </div>
-      <div class="text-sm font-bold text-slate-800">Relay Offline</div>
-      <div class="text-xs text-slate-400 mt-0.5">No live sensor data available</div>
+      <div id="lwsOfflineTitle" class="text-sm font-bold text-slate-800">Relay Offline</div>
+      <div id="lwsOfflineSubtitle" class="text-xs text-slate-400 mt-0.5">No live sensor data received yet over 433.875 MHz LoRa or Wi-Fi</div>
     </div>
 
     <!-- Minimalist 4-Card Sensor Data Grid (Hidden when Relay is OFFLINE) -->
@@ -179,12 +179,22 @@
       const liveHist = document.getElementById('lwsLiveHistoryCard');
 
       if (!isRelayOnline || !rawCurrent) {
+        const lora = window.evakwarLoraClient;
+        const isLoraLinked = Boolean(lora && lora.connected && (lora.transport === 'USB_SERIAL' || lora.transport === 'BLE'));
         if (srcBadge) {
-          srcBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200';
-          srcBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Offline</span>`;
+          srcBadge.className = isLoraLinked
+            ? 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-50 text-amber-700 border border-amber-200'
+            : 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200';
+          srcBadge.innerHTML = isLoraLinked
+            ? `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span><span>Listening (433MHz)</span>`
+            : `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Offline</span>`;
         }
         setTxt('lwsUpdatedLabel', 'Status');
-        setTxt('lwsUpdatedAt', 'Offline');
+        setTxt('lwsUpdatedAt', isLoraLinked ? 'Polling LoRa...' : 'Offline');
+        setTxt('lwsOfflineTitle', isLoraLinked ? 'Waiting for Relay Sensor over 433.875 MHz LoRa' : 'Relay Offline');
+        setTxt('lwsOfflineSubtitle', isLoraLinked
+          ? 'Hall/LoRa node is connected — polling Relay (!0f778ab0) for AHT20 + BMP280 telemetry over 433.875 MHz RF. Tap Refresh to poll again.'
+          : 'No live sensor data received yet over 433.875 MHz LoRa or Wi-Fi');
         setTxt('lwsTempValue', '--');
         setTxt('lwsHumidityValue', '--');
         setTxt('lwsPressureValue', '--');
@@ -428,8 +438,14 @@
       }
       window.evwRefreshSensorWeather();
       setInterval(() => {
-        if (navigator.onLine) window.evwRefreshSensorWeather();
-        else renderSensorDashboard();
+        if (navigator.onLine) {
+          window.evwRefreshSensorWeather();
+        } else {
+          if (window.evakwarLoraClient && typeof window.evakwarLoraClient.requestRelayWeatherTelemetry === 'function') {
+            window.evakwarLoraClient.requestRelayWeatherTelemetry().catch(() => {});
+          }
+          renderSensorDashboard();
+        }
       }, 20000);
     });
   })();

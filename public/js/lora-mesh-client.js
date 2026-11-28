@@ -144,12 +144,17 @@
       encodeVarintField(3, 1) // want_response = true
     ]);
     const packetId = Math.floor(Math.random() * 0x7fffffff) || 1;
-    const meshPacket = concatUint8([
+    const isBroadcast = (relayNodeNum >>> 0) === 0xffffffff;
+    const fields = [
       encodeFixed32Field(2, relayNodeNum >>> 0),
       encodeLengthDelimited(4, dataMsg),
       encodeFixed32Field(6, packetId),
       encodeVarintField(9, 3) // hop_limit = 3
-    ]);
+    ];
+    if (!isBroadcast) {
+      fields.push(encodeVarintField(10, 1)); // want_ack = true for unicast RF request
+    }
+    const meshPacket = concatUint8(fields);
     return encodeLengthDelimited(1, meshPacket);
   }
 
@@ -1236,29 +1241,43 @@
 
     _startRelayTelemetryPolling() {
       if (this.relayTelemetryPollTimer) clearInterval(this.relayTelemetryPollTimer);
-      setTimeout(() => {
+      if (this._relayBootPollTimers) {
+        this._relayBootPollTimers.forEach(t => clearTimeout(t));
+      }
+      this._relayBootPollTimers = [];
+
+      const pollNow = () => {
         if (this.connected && (this.transport === 'BLE' || this.transport === 'USB_SERIAL')) {
           const sinceChat = Date.now() - (this._lastChatTxMs || 0);
-          if (sinceChat > 20000) {
+          if (sinceChat > 12000) {
             this.requestRelayWeatherTelemetry().catch(() => {});
           }
         }
-      }, 4500);
-      // Poll every 5 minutes (300s) instead of 60s so 433.875 MHz airtime stays clear for chat & SOS
+      };
+
+      // Poll twice shortly after connect (once after initial handshake, once after NodeDB settles)
+      this._relayBootPollTimers.push(setTimeout(pollNow, 4500));
+      this._relayBootPollTimers.push(setTimeout(() => {
+        const lastRx = this._lastWeatherRfRxMs || 0;
+        if (Date.now() - lastRx > 30000) pollNow();
+      }, 12500));
+
+      // Poll every 60s when no fresh RF reading yet, or every 3 minutes once live
       this.relayTelemetryPollTimer = setInterval(() => {
-        if (this.connected && (this.transport === 'BLE' || this.transport === 'USB_SERIAL')) {
-          const sinceChat = Date.now() - (this._lastChatTxMs || 0);
-          if (sinceChat > 20000) {
-            this.requestRelayWeatherTelemetry().catch(() => {});
-          }
-        }
-      }, 300000);
+        const lastRx = this._lastWeatherRfRxMs || 0;
+        const stale = (Date.now() - lastRx) > 150000;
+        if (stale) pollNow();
+      }, 60000);
     }
 
     _stopRelayTelemetryPolling() {
       if (this.relayTelemetryPollTimer) {
         clearInterval(this.relayTelemetryPollTimer);
         this.relayTelemetryPollTimer = null;
+      }
+      if (this._relayBootPollTimers) {
+        this._relayBootPollTimers.forEach(t => clearTimeout(t));
+        this._relayBootPollTimers = [];
       }
     }
 
@@ -1391,10 +1410,24 @@
         }
       } catch (_) {}
 
+      this._lastWeatherRfRxMs = nowMs;
+      console.log(`[LoRaMeshClient] 🌡️ RX LoRa Weather Telemetry (${weatherObj.source}): T=${weatherObj.temperature}°C H=${weatherObj.humidity}% P=${weatherObj.pressure}hPa RSSI=${weatherObj.rssi}`);
+
       try {
         window.dispatchEvent(new CustomEvent('evakwar:lora-weather', { detail: weatherObj }));
       } catch (_) {}
       this.emit('weather', weatherObj);
+
+      // 100% offline 2-hour automatic weather notification directly from 433.875 MHz LoRa RF telemetry
+      if (!isAlert && !isI2cWarning && validTemp !== null && (typeof navigator === 'undefined' || !navigator.onLine)) {
+        try {
+          const lastAutoMs = Number(localStorage.getItem('evw_last_offline_weather_alert_ms') || 0);
+          if (!lastAutoMs || (nowMs - lastAutoMs) >= (2 * 60 * 60 * 1000)) {
+            localStorage.setItem('evw_last_offline_weather_alert_ms', String(nowMs));
+            isAlert = true;
+          }
+        } catch (_) {}
+      }
 
       // Crowd-sync outdoor Relay telemetry to the EvakWar server whenever any node-connected device has internet
       // so Admin, Residents, Staff, and Rescuers all see the live outdoor Relay readings immediately!
